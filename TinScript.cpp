@@ -323,7 +323,6 @@ void LoadStringTable() {
 	FILE* filehandle = NULL;
 	int result = fopen_s(&filehandle, gStringTableFileName, "rb");
 	if (result != 0) {
-        ScriptAssert_(0, "<internal>", -1, "Error - unable to write file %s\n", gStringTableFileName);
 		return;
     }
 
