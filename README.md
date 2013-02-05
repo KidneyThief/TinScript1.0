@@ -11,15 +11,14 @@ I haven't even begun to document this library, but the fastest way to explore it
 *  Build the executable, and run it.
 *  A cmd shell should open up, with a "Console =>" prompt
 *  Try executing (precisely, case sensitive):
-*        Print("hello world!");
+  *  Print("hello world");
 *  You should see both the console input echo'd, as well as the actual "hello world" text.
 *  Finally, execute the command:
-*        BeginUnitTests();
-
+  *  BeginUnitTests();
 *  The spam of about 20 unit tests should stream by.  Open up files:
-*        source/TinScript.h  - at the bottom, are the function prototypes for using tinscript
-*        source/unittest.cpp - for an example of just about every aspect of the integration
-*        scripts/unittest.cs - for the script side of the unit test examples.
+  *  source/TinScript.h  - at the bottom, are the function prototypes for using tinscript
+  *  source/unittest.cpp - for an example of just about every aspect of the integration
+  *  scripts/unittest.cs - for the script side of the unit test examples.
 
 Enjoy,
 
