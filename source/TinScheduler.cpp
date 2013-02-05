@@ -24,6 +24,7 @@
 // ------------------------------------------------------------------------------------------------
 
 #include "stdafx.h"
+#include "stdio.h"
 
 #include "TinScript.h"
 #include "TinRegistration.h"

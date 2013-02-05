@@ -19,10 +19,15 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
+// ------------------------------------------------------------------------------------------------
+// TinCompile.cpp
+// ------------------------------------------------------------------------------------------------
 
+// -- lib includes
 #include "stdafx.h"
 #include "assert.h"
 #include "string.h"
+#include "stdio.h"
 
 #include "TinScript.h"
 #include "TinParse.h"

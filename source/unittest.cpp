@@ -25,12 +25,15 @@
 
 #include "stdafx.h"
 
+// -- lib includes
+#include "stdio.h"
+
 // -- includes required by any system wanting access to TinScript
 #include "TinScript.h"
 #include "TinRegistration.h"
 
 // -- constants -----------------------------------------------------------------------------------
-static const char* kUnitTestScriptName = "unittest.cs";
+static const char* kUnitTestScriptName = "../scripts/unittest.cs";
 
 // -- GLOBAL VARIABLES ----------------------------------------------------------------------------
 int gCodeGlobalVariable = 17;
@@ -433,7 +436,7 @@ void BeginUnitTests(int teststart, int testend) {
     printf("****************************\n");
 }
 
-REGISTER_FUNCTION_P2(BeginUnitTests, BeginUnitTests, void, int, int);
+//REGISTER_FUNCTION_P2(BeginUnitTests, BeginUnitTests, void, int, int);
 
 // ------------------------------------------------------------------------------------------------
 // eof

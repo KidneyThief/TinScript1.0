@@ -26,6 +26,7 @@
 #include "stdafx.h"
 #include "assert.h"
 #include "string.h"
+#include "stdio.h"
 
 #include "TinScript.h"
 #include "TinCompile.h"

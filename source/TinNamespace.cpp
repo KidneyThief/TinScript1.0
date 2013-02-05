@@ -23,7 +23,9 @@
 // tinnamespace.cpp
 // ------------------------------------------------------------------------------------------------
 
+// -- lib includes
 #include "stdafx.h"
+#include "stdio.h"
 
 #include "TinNamespace.h"
 #include "TinParse.h"

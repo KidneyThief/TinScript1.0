@@ -11,9 +11,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{D479E4AF-5042-46D6-B2F4-FB33626E246E}</ProjectGuid>
+    <ProjectGuid>{819A6141-5AD8-48C6-AD52-C3BB9FEF3126}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>TinScript</RootNamespace>
+    <RootNamespace>tinconsole</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -39,7 +39,6 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -50,6 +49,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\source;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -84,15 +84,10 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="TinCompile.cpp" />
-    <ClCompile Include="TinExecute.cpp" />
-    <ClCompile Include="TinNamespace.cpp" />
-    <ClCompile Include="TinParse.cpp" />
-    <ClCompile Include="TinRegistration.cpp" />
-    <ClCompile Include="TinScheduler.cpp" />
-    <ClCompile Include="TinScript.cpp" />
-    <ClCompile Include="TinTypes.cpp" />
-    <ClCompile Include="unittest.cpp" />
+    <ClCompile Include="tinconsole.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="Debug\tinscript.lib" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
