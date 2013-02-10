@@ -29,6 +29,7 @@
 #include "stddef.h"
 #include "stdarg.h"
 
+#include "integration.h"
 #include "TinTypes.h"
 #include "TinNamespace.h"
 
@@ -58,7 +59,7 @@
             delete obj;                                                                                 \
         }                                                                                               \
     }                                                                                                   \
-    unsigned int GetObjectID() const { return TinScript::CNamespace::FindIDByAddress((void*)this); }    \
+    uint32 GetObjectID() const { return TinScript::CNamespace::FindIDByAddress((void*)this); }    \
     SCRIPT_DEFAULT_METHODS(classname);                                                                  \
     static void Register(TinScript::CNamespace* _classnamespace);                                       \
     static TinScript::CNamespace* classnamespace;
@@ -74,7 +75,7 @@
 #define REGISTER_MEMBER(classname, scriptname, membername)                                   \
     {                                                                                        \
         classname* classptr = reinterpret_cast<classname*>(0);                               \
-        unsigned int varhash = TinScript::Hash(#scriptname);                                 \
+        uint32 varhash = TinScript::Hash(#scriptname);                                 \
         TinScript::CVariableEntry* ve = new TinScript::CVariableEntry(#scriptname, varhash,  \
             TinScript::GetRegisteredType(TinScript::GetTypeID(classptr->membername)), true,  \
             offsetof(classname, membername));                                                \
@@ -88,18 +89,23 @@
 // ------------------------------------------------------------------------------------------------
 // constants
 
-const int kCompilerVersion = 1;
+const int32 kCompilerVersion = 1;
 
-const int kMaxArgs = 256;
-const int kMaxArgLength = 256;
+const int32 kMaxArgs = 256;
+const int32 kMaxArgLength = 256;
 
-const int kGlobalFuncTableSize = 97;
-const int kGlobalVarTableSize = 97;
+const int32 kGlobalFuncTableSize = 97;
+const int32 kGlobalVarTableSize = 97;
 
-const int kLocalFuncTableSize = 17;
-const int kLocalVarTableSize = 17;
+const int32 kLocalFuncTableSize = 17;
+const int32 kLocalVarTableSize = 17;
 
-const int kObjectTableSize = 10007;
+const int32 kFunctionCallStackSize = 32;
+
+const int32 kStringTableSize = 32 * 1024;
+const int32 kStringTableDictionarySize = 199;
+
+const int32 kObjectTableSize = 10007;
 
 #define kBytesToWordCount(a) ((a) + 3) / 4;
 
@@ -150,22 +156,22 @@ class CRegisterGlobal {
 // ------------------------------------------------------------------------------------------------
 // -- returns false if we should break
 void ResetAssertStack();
-bool AssertHandled(const char* condition, const char* file, int linenumber, const char* fmt, ...);
+nflag AssertHandled(const char* condition, const char* file, int32 linenumber, const char* fmt, ...);
 
 // ------------------------------------------------------------------------------------------------
 // external interface
 void Initialize();
-void Update(unsigned int curtime);
+void Update(uint32 curtime);
 void Shutdown();
 
 CCodeBlock* CompileScript(const char* filename);
-bool ExecScript(const char* filename);
+nflag ExecScript(const char* filename);
 
 CCodeBlock* CompileCommand(const char* filename);
-bool ExecCommand(const char* statement);
+nflag ExecCommand(const char* statement);
 
-bool IsObject(unsigned int objectid);
-void* FindObject(unsigned int objectid);
+nflag IsObject(uint32 objectid);
+void* FindObject(uint32 objectid);
 
 }  // TinScript
 

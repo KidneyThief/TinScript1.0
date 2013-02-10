@@ -33,8 +33,6 @@ namespace TinScript {
 // CStringTable is a singleton, used to create a dictionary of hashed strings
 class CStringTable {
     public:
-        enum { kStringTableSize = 32 * 1024, kStringTableDictionarySize = 199 };
-
         CStringTable(unsigned int _size) {
             assert(_size > 0);
             size = _size;

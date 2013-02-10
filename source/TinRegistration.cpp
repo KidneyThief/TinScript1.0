@@ -44,8 +44,8 @@ CVariableEntry::CVariableEntry(const char* _name, eVarType _type, void* _addr) {
     funcentry = NULL;
 }
 
-CVariableEntry::CVariableEntry(const char* _name, unsigned int _hash, eVarType _type,
-                               bool isoffset, unsigned int _offset, bool _isdynamic) {
+CVariableEntry::CVariableEntry(const char* _name, uint32 _hash, eVarType _type,
+                               nflag isoffset, uint32 _offset, nflag _isdynamic) {
 	SafeStrcpy(name, _name, kMaxNameLength);
 	type = _type;
 	hash = _hash;
@@ -93,7 +93,7 @@ CVariableEntry::~CVariableEntry() {
 
 void CVariableEntry::SetValue(void* objaddr, void* value) {
 	assert(value);
-	int size = gRegisteredTypeSize[type];
+	int32 size = gRegisteredTypeSize[type];
 
     // -- if we're providing an objaddr, this variable is actually a member
     void* varaddr = GetAddr(objaddr);
@@ -104,11 +104,11 @@ void CVariableEntry::SetValue(void* objaddr, void* value) {
 // -- const char*, before calling dispatch
 void CVariableEntry::SetValueAddr(void* objaddr, void* value) {
     assert(value);
-	int size = gRegisteredTypeSize[type];
+	int32 size = gRegisteredTypeSize[type];
 
     void* varaddr = GetAddr(objaddr);
     if(type == TYPE_string) {
-        unsigned int hash = Hash((const char*)value);
+        uint32 hash = Hash((const char*)value);
         memcpy(varaddr, &hash, size);
     }
     else
@@ -120,7 +120,7 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value) {
 CFunctionContext::CFunctionContext() {
     localvartable = new tVarTable(eMaxLocalVarCount);
     paramcount = 0;
-    for(int i = 0; i < eMaxParameterCount; ++i) {
+    for(int32 i = 0; i < eMaxParameterCount; ++i) {
         parameterlist[i] = NULL;
     }
 }
@@ -128,11 +128,11 @@ CFunctionContext::CFunctionContext() {
 CFunctionContext::~CFunctionContext() {
 
     // -- delete all the variable entries
-    int tablesize = localvartable->Size();
-	for(int i = 0; i < tablesize; ++i) {
+    int32 tablesize = localvartable->Size();
+	for(int32 i = 0; i < tablesize; ++i) {
 		CVariableEntry* ve = localvartable->FindItemByBucket(i);
 		while (ve) {
-			unsigned int hash = ve->GetHash();
+			uint32 hash = ve->GetHash();
 			localvartable->RemoveItem(hash);
 			delete ve;
 			ve = localvartable->FindItemByBucket(i);
@@ -143,8 +143,8 @@ CFunctionContext::~CFunctionContext() {
     delete localvartable;
 }
 
-bool CFunctionContext::AddParameter(const char* varname, unsigned int varhash, eVarType type,
-                                    int paramindex) {
+nflag CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type,
+                                    int32 paramindex) {
     assert(varname != NULL);
 
     // add the entry to the parameter list as well
@@ -173,7 +173,7 @@ bool CFunctionContext::AddParameter(const char* varname, unsigned int varhash, e
     return true;
 }
 
-bool CFunctionContext::AddParameter(const char* varname, unsigned int varhash, eVarType type) {
+nflag CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type) {
     assert(varname != NULL);
 
     // -- adding automatically increments the paramcount if needed
@@ -181,7 +181,7 @@ bool CFunctionContext::AddParameter(const char* varname, unsigned int varhash, e
     return true;
 }
 
-CVariableEntry* CFunctionContext::AddLocalVar(const char* varname, unsigned int varhash,
+CVariableEntry* CFunctionContext::AddLocalVar(const char* varname, uint32 varhash,
                                               eVarType type) {
 
     // -- ensure the variable doesn't already exist
@@ -193,22 +193,22 @@ CVariableEntry* CFunctionContext::AddLocalVar(const char* varname, unsigned int 
 
     // -- create the Variable entry
     CVariableEntry* ve = new CVariableEntry(varname, varhash, type, false, 0, false);
-	unsigned int hash = ve->GetHash();
+	uint32 hash = ve->GetHash();
 	localvartable->AddItem(*ve, hash);
 
     return ve;
 }
 
-int CFunctionContext::GetParameterCount() {
+int32 CFunctionContext::GetParameterCount() {
     return paramcount;
 }
 
-CVariableEntry* CFunctionContext::GetParameter(int index) {
+CVariableEntry* CFunctionContext::GetParameter(int32 index) {
     assert(index >= 0 && index < paramcount);
     return parameterlist[index];
 }
 
-CVariableEntry* CFunctionContext::GetLocalVar(unsigned int varhash) {
+CVariableEntry* CFunctionContext::GetLocalVar(uint32 varhash) {
     return localvartable->FindItem(varhash);
 }
 
@@ -216,10 +216,10 @@ tVarTable* CFunctionContext::GetLocalVarTable() {
     return localvartable;
 }
 
-bool CFunctionContext::IsParameter(CVariableEntry* ve) {
+nflag CFunctionContext::IsParameter(CVariableEntry* ve) {
     if(!ve)
         return false;
-    for(int i = 0; i < paramcount; ++i) {
+    for(int32 i = 0; i < paramcount; ++i) {
         if(parameterlist[i]->GetHash() == ve->GetHash())
             return true;
     }
@@ -229,11 +229,11 @@ bool CFunctionContext::IsParameter(CVariableEntry* ve) {
 
 // ------------------------------------------------------------------------------------------------
 void CFunctionContext::InitStackVarOffsets() {
-    int stackoffset = 0;
+    int32 stackoffset = 0;
 
     // -- loop the parameters
-    int paramcount = GetParameterCount();
-    for(int i = 0; i < paramcount; ++i) {
+    int32 paramcount = GetParameterCount();
+    for(int32 i = 0; i < paramcount; ++i) {
         CVariableEntry* ve = GetParameter(i);
         assert(ve);
         // -- set the stackoffset
@@ -246,7 +246,7 @@ void CFunctionContext::InitStackVarOffsets() {
     tVarTable* vartable = GetLocalVarTable();
     assert(vartable);
 	if(vartable) {
-		for(unsigned int i = 0; i < vartable->Size(); ++i) {
+		for(uint32 i = 0; i < vartable->Size(); ++i) {
 			CVariableEntry* ve = vartable->FindItemByBucket(i);
 			while (ve) {
                 if(!IsParameter(ve)) {
@@ -263,7 +263,7 @@ void CFunctionContext::InitStackVarOffsets() {
 
 // ------------------------------------------------------------------------------------------------
 // CFunctionEntry implementation
-CFunctionEntry::CFunctionEntry(unsigned int _nshash, const char* _name, unsigned int _hash,
+CFunctionEntry::CFunctionEntry(uint32 _nshash, const char* _name, uint32 _hash,
                                EFunctionType _type, void* _addr) {
 	SafeStrcpy(name, _name, kMaxNameLength);
 	type = _type;
@@ -275,7 +275,7 @@ CFunctionEntry::CFunctionEntry(unsigned int _nshash, const char* _name, unsigned
     regobject = NULL;
 }
 
-CFunctionEntry::CFunctionEntry(unsigned int _nshash, const char* _name, unsigned int _hash,
+CFunctionEntry::CFunctionEntry(uint32 _nshash, const char* _name, uint32 _hash,
                                EFunctionType _type, CRegFunctionBase* _func) {
 	SafeStrcpy(name, _name, kMaxNameLength);
 	type = _type;
@@ -297,7 +297,7 @@ void* CFunctionEntry::GetAddr() const {
 	return addr;
 }
 
-void CFunctionEntry::SetCodeBlockOffset(CCodeBlock* _codeblock, unsigned int _offset) {
+void CFunctionEntry::SetCodeBlockOffset(CCodeBlock* _codeblock, uint32 _offset) {
     assert(type == eFuncTypeScript);
 
     // -- if we're switching codeblocks (recompiling...) change owners
@@ -310,7 +310,7 @@ void CFunctionEntry::SetCodeBlockOffset(CCodeBlock* _codeblock, unsigned int _of
         codeblock->AddFunction(this);
 }
 
-unsigned int CFunctionEntry::GetCodeBlockOffset(CCodeBlock*& _codeblock) const {
+uint32 CFunctionEntry::GetCodeBlockOffset(CCodeBlock*& _codeblock) const {
     assert(type == eFuncTypeScript);
     _codeblock = codeblock;
     return instroffset;

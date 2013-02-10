@@ -36,11 +36,11 @@
 
 namespace TinScript {
 
-static const int kExecStackSize = 2048;
-static const int kExecFuncCallDepth = 1024;
+static const int32 kExecStackSize = 2048;
+static const int32 kExecFuncCallDepth = 1024;
 
 // enable this for debug output while the executing the virtual machine
-bool gDebugTrace = false;
+nflag gDebugTrace = false;
 
 void DebugTrace(eOpCode opcode, const char* fmt, ...) {
 #if DEBUG_TRACE
@@ -58,8 +58,8 @@ void DebugTrace(eOpCode opcode, const char* fmt, ...) {
 }
 
 void* GetStackVarAddr(CExecStack& execstack, CFunctionCallStack& funccallstack,
-                      int stackvaroffset) {
-    int stacktop = 0;
+                      int32 stackvaroffset) {
+    int32 stacktop = 0;
     CObjectEntry* oe = NULL;
     CFunctionEntry* fe = funccallstack.GetExecuting(oe, stacktop);
     if(!fe || stackvaroffset < 0) {
@@ -71,7 +71,7 @@ void* GetStackVarAddr(CExecStack& execstack, CFunctionCallStack& funccallstack,
     return varaddr;
 }
 
-bool GetStackValue(CExecStack& execstack, CFunctionCallStack& funccallstack,
+nflag GetStackValue(CExecStack& execstack, CFunctionCallStack& funccallstack,
                    void*& valaddr, eVarType& valtype, CVariableEntry*& ve, CObjectEntry*& oe) {
     // -- we'll always return a value, but if that comes from a var or an object member,
     // -- return those as well
@@ -80,12 +80,12 @@ bool GetStackValue(CExecStack& execstack, CFunctionCallStack& funccallstack,
 
 	// -- if a variable was pushed, use the var addr instead
 	if(valtype == TYPE__var || valtype == TYPE__hashvar) {
-        unsigned int val1ns = ((unsigned int*)valaddr)[0];
-        unsigned int val1func = ((unsigned int*)valaddr)[1];
-        unsigned int val1hash = ((unsigned int*)valaddr)[2];
+        uint32 val1ns = ((uint32*)valaddr)[0];
+        uint32 val1func = ((uint32*)valaddr)[1];
+        uint32 val1hash = ((uint32*)valaddr)[2];
 
         // -- one more level of dereference for variables that are actually hashtables
-        unsigned int val1hashvar = (valtype == TYPE__hashvar) ? ((unsigned int*)valaddr)[3] : 0;
+        uint32 val1hashvar = (valtype == TYPE__hashvar) ? ((uint32*)valaddr)[3] : 0;
 
 		ve = GetVariable(GetGlobalNamespace()->GetVarTable(), val1ns, val1func, val1hash,
                          val1hashvar);
@@ -99,8 +99,8 @@ bool GetStackValue(CExecStack& execstack, CFunctionCallStack& funccallstack,
 	}
 	// -- if a member was pushed, use the var addr instead
     else if(valtype == TYPE__member) {
-        unsigned int varhash = ((unsigned int*)valaddr)[0];
-        unsigned int varsource = ((unsigned int*)valaddr)[1];
+        uint32 varhash = ((uint32*)valaddr)[0];
+        uint32 varsource = ((uint32*)valaddr)[1];
         // -- find the object
         oe = CNamespace::FindObject(varsource);
         if(!oe) {
@@ -116,8 +116,8 @@ bool GetStackValue(CExecStack& execstack, CFunctionCallStack& funccallstack,
     }
     // -- if a stack variable was pushed...
     else if(valtype == TYPE__stackvar) {
-        eVarType valtype = (eVarType)((unsigned int*)valaddr)[0];
-        int stackvaroffset = ((unsigned int*)valaddr)[1];
+        eVarType valtype = (eVarType)((uint32*)valaddr)[0];
+        int32 stackvaroffset = ((uint32*)valaddr)[1];
         valaddr = GetStackVarAddr(execstack, funccallstack, stackvaroffset);
         if(!valaddr) {
             ScriptAssert_(0, "<internal>", -1, "Error - Unable to find stack var\n");
@@ -129,7 +129,7 @@ bool GetStackValue(CExecStack& execstack, CFunctionCallStack& funccallstack,
     return true;
 }
 
-bool GetBinOpValues(CExecStack& execstack, CFunctionCallStack& funccallstack,
+nflag GetBinOpValues(CExecStack& execstack, CFunctionCallStack& funccallstack,
                     void*& val0, eVarType& val0type,
 					void*& val1, eVarType& val1type) {
 
@@ -153,8 +153,8 @@ bool GetBinOpValues(CExecStack& execstack, CFunctionCallStack& funccallstack,
 
 // -- this is to consolidate all the math operations that pop two values from the stack
 // -- and compbine them... the operation is still responsible for handling pushing the result
-bool PerformNumericalBinOp(CExecStack& execstack, CFunctionCallStack& funccallstack,
-                           eOpCode op, float& result) {
+nflag PerformNumericalBinOp(CExecStack& execstack, CFunctionCallStack& funccallstack,
+                           eOpCode op, real& result) {
 
 	// -- Get both args from the stacks
 	eVarType val0type;
@@ -177,8 +177,8 @@ bool PerformNumericalBinOp(CExecStack& execstack, CFunctionCallStack& funccallst
     }
     void* val0addr = TypeConvert(val0type, val0, TYPE_float);
     void* val1addr = TypeConvert(val1type, val1, TYPE_float);
-    float val0float = *(float*)val0addr;
-    float val1float = *(float*)val1addr;
+    real val0float = *(real*)val0addr;
+    real val1float = *(real*)val1addr;
 
     // -- now perform the op
     switch(op) {
@@ -198,11 +198,11 @@ bool PerformNumericalBinOp(CExecStack& execstack, CFunctionCallStack& funccallst
         case OP_Mod:
         {
             ScriptAssert_(val1float != 0.0f, "<internal>", -1, "Error - Mod Divide by 0\n");
-            int val0int = (int)val0float;
-            int val1int = val1float < 0.0f ? -(int)val1float : (int)val1float;
+            int32 val0int = (int32)val0float;
+            int32 val1int = val1float < 0.0f ? -(int32)val1float : (int32)val1float;
             while(val0int < 0)
                 val0int += val1int;
-            result = (float)(val0int % val1int);
+            result = (real)(val0int % val1int);
             break;
         }
 
@@ -233,8 +233,8 @@ bool PerformNumericalBinOp(CExecStack& execstack, CFunctionCallStack& funccallst
 
 // -- this is to consolidate all the math operations that pop two values from the stack
 // -- and compbine them... the operation is still responsible for handling pushing the result
-bool PerformIntegerBinOp(CExecStack& execstack, CFunctionCallStack& funccallstack,
-                           eOpCode op, int& result) {
+nflag PerformIntegerBinOp(CExecStack& execstack, CFunctionCallStack& funccallstack,
+                           eOpCode op, int32& result) {
 
 	// -- Get both args from the stacks
 	eVarType val0type;
@@ -252,13 +252,13 @@ bool PerformIntegerBinOp(CExecStack& execstack, CFunctionCallStack& funccallstac
 	// $$$TZA expand the TypeToString tables to include operations
     if((val0type != TYPE_int && val0type != TYPE_float) ||
        (val1type != TYPE_int && val1type != TYPE_float)) {
-            ScriptAssert_(0, "<internal>", -1, "Error - trying to compare non-int types\n");
+            ScriptAssert_(0, "<internal>", -1, "Error - trying to compare non-int32 types\n");
 		return false;
     }
     void* val0addr = TypeConvert(val0type, val0, TYPE_int);
     void* val1addr = TypeConvert(val1type, val1, TYPE_int);
-    int val0int = *(int*)val0addr;
-    int val1int = *(int*)val1addr;
+    int32 val0int = *(int32*)val0addr;
+    int32 val1int = *(int32*)val1addr;
 
     // -- now perform the op
     switch(op) {
@@ -286,7 +286,7 @@ bool PerformIntegerBinOp(CExecStack& execstack, CFunctionCallStack& funccallstac
     return true;
 }
 
-bool PerformAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eOpCode op) {
+nflag PerformAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eOpCode op) {
 
 	// -- pop the value
     CVariableEntry* ve1 = NULL;
@@ -299,7 +299,7 @@ bool PerformAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, e
     }
 
 	// -- pop the (hash) name of the var
-    bool isstackvar = false;
+    nflag isstackvar = false;
     CVariableEntry* ve0 = NULL;
     CObjectEntry* oe0 = NULL;
 	eVarType varhashtype;
@@ -316,12 +316,12 @@ bool PerformAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, e
         return false;
     }
 
-    // -- if we're doing a straight up assignment, don't convert to float
+    // -- if we're doing a straight up assignment, don't convert to real
     if(op == OP_Assign )
     {
         if(isstackvar) {
             val1addr = TypeConvert(val1type, val1addr, varhashtype);
-            memcpy(var, val1addr, MAX_TYPE_SIZE * sizeof(unsigned int));
+            memcpy(var, val1addr, MAX_TYPE_SIZE * sizeof(uint32));
             DebugTrace(op, "StackVar: %s", DebugPrintVar(val1addr, varhashtype));
         }
         else {
@@ -336,11 +336,11 @@ bool PerformAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, e
     void* ve0addr = isstackvar ? TypeConvert(varhashtype, var, TYPE_float)
                                : TypeConvert(ve0->GetType(), ve0->GetAddr(oe0), TYPE_float);
     val1addr = TypeConvert(val1type, val1addr, TYPE_float);
-    float vefloat = *(float*)ve0addr;
-    float val1float = *(float*)val1addr;
+    real vefloat = *(real*)ve0addr;
+    real val1float = *(real*)val1addr;
 
     // -- now perform the op
-    float result = 0.0f;
+    real result = 0.0f;
     switch(op) {
         case OP_AssignAdd:
             result = vefloat + val1float;
@@ -358,11 +358,11 @@ bool PerformAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, e
         case OP_AssignMod:
         {
             ScriptAssert_(val1float != 0.0f, "<internal>", -1, "Error - Mod Divide by 0\n");
-            int val0int = (int)vefloat;
-            int val1int = val1float < 0.0f ? -(int)val1float : (int)val1float;
+            int32 val0int = (int32)vefloat;
+            int32 val1int = val1float < 0.0f ? -(int32)val1float : (int32)val1float;
             while(val0int < 0)
                 val0int += val1int;
-            result = (float)(val0int % val1int);
+            result = (real)(val0int % val1int);
             break;
         }
     }
@@ -402,7 +402,7 @@ bool PerformAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, e
 	return true;
 }
 
-bool PerformBitAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eOpCode op) {
+nflag PerformBitAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eOpCode op) {
 
 	// -- pop the value
     CVariableEntry* ve1 = NULL;
@@ -415,7 +415,7 @@ bool PerformBitAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack
     }
 
 	// -- pop the (hash) name of the var
-    bool isstackvar = false;
+    nflag isstackvar = false;
     CVariableEntry* ve0 = NULL;
     CObjectEntry* oe0 = NULL;
 	eVarType varhashtype;
@@ -435,11 +435,11 @@ bool PerformBitAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack
     void* ve0addr = isstackvar ? TypeConvert(varhashtype, var, TYPE_int)
                                : TypeConvert(ve0->GetType(), ve0->GetAddr(oe0), TYPE_int);
     val1addr = TypeConvert(val1type, val1addr, TYPE_int);
-    int veint = *(int*)ve0addr;
-    int val1int = *(int*)val1addr;
+    int32 veint = *(int32*)ve0addr;
+    int32 val1int = *(int32*)val1addr;
 
     // -- now perform the op
-    int result = 0;
+    int32 result = 0;
     switch(op) {
         case OP_AssignLeftShift:
             result = veint << val1int;
@@ -493,7 +493,7 @@ bool PerformBitAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack
 	return true;
 }
 
-bool PerformUnaryOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eOpCode op) {
+nflag PerformUnaryOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eOpCode op) {
 	// -- pop the value
     CVariableEntry* ve = NULL;
     CObjectEntry* oe = NULL;
@@ -512,20 +512,20 @@ bool PerformUnaryOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eO
         case OP_UnaryNeg:
         case OP_UnaryPos:
         {
-            // -- verify the types - this is only valid for int and float
+            // -- verify the types - this is only valid for int32 and real
             if(valtype != TYPE_int && valtype != TYPE_float) {
                 ScriptAssert_(0, "<internal>", -1,
-                              "Error - Only types int and float are supported for op: %s\n",
+                              "Error - Only types int32 and real are supported for op: %s\n",
                               GetOperationString(op));
                 return false;
             }
 
             void* result = NULL;
-            int intresult = 0;
-            float floatresult = 0.0f;
+            int32 intresult = 0;
+            real floatresult = 0.0f;
 
             if(valtype == TYPE_int) {
-                intresult = *(int*)valaddr;
+                intresult = *(int32*)valaddr;
 
                 // -- perform the actual operation
                 if(op == OP_UnaryPreInc)
@@ -539,7 +539,7 @@ bool PerformUnaryOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eO
                 result = (void*)&intresult;
             }
             else {
-                floatresult = *(float*)valaddr;
+                floatresult = *(real*)valaddr;
 
                 // -- perform the actual operation
                 if(op == OP_UnaryPreInc)
@@ -561,14 +561,14 @@ bool PerformUnaryOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eO
 
         case OP_UnaryBitInvert:
         {
-            // -- verify the types - this is only valid for int and float
+            // -- verify the types - this is only valid for int32 and real
             if(valtype != TYPE_int) {
                 ScriptAssert_(0, "<internal>", -1,
-                              "Error - Only type int is supported for op: %s\n",
+                              "Error - Only type int32 is supported for op: %s\n",
                               GetOperationString(op));
                 return false;
             }
-            int value = *(int*)valaddr;
+            int32 value = *(int32*)valaddr;
             value = ~value;
 
 	        // -- push the the value onto the stack
@@ -579,14 +579,14 @@ bool PerformUnaryOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eO
 
         case OP_UnaryNot:
         {
-            // -- verify the types - this is only valid for int and float
+            // -- verify the types - this is only valid for int32 and real
             if(valtype != TYPE_bool) {
                 ScriptAssert_(0, "<internal>", -1,
-                              "Error - Only type bool is supported for op: %s\n",
+                              "Error - Only type nflag is supported for op: %s\n",
                               GetOperationString(op));
                 return false;
             }
-            bool value = *(bool*)valaddr;
+            nflag value = *(nflag*)valaddr;
             value = !value;
 
 	        // -- push the the value onto the stack
@@ -607,7 +607,7 @@ bool PerformUnaryOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eO
     return true;
 }
 
-bool CopyStackParameters(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
+nflag CopyStackParameters(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
                          CFunctionCallStack& funccallstack) {
 
     // -- sanity check
@@ -618,8 +618,8 @@ bool CopyStackParameters(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execs
 
     // -- initialize the parameters of our fe with the function context
     CFunctionContext* parameters = fe->GetContext();
-    int srcparamcount = parameters->GetParameterCount();
-    for(int i = 0; i < srcparamcount; ++i) {
+    int32 srcparamcount = parameters->GetParameterCount();
+    for(int32 i = 0; i < srcparamcount; ++i) {
         CVariableEntry* src = parameters->GetParameter(i);
         void* dst = GetStackVarAddr(execstack, funccallstack, src->GetStackOffset());
         if(!dst) {
@@ -632,15 +632,15 @@ bool CopyStackParameters(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execs
         // -- set the value
         if(src)
             memcpy(dst, src->GetAddr(oe ? oe->GetAddr() : NULL),
-                   MAX_TYPE_SIZE * sizeof(unsigned int));
+                   MAX_TYPE_SIZE * sizeof(uint32));
         else
-            memset(dst, 0, MAX_TYPE_SIZE * sizeof(unsigned int));
+            memset(dst, 0, MAX_TYPE_SIZE * sizeof(uint32));
     }
 
     return true;
 }
 
-bool CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
+nflag CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
                            CFunctionCallStack& funccallstack) {
 
     // -- at this point, the funccallstack has the CFunctionEntry pushed
@@ -654,7 +654,7 @@ bool CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& exe
         CopyStackParameters(fe, oe, execstack, funccallstack);
 
         CCodeBlock* funccb = NULL;
-        unsigned int funcoffset = fe->GetCodeBlockOffset(funccb);
+        uint32 funcoffset = fe->GetCodeBlockOffset(funccb);
         if(!funccb) {
             ScriptAssert_(0, "<internal>", -1, "Error - Undefined function: %s()\n",
                             UnHash(fe->GetHash()));
@@ -662,7 +662,7 @@ bool CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& exe
         }
 
         // -- execute the function via codeblock/offset
-        bool success = funccb->Execute(funcoffset, execstack, funccallstack);
+        nflag success = funccb->Execute(funcoffset, execstack, funccallstack);
         if(!success) {
             ScriptAssert_(0, "<internal>", -1, "Error - error executing function: %s()\n",
                           UnHash(fe->GetHash()));
@@ -684,7 +684,7 @@ bool CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& exe
 
         // -- all functions must push a return value
         else {
-            int empty = 0;
+            int32 empty = 0;
             execstack.Push(&empty, TYPE_int);
         }
 
@@ -695,7 +695,7 @@ bool CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& exe
     return true;
 }
 
-bool ExecuteCodeBlock(CCodeBlock& codeblock) {
+nflag ExecuteCodeBlock(CCodeBlock& codeblock) {
 
 	// -- create the stack to use for the execution
 	CExecStack execstack(kExecStackSize);
@@ -704,7 +704,7 @@ bool ExecuteCodeBlock(CCodeBlock& codeblock) {
     return codeblock.Execute(0, execstack, funccallstack);
 }
 
-bool ExecuteScheduledFunction(unsigned int objectid, unsigned int funchash,
+nflag ExecuteScheduledFunction(uint32 objectid, uint32 funchash,
                               CFunctionContext* parameters) {
 
     // -- sanity check
@@ -742,8 +742,8 @@ bool ExecuteScheduledFunction(unsigned int objectid, unsigned int funchash,
     CFunctionCallStack funccallstack(kExecFuncCallDepth);
 
     // -- initialize the parameters of our fe with the function context
-    int srcparamcount = parameters->GetParameterCount();
-    for(int i = 0; i < srcparamcount; ++i) {
+    int32 srcparamcount = parameters->GetParameterCount();
+    for(int32 i = 0; i < srcparamcount; ++i) {
         CVariableEntry* src = parameters->GetParameter(i);
         CVariableEntry* dst = fe->GetContext()->GetParameter(i);
         if(!dst) {
@@ -754,7 +754,7 @@ bool ExecuteScheduledFunction(unsigned int objectid, unsigned int funchash,
         }
 
         // -- ensure the type of the parameter value is converted to the type required
-        int nullvalue = 0;
+        int32 nullvalue = 0;
         void* srcaddr = NULL;
         if(src)
             srcaddr = TypeConvert(src->GetType(), src->GetAddr(NULL), dst->GetType());
@@ -766,19 +766,29 @@ bool ExecuteScheduledFunction(unsigned int objectid, unsigned int funchash,
     }
 
     // -- initialize any remaining parameters
-    int dstparamcount = fe->GetContext()->GetParameterCount();
-    for(int i = srcparamcount; i < dstparamcount; ++i) {
+    int32 dstparamcount = fe->GetContext()->GetParameterCount();
+    for(int32 i = srcparamcount; i < dstparamcount; ++i) {
         CVariableEntry* dst = fe->GetContext()->GetParameter(i);
-        int nullvalue = 0;
+        int32 nullvalue = 0;
         void* srcaddr = TypeConvert(TYPE_int, &nullvalue, dst->GetType());
         dst->SetValue(oe ? oe->GetAddr() : NULL, srcaddr);
     }
 
     // -- push the function entry onto the call stack (same as if OP_FuncCallArgs had been used)
     funccallstack.Push(fe, oe, 0);
+    
+    // -- create space on the execstack, if this is a script function
+    if(fe->GetType() != eFuncTypeGlobal) {
+        int32 localvarcount = fe->GetLocalVarTable()->Used();
+        execstack.Reserve(localvarcount * MAX_TYPE_SIZE);
+    }
+
+    // -- scheduled functions are never nested, so it's ok to tag this function as having started
+    // -- execution
+    funccallstack.BeginExecution();
 
     // -- call the function
-    bool result = CodeBlockCallFunction(fe, oe, execstack, funccallstack);
+    nflag result = CodeBlockCallFunction(fe, oe, execstack, funccallstack);
     if(!result) {
         ScriptAssert_(0, "<internal>", -1,
                         "Error - Unable to call function: %s()\n",
@@ -789,7 +799,7 @@ bool ExecuteScheduledFunction(unsigned int objectid, unsigned int funchash,
     return true;
 }
 
-bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
+nflag CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
                          CFunctionCallStack& funccallstack) {
 #if DEBUG_CODEBLOCK
     if(GetDebugCodeBlock()) {
@@ -799,7 +809,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
     CScheduler::CCommand* currentschedule = NULL;
 
-    const unsigned int* instrptr = GetInstructionPtr();
+    const uint32* instrptr = GetInstructionPtr();
     instrptr += offset;
 
 	while (instrptr != NULL) {
@@ -813,12 +823,12 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
             case OP_VarDecl:
             {
-                unsigned int varhash = *instrptr++;
+                uint32 varhash = *instrptr++;
 				eVarType vartype = (eVarType)(*instrptr++);
 
                 // -- if we're in the middle of a function definition, the var is local
                 // -- otherwise it's global... there are no nested function definitions allowed
-                int stacktop = 0;
+                int32 stacktop = 0;
                 CObjectEntry* oe = NULL;
                 AddVariable(GetGlobalNamespace()->GetVarTable(), funccallstack.GetTop(oe, stacktop),
                             UnHash(varhash), varhash, vartype); 
@@ -828,10 +838,10 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
             case OP_ParamDecl:
             {
-                unsigned int varhash = *instrptr++;
+                uint32 varhash = *instrptr++;
 				eVarType vartype = (eVarType)(*instrptr++);
 
-                int stacktop = 0;
+                int32 stacktop = 0;
                 CObjectEntry* oe = NULL;
                 CFunctionEntry* fe = funccallstack.GetTop(oe, stacktop);
                 assert(fe != NULL);
@@ -900,7 +910,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                 DebugTrace(curoperation, "%s", DebugPrintVar((void*)instrptr, contenttype));
 
 				// -- advance the instruction pointer
-				int contentsize = kBytesToWordCount(gRegisteredTypeSize[contenttype]);
+				int32 contentsize = kBytesToWordCount(gRegisteredTypeSize[contenttype]);
 				instrptr += contentsize;
 
 				break;
@@ -914,7 +924,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                            GetRegisteredTypeName((eVarType)instrptr[0]), instrptr[1]);
 
 				// -- advance the instruction pointer
-				int contentsize = kBytesToWordCount(gRegisteredTypeSize[TYPE__stackvar]);
+				int32 contentsize = kBytesToWordCount(gRegisteredTypeSize[TYPE__stackvar]);
 				instrptr += contentsize;
 
 				break;
@@ -926,7 +936,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 				eVarType valtype = (eVarType)(*instrptr++);
 
 				// -- next instruction is the stack offset
-                int stackoffset = (int)*instrptr++;
+                int32 stackoffset = (int32)*instrptr++;
 
                 // -- get the stack top for this function call
                 void* stackvaraddr = GetStackVarAddr(execstack, funccallstack, stackoffset);
@@ -949,7 +959,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                 DebugTrace(curoperation, "Var: %s", UnHash(instrptr[2]));
 
 				// -- advance the instruction pointer
-				int contentsize = kBytesToWordCount(gRegisteredTypeSize[TYPE__var]);
+				int32 contentsize = kBytesToWordCount(gRegisteredTypeSize[TYPE__var]);
 				instrptr += contentsize;
 
 				break;
@@ -958,9 +968,9 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 			case OP_PushGlobalValue:
 			{
 				// -- next instruction is the variable name
-                unsigned int nshash = *instrptr++;
-				unsigned int varfunchash = *instrptr++;
-				unsigned int varhash = *instrptr++;
+                uint32 nshash = *instrptr++;
+				uint32 varfunchash = *instrptr++;
+				uint32 varhash = *instrptr++;
 				CVariableEntry* ve = GetVariable(GetGlobalNamespace()->GetVarTable(), nshash, varfunchash,
                                                  varhash, 0);
 				assert(ve != NULL);
@@ -983,15 +993,15 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                                   "Error - ExecStack should contain TYPE_int\n");
                     return false;
                 }
-                unsigned int arrayvarhash = *(unsigned int*)contentptr;
+                uint32 arrayvarhash = *(uint32*)contentptr;
 
                 // -- the next instructions specify the variable representing the hash table
-                unsigned int nshash = *instrptr++;
-				unsigned int varfunchash = *instrptr++;
-				unsigned int varhash = *instrptr++;
+                uint32 nshash = *instrptr++;
+				uint32 varfunchash = *instrptr++;
+				uint32 varhash = *instrptr++;
 
                 // -- push the hashvar
-                unsigned int arrayvar[4];
+                uint32 arrayvar[4];
                 arrayvar[0] = nshash;
                 arrayvar[1] = varfunchash;
                 arrayvar[2] = varhash;
@@ -1013,12 +1023,12 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                                   "Error - ExecStack should contain TYPE_int\n");
                     return false;
                 }
-                unsigned int arrayvarhash = *(unsigned int*)contentptr;
+                uint32 arrayvarhash = *(uint32*)contentptr;
 
 				// -- next instruction is the variable name
-                unsigned int nshash = *instrptr++;
-				unsigned int varfunchash = *instrptr++;
-				unsigned int varhash = *instrptr++;
+                uint32 nshash = *instrptr++;
+				uint32 varfunchash = *instrptr++;
+				uint32 varhash = *instrptr++;
 				CVariableEntry* ve = GetVariable(GetGlobalNamespace()->GetVarTable(), nshash, varfunchash,
                                                  varhash, arrayvarhash);
 				assert(ve != NULL);
@@ -1033,7 +1043,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 			case OP_PushMember:
 			{
 				// -- next instruction is the member name
-				unsigned int varhash = *instrptr++;
+				uint32 varhash = *instrptr++;
 
                 // -- what will previously have been pushed on the stack, is the object ID
 				eVarType contenttype;
@@ -1044,11 +1054,11 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                     return false;
                 }
 
-                // -- TYPE_object is actually just an unsigned int ID
+                // -- TYPE_object is actually just an uint32 ID
                 // -- a member, a memberhash followed by the ID of the object
-                unsigned int member[2];
+                uint32 member[2];
                 member[0] = varhash;
-                member[1] = *(unsigned int*)contentptr;
+                member[1] = *(uint32*)contentptr;
 
 				// -- next instruction is the variable hash followed by the function context hash
 				execstack.Push((void*)member, TYPE__member);
@@ -1059,7 +1069,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 			case OP_PushMemberVal:
 			{
 				// -- next instruction is the member name
-				unsigned int varhash = *instrptr++;
+				uint32 varhash = *instrptr++;
 
                 // -- what will previously have been pushed on the stack, is the object ID
 				eVarType contenttype;
@@ -1069,8 +1079,8 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                     return false;
                 }
 
-                // -- TYPE_object is actually just an unsigned int ID
-                unsigned int objectid = *(unsigned int*)contentptr;
+                // -- TYPE_object is actually just an uint32 ID
+                uint32 objectid = *(uint32*)contentptr;
 
                 // -- find the object
                 CObjectEntry* oe = CNamespace::FindObject(objectid);
@@ -1106,7 +1116,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                 }
 
                 // -- need to push the variable
-                unsigned int objid = oe->GetID();
+                uint32 objid = oe->GetID();
 				execstack.Push((void*)&objid, TYPE_object);
 
                 break;
@@ -1127,7 +1137,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 			case OP_Div:
 			case OP_Mod:
 			{
-                float result = 0.0f;
+                real result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
                     ScriptAssert_(0, GetFileName(), CalcLineNumber(instrptr),
                                   "Error - unable to perform op: %s\n",
@@ -1142,22 +1152,22 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 			case OP_BooleanAnd:
 			case OP_BooleanOr:
 			{
-                float result = 0.0f;
+                real result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
                     return false;
                 }
-                bool boolresult = (result != 0.0f);
+                nflag boolresult = (result != 0.0f);
 				execstack.Push((void*)&boolresult, TYPE_bool);
 				break;
 			}
 
 			case OP_CompareEqual:
 			{
-                float result = 0.0f;
+                real result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
                     return false;
                 }
-                bool boolresult = (result == 0.0f);
+                nflag boolresult = (result == 0.0f);
 				execstack.Push((void*)&boolresult, TYPE_bool);
                 DebugTrace(curoperation, "%s", boolresult ? "true" : "false");
 				break;
@@ -1165,11 +1175,11 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
 			case OP_CompareNotEqual:
 			{
-                float result = 0.0f;
+                real result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
                     return false;
                 }
-                bool boolresult = (result != 0.0f);
+                nflag boolresult = (result != 0.0f);
 				execstack.Push((void*)&boolresult, TYPE_bool);
                 DebugTrace(curoperation, "%s", boolresult ? "true" : "false");
 				break;
@@ -1177,11 +1187,11 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
 			case OP_CompareLess:
 			{
-                float result = 0.0f;
+                real result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
                     return false;
                 }
-                bool boolresult = (result < 0.0f);
+                nflag boolresult = (result < 0.0f);
 				execstack.Push((void*)&boolresult, TYPE_bool);
                 DebugTrace(curoperation, "%s", boolresult ? "true" : "false");
 				break;
@@ -1189,11 +1199,11 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
 			case OP_CompareLessEqual:
 			{
-                float result = 0.0f;
+                real result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
                     return false;
                 }
-                bool boolresult = (result <= 0.0f);
+                nflag boolresult = (result <= 0.0f);
 				execstack.Push((void*)&boolresult, TYPE_bool);
                 DebugTrace(curoperation, "%s", boolresult ? "true" : "false");
 				break;
@@ -1201,11 +1211,11 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
 			case OP_CompareGreater:
 			{
-                float result = 0.0f;
+                real result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
                     return false;
                 }
-                bool boolresult = (result > 0.0f);
+                nflag boolresult = (result > 0.0f);
 				execstack.Push((void*)&boolresult, TYPE_bool);
                 DebugTrace(curoperation, "%s", boolresult ? "true" : "false");
 				break;
@@ -1213,14 +1223,14 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
 			case OP_CompareGreaterEqual:
 			{
-                float result = 0.0f;
+                real result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
 		            ScriptAssert_(0, GetFileName(), CalcLineNumber(instrptr),
                                   "Error - Operation failed: %s\n",
                                   GetOperationString(curoperation));
                     return false;
                 }
-                bool boolresult = (result >= 0.0f);
+                nflag boolresult = (result >= 0.0f);
 				execstack.Push((void*)&boolresult, TYPE_bool);
                 DebugTrace(curoperation, "%s", boolresult ? "true" : "false");
 				break;
@@ -1232,7 +1242,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
             case OP_BitOr:
             case OP_BitXor:
             {
-                int result = 0;
+                int32 result = 0;
                 if(!PerformIntegerBinOp(execstack, funccallstack, curoperation, result)) {
 		            ScriptAssert_(0, GetFileName(), CalcLineNumber(instrptr),
                                   "Error - Operation failed: %s\n",
@@ -1246,7 +1256,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
 			case OP_Branch:
 			{
-				int jumpcount = *instrptr++;
+				int32 jumpcount = *instrptr++;
 				instrptr += jumpcount;
                 DebugTrace(curoperation, "");
 				break;
@@ -1254,15 +1264,15 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
 			case OP_BranchTrue:
 			{
-				int jumpcount = *instrptr++;
+				int32 jumpcount = *instrptr++;
 
-				// -- top of the stack had better be a bool
+				// -- top of the stack had better be a nflag
 				eVarType valtype;
 				void* valueraw = execstack.Pop(valtype);
 				assert(valtype == TYPE_bool);
 
 				// -- branch
-				bool value = *(bool*)valueraw;
+				nflag value = *(nflag*)valueraw;
 				if(value) {
 					instrptr += jumpcount;
 				}
@@ -1273,15 +1283,15 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
 			case OP_BranchFalse:
 			{
-				int jumpcount = *instrptr++;
+				int32 jumpcount = *instrptr++;
 
-				// -- top of the stack had better be a bool
+				// -- top of the stack had better be a nflag
 				eVarType valtype;
 				void* valueraw = execstack.Pop(valtype);
 				assert(valtype == TYPE_bool);
 
 				// -- branch
-				bool value = *(bool*)valueraw;
+				nflag value = *(nflag*)valueraw;
 				if(!value) {
 					instrptr += jumpcount;
 				}
@@ -1292,9 +1302,9 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
             case OP_FuncDecl:
             {
-				unsigned int funchash = *instrptr++;
-				unsigned int namespacehash = *instrptr++;
-                unsigned int funcoffset = *instrptr++;
+				uint32 funchash = *instrptr++;
+				uint32 namespacehash = *instrptr++;
+                uint32 funcoffset = *instrptr++;
                 CFunctionEntry* fe = FuncDeclaration(namespacehash, UnHash(funchash),
                                                      funchash, eFuncTypeScript);
 	            if(!fe) {
@@ -1330,8 +1340,8 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 			case OP_FuncCallArgs:
 			{
 				// -- get the hash of the function name
-				unsigned int nshash = *instrptr++;
-				unsigned int funchash = *instrptr++;
+				uint32 nshash = *instrptr++;
+				uint32 funchash = *instrptr++;
                 tFuncTable* functable = CNamespace::FindNamespace(nshash)->GetFuncTable();
 	            CFunctionEntry* fe = functable->FindItem(funchash);
 	            if(!fe) {
@@ -1355,7 +1365,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
                 // -- create space on the execstack, if this is a script function
                 if(fe->GetType() != eFuncTypeGlobal) {
-                    int localvarcount = fe->GetLocalVarTable()->Used();
+                    int32 localvarcount = fe->GetLocalVarTable()->Used();
                     execstack.Reserve(localvarcount * MAX_TYPE_SIZE);
                 }
 
@@ -1365,10 +1375,10 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
             case OP_PushParam:
             {
                 // -- the next word is the parameter index for the current function we're calling
-                unsigned int paramindex = *instrptr++;
+                uint32 paramindex = *instrptr++;
 
                 // -- get the function about to be called
-                int stackoffset = 0;
+                int32 stackoffset = 0;
                 CObjectEntry* oe = NULL;
             	CFunctionEntry* fe = funccallstack.GetTop(oe, stackoffset);
                 if(!fe) {
@@ -1376,7 +1386,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                                   "Error - assigning parameters outside a function call\n");
 		            return false;
                 }
-                unsigned int paramcount = fe->GetContext()->GetParameterCount();
+                uint32 paramcount = fe->GetContext()->GetParameterCount();
                 if(paramindex >= paramcount) {
 		            ScriptAssert_(0, GetFileName(), CalcLineNumber(instrptr),
                                   "Error - too many parameters calling function: %s\n",
@@ -1388,7 +1398,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                 CVariableEntry* ve = fe->GetContext()->GetParameter(paramindex);
 
                 // -- push the variable onto the stack
-                unsigned int varbuf[3];
+                uint32 varbuf[3];
                 varbuf[0] = fe->GetNamespaceHash();
                 varbuf[1] = fe->GetHash();
                 varbuf[2] = ve->GetHash();
@@ -1402,10 +1412,10 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
    			case OP_MethodCallArgs:
 			{
 				// -- get the hash of the namespace, in case we want a specific one
-				unsigned int nshash = *instrptr++;
+				uint32 nshash = *instrptr++;
 
 				// -- get the hash of the method name
-				unsigned int methodhash = *instrptr++;
+				uint32 methodhash = *instrptr++;
 
                 // -- what will previously have been pushed on the stack, is the object ID
 				eVarType contenttype;
@@ -1415,8 +1425,8 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                     return false;
                 }
 
-                // -- TYPE_object is actually just an unsigned int ID
-                unsigned int objectid = *(unsigned int*)contentptr;
+                // -- TYPE_object is actually just an uint32 ID
+                uint32 objectid = *(uint32*)contentptr;
 
                 // -- find the object
                 CObjectEntry* oe = CNamespace::FindObject(objectid);
@@ -1441,7 +1451,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
                 // -- create space on the execstack, if this is a script function
                 if(fe->GetType() != eFuncTypeGlobal) {
-                    int localvarcount = fe->GetLocalVarTable()->Used();
+                    int32 localvarcount = fe->GetLocalVarTable()->Used();
                     execstack.Reserve(localvarcount * MAX_TYPE_SIZE);
                 }
 
@@ -1452,7 +1462,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
             case OP_FuncCall:
             {
-                int stackoffset = 0;
+                int32 stackoffset = 0;
                 CObjectEntry* oe = NULL;
                 CFunctionEntry* fe = funccallstack.GetTop(oe, stackoffset);
                 assert(fe != NULL);
@@ -1464,7 +1474,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
                 DebugTrace(curoperation, "func: %s", UnHash(fe->GetHash()));
 
-                bool result = CodeBlockCallFunction(fe, oe, execstack, funccallstack);
+                nflag result = CodeBlockCallFunction(fe, oe, execstack, funccallstack);
                 if(!result) {
                     ScriptAssert_(0, GetFileName(), CalcLineNumber(instrptr),
                                   "Error - Unable to call function: %s()\n",
@@ -1486,15 +1496,15 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                 }
 
                 // -- pop the return value while we unreserve the local var space on the stack
-                unsigned int stacktopcontent[MAX_TYPE_SIZE];
+                uint32 stacktopcontent[MAX_TYPE_SIZE];
 
 	            // -- pop the value of the next string to append to the hash
 	            eVarType contenttype;
 	            void* content = execstack.Pop(contenttype);
-                memcpy(stacktopcontent, content, MAX_TYPE_SIZE * sizeof(unsigned int));
+                memcpy(stacktopcontent, content, MAX_TYPE_SIZE * sizeof(uint32));
 
                 // -- unreserve space from the exec stack
-                int localvarcount = fe->GetLocalVarTable()->Used();
+                int32 localvarcount = fe->GetLocalVarTable()->Used();
                 execstack.UnReserve(localvarcount * MAX_TYPE_SIZE);
 
                 // -- re-push the stack top contents
@@ -1532,7 +1542,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                 }
 
                 // -- calculate the updated hash
-                unsigned int hash = *(unsigned int*)contentptr;
+                uint32 hash = *(uint32*)contentptr;
                 hash = HashAppend(hash, "_");
                 hash = HashAppend(hash, (const char*)val1addr);
 
@@ -1555,7 +1565,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                                   "Error - ExecStack should contain TYPE_int\n");
                     return false;
                 }
-                unsigned int hashvalue = *(unsigned int*)contentptr;
+                uint32 hashvalue = *(uint32*)contentptr;
 
                 // -- pull the hashtable variable off the stack
                 CVariableEntry* ve0 = NULL;
@@ -1597,7 +1607,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
             case OP_SelfVarDecl:
             {
                 // -- next instruction is the variable hash
-                unsigned int varhash = *instrptr++;
+                uint32 varhash = *instrptr++;
 
                 // -- followed by the type
 				eVarType vartype = (eVarType)(*instrptr++);
@@ -1626,10 +1636,10 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                 }
 
                 // -- get the function hash
-                unsigned int funchash = *instrptr++;
+                uint32 funchash = *instrptr++;
 
                 // -- get the delay time
-                int delaytime = *instrptr++;
+                int32 delaytime = *instrptr++;
 
                 // -- pull the object ID off the stack
 				eVarType contenttype;
@@ -1639,8 +1649,8 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                     return false;
                 }
 
-                // -- TYPE_object is actually just an unsigned int ID
-                unsigned int objectid = *(unsigned int*)contentptr;
+                // -- TYPE_object is actually just an uint32 ID
+                uint32 objectid = *(uint32*)contentptr;
 
                 // -- create the schedule command
                 currentschedule = CScheduler::ScheduleCreate(objectid, delaytime, funchash);
@@ -1658,7 +1668,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                 }
 
                 // -- get the parameter index
-                int paramindex = *instrptr++;
+                int32 paramindex = *instrptr++;
 
                 // -- pull the parameter value off the stack
 				eVarType contenttype;
@@ -1689,7 +1699,7 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                 }
 
                 // -- push the schedule request ID onto the stack
-                int reqid = currentschedule->reqid;
+                int32 reqid = currentschedule->reqid;
                 currentschedule = NULL;
 
 				execstack.Push(&reqid, TYPE_int);
@@ -1699,9 +1709,9 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
             case OP_CreateObject:
             {
-                unsigned int classhash = *instrptr++;
-                unsigned int objnamehash = *instrptr++;
-                unsigned int objid = CNamespace::CreateObject(classhash, objnamehash);
+                uint32 classhash = *instrptr++;
+                uint32 objnamehash = *instrptr++;
+                uint32 objid = CNamespace::CreateObject(classhash, objnamehash);
 
    				// -- push the objid onto the stack, and update the instrptr
 				execstack.Push(&objid, TYPE_object);
@@ -1719,8 +1729,8 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
                     return false;
                 }
 
-                // -- TYPE_object is actually just an unsigned int ID
-                unsigned int objectid = *(unsigned int*)contentptr;
+                // -- TYPE_object is actually just an uint32 ID
+                uint32 objectid = *(uint32*)contentptr;
 
                 // -- find the object
                 CObjectEntry* oe = CNamespace::FindObject(objectid);
@@ -1756,15 +1766,15 @@ bool CCodeBlock::Execute(unsigned int offset, CExecStack& execstack,
 
 // ------------------------------------------------------------------------------------------------
 // Debug helper functions
-void SetDebugTrace(bool torf) {
+void SetDebugTrace(nflag torf) {
     gDebugTrace = torf;
 }
 
-bool GetDebugParseTree() {
+nflag GetDebugParseTree() {
     return gDebugTrace;
 }
 
-REGISTER_FUNCTION_P1(SetDebugTrace, SetDebugTrace, void, bool);
+REGISTER_FUNCTION_P1(SetDebugTrace, SetDebugTrace, void, nflag);
 
 }  // TinScript
 

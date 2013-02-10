@@ -22,6 +22,7 @@
 #ifndef __TINEXECUTE_H
 #define __TINEXECUTE_H
 
+#include "integration.h"
 #include "TinCompile.h"
 
 namespace TinScript {
@@ -104,11 +105,9 @@ class CExecStack {
 class CFunctionCallStack {
 	public:
         struct tFunctionCallEntry;
-		CFunctionCallStack(unsigned int _size = 0) {
-			funcentrystack = NULL;
-			size = _size;
+		CFunctionCallStack(uint32 _size = 0) {
+   			size = _size;
 			assert(size > 0);
-
 			funcentrystack = new tFunctionCallEntry[size];
 			stacktop = 0;
 		}

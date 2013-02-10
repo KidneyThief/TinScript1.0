@@ -34,7 +34,7 @@
 
 // ------------------------------------------------------------------------------------------------
 // -- forward declares
-extern unsigned int GetCurrentSimTime();
+extern uint32 GetCurrentSimTime();
 
 namespace TinScript {
 
@@ -52,7 +52,7 @@ void CScheduler::Shutdown() {
     }
 }
 
-void CScheduler::Update(unsigned int curtime) {
+void CScheduler::Update(uint32 curtime) {
 
     // -- execute all commands scheduled for dispatch by this time
     while(head && head->dispatchtime <= curtime) {
@@ -71,7 +71,7 @@ void CScheduler::Update(unsigned int curtime) {
         }
         else {
             if(curcommand->objectid > 0) {
-                int dummy = 0;
+                int32 dummy = 0;
                 ObjExecF(curcommand->objectid, dummy, curcommand->commandbuf);
             }
             else {
@@ -85,19 +85,19 @@ void CScheduler::Update(unsigned int curtime) {
     }
 }
 
-void CScheduler::CancelObject(unsigned int objectid) {
+void CScheduler::CancelObject(uint32 objectid) {
     if(objectid == 0)
         return;
     Cancel(objectid, 0);
 }
 
-void CScheduler::CancelRequest(int reqid) {
+void CScheduler::CancelRequest(int32 reqid) {
     if(reqid <= 0)
         return;
     Cancel(0, reqid);
 }
 
-void CScheduler::Cancel(unsigned int objectid, int reqid) {
+void CScheduler::Cancel(uint32 objectid, int32 reqid) {
     // -- loop through and delete any schedules pending for this object
     CCommand** prevcommand = &head;
     CCommand* curcommand = head;
@@ -124,7 +124,7 @@ void CScheduler::Dump() {
     }
 }
 
-CScheduler::CCommand::CCommand(int _reqid, unsigned int _objectid, unsigned int _dispatchtime,
+CScheduler::CCommand::CCommand(int32 _reqid, uint32 _objectid, uint32 _dispatchtime,
                                const char* _command) {
     // --  members copy the command members
     reqid = _reqid;
@@ -137,8 +137,8 @@ CScheduler::CCommand::CCommand(int _reqid, unsigned int _objectid, unsigned int 
     funccontext = NULL;
 }
 
-CScheduler::CCommand::CCommand(int _reqid, unsigned int _objectid, unsigned int _dispatchtime,
-                               unsigned int _funchash) {
+CScheduler::CCommand::CCommand(int32 _reqid, uint32 _objectid, uint32 _dispatchtime,
+                               uint32 _funchash) {
     // --  members copy the command members
     reqid = _reqid;
     objectid = _objectid;
@@ -156,8 +156,8 @@ CScheduler::CCommand::~CCommand() {
         delete funccontext;
 }
 
-static int gScheduleID = 0;
-int CScheduler::Schedule(unsigned int objectid, int delay, const char* commandstring) {
+static int32 gScheduleID = 0;
+int32 CScheduler::Schedule(uint32 objectid, int32 delay, const char* commandstring) {
     ++gScheduleID;
 
     // -- ensure we have a valid command string
@@ -165,7 +165,7 @@ int CScheduler::Schedule(unsigned int objectid, int delay, const char* commandst
         return 0;
 
     // -- calculate the dispatch time - enforce a one-frame delay
-    unsigned int dispatchtime = GetCurrentSimTime() + (delay > 0 ? delay : 1);
+    uint32 dispatchtime = GetCurrentSimTime() + (delay > 0 ? delay : 1);
 
     // -- create the new commmand
     CCommand* newcommand = new CCommand(gScheduleID, objectid, dispatchtime, commandstring);
@@ -194,12 +194,12 @@ int CScheduler::Schedule(unsigned int objectid, int delay, const char* commandst
     return newcommand->reqid;
 }
 
-CScheduler::CCommand* CScheduler::ScheduleCreate(unsigned int objectid, int delay,
-                                                 unsigned int funchash) {
+CScheduler::CCommand* CScheduler::ScheduleCreate(uint32 objectid, int32 delay,
+                                                 uint32 funchash) {
     ++gScheduleID;
 
     // -- calculate the dispatch time - enforce a one-frame delay
-    unsigned int dispatchtime = GetCurrentSimTime() + (delay > 0 ? delay : 1);
+    uint32 dispatchtime = GetCurrentSimTime() + (delay > 0 ? delay : 1);
 
     // -- create the new commmand
     CCommand* newcommand = new CCommand(gScheduleID, objectid, dispatchtime, funchash);
@@ -228,9 +228,9 @@ CScheduler::CCommand* CScheduler::ScheduleCreate(unsigned int objectid, int dela
     return newcommand;
 }
 
-int CScheduler::Thread(int reqid, unsigned int objectid, int delay, const char* commandstring) {
+int32 CScheduler::Thread(int32 reqid, uint32 objectid, int32 delay, const char* commandstring) {
     CancelRequest(reqid);
-    int newreqid = Schedule(objectid, delay, commandstring);
+    int32 newreqid = Schedule(objectid, delay, commandstring);
     return newreqid;
 }
 
@@ -239,11 +239,11 @@ int CScheduler::Thread(int reqid, unsigned int objectid, int delay, const char* 
 // ------------------------------------------------------------------------------------------------
 // script registered interface
 
-REGISTER_FUNCTION_P3(Schedule, TinScript::CScheduler::Schedule, int, unsigned int, int, const char*);
-REGISTER_FUNCTION_P4(ScheduleThread, TinScript::CScheduler::Thread, int, int, unsigned int, int, const char*);
+REGISTER_FUNCTION_P3(Schedule, TinScript::CScheduler::Schedule, int32, uint32, int32, const char*);
+REGISTER_FUNCTION_P4(ScheduleThread, TinScript::CScheduler::Thread, int32, int32, uint32, int32, const char*);
 
-REGISTER_FUNCTION_P1(ScheduleCancelObject, TinScript::CScheduler::CancelObject, void, unsigned int);
-REGISTER_FUNCTION_P1(ScheduleCancelRequest, TinScript::CScheduler::CancelRequest, void, int);
+REGISTER_FUNCTION_P1(ScheduleCancelObject, TinScript::CScheduler::CancelObject, void, uint32);
+REGISTER_FUNCTION_P1(ScheduleCancelRequest, TinScript::CScheduler::CancelRequest, void, int32);
 REGISTER_FUNCTION_P0(ListSchedules, TinScript::CScheduler::Dump, void);
 
 // ------------------------------------------------------------------------------------------------

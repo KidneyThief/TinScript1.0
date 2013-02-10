@@ -44,14 +44,14 @@
 
 // ------------------------------------------------------------------------------------------------
 // statics - mostly for the quick and dirty console implementation
-static const unsigned int gFramesPerSecond = 33;
-static const unsigned int gMSPerFrame = 1000 / gFramesPerSecond;
-static const float gSecPerFrame = (1.0f / float(gFramesPerSecond));
-static unsigned int gCurrentTime = 0;
-static bool gRefreshConsoleString = false;
-static unsigned int gRefreshConsoleTimestamp = 0;
+static const uint32 gFramesPerSecond = 33;
+static const uint32 gMSPerFrame = 1000 / gFramesPerSecond;
+static const real gSecPerFrame = (1.0f / real(gFramesPerSecond));
+static uint32 gCurrentTime = 0;
+static nflag gRefreshConsoleString = false;
+static uint32 gRefreshConsoleTimestamp = 0;
 static char gConsoleInputBuf[TinScript::kMaxTokenLength];
-static const float gRefreshDelay = 0.25f;
+static const real gRefreshDelay = 0.25f;
 
 namespace TinScript {
 
@@ -83,7 +83,7 @@ void CRegisterGlobal::RegisterGlobals() {
     while(global) {
         // -- create the var entry, add it to the global namespace
         CVariableEntry* ve = new CVariableEntry(global->name, global->type, global->addr);
-	    unsigned int hash = ve->GetHash();
+	    uint32 hash = ve->GetHash();
 	    GetGlobalNamespace()->GetVarTable()->AddItem(*ve, hash);
 
         // -- next registration object
@@ -92,15 +92,15 @@ void CRegisterGlobal::RegisterGlobals() {
 }
 
 // ------------------------------------------------------------------------------------------------
-static bool gAssertEnableTrace = false;
-static bool gAssertStackSkipped = false;
+static nflag gAssertEnableTrace = false;
+static nflag gAssertStackSkipped = false;
 void ResetAssertStack() {
     gAssertEnableTrace = false;
     gAssertStackSkipped = false;
 }
 
 // -- returns false if we should break
-bool AssertHandled(const char* condition, const char* file, int linenumber, const char* fmt, ...) {
+nflag AssertHandled(const char* condition, const char* file, int32 linenumber, const char* fmt, ...) {
     if(!gAssertStackSkipped || gAssertEnableTrace) {
         if(!gAssertStackSkipped)
             printf("*************************************************************\n");
@@ -173,7 +173,7 @@ void Initialize() {
     CCodeBlock::Initialize();
 }
 
-void Update(unsigned int curtime) {
+void Update(uint32 curtime) {
     CScheduler::Update(curtime);
     CCodeBlock::DestroyUnusedCodeBlocks();
 }
@@ -195,14 +195,14 @@ CNamespace* GetGlobalNamespace() {
 }
 
 // ------------------------------------------------------------------------------------------------
-unsigned int Hash(const char *string, int length) {
+uint32 Hash(const char *string, int32 length) {
 	if(!string || !string[0])
 		return 0;
     const char* s = string;
-	int remaining = length;
+	int32 remaining = length;
 
-	unsigned int h = 5381;
-	for (unsigned char c = *s; c != '\0' && remaining != 0; c = *++s) {
+	uint32 h = 5381;
+	for (uint8 c = *s; c != '\0' && remaining != 0; c = *++s) {
 		--remaining;
 
 #if !CASE_SENSITIVE
@@ -221,24 +221,24 @@ unsigned int Hash(const char *string, int length) {
 	return h;
 }
 
-unsigned int HashAppend(unsigned int h, const char *string, int length) {
+uint32 HashAppend(uint32 h, const char *string, int32 length) {
 	if(!string || !string[0])
 		return h;
     const char* s = string;
-	int remaining = length;
+	int32 remaining = length;
 
-	for (unsigned char c = *s; c != '\0' && remaining != 0; c = *++s) {
+	for (uint8 c = *s; c != '\0' && remaining != 0; c = *++s) {
 		--remaining;
 		h = ((h << 5) + h) + c;
 	}
 	return h;
 }
 
-const char* UnHash(unsigned int hash) {
+const char* UnHash(uint32 hash) {
     const char* string = CStringTable::FindString(hash);
     if(!string || !string[0]) {
         static char buffers[8][20];
-        static int bufindex = -1;
+        static int32 bufindex = -1;
         bufindex = (bufindex + 1) % 8;
         sprintf_s(buffers[bufindex], 20, "<hash:0x%08x>", hash);
         return buffers[bufindex];
@@ -255,7 +255,7 @@ void SaveStringTable() {
 
   	// -- open the file
 	FILE* filehandle = NULL;
-	int result = fopen_s(&filehandle, gStringTableFileName, "wb");
+	int32 result = fopen_s(&filehandle, gStringTableFileName, "wb");
 	if (result != 0) {
         ScriptAssert_(0, "<internal>", -1, "Error - unable to write file %s\n", gStringTableFileName);
 		return;
@@ -266,17 +266,17 @@ void SaveStringTable() {
 		return;
     }
 
-    for(unsigned int i = 0; i < stringtable->Size(); ++i) {
+    for(uint32 i = 0; i < stringtable->Size(); ++i) {
 	    CHashTable<const char>::CHashTableEntry* ste = stringtable->FindRawEntryByBucket(i);
 	    while (ste) {
-            unsigned int stringhash = ste->hash;
+            uint32 stringhash = ste->hash;
             const char* string = ste->item;
-            unsigned int length = strlen(string);
+            uint32 length = strlen(string);
             char tempbuf[kMaxTokenLength];
 
             // -- write the hash
             sprintf_s(tempbuf, "0x%08x: ", stringhash);
-            int count = fwrite(tempbuf, sizeof(char), 12, filehandle);
+            int32 count = fwrite(tempbuf, sizeof(char), 12, filehandle);
             if(count != 12) {
                 fclose(filehandle);
                 ScriptAssert_(0, "<internal>", -1, "Error - unable to write file %s\n", gStringTableFileName);
@@ -321,7 +321,7 @@ void LoadStringTable() {
 
   	// -- open the file
 	FILE* filehandle = NULL;
-	int result = fopen_s(&filehandle, gStringTableFileName, "rb");
+	int32 result = fopen_s(&filehandle, gStringTableFileName, "rb");
 	if (result != 0) {
 		return;
     }
@@ -334,13 +334,13 @@ void LoadStringTable() {
     while(!feof(filehandle)) {
 
         // -- read the hash
-        unsigned int hash = 0;
-        unsigned int length = 0;
+        uint32 hash = 0;
+        uint32 length = 0;
         char string[kMaxTokenLength];
         char tempbuf[16];
 
         // -- read the hash
-        int count = fread(tempbuf, sizeof(char), 12, filehandle);
+        int32 count = fread(tempbuf, sizeof(char), 12, filehandle);
         if(ferror(filehandle) || count != 12) {
             // -- we're done
             break;
@@ -388,15 +388,15 @@ void LoadStringTable() {
 // ------------------------------------------------------------------------------------------------
 // helper functions
 
-bool GetLastWriteTime(const char* filename, FILETIME& writetime)
+nflag GetLastWriteTime(const char* filename, FILETIME& writetime)
 {
     if(!filename || !filename[0])
         return false;
 
     // -- convert the filename to a wchar_t array
-    int length = strlen(filename);
+    int32 length = strlen(filename);
     wchar_t wfilename[kMaxNameLength];
-    for(int i = 0; i < length + 1; ++i)
+    for(int32 i = 0; i < length + 1; ++i)
         wfilename[i] = filename[i];
 
     HANDLE hFile = CreateFile(wfilename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
@@ -409,7 +409,7 @@ bool GetLastWriteTime(const char* filename, FILETIME& writetime)
     return true;
 }
 
-bool GetBinaryFileName(const char* filename, char* binfilename, int maxnamelength) {
+nflag GetBinaryFileName(const char* filename, char* binfilename, int32 maxnamelength) {
     if(!filename)
         return false;
 
@@ -419,14 +419,14 @@ bool GetBinaryFileName(const char* filename, char* binfilename, int maxnamelengt
         return false;
 
     // -- copy the root name
-    unsigned int length = (unsigned int)extptr - unsigned int(filename);
+    uint32 length = (uint32)extptr - uint32(filename);
     SafeStrcpy(binfilename, filename, maxnamelength);
     SafeStrcpy(&binfilename[length], ".cso", maxnamelength - length);
 
     return true;
 }
 
-bool NeedToCompile(const char* filename, const char* binfilename) {
+nflag NeedToCompile(const char* filename, const char* binfilename) {
 
 #if FORCE_COMPILE
     return true;
@@ -476,7 +476,7 @@ CCodeBlock* CompileScript(const char* filename) {
     return codeblock;
 }
 
-bool ExecScript(const char* filename) {
+nflag ExecScript(const char* filename) {
 
     char binfilename[kMaxNameLength];
     if(!GetBinaryFileName(filename, binfilename, kMaxNameLength)) {
@@ -487,7 +487,7 @@ bool ExecScript(const char* filename) {
 
     CCodeBlock* codeblock = NULL;
 
-    bool needtocompile = NeedToCompile(filename, binfilename);
+    nflag needtocompile = NeedToCompile(filename, binfilename);
     if(needtocompile) {
         codeblock = CompileScript(filename);
         if(!codeblock) {
@@ -500,9 +500,9 @@ bool ExecScript(const char* filename) {
     }
 
     // -- execute the codeblock
-    bool result = true;
+    nflag result = true;
     if(codeblock) {
-	    bool result = ExecuteCodeBlock(*codeblock);
+	    nflag result = ExecuteCodeBlock(*codeblock);
         if(!result) {
             ScriptAssert_(0, "<internal>", -1, "Error - unable to execute file: %s\n", filename);
             result = false;
@@ -523,11 +523,11 @@ CCodeBlock* CompileCommand(const char* statement) {
     return commandblock;
 }
 
-bool ExecCommand(const char* statement) {
+nflag ExecCommand(const char* statement) {
 
     CCodeBlock* stmtblock = CompileCommand(statement);
     if(stmtblock) {
-        bool result = ExecuteCodeBlock(*stmtblock);
+        nflag result = ExecuteCodeBlock(*stmtblock);
 
         ResetAssertStack();
 
@@ -549,13 +549,13 @@ bool ExecCommand(const char* statement) {
 // ------------------------------------------------------------------------------------------------
 // -- TinScript functions and registrations
 // ------------------------------------------------------------------------------------------------
-bool Compile(const char* filename) {
+nflag Compile(const char* filename) {
     CCodeBlock* result = TinScript::CompileScript(filename);
     ResetAssertStack();
     return (result != NULL);
 }
-REGISTER_FUNCTION_P1(Compile, Compile, bool, const char*);
-REGISTER_FUNCTION_P1(Exec, ExecScript, bool, const char*);
+REGISTER_FUNCTION_P1(Compile, Compile, nflag, const char*);
+REGISTER_FUNCTION_P1(Exec, ExecScript, nflag, const char*);
 
 // $$$TZA complete hack, but if anything prints to the screen, after it's done, we'll need to
 // -- reprint the console input...  having an actual QT app to separate input and output is needed
@@ -571,23 +571,23 @@ void Print(const char* string) {
 REGISTER_FUNCTION_P1(Print, Print, void, const char*);
 
 // ------------------------------------------------------------------------------------------------
-bool IsObject(unsigned int objectid) {
-    bool found = TinScript::CNamespace::FindObject(objectid) != NULL;
+nflag IsObject(uint32 objectid) {
+    nflag found = TinScript::CNamespace::FindObject(objectid) != NULL;
     return found;
 }
 
-void* FindObject(unsigned int objectid) {
+void* FindObject(uint32 objectid) {
     return TinScript::CNamespace::FindObjectAddr(objectid);
 }
 
-unsigned int FindObjectByName(const char* objname) {
+uint32 FindObjectByName(const char* objname) {
     TinScript::CObjectEntry* oe = TinScript::CNamespace::FindObjectByName(objname);
     return oe ? oe->GetID() : 0;
 }
 
-REGISTER_FUNCTION_P1(IsObject, IsObject, bool, unsigned int);
-REGISTER_FUNCTION_P1(FindObjectByName, FindObjectByName, unsigned int, const char*);
-REGISTER_FUNCTION_P3(AddDynamicVariable, TinScript::CNamespace::AddDynamicVariable, void, unsigned int, const char*, const char*);
+REGISTER_FUNCTION_P1(IsObject, IsObject, nflag, uint32);
+REGISTER_FUNCTION_P1(FindObjectByName, FindObjectByName, uint32, const char*);
+REGISTER_FUNCTION_P3(AddDynamicVariable, TinScript::CNamespace::AddDynamicVariable, void, uint32, const char*, const char*);
 REGISTER_FUNCTION_P2(LinkNamespaces, TinScript::CNamespace::LinkNamespaces, void, const char*, const char*);
 REGISTER_FUNCTION_P0(ListObjects, TinScript::CNamespace::ListObjects, void);
 

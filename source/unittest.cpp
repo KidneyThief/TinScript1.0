@@ -23,6 +23,7 @@
 // unittest.cpp
 // ------------------------------------------------------------------------------------------------
 
+
 #include "stdafx.h"
 
 // -- lib includes
@@ -32,18 +33,20 @@
 #include "TinScript.h"
 #include "TinRegistration.h"
 
+nflag gUnitTestIncludeMe = false;
+
 // -- constants -----------------------------------------------------------------------------------
 static const char* kUnitTestScriptName = "../scripts/unittest.cs";
 
 // -- GLOBAL VARIABLES ----------------------------------------------------------------------------
-int gCodeGlobalVariable = 17;
+int32 gCodeGlobalVariable = 17;
 REGISTER_GLOBAL_VAR(gCodeGlobalVar, gCodeGlobalVariable);
 
 // -- GLOBAL FUNCTIONS ----------------------------------------------------------------------------
-int MultIntByTwo(int number) {
+int32 MultIntByTwo(int32 number) {
     return (number << 1);
 }
-REGISTER_FUNCTION_P1(MultIntByTwo, MultIntByTwo, int, int);
+REGISTER_FUNCTION_P1(MultIntByTwo, MultIntByTwo, int32, int32);
 
 // --  REGISTERED CLASS----------------------------------------------------------------------------
 class CBase {
@@ -60,34 +63,34 @@ class CBase {
 
         DECLARE_SCRIPT_CLASS(CBase, VOID);
 
-        float GetFloatValue() {
+        real GetFloatValue() {
             return floatvalue;
         }
 
-        void SetFloatValue(float val) {
+        void SetFloatValue(real val) {
             floatvalue = val;
         }
 
-        int GetIntValue() {
+        int32 GetIntValue() {
             return intvalue;
         }
 
-        virtual void SetIntValue(int val) {
+        virtual void SetIntValue(int32 val) {
             printf("Enter CBase::SetIntValue()\n");
             intvalue = val;
         }
 
-        bool GetBoolValue() {
+        nflag GetBoolValue() {
             return boolvalue;
         }
 
-        void SetBoolValue(bool val) {
+        void SetBoolValue(nflag val) {
             boolvalue = val;
         }
 
-        float floatvalue;
-        int intvalue;
-        bool boolvalue;
+        real floatvalue;
+        int32 intvalue;
+        nflag boolvalue;
 };
 
 IMPLEMENT_SCRIPT_CLASS(CBase, VOID) {
@@ -96,13 +99,13 @@ IMPLEMENT_SCRIPT_CLASS(CBase, VOID) {
     REGISTER_MEMBER(CBase, boolvalue, boolvalue);
 }
 
-REGISTER_METHOD_P0(CBase, GetFloatValue, GetFloatValue, float);
-REGISTER_METHOD_P0(CBase, GetIntValue, GetIntValue, int);
-REGISTER_METHOD_P0(CBase, GetBoolValue, GetBoolValue, bool);
+REGISTER_METHOD_P0(CBase, GetFloatValue, GetFloatValue, real);
+REGISTER_METHOD_P0(CBase, GetIntValue, GetIntValue, int32);
+REGISTER_METHOD_P0(CBase, GetBoolValue, GetBoolValue, nflag);
 
-REGISTER_METHOD_P1(CBase, SetFloatValue, SetFloatValue, void, float);
-REGISTER_METHOD_P1(CBase, SetIntValue, SetIntValue, void, int);
-REGISTER_METHOD_P1(CBase, SetBoolValue, SetBoolValue, void, bool);
+REGISTER_METHOD_P1(CBase, SetFloatValue, SetFloatValue, void, real);
+REGISTER_METHOD_P1(CBase, SetIntValue, SetIntValue, void, int32);
+REGISTER_METHOD_P1(CBase, SetBoolValue, SetBoolValue, void, nflag);
 
 class CChild : public CBase {
     public:
@@ -118,7 +121,7 @@ class CChild : public CBase {
 
         DECLARE_SCRIPT_CLASS(CChild, CBase);
 
-        virtual void SetIntValue(int val) {
+        virtual void SetIntValue(int32 val) {
             printf("Enter CChild::SetIntValue()\n");
             intvalue = 2 * val;
         }
@@ -127,7 +130,7 @@ class CChild : public CBase {
 IMPLEMENT_SCRIPT_CLASS(CChild, CBase) {
 }
 
-REGISTER_METHOD_P1(CChild, SetIntValue, SetIntValue, void, int);
+REGISTER_METHOD_P1(CChild, SetIntValue, SetIntValue, void, int32);
 
 // ------------------------------------------------------------------------------------------------
 // -- Test weapon class
@@ -153,8 +156,8 @@ public:
     }
 
     void Update() {
-        unsigned int objectid = GetObjectID();
-        int dummy = 0;
+        uint32 objectid = GetObjectID();
+        int32 dummy = 0;
         TinScript::ObjExecF(objectid, dummy, "OnUpdate();");
     }
 
@@ -162,7 +165,7 @@ public:
     CWeapon* next;
 
 private:
-    bool readytofire;
+    nflag readytofire;
 };
 
 CWeapon* CWeapon::weaponlist = NULL;
@@ -174,7 +177,8 @@ IMPLEMENT_SCRIPT_CLASS(CWeapon, VOID) {
 REGISTER_FUNCTION_P0(UpdateWeaponList, CWeapon::UpdateWeaponList, void);
 
 // ------------------------------------------------------------------------------------------------
-void BeginUnitTests(int teststart, int testend) {
+void BeginUnitTests(int32 teststart, int32 testend)
+{
     // -- initialize if we have no test range
     if(teststart == 0 && testend == 0) {
         teststart = 0;
@@ -192,7 +196,7 @@ void BeginUnitTests(int teststart, int testend) {
 		return;
 	}
 
-    int testindex = 0;
+    int32 testindex = 0;
     printf("***  VARIABLES, FLOW:  ************\n");
 
     // --
@@ -254,7 +258,7 @@ void BeginUnitTests(int teststart, int testend) {
     if(testindex >= teststart && testindex <= testend) {
         printf("\n%d.  ", testindex);
         printf("Code access to script global - next line prints: 12\n");
-        int testscriptglobal = 0;
+        int32 testscriptglobal = 0;
         if(!TinScript::GetGlobalVar("gScriptGlobalVar", testscriptglobal)) {
 		    printf("Error - failed to find script global: gScriptGlobalVar\n");
 		    return;
@@ -276,7 +280,7 @@ void BeginUnitTests(int teststart, int testend) {
     if(testindex >= teststart && testindex <= testend) {
         printf("\n%d.  ", testindex);
         printf("Code access to call a script function with a return value -\nnext line prints: 4\n");
-        int scriptreturn = 0;
+        int32 scriptreturn = 0;
         if(!TinScript::ExecF(scriptreturn, "ScriptMod9(%d);", 49)) {
 		    printf("Error - failed to execute script function CallScriptMod9()\n");
 		    return;
@@ -289,7 +293,7 @@ void BeginUnitTests(int teststart, int testend) {
     if(testindex >= teststart && testindex <= testend) {
         printf("\n%d.  ", testindex);
         printf("Nested function calls - next lines print: 32 and 13\n");
-        int scriptreturn = 0;
+        int32 scriptreturn = 0;
         if(!TinScript::ExecF(scriptreturn, "TestNestedFunctions(%d);", 4)) {
 		    printf("Error - failed to execute script function TestNestedFunctions()\n");
 		    return;
@@ -301,7 +305,7 @@ void BeginUnitTests(int teststart, int testend) {
     if(testindex >= teststart && testindex <= testend) {
         printf("\n%d.  ", testindex);
         printf("Recursive function call - next lines prints 21\n");
-        int scriptreturn = 0;
+        int32 scriptreturn = 0;
         if(!TinScript::ExecF(scriptreturn, "Fibonacci(%d);", 7)) {
 		    printf("Error - failed to execute script function Fibonacci()\n");
 		    return;
@@ -327,9 +331,9 @@ void BeginUnitTests(int teststart, int testend) {
     CBase* testobj = NULL;
     if(testindex >= teststart && testindex <= testend) {
         printf("\n%d.  ", testindex);
-        printf("Find the object from code by ID, cast and read the float member-\n");
+        printf("Find the object from code by ID, cast and read the real member-\n");
         printf("next line prints: 27.0\n");
-        int testobjectid = 0;
+        int32 testobjectid = 0;
         if(!TinScript::GetGlobalVar("gScriptBaseObject", testobjectid)) {
 		    printf("Error - failed to find script global: gScriptBaseObject\n");
 		    return;
@@ -436,7 +440,7 @@ void BeginUnitTests(int teststart, int testend) {
     printf("****************************\n");
 }
 
-//REGISTER_FUNCTION_P2(BeginUnitTests, BeginUnitTests, void, int, int);
+REGISTER_FUNCTION_P2(BeginUnitTests, BeginUnitTests, void, int32, int32);
 
 // ------------------------------------------------------------------------------------------------
 // eof

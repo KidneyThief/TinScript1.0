@@ -22,40 +22,42 @@
 #ifndef __TINTYPES_H
 #define __TINTYPES_H
 
+#include "integration.h"
+
 namespace TinScript {
 
 // -- constants
-const int kMaxNameLength = 255;
-const int kMaxTokenLength = 2048;
-const int kMaxTypeSize = 8;  // increase this if we register, say, a C3Vector type
+const int32 kMaxNameLength = 255;
+const int32 kMaxTokenLength = 2048;
+const int32 kMaxTypeSize = 8;  // increase this if we register, say, a C3Vector type
 
 // ------------------------------------------------------------------------------------------------
 // ghetto type manipulation templates
 
 template <typename T>
-unsigned int GetTypeID() {
+uint32 GetTypeID() {
     static T t;
-    return (unsigned int)&t;
+    return (uint32)&t;
 }
 
 template <typename T>
-unsigned int GetTypeID(T& t) {
+uint32 GetTypeID(T& t) {
     return GetTypeID<T>();
 }
 
 template <typename T0, typename T1>
-bool CompareTypes() {
+nflag CompareTypes() {
     return GetTypeID<T0>() == GeTypeID<T1>();
 }
 
 template<typename T>
 struct is_pointer {
-    static const bool value = false;
+    static const nflag value = false;
 };
 
 template<typename T>
 struct is_pointer<T*> {
-    static const bool value = true;
+    static const nflag value = true;
 };
 
 template<typename T>
@@ -98,32 +100,32 @@ struct convert_to_void_ptr<const T*> {
 // ------------------------------------------------------------------------------------------------
 // implementation for integrating the registered types
 
-typedef bool (*TypeToString)(void* value, char* buf, int bufsize);
-typedef bool (*StringToType)(void* addr, char* value);
+typedef nflag (*TypeToString)(void* value, char* buf, int32 bufsize);
+typedef nflag (*StringToType)(void* addr, char* value);
 
 // ------------------------------------------------------------------------------------------------
-bool VoidToString(void* value, char* buf, int bufsize);
-bool StringToVoid(void* addr, char* value);
-bool STEToString(void* value, char* buf, int bufsize);
-bool StringToSTE(void* addr, char* value);
-bool IntToString(void* value, char* buf, int bufsize);
-bool StringToInt(void* addr, char* value);
-bool BoolToString(void* value, char* buf, int bufsize);
-bool StringToBool(void* addr, char* value);
-bool FloatToString(void* value, char* buf, int bufsize);
-bool StringToFloat(void* addr, char* value);
+nflag VoidToString(void* value, char* buf, int32 bufsize);
+nflag StringToVoid(void* addr, char* value);
+nflag STEToString(void* value, char* buf, int32 bufsize);
+nflag StringToSTE(void* addr, char* value);
+nflag IntToString(void* value, char* buf, int32 bufsize);
+nflag StringToInt(void* addr, char* value);
+nflag BoolToString(void* value, char* buf, int32 bufsize);
+nflag StringToBool(void* addr, char* value);
+nflag FloatToString(void* value, char* buf, int32 bufsize);
+nflag StringToFloat(void* addr, char* value);
 
 // -- for all non-first class types, declare a struct so GetTypeID<type> will be unique
 struct sMember {
-    typedef unsigned int type;
+    typedef uint32 type;
 };
 
 struct sHashTable {
-    typedef unsigned int type;
+    typedef uint32 type;
 };
 
 struct sHashVar {
-    typedef unsigned int type;
+    typedef uint32 type;
 };
 
 // -- use a tuple to define the token types, and their debug names
@@ -133,19 +135,19 @@ struct sHashVar {
 // -- and the last column mapping requires each "registered type" to be unique.
 #define FIRST_VALID_TYPE TYPE_object
 #define VarTypeTuple \
-	VarTypeEntry(NULL,		    0,		VoidToString,		StringToVoid,       unsigned char)  \
-	VarTypeEntry(void,		    0,		VoidToString,		StringToVoid,       unsigned char)	\
-	VarTypeEntry(_resolve,	    0,		VoidToString,		StringToVoid,       unsigned char)	\
-	VarTypeEntry(_stackvar,     8,		IntToString,		StringToInt,        unsigned char)	\
-	VarTypeEntry(_var,          12,		IntToString,		StringToInt,        unsigned char)	\
+	VarTypeEntry(NULL,		    0,		VoidToString,		StringToVoid,       uint8)          \
+	VarTypeEntry(void,		    0,		VoidToString,		StringToVoid,       uint8)	        \
+	VarTypeEntry(_resolve,	    0,		VoidToString,		StringToVoid,       uint8)	        \
+	VarTypeEntry(_stackvar,     8,		IntToString,		StringToInt,        uint8)	        \
+	VarTypeEntry(_var,          12,		IntToString,		StringToInt,        uint8)	        \
 	VarTypeEntry(_member,       8,		IntToString,		StringToInt,        sMember)    	\
 	VarTypeEntry(_hashvar,      16,		IntToString,		StringToInt,        sHashVar)    	\
     VarTypeEntry(hashtable,     4,      IntToString,        StringToInt,        sHashTable)     \
-	VarTypeEntry(object,        4,		IntToString,		StringToInt,        unsigned int)   \
+	VarTypeEntry(object,        4,		IntToString,		StringToInt,        uint32)   \
     VarTypeEntry(string,        4,      STEToString,        StringToSTE,        const char*)    \
-	VarTypeEntry(int,		    4,		IntToString,		StringToInt,        int)		    \
-	VarTypeEntry(bool,		    1,		BoolToString,		StringToBool,       bool)		    \
-	VarTypeEntry(float,		    4,		FloatToString,		StringToFloat,      float)		    \
+	VarTypeEntry(int,		    4,		IntToString,		StringToInt,        int32)		    \
+	VarTypeEntry(bool,		    1,		BoolToString,		StringToBool,       nflag)		    \
+	VarTypeEntry(float,		    4,		FloatToString,		StringToFloat,      real)		    \
 
 // -- 4x words actually, 16x bytes, the size of a HashVar
 #define MAX_TYPE_SIZE 4
@@ -178,16 +180,16 @@ enum EFunctionType {
 
 // ------------------------------------------------------------------------------------------------
 const char* GetRegisteredTypeName(eVarType vartype);
-eVarType GetRegisteredType(const char* token, int length);
-eVarType GetRegisteredType(unsigned int id);
+eVarType GetRegisteredType(const char* token, int32 length);
+eVarType GetRegisteredType(uint32 id);
 
-bool SafeStrcpy(char* dest, const char* src, int max);
+nflag SafeStrcpy(char* dest, const char* src, int32 max);
 
 // ------------------------------------------------------------------------------------------------
 // externs
 
 extern const char* gRegisteredTypeNames[TYPE_COUNT];
-extern int gRegisteredTypeSize[TYPE_COUNT];
+extern int32 gRegisteredTypeSize[TYPE_COUNT];
 extern TypeToString gRegisteredTypeToString[TYPE_COUNT];
 extern StringToType gRegisteredStringToType[TYPE_COUNT];
 

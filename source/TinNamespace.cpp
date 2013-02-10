@@ -47,7 +47,7 @@ static const char* kGlobalNamespace = "_global";
 // ------------------------------------------------------------------------------------------------
 // CObjectEntry implementation
 
-CObjectEntry::CObjectEntry(unsigned int _objid, unsigned int _namehash, CNamespace* _objnamespace,
+CObjectEntry::CObjectEntry(uint32 _objid, uint32 _namehash, CNamespace* _objnamespace,
     void* _objaddr) {
     objectid = _objid;
     namehash = _namehash;
@@ -64,7 +64,7 @@ CObjectEntry::~CObjectEntry() {
 }
 
 // ------------------------------------------------------------------------------------------------
-CVariableEntry* CObjectEntry::GetVariableEntry(unsigned int varhash) {
+CVariableEntry* CObjectEntry::GetVariableEntry(uint32 varhash) {
     CVariableEntry* ve = NULL;
     CNamespace* objns = GetNamespace();
     while(objns && !ve) {
@@ -80,7 +80,7 @@ CVariableEntry* CObjectEntry::GetVariableEntry(unsigned int varhash) {
     return ve;
 }
 
-CFunctionEntry* CObjectEntry::GetFunctionEntry(unsigned int nshash, unsigned int funchash) {
+CFunctionEntry* CObjectEntry::GetFunctionEntry(uint32 nshash, uint32 funchash) {
     CFunctionEntry* fe = NULL;
     CNamespace* objns = GetNamespace();
     while(!fe && objns) {
@@ -92,7 +92,7 @@ CFunctionEntry* CObjectEntry::GetFunctionEntry(unsigned int nshash, unsigned int
     return fe;
 }
 
-bool CObjectEntry::AddDynamicVariable(unsigned int varhash, eVarType vartype) {
+nflag CObjectEntry::AddDynamicVariable(uint32 varhash, eVarType vartype) {
     // -- sanity check
     if(varhash == 0 || vartype < FIRST_VALID_TYPE)
         return false;
@@ -139,7 +139,7 @@ void CNamespace::Initialize() {
     // -- note, because we register class derived from parent, we need to
     // -- iterate and ensure parents are always registered before children
     while(CNamespaceReg::head != NULL) {
-        bool abletoregister = false;
+        nflag abletoregister = false;
         CNamespaceReg* regptr = CNamespaceReg::head;
         CNamespaceReg** prevptr = &CNamespaceReg::head;
         while(regptr) {
@@ -152,7 +152,7 @@ void CNamespace::Initialize() {
             }
 
             // -- see if this namespace still requires its parent to be registered
-            static const unsigned int nullparenthash = Hash("VOID");
+            static const uint32 nullparenthash = Hash("VOID");
             CNamespace* parentnamespace = NULL;
             if(regptr->GetParentHash() != nullparenthash)
             {
@@ -168,7 +168,7 @@ void CNamespace::Initialize() {
             // -- unhook this object from the linked list awaiting registration
             *prevptr = regptr->GetNext();
 
-            // -- set the bool to track that we're actually making progress
+            // -- set the nflag to track that we're actually making progress
             abletoregister = true;
 
             // -- ensure the namespace doesn't already exist
@@ -239,7 +239,7 @@ void CNamespace::Shutdown() {
     }
 }
 
-CVariableEntry* CNamespace::GetVarEntry(unsigned int varhash) {
+CVariableEntry* CNamespace::GetVarEntry(uint32 varhash) {
     CNamespace* curnamespace = this;
     while(curnamespace) {
         CVariableEntry* ve = GetVarTable()->FindItem(varhash);
@@ -253,12 +253,12 @@ CVariableEntry* CNamespace::GetVarEntry(unsigned int varhash) {
     return NULL;
 }
 
-CNamespace* CNamespace::FindOrCreateNamespace(const char* _nsname, bool create) {
+CNamespace* CNamespace::FindOrCreateNamespace(const char* _nsname, nflag create) {
     // $$$TZA if we didn't give a name, use a global namespace... ideally we should verify
     // -- ensure the name lives in the string table
     const char* nsname = _nsname && _nsname[0] ? CStringTable::AddString(_nsname)
                                                : CStringTable::AddString(kGlobalNamespace);
-    unsigned int nshash = Hash(nsname);
+    uint32 nshash = Hash(nsname);
     CNamespace* namespaceentry = gNamespaceDictionary->FindItem(nshash);
     if(!namespaceentry && create) {
         namespaceentry = new CNamespace(nsname, NULL);
@@ -270,7 +270,7 @@ CNamespace* CNamespace::FindOrCreateNamespace(const char* _nsname, bool create) 
     return namespaceentry;
 }
 
-CNamespace* CNamespace::FindNamespace(unsigned int nshash) {
+CNamespace* CNamespace::FindNamespace(uint32 nshash) {
     // $$$TZA Any way to verify that a hash of '0' is 100% guaranteed to mean the global namespace?
     if(nshash == 0)
         nshash = Hash(kGlobalNamespace);
@@ -341,15 +341,15 @@ void CNamespace::LinkNamespaces(CNamespace* childns, CNamespace* parentns) {
         UnHash(childns->GetNext()->GetHash()));
 }
 
-unsigned int CNamespace::GetNextObjectID() {
+uint32 CNamespace::GetNextObjectID() {
     // -- every object created gets a unique ID, so we can find it in the object dictionary
     // -- providing a way to register code-instantiated objects
-    static unsigned int objectid = 0;
+    static uint32 objectid = 0;
     return ++objectid;
 }
 
-unsigned int CNamespace::CreateObject(unsigned int classhash, unsigned int objnamehash) {
-    unsigned int objectid = GetNextObjectID();
+uint32 CNamespace::CreateObject(uint32 classhash, uint32 objnamehash) {
+    uint32 objectid = GetNextObjectID();
 
     // -- find the creation function
     CNamespace* namespaceentry = gNamespaceDictionary->FindItem(classhash);
@@ -406,7 +406,7 @@ unsigned int CNamespace::CreateObject(unsigned int classhash, unsigned int objna
         gObjectDictionary->AddItem(*newobjectentry, objectid);
 
         // -- add the object to the dictionary by address
-        gAddressDictionary->AddItem(*newobjectentry, (unsigned int)newobj);
+        gAddressDictionary->AddItem(*newobjectentry, (uint32)newobj);
 
         // -- if the item is named, add it to the name dictionary
         // $$$TZA Note:  names are not guaranteed unique...  warn?
@@ -418,7 +418,7 @@ unsigned int CNamespace::CreateObject(unsigned int classhash, unsigned int objna
         CFunctionEntry* createfunc = newobjectentry->GetFunctionEntry(0, Hash("OnCreate"));
         if(createfunc) {
             // -- call the script "OnInit" for the object
-            int dummy = 0;
+            int32 dummy = 0;
             ObjExecF(objectid, dummy, "OnCreate();");
         }
 
@@ -431,7 +431,7 @@ unsigned int CNamespace::CreateObject(unsigned int classhash, unsigned int objna
     }
 }
 
-unsigned int CNamespace::RegisterObject(void* objaddr, const char* classname,
+uint32 CNamespace::RegisterObject(void* objaddr, const char* classname,
                                         const char* objectname) {
 
     // -- sanity check
@@ -439,17 +439,17 @@ unsigned int CNamespace::RegisterObject(void* objaddr, const char* classname,
         return 0;
 
     // -- ensure the classname is for an existing registered class
-    unsigned int nshash = Hash(classname);
+    uint32 nshash = Hash(classname);
     CNamespace* namespaceentry = FindNamespace(nshash);
     if(!namespaceentry) {
         ScriptAssert_(0, "<internal>", -1, "Error - Class is not registered: %s\n", classname);
         return 0;
     }
 
-    unsigned int objectid = GetNextObjectID();
+    uint32 objectid = GetNextObjectID();
 
         // -- see if we can hook this object up to the namespace for it's object name
-    unsigned int objnamehash = objectname ? Hash(objectname) : 0;
+    uint32 objnamehash = objectname ? Hash(objectname) : 0;
     CNamespace* objnamens = namespaceentry;
     if(objnamehash != 0) {
         objnamens = gNamespaceDictionary->FindItem(objnamehash);
@@ -466,20 +466,20 @@ unsigned int CNamespace::RegisterObject(void* objaddr, const char* classname,
     gObjectDictionary->AddItem(*newobjectentry, objectid);
 
     // -- add the object to the dictionary by address
-    gAddressDictionary->AddItem(*newobjectentry, (unsigned int)objaddr);
+    gAddressDictionary->AddItem(*newobjectentry, (uint32)objaddr);
 
     // -- see if the "OnCreate" has been defined - it's not required to
     CFunctionEntry* createfunc = newobjectentry->GetFunctionEntry(0, Hash("OnCreate"));
     if(createfunc) {
         // -- call the script "OnInit" for the object
-        int dummy = 0;
+        int32 dummy = 0;
         ObjExecF(objectid, dummy, "OnCreate(%d);", 57);
     }
 
     return objectid;
 }
 
-void CNamespace::DestroyObject(unsigned int objectid) {
+void CNamespace::DestroyObject(uint32 objectid) {
     // -- find this object in the dictionary of all objects created from script
     CObjectEntry* oe = gObjectDictionary->FindItem(objectid);
     if(!oe) {
@@ -508,7 +508,7 @@ void CNamespace::DestroyObject(unsigned int objectid) {
     CFunctionEntry* destroyfunc = oe->GetFunctionEntry(0, Hash("OnDestroy"));
     if(destroyfunc) {
         // -- call the script "OnInit" for the object
-        int dummy = 0;
+        int32 dummy = 0;
         ObjExecF(objectid, dummy, "OnDestroy();");
     }
 
@@ -521,7 +521,7 @@ void CNamespace::DestroyObject(unsigned int objectid) {
 
     // -- remove the object from the dictionary, and delete the entry
     gObjectDictionary->RemoveItem(objectid);
-    gAddressDictionary->RemoveItem((unsigned int)objaddr);
+    gAddressDictionary->RemoveItem((uint32)objaddr);
     gNameDictionary->RemoveItem(oe->GetNameHash());
 
     // -- cancel all pending schedules related to this object
@@ -534,13 +534,13 @@ void CNamespace::DestroyObject(unsigned int objectid) {
     (*destroyptr)(objaddr);
 }
 
-CObjectEntry* CNamespace::FindObject(unsigned int objectid) {
+CObjectEntry* CNamespace::FindObject(uint32 objectid) {
     CObjectEntry* oe = gObjectDictionary->FindItem(objectid);
     return oe;
 }
 
 CObjectEntry* CNamespace::FindObjectByAddress(void* addr) {
-    CObjectEntry* oe = gAddressDictionary->FindItem((unsigned int)addr);
+    CObjectEntry* oe = gAddressDictionary->FindItem((uint32)addr);
     return oe;
 }
 
@@ -551,17 +551,17 @@ CObjectEntry* CNamespace::FindObjectByName(const char* objname) {
     return oe;
 }
 
-unsigned int CNamespace::FindIDByAddress(void* addr) {
-    CObjectEntry* oe = gAddressDictionary->FindItem((unsigned int)addr);
+uint32 CNamespace::FindIDByAddress(void* addr) {
+    CObjectEntry* oe = gAddressDictionary->FindItem((uint32)addr);
     return oe ? oe->GetID() : 0;
 }
 
-void* CNamespace::FindObjectAddr(unsigned int objectid) {
+void* CNamespace::FindObjectAddr(uint32 objectid) {
     CObjectEntry* oe = gObjectDictionary->FindItem(objectid);
     return oe ? oe->GetAddr() : NULL;
 }
 
-void CNamespace::AddDynamicVariable(unsigned int objectid, unsigned int varhash,
+void CNamespace::AddDynamicVariable(uint32 objectid, uint32 varhash,
                                     eVarType vartype) {
     CObjectEntry* oe = gObjectDictionary->FindItem(objectid);
     if(!oe) {
@@ -571,20 +571,20 @@ void CNamespace::AddDynamicVariable(unsigned int objectid, unsigned int varhash,
     oe->AddDynamicVariable(varhash, vartype);
 }
 
-void CNamespace::AddDynamicVariable(unsigned int objectid, const char* varname,
+void CNamespace::AddDynamicVariable(uint32 objectid, const char* varname,
                                     const char* vartypename) {
     if(!varname || !vartypename) {
         ScriptAssert_(0, "<internal>", -1, "Error - AddDynamicVariable with no var name/type\n");
         return;
     }
 
-    unsigned int varhash = Hash(varname);
+    uint32 varhash = Hash(varname);
     eVarType vartype = GetRegisteredType(vartypename, strlen(vartypename));
     return AddDynamicVariable(objectid, varhash, vartype);
 }
 
 void CNamespace::ListObjects() {
-    for(int i = 0; i < kObjectTableSize; ++i) {
+    for(int32 i = 0; i < kObjectTableSize; ++i) {
         CObjectEntry* oe = gObjectDictionary->FindItemByBucket(i);
         while(oe) {
             printf("%d: %s\n", oe->GetID(), UnHash(oe->GetNamespace()->GetHash()));
@@ -617,7 +617,7 @@ CNamespace::~CNamespace() {
 };
 
 // ------------------------------------------------------------------------------------------------
-void ListVariables(unsigned int objectid) {
+void ListVariables(uint32 objectid) {
     if(objectid > 0) {
         TinScript::CObjectEntry* oe = TinScript::CNamespace::FindObject(objectid);
         if(!oe) {
@@ -632,7 +632,7 @@ void ListVariables(unsigned int objectid) {
     }
 }
 
-void ListFunctions(unsigned int objectid) {
+void ListFunctions(uint32 objectid) {
     if(objectid > 0) {
         TinScript::CObjectEntry* oe = TinScript::CNamespace::FindObject(objectid);
         if(!oe) {
@@ -647,7 +647,7 @@ void ListFunctions(unsigned int objectid) {
     }
 }
 
-const char* GetObjectNamespace(unsigned int objectid) {
+const char* GetObjectNamespace(uint32 objectid) {
     if(objectid > 0) {
         TinScript::CObjectEntry* oe = TinScript::CNamespace::FindObject(objectid);
         if(!oe) {
@@ -662,9 +662,9 @@ const char* GetObjectNamespace(unsigned int objectid) {
     }
 }
 
-REGISTER_FUNCTION_P1(ListVariables, ListVariables, void, unsigned int);
-REGISTER_FUNCTION_P1(ListFunctions, ListFunctions, void, unsigned int);
-REGISTER_FUNCTION_P1(GetObjectNamespace, GetObjectNamespace, const char*, unsigned int);
+REGISTER_FUNCTION_P1(ListVariables, ListVariables, void, uint32);
+REGISTER_FUNCTION_P1(ListFunctions, ListFunctions, void, uint32);
+REGISTER_FUNCTION_P1(GetObjectNamespace, GetObjectNamespace, const char*, uint32);
 
 // ------------------------------------------------------------------------------------------------
 // eof

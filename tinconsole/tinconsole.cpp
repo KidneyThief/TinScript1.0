@@ -36,25 +36,25 @@
 
 // ------------------------------------------------------------------------------------------------
 // statics - mostly for the quick and dirty console implementation
-static const unsigned int gFramesPerSecond = 33;
-static const unsigned int gMSPerFrame = 1000 / gFramesPerSecond;
-static const float gSecPerFrame = (1.0f / float(gFramesPerSecond));
-static unsigned int gCurrentTime = 0;
-static bool gRefreshConsoleString = false;
-static unsigned int gRefreshConsoleTimestamp = 0;
+static const uint32 gFramesPerSecond = 33;
+static const uint32 gMSPerFrame = 1000 / gFramesPerSecond;
+static const real gSecPerFrame = (1.0f / real(gFramesPerSecond));
+static uint32 gCurrentTime = 0;
+static nflag gRefreshConsoleString = false;
+static uint32 gRefreshConsoleTimestamp = 0;
 static char gConsoleInputBuf[TinScript::kMaxTokenLength];
-static const float gRefreshDelay = 0.25f;
+static const real gRefreshDelay = 0.25f;
 
 // ------------------------------------------------------------------------------------------------
 // quick and dirty console framework
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-static bool gRunning = true;
+static nflag gRunning = true;
 void Quit() {
     gRunning = false;
 }
 
-static bool gPaused = false;
+static nflag gPaused = false;
 void Pause() {
     gPaused = true;
 }
@@ -66,40 +66,41 @@ REGISTER_FUNCTION_P0(Quit, Quit, void);
 REGISTER_FUNCTION_P0(Pause, Pause, void);
 REGISTER_FUNCTION_P0(UnPause, UnPause, void);
 
-extern void BeginUnitTests(int teststart, int testend);
-REGISTER_FUNCTION_P2(BeginUnitTests, BeginUnitTests, void, int, int);
-
-unsigned int GetCurrentSimTime() {
+uint32 GetCurrentSimTime() {
     return gCurrentTime;
 }
 
-float GetSimTime() {
-    float curtime = (float)(GetCurrentSimTime()) / 1000.0f;
+real GetSimTime() {
+    real curtime = (real)(GetCurrentSimTime()) / 1000.0f;
     return curtime;
 }
-REGISTER_FUNCTION_P0(GetSimTime, GetSimTime, float);
+REGISTER_FUNCTION_P0(GetSimTime, GetSimTime, real);
 
-float TimeDiffSeconds(unsigned int starttime, unsigned int endtime) {
+real TimeDiffSeconds(uint32 starttime, uint32 endtime) {
     if(endtime <= starttime)
         return 0.0f;
-    unsigned int framecount = (endtime - starttime) / gMSPerFrame;
-    return float(framecount) * gSecPerFrame;
+    uint32 framecount = (endtime - starttime) / gMSPerFrame;
+    return real(framecount) * gSecPerFrame;
 }
 
-void RefreshConsoleInput(bool force = false) {
+void RefreshConsoleInput(nflag force = false) {
     if(force || gRefreshConsoleString) {
         gRefreshConsoleString = false;
         printf("\nConsole => %s", gConsoleInputBuf);
     }
 }
 
-int _tmain(int argc, _TCHAR* argv[])
+int32 _tmain(int32 argc, _TCHAR* argv[])
 {
 	TinScript::Initialize();
 
+    // -- required to ensure registered functions from unittest.cpp are linked.
+    extern nflag gUnitTestIncludeMe;
+    gUnitTestIncludeMe = true;
+
 	// -- convert all the wide args into an array of const char*
 	char argstring[kMaxArgs][kMaxArgLength];
-	for(int i = 0; i < argc; ++i) {
+	for(int32 i = 0; i < argc; ++i) {
 		size_t arglength = 0;
 		if(wcstombs_s(&arglength, argstring[i], kMaxArgLength, argv[i], _TRUNCATE) != 0) {
 			printf("Error - invalid arg# %d\n", i);
@@ -109,7 +110,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	// -- info passed in via command line arguments
 	const char* infilename = NULL;
-	int argindex = 1;
+	int32 argindex = 1;
 	while (argindex < argc) {
 		size_t arglength = 0;
 		char currarg[kMaxArgLength] = { 0 };
@@ -140,12 +141,12 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 
     // -- q&d history implementation
-    bool historyfull = false;
-    const int maxhistory = 64;
-    int historyindex = -1;
-    int historylastindex = -1;
+    nflag historyfull = false;
+    const int32 maxhistory = 64;
+    int32 historyindex = -1;
+    int32 historylastindex = -1;
     char history[TinScript::kMaxTokenLength][maxhistory];
-    for(int i = 0; i < maxhistory; ++i)
+    for(int32 i = 0; i < maxhistory; ++i)
         *history[i] = '\0';
 
     char* inputptr = gConsoleInputBuf;
@@ -171,7 +172,7 @@ int _tmain(int argc, _TCHAR* argv[])
         if(_kbhit()) {
 
             // -- read the next key
-            bool special_key = false;
+            nflag special_key = false;
             char c = _getch();
             if(c == -32) {
                 special_key = true;
@@ -189,7 +190,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
             // -- uparrow
             else if(special_key && c == 72) {
-                int oldhistory = historyindex;
+                int32 oldhistory = historyindex;
                 if(historyindex < 0)
                     historyindex = historylastindex;
                 else if(historylastindex > 0) {
@@ -210,7 +211,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
             // -- downarrow
             else if(special_key && c == 80) {
-                int oldhistory = historyindex;
+                int32 oldhistory = historyindex;
                 if(historyindex < 0)
                     historyindex = historylastindex;
                 else if(historylastindex > 0) {
@@ -260,7 +261,7 @@ int _tmain(int argc, _TCHAR* argv[])
             }
 
             // ignore any other non-printable character
-            else if(!special_key && (unsigned int)c >= 0x20) {
+            else if(!special_key && (uint32)c >= 0x20) {
                 RefreshConsoleInput();
                 *inputptr++ = c;
                 *inputptr = '\0';
