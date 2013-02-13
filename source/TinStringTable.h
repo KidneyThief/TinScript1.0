@@ -36,25 +36,26 @@ class CStringTable {
         CStringTable(unsigned int _size) {
             assert(_size > 0);
             size = _size;
-            buffer = new char[size];
+            buffer = TinAllocArray(ALLOC_StringTable, char, size);
             bufptr = buffer;
 
-            stringdictionary = new CHashTable<const char>(kStringTableDictionarySize);
+            stringdictionary = TinAlloc(ALLOC_StringTable, CHashTable<const char>,
+                                        kStringTableDictionarySize);
         }
 
         virtual ~CStringTable() {
-            delete stringdictionary;
-            delete buffer;
+            TinFree(stringdictionary);
+            TinFree(buffer);
         }
 
         static void Initialize() {
             assert(gInstance == NULL);
-            gInstance = new CStringTable(kStringTableSize);
+            gInstance = TinAlloc(ALLOC_StringTable, CStringTable, kStringTableSize);
         }
 
         static void Shutdown() {
             assert(gInstance != NULL);
-            delete gInstance;
+            TinFree(gInstance);
             gInstance = NULL;
         }
 

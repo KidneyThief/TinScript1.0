@@ -40,7 +40,7 @@
 static const char* kGlobalNamespace = "_global";
 
 // enable this for debug output while the byte code is generated
-nflag gDebugCodeBlock = false;
+bool8 gDebugCodeBlock = false;
 
 namespace TinScript {
 
@@ -132,7 +132,7 @@ static const char* gDebugByteTypeName[] = {
 };
 
 // ------------------------------------------------------------------------------------------------
-int32 PushInstructionRaw(nflag countonly, uint32*& instrptr, void* content, int32 wordcount,
+int32 PushInstructionRaw(bool8 countonly, uint32*& instrptr, void* content, int32 wordcount,
 					eDebugByteType debugtype, const char* debugmsg = NULL) {
 
 	if(!countonly) {
@@ -173,12 +173,12 @@ int32 PushInstructionRaw(nflag countonly, uint32*& instrptr, void* content, int3
 	return wordcount;
 }
 
-int32 PushInstruction(nflag countonly, uint32*& instrptr, uint32 content,
+int32 PushInstruction(bool8 countonly, uint32*& instrptr, uint32 content,
 					eDebugByteType debugtype, const char* debugmsg = NULL) {
 	return PushInstructionRaw(countonly, instrptr, (void*)&content, 1, debugtype, debugmsg);
 }
 
-void DebugEvaluateNode(const CCompileTreeNode& node, nflag countonly, uint32* instrptr) {
+void DebugEvaluateNode(const CCompileTreeNode& node, bool8 countonly, uint32* instrptr) {
 #if DEBUG_CODEBLOCK
     if(gDebugCodeBlock && !countonly)
 	    printf("\n--- Eval: %s\n", GetNodeTypeString(node.GetType()));
@@ -189,7 +189,7 @@ void DebugEvaluateNode(const CCompileTreeNode& node, nflag countonly, uint32* in
 #endif
 }
 
-void DebugEvaluateBinOpNode(const CBinaryOpNode& binopnode, nflag countonly) {
+void DebugEvaluateBinOpNode(const CBinaryOpNode& binopnode, bool8 countonly) {
 #if DEBUG_CODEBLOCK
     if(gDebugCodeBlock && !countonly) {
 	    printf("\n--- Eval: %s [%s]\n", GetNodeTypeString(binopnode.GetType()),
@@ -199,7 +199,7 @@ void DebugEvaluateBinOpNode(const CBinaryOpNode& binopnode, nflag countonly) {
 }
 
 // ------------------------------------------------------------------------------------------------
-int32 CompileVarTable(tVarTable* vartable, uint32*& instrptr, nflag countonly) {
+int32 CompileVarTable(tVarTable* vartable, uint32*& instrptr, bool8 countonly) {
     int32 size = 0;
 	if(vartable) {
 		// -- create instructions to declare each variable
@@ -219,7 +219,7 @@ int32 CompileVarTable(tVarTable* vartable, uint32*& instrptr, nflag countonly) {
 
 // ------------------------------------------------------------------------------------------------
 int32 CompileFunctionContext(CFunctionContext* funccontext, uint32*& instrptr,
-                           nflag countonly) {
+                           bool8 countonly) {
     int32 size = 0;
     assert(funccontext);
 
@@ -260,7 +260,7 @@ int32 CompileFunctionContext(CFunctionContext* funccontext, uint32*& instrptr,
 // ------------------------------------------------------------------------------------------------
 CCompileTreeNode* CCompileTreeNode::CreateTreeRoot(CCodeBlock* codeblock)
 {
-	CCompileTreeNode* root = new CCompileTreeNode(codeblock);
+    CCompileTreeNode* root = TinAlloc(ALLOC_TreeNode, CCompileTreeNode, codeblock);
 	root->next = NULL;
 	root->leftchild = NULL;
 	root->rightchild = NULL;
@@ -287,7 +287,7 @@ CCompileTreeNode::~CCompileTreeNode() {
 	assert(leftchild == NULL && rightchild == NULL);
 }
 
-int32 CCompileTreeNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CCompileTreeNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -318,7 +318,7 @@ void CCompileTreeNode::Dump(char*& output, int32& length) const
 
 // ------------------------------------------------------------------------------------------------
 CValueNode::CValueNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
-                       const char* _value, int32 _valuelength, nflag _isvar,
+                       const char* _value, int32 _valuelength, bool8 _isvar,
                        eVarType _valtype) :
                        CCompileTreeNode(_codeblock, _link, eValue, _linenumber) {
 	SafeStrcpy(value, _value, _valuelength + 1);
@@ -337,7 +337,7 @@ CValueNode::CValueNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _
     valtype = _valtype;
 }
 
-int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 	
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -489,7 +489,7 @@ CSelfNode::CSelfNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _li
                                CCompileTreeNode(_codeblock, _link, eSelf, _linenumber) {
 }
 
-int32 CSelfNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CSelfNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 	
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -509,7 +509,7 @@ CObjMemberNode::CObjMemberNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
 	SafeStrcpy(membername, _membername, _memberlength + 1);
 }
 
-int32 CObjMemberNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CObjMemberNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 	
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -561,7 +561,7 @@ void CObjMemberNode::Dump(char*& output, int32& length) const
 
 // ------------------------------------------------------------------------------------------------
 CBinaryOpNode::CBinaryOpNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
-                             eBinaryOpType _binaryoptype, nflag _isassignop, eVarType _resulttype) :
+                             eBinaryOpType _binaryoptype, bool8 _isassignop, eVarType _resulttype) :
                              CCompileTreeNode(_codeblock, _link, eBinaryOp, _linenumber) {
 
 	binaryopcode = GetBinOpInstructionType(_binaryoptype);
@@ -571,7 +571,7 @@ CBinaryOpNode::CBinaryOpNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, i
 }
 
 CBinaryOpNode::CBinaryOpNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
-                             eAssignOpType _assoptype, nflag _isassignop, eVarType _resulttype) :
+                             eAssignOpType _assoptype, bool8 _isassignop, eVarType _resulttype) :
                              CCompileTreeNode(_codeblock, _link, eBinaryOp, _linenumber) {
 
 	binaryopcode = GetAssOpInstructionType(_assoptype);
@@ -581,7 +581,7 @@ CBinaryOpNode::CBinaryOpNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, i
 }
 
 // ------------------------------------------------------------------------------------------------
-int32 CBinaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CBinaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateBinOpNode(*this, countonly);
 	int32 size = 0;
@@ -629,7 +629,7 @@ CUnaryOpNode::CUnaryOpNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int
 	unaryopcode = GetUnaryOpInstructionType(_unaryoptype);
 }
 
-int32 CUnaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CUnaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -682,7 +682,7 @@ CIfStatementNode::CIfStatementNode(CCodeBlock* _codeblock, CCompileTreeNode*& _l
                                                                        _linenumber) {
 }
 
-int32 CIfStatementNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CIfStatementNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -714,7 +714,7 @@ CCondBranchNode::CCondBranchNode(CCodeBlock* _codeblock, CCompileTreeNode*& _lin
                                                                      eCondBranch, _linenumber) {
 }
 
-int32 CCondBranchNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CCondBranchNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -772,7 +772,7 @@ CWhileLoopNode::CWhileLoopNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
                                CCompileTreeNode(_codeblock, _link, eWhileLoop, _linenumber) {
 }
 
-int32 CWhileLoopNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CWhileLoopNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -824,7 +824,7 @@ CParenOpenNode::CParenOpenNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
                                CCompileTreeNode(_codeblock, _link, eWhileLoop, _linenumber) {
 }
 
-int32 CParenOpenNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CParenOpenNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -845,7 +845,7 @@ CFuncDeclNode::CFuncDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, i
     functionentry = codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
 }
 
-int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -949,14 +949,14 @@ void CFuncDeclNode::Dump(char*& output, int32& length) const
 // ------------------------------------------------------------------------------------------------
 CFuncCallNode::CFuncCallNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
                              const char* _funcname, int32 _length, const char* _nsname,
-                             int32 _nslength, nflag _ismethod) :
+                             int32 _nslength, bool8 _ismethod) :
                              CCompileTreeNode(_codeblock, _link, eFuncCall, _linenumber) {
     SafeStrcpy(funcname, _funcname, _length + 1);
     SafeStrcpy(nsname, _nsname, _nslength + 1);
     ismethod = _ismethod;
 }
 
-int32 CFuncCallNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CFuncCallNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -1030,7 +1030,7 @@ CFuncReturnNode::CFuncReturnNode(CCodeBlock* _codeblock, CCompileTreeNode*& _lin
     functionentry = _codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
 }
 
-int32 CFuncReturnNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CFuncReturnNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -1067,7 +1067,7 @@ CObjMethodNode::CObjMethodNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
 	SafeStrcpy(methodname, _methodname, _methodlength + 1);
 }
 
-int32 CObjMethodNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CObjMethodNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -1101,7 +1101,7 @@ CArrayHashNode::CArrayHashNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
                                                                      eArrayHash, _linenumber) {
 }
 
-int32 CArrayHashNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CArrayHashNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -1140,7 +1140,7 @@ CArrayVarDeclNode::CArrayVarDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& 
     type = _type;
 }
 
-int32 CArrayVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CArrayVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -1178,7 +1178,7 @@ CSelfVarDeclNode::CSelfVarDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _l
     type = _type;
 }
 
-int32 CSelfVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CSelfVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -1199,7 +1199,7 @@ CScheduleNode::CScheduleNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, i
     delaytime = _delaytime;
 };
 
-int32 CScheduleNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CScheduleNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -1260,7 +1260,7 @@ CSchedParamNode::CSchedParamNode(CCodeBlock* _codeblock, CCompileTreeNode*& _lin
     paramindex = _paramindex;
 }
 
-int32 CSchedParamNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CSchedParamNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -1294,7 +1294,7 @@ CCreateObjectNode::CCreateObjectNode(CCodeBlock* _codeblock, CCompileTreeNode*& 
 	SafeStrcpy(objectname, _objname, _objlength + 1);
 }
 
-int32 CCreateObjectNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CCreateObjectNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -1321,7 +1321,7 @@ CDestroyObjectNode::CDestroyObjectNode(CCodeBlock* _codeblock, CCompileTreeNode*
                                                         _linenumber) {
 }
 
-int32 CDestroyObjectNode::Eval(uint32*& instrptr, eVarType pushresult, nflag countonly) const {
+int32 CDestroyObjectNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
@@ -1341,9 +1341,9 @@ CCodeBlock::CCodeBlock(const char* _filename) {
     instrblock = NULL;
     instrcount = 0;
 
-    smFuncDefinitionStack = new CFunctionCallStack(kFunctionCallStackSize);
-    smCurrentGlobalVarTable = new tVarTable(kLocalVarTableSize);
-    functionlist = new tFuncTable(kLocalFuncTableSize);
+    smFuncDefinitionStack = TinAlloc(ALLOC_FuncCallStack, CFunctionCallStack, kFunctionCallStackSize);
+    smCurrentGlobalVarTable = TinAlloc(ALLOC_VarTable, tVarTable, kLocalVarTableSize);
+    functionlist = TinAlloc(ALLOC_FuncTable, tFuncTable, kLocalFuncTableSize);
 
     // -- add to the resident list of codeblocks, if a name was given
     filename[0] = '\0';
@@ -1362,14 +1362,14 @@ CCodeBlock::CCodeBlock(const char* _filename) {
 
 CCodeBlock::~CCodeBlock() {
 	if(instrblock)
-		delete [] instrblock;
+		TinFreeArray(instrblock);
     smCurrentGlobalVarTable->DestroyAll();
-    delete smCurrentGlobalVarTable;
+    TinFree(smCurrentGlobalVarTable);
     functionlist->DestroyAll();
-    delete functionlist;
+    TinFree(functionlist);
 
     if(linenumbers)
-        delete [] linenumbers;
+        TinFreeArray(linenumbers);
 }
 
 int32 CCodeBlock::CalcInstrCount(const CCompileTreeNode& root) {
@@ -1391,7 +1391,7 @@ int32 CCodeBlock::CalcInstrCount(const CCompileTreeNode& root) {
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag CCodeBlock::CompileTree(const CCompileTreeNode& root) {
+bool8 CCodeBlock::CompileTree(const CCompileTreeNode& root) {
 
 	// -- the root is always a NOP, which will loop through and eval its siblings
 	uint32* instrptr = instrblock;
@@ -1414,15 +1414,15 @@ nflag CCodeBlock::CompileTree(const CCompileTreeNode& root) {
 // ------------------------------------------------------------------------------------------------
 // -- debugging suppport
 
-void SetDebugCodeBlock(nflag torf) {
+void SetDebugCodeBlock(bool8 torf) {
     gDebugCodeBlock = torf;
 }
 
-nflag GetDebugCodeBlock() {
+bool8 GetDebugCodeBlock() {
     return gDebugCodeBlock;
 }
 
-REGISTER_FUNCTION_P1(SetDebugCodeBlock, SetDebugCodeBlock, void, nflag);
+REGISTER_FUNCTION_P1(SetDebugCodeBlock, SetDebugCodeBlock, void, bool8);
 
 } // TinScript
 

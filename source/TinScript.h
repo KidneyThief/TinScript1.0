@@ -50,13 +50,13 @@
     static const char* GetParentName() { return #parentclass; }                                         \
     static const char* GetClassName() { return #classname; }                                            \
     static classname* Create() {                                                                        \
-        classname* newobj = new classname();                                                            \
+        classname* newobj = TinAlloc(ALLOC_CreateObj, classname);                                       \
         return newobj;                                                                                  \
     }                                                                                                   \
     static void Destroy(void* addr) {                                                                   \
         if(addr) {                                                                                      \
             classname* obj = static_cast<classname*>(addr);                                             \
-            delete obj;                                                                                 \
+            TinFree(obj);                                                                               \
         }                                                                                               \
     }                                                                                                   \
     uint32 GetObjectID() const { return TinScript::CNamespace::FindIDByAddress((void*)this); }    \
@@ -75,8 +75,9 @@
 #define REGISTER_MEMBER(classname, scriptname, membername)                                   \
     {                                                                                        \
         classname* classptr = reinterpret_cast<classname*>(0);                               \
-        uint32 varhash = TinScript::Hash(#scriptname);                                 \
-        TinScript::CVariableEntry* ve = new TinScript::CVariableEntry(#scriptname, varhash,  \
+        uint32 varhash = TinScript::Hash(#scriptname);                                       \
+        TinScript::CVariableEntry* ve =                                                      \
+            TinAlloc(ALLOC_VarEntry, TinScript::CVariableEntry, #scriptname, varhash,        \
             TinScript::GetRegisteredType(TinScript::GetTypeID(classptr->membername)), true,  \
             offsetof(classname, membername));                                                \
         classnamespace->GetVarTable()->AddItem(*ve, varhash);                                \
@@ -156,7 +157,7 @@ class CRegisterGlobal {
 // ------------------------------------------------------------------------------------------------
 // -- returns false if we should break
 void ResetAssertStack();
-nflag AssertHandled(const char* condition, const char* file, int32 linenumber, const char* fmt, ...);
+bool8 AssertHandled(const char* condition, const char* file, int32 linenumber, const char* fmt, ...);
 
 // ------------------------------------------------------------------------------------------------
 // external interface
@@ -165,12 +166,12 @@ void Update(uint32 curtime);
 void Shutdown();
 
 CCodeBlock* CompileScript(const char* filename);
-nflag ExecScript(const char* filename);
+bool8 ExecScript(const char* filename);
 
 CCodeBlock* CompileCommand(const char* filename);
-nflag ExecCommand(const char* statement);
+bool8 ExecCommand(const char* statement);
 
-nflag IsObject(uint32 objectid);
+bool8 IsObject(uint32 objectid);
 void* FindObject(uint32 objectid);
 
 }  // TinScript

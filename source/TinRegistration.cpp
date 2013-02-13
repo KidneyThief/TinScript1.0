@@ -45,7 +45,7 @@ CVariableEntry::CVariableEntry(const char* _name, eVarType _type, void* _addr) {
 }
 
 CVariableEntry::CVariableEntry(const char* _name, uint32 _hash, eVarType _type,
-                               nflag isoffset, uint32 _offset, nflag _isdynamic) {
+                               bool8 isoffset, uint32 _offset, bool8 _isdynamic) {
 	SafeStrcpy(name, _name, kMaxNameLength);
 	type = _type;
 	hash = _hash;
@@ -59,7 +59,10 @@ CVariableEntry::CVariableEntry(const char* _name, uint32 _hash, eVarType _type,
     // -- they can only be created from script
     if(type == TYPE_hashtable) {
         scriptvar = true;
-        addr = (void*)new tVarTable(kLocalVarTableSize);
+        // -- setting allocation type as a VarTable, although this may be an exception:
+        // -- since it's actually a script variable allocation...  it's size is not
+        // -- consistent with the normal size of variable storage
+        addr = (void*)TinAlloc(ALLOC_VarTable, tVarTable, kLocalVarTableSize);
     }
     else if(isoffset) {
         addr = NULL;
@@ -70,7 +73,7 @@ CVariableEntry::CVariableEntry(const char* _name, uint32 _hash, eVarType _type,
     // -- globals are constructed above, so this is a script var, requiring us to allocate
     else {
 		scriptvar = true;
-		addr = (void*)(new char[gRegisteredTypeSize[_type]]);
+		addr = (void*)TinAllocVarContent(_type);
 		memset(addr, 0, gRegisteredTypeSize[_type]);
     }
 }
@@ -78,7 +81,7 @@ CVariableEntry::CVariableEntry(const char* _name, uint32 _hash, eVarType _type,
 CVariableEntry::~CVariableEntry() {
 	if(scriptvar) {
         if(type != TYPE_hashtable) {
-		    delete addr;
+		    TinFree(addr);
         }
         // -- if this is a hashtable, need to destroy all of its entries
         else {
@@ -86,7 +89,7 @@ CVariableEntry::~CVariableEntry() {
             ht->DestroyAll();
 
             // -- now delete the hashtable itself
-            delete ht;
+            TinFree(ht);
         }
 	}
 }
@@ -118,7 +121,7 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value) {
 // ------------------------------------------------------------------------------------------------
 // CFunctionContext
 CFunctionContext::CFunctionContext() {
-    localvartable = new tVarTable(eMaxLocalVarCount);
+    localvartable = TinAlloc(ALLOC_VarTable, tVarTable, eMaxLocalVarCount);
     paramcount = 0;
     for(int32 i = 0; i < eMaxParameterCount; ++i) {
         parameterlist[i] = NULL;
@@ -134,16 +137,16 @@ CFunctionContext::~CFunctionContext() {
 		while (ve) {
 			uint32 hash = ve->GetHash();
 			localvartable->RemoveItem(hash);
-			delete ve;
+			TinFree(ve);
 			ve = localvartable->FindItemByBucket(i);
 		}
 	}
 
     // -- delete the actual table
-    delete localvartable;
+    TinFree(localvartable);
 }
 
-nflag CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type,
+bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type,
                                     int32 paramindex) {
     assert(varname != NULL);
 
@@ -173,7 +176,7 @@ nflag CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarTy
     return true;
 }
 
-nflag CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type) {
+bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type) {
     assert(varname != NULL);
 
     // -- adding automatically increments the paramcount if needed
@@ -192,7 +195,8 @@ CVariableEntry* CFunctionContext::AddLocalVar(const char* varname, uint32 varhas
     }
 
     // -- create the Variable entry
-    CVariableEntry* ve = new CVariableEntry(varname, varhash, type, false, 0, false);
+    CVariableEntry* ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, varname, varhash, type,
+                                  false, 0, false);
 	uint32 hash = ve->GetHash();
 	localvartable->AddItem(*ve, hash);
 
@@ -216,7 +220,7 @@ tVarTable* CFunctionContext::GetLocalVarTable() {
     return localvartable;
 }
 
-nflag CFunctionContext::IsParameter(CVariableEntry* ve) {
+bool8 CFunctionContext::IsParameter(CVariableEntry* ve) {
     if(!ve)
         return false;
     for(int32 i = 0; i < paramcount; ++i) {

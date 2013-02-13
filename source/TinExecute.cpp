@@ -40,7 +40,7 @@ static const int32 kExecStackSize = 2048;
 static const int32 kExecFuncCallDepth = 1024;
 
 // enable this for debug output while the executing the virtual machine
-nflag gDebugTrace = false;
+bool8 gDebugTrace = false;
 
 void DebugTrace(eOpCode opcode, const char* fmt, ...) {
 #if DEBUG_TRACE
@@ -71,7 +71,7 @@ void* GetStackVarAddr(CExecStack& execstack, CFunctionCallStack& funccallstack,
     return varaddr;
 }
 
-nflag GetStackValue(CExecStack& execstack, CFunctionCallStack& funccallstack,
+bool8 GetStackValue(CExecStack& execstack, CFunctionCallStack& funccallstack,
                    void*& valaddr, eVarType& valtype, CVariableEntry*& ve, CObjectEntry*& oe) {
     // -- we'll always return a value, but if that comes from a var or an object member,
     // -- return those as well
@@ -116,7 +116,9 @@ nflag GetStackValue(CExecStack& execstack, CFunctionCallStack& funccallstack,
     }
     // -- if a stack variable was pushed...
     else if(valtype == TYPE__stackvar) {
-        eVarType valtype = (eVarType)((uint32*)valaddr)[0];
+        // -- we already know to do a stackvar lookup - replace the var with the actual value type
+        valtype = (eVarType)((uint32*)valaddr)[0];
+
         int32 stackvaroffset = ((uint32*)valaddr)[1];
         valaddr = GetStackVarAddr(execstack, funccallstack, stackvaroffset);
         if(!valaddr) {
@@ -129,7 +131,7 @@ nflag GetStackValue(CExecStack& execstack, CFunctionCallStack& funccallstack,
     return true;
 }
 
-nflag GetBinOpValues(CExecStack& execstack, CFunctionCallStack& funccallstack,
+bool8 GetBinOpValues(CExecStack& execstack, CFunctionCallStack& funccallstack,
                     void*& val0, eVarType& val0type,
 					void*& val1, eVarType& val1type) {
 
@@ -153,8 +155,8 @@ nflag GetBinOpValues(CExecStack& execstack, CFunctionCallStack& funccallstack,
 
 // -- this is to consolidate all the math operations that pop two values from the stack
 // -- and compbine them... the operation is still responsible for handling pushing the result
-nflag PerformNumericalBinOp(CExecStack& execstack, CFunctionCallStack& funccallstack,
-                           eOpCode op, real& result) {
+bool8 PerformNumericalBinOp(CExecStack& execstack, CFunctionCallStack& funccallstack,
+                           eOpCode op, float32& result) {
 
 	// -- Get both args from the stacks
 	eVarType val0type;
@@ -177,8 +179,8 @@ nflag PerformNumericalBinOp(CExecStack& execstack, CFunctionCallStack& funccalls
     }
     void* val0addr = TypeConvert(val0type, val0, TYPE_float);
     void* val1addr = TypeConvert(val1type, val1, TYPE_float);
-    real val0float = *(real*)val0addr;
-    real val1float = *(real*)val1addr;
+    float32 val0float = *(float32*)val0addr;
+    float32 val1float = *(float32*)val1addr;
 
     // -- now perform the op
     switch(op) {
@@ -202,7 +204,7 @@ nflag PerformNumericalBinOp(CExecStack& execstack, CFunctionCallStack& funccalls
             int32 val1int = val1float < 0.0f ? -(int32)val1float : (int32)val1float;
             while(val0int < 0)
                 val0int += val1int;
-            result = (real)(val0int % val1int);
+            result = (float32)(val0int % val1int);
             break;
         }
 
@@ -233,7 +235,7 @@ nflag PerformNumericalBinOp(CExecStack& execstack, CFunctionCallStack& funccalls
 
 // -- this is to consolidate all the math operations that pop two values from the stack
 // -- and compbine them... the operation is still responsible for handling pushing the result
-nflag PerformIntegerBinOp(CExecStack& execstack, CFunctionCallStack& funccallstack,
+bool8 PerformIntegerBinOp(CExecStack& execstack, CFunctionCallStack& funccallstack,
                            eOpCode op, int32& result) {
 
 	// -- Get both args from the stacks
@@ -286,7 +288,7 @@ nflag PerformIntegerBinOp(CExecStack& execstack, CFunctionCallStack& funccallsta
     return true;
 }
 
-nflag PerformAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eOpCode op) {
+bool8 PerformAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eOpCode op) {
 
 	// -- pop the value
     CVariableEntry* ve1 = NULL;
@@ -299,7 +301,7 @@ nflag PerformAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, 
     }
 
 	// -- pop the (hash) name of the var
-    nflag isstackvar = false;
+    bool8 isstackvar = false;
     CVariableEntry* ve0 = NULL;
     CObjectEntry* oe0 = NULL;
 	eVarType varhashtype;
@@ -316,7 +318,7 @@ nflag PerformAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, 
         return false;
     }
 
-    // -- if we're doing a straight up assignment, don't convert to real
+    // -- if we're doing a straight up assignment, don't convert to float32
     if(op == OP_Assign )
     {
         if(isstackvar) {
@@ -336,11 +338,11 @@ nflag PerformAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, 
     void* ve0addr = isstackvar ? TypeConvert(varhashtype, var, TYPE_float)
                                : TypeConvert(ve0->GetType(), ve0->GetAddr(oe0), TYPE_float);
     val1addr = TypeConvert(val1type, val1addr, TYPE_float);
-    real vefloat = *(real*)ve0addr;
-    real val1float = *(real*)val1addr;
+    float32 vefloat = *(float32*)ve0addr;
+    float32 val1float = *(float32*)val1addr;
 
     // -- now perform the op
-    real result = 0.0f;
+    float32 result = 0.0f;
     switch(op) {
         case OP_AssignAdd:
             result = vefloat + val1float;
@@ -362,7 +364,7 @@ nflag PerformAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, 
             int32 val1int = val1float < 0.0f ? -(int32)val1float : (int32)val1float;
             while(val0int < 0)
                 val0int += val1int;
-            result = (real)(val0int % val1int);
+            result = (float32)(val0int % val1int);
             break;
         }
     }
@@ -402,7 +404,7 @@ nflag PerformAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, 
 	return true;
 }
 
-nflag PerformBitAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eOpCode op) {
+bool8 PerformBitAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eOpCode op) {
 
 	// -- pop the value
     CVariableEntry* ve1 = NULL;
@@ -415,7 +417,7 @@ nflag PerformBitAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstac
     }
 
 	// -- pop the (hash) name of the var
-    nflag isstackvar = false;
+    bool8 isstackvar = false;
     CVariableEntry* ve0 = NULL;
     CObjectEntry* oe0 = NULL;
 	eVarType varhashtype;
@@ -493,7 +495,7 @@ nflag PerformBitAssignOp(CExecStack& execstack, CFunctionCallStack& funccallstac
 	return true;
 }
 
-nflag PerformUnaryOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eOpCode op) {
+bool8 PerformUnaryOp(CExecStack& execstack, CFunctionCallStack& funccallstack, eOpCode op) {
 	// -- pop the value
     CVariableEntry* ve = NULL;
     CObjectEntry* oe = NULL;
@@ -512,17 +514,17 @@ nflag PerformUnaryOp(CExecStack& execstack, CFunctionCallStack& funccallstack, e
         case OP_UnaryNeg:
         case OP_UnaryPos:
         {
-            // -- verify the types - this is only valid for int32 and real
+            // -- verify the types - this is only valid for int32 and float32
             if(valtype != TYPE_int && valtype != TYPE_float) {
                 ScriptAssert_(0, "<internal>", -1,
-                              "Error - Only types int32 and real are supported for op: %s\n",
+                              "Error - Only types int32 and float32 are supported for op: %s\n",
                               GetOperationString(op));
                 return false;
             }
 
             void* result = NULL;
             int32 intresult = 0;
-            real floatresult = 0.0f;
+            float32 floatresult = 0.0f;
 
             if(valtype == TYPE_int) {
                 intresult = *(int32*)valaddr;
@@ -539,7 +541,7 @@ nflag PerformUnaryOp(CExecStack& execstack, CFunctionCallStack& funccallstack, e
                 result = (void*)&intresult;
             }
             else {
-                floatresult = *(real*)valaddr;
+                floatresult = *(float32*)valaddr;
 
                 // -- perform the actual operation
                 if(op == OP_UnaryPreInc)
@@ -561,7 +563,7 @@ nflag PerformUnaryOp(CExecStack& execstack, CFunctionCallStack& funccallstack, e
 
         case OP_UnaryBitInvert:
         {
-            // -- verify the types - this is only valid for int32 and real
+            // -- verify the types - this is only valid for int32 and float32
             if(valtype != TYPE_int) {
                 ScriptAssert_(0, "<internal>", -1,
                               "Error - Only type int32 is supported for op: %s\n",
@@ -579,14 +581,14 @@ nflag PerformUnaryOp(CExecStack& execstack, CFunctionCallStack& funccallstack, e
 
         case OP_UnaryNot:
         {
-            // -- verify the types - this is only valid for int32 and real
+            // -- verify the types - this is only valid for int32 and float32
             if(valtype != TYPE_bool) {
                 ScriptAssert_(0, "<internal>", -1,
-                              "Error - Only type nflag is supported for op: %s\n",
+                              "Error - Only type bool8 is supported for op: %s\n",
                               GetOperationString(op));
                 return false;
             }
-            nflag value = *(nflag*)valaddr;
+            bool8 value = *(bool8*)valaddr;
             value = !value;
 
 	        // -- push the the value onto the stack
@@ -607,7 +609,7 @@ nflag PerformUnaryOp(CExecStack& execstack, CFunctionCallStack& funccallstack, e
     return true;
 }
 
-nflag CopyStackParameters(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
+bool8 CopyStackParameters(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
                          CFunctionCallStack& funccallstack) {
 
     // -- sanity check
@@ -640,7 +642,7 @@ nflag CopyStackParameters(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& exec
     return true;
 }
 
-nflag CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
+bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
                            CFunctionCallStack& funccallstack) {
 
     // -- at this point, the funccallstack has the CFunctionEntry pushed
@@ -662,7 +664,7 @@ nflag CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
         }
 
         // -- execute the function via codeblock/offset
-        nflag success = funccb->Execute(funcoffset, execstack, funccallstack);
+        bool8 success = funccb->Execute(funcoffset, execstack, funccallstack);
         if(!success) {
             ScriptAssert_(0, "<internal>", -1, "Error - error executing function: %s()\n",
                           UnHash(fe->GetHash()));
@@ -695,7 +697,7 @@ nflag CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
     return true;
 }
 
-nflag ExecuteCodeBlock(CCodeBlock& codeblock) {
+bool8 ExecuteCodeBlock(CCodeBlock& codeblock) {
 
 	// -- create the stack to use for the execution
 	CExecStack execstack(kExecStackSize);
@@ -704,7 +706,7 @@ nflag ExecuteCodeBlock(CCodeBlock& codeblock) {
     return codeblock.Execute(0, execstack, funccallstack);
 }
 
-nflag ExecuteScheduledFunction(uint32 objectid, uint32 funchash,
+bool8 ExecuteScheduledFunction(uint32 objectid, uint32 funchash,
                               CFunctionContext* parameters) {
 
     // -- sanity check
@@ -788,7 +790,7 @@ nflag ExecuteScheduledFunction(uint32 objectid, uint32 funchash,
     funccallstack.BeginExecution();
 
     // -- call the function
-    nflag result = CodeBlockCallFunction(fe, oe, execstack, funccallstack);
+    bool8 result = CodeBlockCallFunction(fe, oe, execstack, funccallstack);
     if(!result) {
         ScriptAssert_(0, "<internal>", -1,
                         "Error - Unable to call function: %s()\n",
@@ -799,7 +801,7 @@ nflag ExecuteScheduledFunction(uint32 objectid, uint32 funchash,
     return true;
 }
 
-nflag CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
+bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
                          CFunctionCallStack& funccallstack) {
 #if DEBUG_CODEBLOCK
     if(GetDebugCodeBlock()) {
@@ -1137,7 +1139,7 @@ nflag CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 			case OP_Div:
 			case OP_Mod:
 			{
-                real result = 0.0f;
+                float32 result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
                     ScriptAssert_(0, GetFileName(), CalcLineNumber(instrptr),
                                   "Error - unable to perform op: %s\n",
@@ -1152,22 +1154,22 @@ nflag CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 			case OP_BooleanAnd:
 			case OP_BooleanOr:
 			{
-                real result = 0.0f;
+                float32 result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
                     return false;
                 }
-                nflag boolresult = (result != 0.0f);
+                bool8 boolresult = (result != 0.0f);
 				execstack.Push((void*)&boolresult, TYPE_bool);
 				break;
 			}
 
 			case OP_CompareEqual:
 			{
-                real result = 0.0f;
+                float32 result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
                     return false;
                 }
-                nflag boolresult = (result == 0.0f);
+                bool8 boolresult = (result == 0.0f);
 				execstack.Push((void*)&boolresult, TYPE_bool);
                 DebugTrace(curoperation, "%s", boolresult ? "true" : "false");
 				break;
@@ -1175,11 +1177,11 @@ nflag CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 
 			case OP_CompareNotEqual:
 			{
-                real result = 0.0f;
+                float32 result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
                     return false;
                 }
-                nflag boolresult = (result != 0.0f);
+                bool8 boolresult = (result != 0.0f);
 				execstack.Push((void*)&boolresult, TYPE_bool);
                 DebugTrace(curoperation, "%s", boolresult ? "true" : "false");
 				break;
@@ -1187,11 +1189,11 @@ nflag CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 
 			case OP_CompareLess:
 			{
-                real result = 0.0f;
+                float32 result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
                     return false;
                 }
-                nflag boolresult = (result < 0.0f);
+                bool8 boolresult = (result < 0.0f);
 				execstack.Push((void*)&boolresult, TYPE_bool);
                 DebugTrace(curoperation, "%s", boolresult ? "true" : "false");
 				break;
@@ -1199,11 +1201,11 @@ nflag CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 
 			case OP_CompareLessEqual:
 			{
-                real result = 0.0f;
+                float32 result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
                     return false;
                 }
-                nflag boolresult = (result <= 0.0f);
+                bool8 boolresult = (result <= 0.0f);
 				execstack.Push((void*)&boolresult, TYPE_bool);
                 DebugTrace(curoperation, "%s", boolresult ? "true" : "false");
 				break;
@@ -1211,11 +1213,11 @@ nflag CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 
 			case OP_CompareGreater:
 			{
-                real result = 0.0f;
+                float32 result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
                     return false;
                 }
-                nflag boolresult = (result > 0.0f);
+                bool8 boolresult = (result > 0.0f);
 				execstack.Push((void*)&boolresult, TYPE_bool);
                 DebugTrace(curoperation, "%s", boolresult ? "true" : "false");
 				break;
@@ -1223,14 +1225,14 @@ nflag CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 
 			case OP_CompareGreaterEqual:
 			{
-                real result = 0.0f;
+                float32 result = 0.0f;
                 if(!PerformNumericalBinOp(execstack, funccallstack, curoperation, result)) {
 		            ScriptAssert_(0, GetFileName(), CalcLineNumber(instrptr),
                                   "Error - Operation failed: %s\n",
                                   GetOperationString(curoperation));
                     return false;
                 }
-                nflag boolresult = (result >= 0.0f);
+                bool8 boolresult = (result >= 0.0f);
 				execstack.Push((void*)&boolresult, TYPE_bool);
                 DebugTrace(curoperation, "%s", boolresult ? "true" : "false");
 				break;
@@ -1266,13 +1268,13 @@ nflag CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 			{
 				int32 jumpcount = *instrptr++;
 
-				// -- top of the stack had better be a nflag
+				// -- top of the stack had better be a bool8
 				eVarType valtype;
 				void* valueraw = execstack.Pop(valtype);
 				assert(valtype == TYPE_bool);
 
 				// -- branch
-				nflag value = *(nflag*)valueraw;
+				bool8 value = *(bool8*)valueraw;
 				if(value) {
 					instrptr += jumpcount;
 				}
@@ -1285,13 +1287,13 @@ nflag CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 			{
 				int32 jumpcount = *instrptr++;
 
-				// -- top of the stack had better be a nflag
+				// -- top of the stack had better be a bool8
 				eVarType valtype;
 				void* valueraw = execstack.Pop(valtype);
 				assert(valtype == TYPE_bool);
 
 				// -- branch
-				nflag value = *(nflag*)valueraw;
+				bool8 value = *(bool8*)valueraw;
 				if(!value) {
 					instrptr += jumpcount;
 				}
@@ -1474,7 +1476,7 @@ nflag CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 
                 DebugTrace(curoperation, "func: %s", UnHash(fe->GetHash()));
 
-                nflag result = CodeBlockCallFunction(fe, oe, execstack, funccallstack);
+                bool8 result = CodeBlockCallFunction(fe, oe, execstack, funccallstack);
                 if(!result) {
                     ScriptAssert_(0, GetFileName(), CalcLineNumber(instrptr),
                                   "Error - Unable to call function: %s()\n",
@@ -1596,8 +1598,9 @@ nflag CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
                 }
                 // -- otherwise add the variable entry to the hash table
                 else if(! hte) {
-                    CVariableEntry* hte = new CVariableEntry(UnHash(hashvalue), hashvalue, vartype,
-                                                             false, 0, false);
+                    CVariableEntry* hte = TinAlloc(ALLOC_VarEntry, CVariableEntry,
+                                                   UnHash(hashvalue), hashvalue, vartype,
+                                                   false, 0, false);
                     hashtable->AddItem(*hte, hashvalue);
                 }
 
@@ -1766,15 +1769,15 @@ nflag CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 
 // ------------------------------------------------------------------------------------------------
 // Debug helper functions
-void SetDebugTrace(nflag torf) {
+void SetDebugTrace(bool8 torf) {
     gDebugTrace = torf;
 }
 
-nflag GetDebugParseTree() {
+bool8 GetDebugParseTree() {
     return gDebugTrace;
 }
 
-REGISTER_FUNCTION_P1(SetDebugTrace, SetDebugTrace, void, nflag);
+REGISTER_FUNCTION_P1(SetDebugTrace, SetDebugTrace, void, bool8);
 
 }  // TinScript
 

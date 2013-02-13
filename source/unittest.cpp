@@ -33,7 +33,7 @@
 #include "TinScript.h"
 #include "TinRegistration.h"
 
-nflag gUnitTestIncludeMe = false;
+bool8 gUnitTestIncludeMe = false;
 
 // -- constants -----------------------------------------------------------------------------------
 static const char* kUnitTestScriptName = "../scripts/unittest.cs";
@@ -63,11 +63,11 @@ class CBase {
 
         DECLARE_SCRIPT_CLASS(CBase, VOID);
 
-        real GetFloatValue() {
+        float32 GetFloatValue() {
             return floatvalue;
         }
 
-        void SetFloatValue(real val) {
+        void SetFloatValue(float32 val) {
             floatvalue = val;
         }
 
@@ -80,17 +80,17 @@ class CBase {
             intvalue = val;
         }
 
-        nflag GetBoolValue() {
+        bool8 GetBoolValue() {
             return boolvalue;
         }
 
-        void SetBoolValue(nflag val) {
+        void SetBoolValue(bool8 val) {
             boolvalue = val;
         }
 
-        real floatvalue;
+        float32 floatvalue;
         int32 intvalue;
-        nflag boolvalue;
+        bool8 boolvalue;
 };
 
 IMPLEMENT_SCRIPT_CLASS(CBase, VOID) {
@@ -99,13 +99,13 @@ IMPLEMENT_SCRIPT_CLASS(CBase, VOID) {
     REGISTER_MEMBER(CBase, boolvalue, boolvalue);
 }
 
-REGISTER_METHOD_P0(CBase, GetFloatValue, GetFloatValue, real);
+REGISTER_METHOD_P0(CBase, GetFloatValue, GetFloatValue, float32);
 REGISTER_METHOD_P0(CBase, GetIntValue, GetIntValue, int32);
-REGISTER_METHOD_P0(CBase, GetBoolValue, GetBoolValue, nflag);
+REGISTER_METHOD_P0(CBase, GetBoolValue, GetBoolValue, bool8);
 
-REGISTER_METHOD_P1(CBase, SetFloatValue, SetFloatValue, void, real);
+REGISTER_METHOD_P1(CBase, SetFloatValue, SetFloatValue, void, float32);
 REGISTER_METHOD_P1(CBase, SetIntValue, SetIntValue, void, int32);
-REGISTER_METHOD_P1(CBase, SetBoolValue, SetBoolValue, void, nflag);
+REGISTER_METHOD_P1(CBase, SetBoolValue, SetBoolValue, void, bool8);
 
 class CChild : public CBase {
     public:
@@ -165,7 +165,7 @@ public:
     CWeapon* next;
 
 private:
-    nflag readytofire;
+    bool8 readytofire;
 };
 
 CWeapon* CWeapon::weaponlist = NULL;
@@ -204,7 +204,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
     if(testindex >= teststart && testindex <= testend) {
         printf("\n%d.  ", testindex);
         gCodeGlobalVariable = 17;
-        printf("Paren Expr: (((3 + 4) * 17) - (3 + 6)) % (42 / 3) - next line prints: 12.0f\n");
+        printf("Paren Expr: (((3 + 4) * 17) - (3 + 6)) %% (42 / 3) - next line prints: 12.0f\n");
         TinScript::ExecCommand("TestParenthesis();");
     }
 
@@ -331,7 +331,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
     CBase* testobj = NULL;
     if(testindex >= teststart && testindex <= testend) {
         printf("\n%d.  ", testindex);
-        printf("Find the object from code by ID, cast and read the real member-\n");
+        printf("Find the object from code by ID, cast and read the float32 member-\n");
         printf("next line prints: 27.0\n");
         int32 testobjectid = 0;
         if(!TinScript::GetGlobalVar("gScriptBaseObject", testobjectid)) {

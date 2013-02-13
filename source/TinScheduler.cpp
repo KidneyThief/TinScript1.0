@@ -47,7 +47,7 @@ void CScheduler::Shutdown() {
     // -- clean up all pending scheduled events
     while(head) {
         CCommand* next = head->next;
-        delete head;
+        TinFree(head);
         head = next;
     }
 }
@@ -81,7 +81,7 @@ void CScheduler::Update(uint32 curtime) {
         }
 
         // -- delete the command
-        delete curcommand;
+        TinFree(curcommand);
     }
 }
 
@@ -104,7 +104,7 @@ void CScheduler::Cancel(uint32 objectid, int32 reqid) {
     while(curcommand) {
         if(curcommand->objectid == objectid || curcommand->reqid == reqid) {
             *prevcommand = curcommand->next;
-            delete curcommand;
+            TinFree(curcommand);
             curcommand = *prevcommand;
         }
         else {
@@ -147,13 +147,13 @@ CScheduler::CCommand::CCommand(int32 _reqid, uint32 _objectid, uint32 _dispatcht
 
     // -- command string, null out the direct function call members
     funchash = _funchash;
-    funccontext = new CFunctionContext();
+    funccontext = TinAlloc(ALLOC_FuncContext, CFunctionContext);
 }
 
 CScheduler::CCommand::~CCommand() {
     // clean up the function context, if it exists
     if(funccontext)
-        delete funccontext;
+        TinFree(funccontext);
 }
 
 static int32 gScheduleID = 0;
@@ -168,7 +168,8 @@ int32 CScheduler::Schedule(uint32 objectid, int32 delay, const char* commandstri
     uint32 dispatchtime = GetCurrentSimTime() + (delay > 0 ? delay : 1);
 
     // -- create the new commmand
-    CCommand* newcommand = new CCommand(gScheduleID, objectid, dispatchtime, commandstring);
+    CCommand* newcommand = TinAlloc(ALLOC_SchedCmd, CCommand, gScheduleID, objectid, dispatchtime,
+                                    commandstring);
 
     // -- see if it goes at the front of the list
     if(!head || dispatchtime <= head->dispatchtime) {
@@ -202,7 +203,8 @@ CScheduler::CCommand* CScheduler::ScheduleCreate(uint32 objectid, int32 delay,
     uint32 dispatchtime = GetCurrentSimTime() + (delay > 0 ? delay : 1);
 
     // -- create the new commmand
-    CCommand* newcommand = new CCommand(gScheduleID, objectid, dispatchtime, funchash);
+    CCommand* newcommand = TinAlloc(ALLOC_SchedCmd, CCommand, gScheduleID, objectid, dispatchtime,
+                                    funchash);
 
     // -- see if it goes at the front of the list
     if(!head || dispatchtime <= head->dispatchtime) {

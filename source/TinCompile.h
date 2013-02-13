@@ -496,9 +496,9 @@ class CCodeBlock {
 			instrblock = NULL;
 			instrcount = _size;
 			if (_size > 0)
-				instrblock = new unsigned int[_size];
+				instrblock = TinAllocInstrBlock(_size);
             if(_linecount > 0)
-                linenumbers = new unsigned int[_linecount];
+                linenumbers = TinAllocInstrBlock(_linecount);
         }
 
         const char* GetFileName() const {
@@ -581,13 +581,13 @@ class CCodeBlock {
         tVarTable* smCurrentGlobalVarTable;
 
         static void Initialize() {
-            gCodeBlockList = new CHashTable<CCodeBlock>(kGlobalFuncTableSize);
+            gCodeBlockList = TinAlloc(ALLOC_HashTable, CHashTable<CCodeBlock>, kGlobalFuncTableSize);
         }
 
         static void Shutdown() {
             DestroyUnusedCodeBlocks();
             assert(gCodeBlockList->IsEmpty());
-            delete gCodeBlockList;
+            TinFree(gCodeBlockList);
         }
 
         static void DestroyCodeBlock(CCodeBlock* codeblock) {
@@ -599,7 +599,7 @@ class CCodeBlock {
                 return;
             }
             gCodeBlockList->RemoveItem(codeblock, codeblock->filenamehash);
-            delete codeblock;
+            TinFree(codeblock);
         }
 
         static void DestroyUnusedCodeBlocks() {
@@ -609,7 +609,7 @@ class CCodeBlock {
                     CCodeBlock* nextcodeblock = gCodeBlockList->GetNextItemInBucket(i);
                     if(!codeblock->IsInUse()) {
                         gCodeBlockList->RemoveItem(codeblock, codeblock->filenamehash);
-                        delete codeblock;
+                        TinFree(codeblock);
                         codeblock = gCodeBlockList->FindItemByBucket(i);
                     }
                     else {

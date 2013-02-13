@@ -95,7 +95,7 @@ eVarType GetRegisteredType(uint32 id) {
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag VoidToString(void* value, char* buf, int32 bufsize) {
+bool8 VoidToString(void* value, char* buf, int32 bufsize) {
 	if (buf && bufsize > 0) {
 		*buf = '\0';
 		return true;
@@ -103,12 +103,12 @@ nflag VoidToString(void* value, char* buf, int32 bufsize) {
 	return false;
 }
 
-nflag StringToVoid(void* addr, char* value) {
+bool8 StringToVoid(void* addr, char* value) {
 	return true;
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag STEToString(void* value, char* buf, int32 bufsize) {
+bool8 STEToString(void* value, char* buf, int32 bufsize) {
 	if(value && buf && bufsize > 0) {
         sprintf_s(buf, bufsize, "%s", CStringTable::FindString(*(uint32*)value));
 		return true;
@@ -116,7 +116,7 @@ nflag STEToString(void* value, char* buf, int32 bufsize) {
 	return false;
 }
 
-nflag StringToSTE(void* addr, char* value) {
+bool8 StringToSTE(void* addr, char* value) {
     // -- an STE is simply an address, copy the 4x bytes verbatim
 	if(addr && value) {
 		uint32* varaddr = (uint32*)addr;
@@ -127,7 +127,7 @@ nflag StringToSTE(void* addr, char* value) {
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag IntToString(void* value, char* buf, int32 bufsize) {
+bool8 IntToString(void* value, char* buf, int32 bufsize) {
 	if(value && buf && bufsize > 0) {
 		sprintf_s(buf, bufsize, "%d", *(int32*)(value));
 		return true;
@@ -135,7 +135,7 @@ nflag IntToString(void* value, char* buf, int32 bufsize) {
 	return false;
 }
 
-nflag StringToInt(void* addr, char* value) {
+bool8 StringToInt(void* addr, char* value) {
 	if(addr && value) {
 		int32* varaddr = (int32*)addr;
 		*varaddr = atoi(value);
@@ -145,17 +145,17 @@ nflag StringToInt(void* addr, char* value) {
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag BoolToString(void* value, char* buf, int32 bufsize) {
+bool8 BoolToString(void* value, char* buf, int32 bufsize) {
 	if(value && buf && bufsize > 0) {
-		sprintf_s(buf, bufsize, "%s", *(nflag*)(value) ? "true" : "false");
+		sprintf_s(buf, bufsize, "%s", *(bool8*)(value) ? "true" : "false");
 		return true;
 	}
 	return false;
 }
 
-nflag StringToBool(void* addr, char* value) {
+bool8 StringToBool(void* addr, char* value) {
 	if(addr && value) {
-		nflag* varaddr = (nflag*)addr;
+		bool8* varaddr = (bool8*)addr;
 		if (!_stricmp(value, "false") || !_stricmp(value, "0") ||
 					!_stricmp(value, "0.0") || !_stricmp(value, "0.0f") || !_stricmp(value, "")) {
 			*varaddr = false;
@@ -170,18 +170,18 @@ nflag StringToBool(void* addr, char* value) {
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag FloatToString(void* value, char* buf, int32 bufsize) {
+bool8 FloatToString(void* value, char* buf, int32 bufsize) {
 	if(value && buf && bufsize > 0) {
-		sprintf_s(buf, bufsize, "%.4f", *(real*)(value));
+		sprintf_s(buf, bufsize, "%.4f", *(float32*)(value));
 		return true;
 	}
 	return false;
 }
 
-nflag StringToFloat(void* addr, char* value) {
+bool8 StringToFloat(void* addr, char* value) {
 	if(addr && value) {
-		real* varaddr = (real*)addr;
-		*varaddr = real(atof(value));
+		float32* varaddr = (float32*)addr;
+		*varaddr = float32(atof(value));
 		return true;
 	}
 	return false;
@@ -207,10 +207,10 @@ void* TypeConvert(eVarType fromtype, void* fromaddr, eVarType totype) {
         case TYPE_int:
             switch(totype) {
                 case TYPE_bool:
-                    *(nflag*)(bufferptr) = (*(int32*)(fromaddr) != 0);
+                    *(bool8*)(bufferptr) = (*(int32*)(fromaddr) != 0);
                     return (void*)(bufferptr);
                 case TYPE_float:
-                    *(real*)(bufferptr) = (real)*(int32*)(fromaddr);
+                    *(float32*)(bufferptr) = (float32)*(int32*)(fromaddr);
                     return (void*)(bufferptr);
                 default:
                     break;
@@ -219,10 +219,10 @@ void* TypeConvert(eVarType fromtype, void* fromaddr, eVarType totype) {
         case TYPE_bool:
             switch(totype) {
                 case TYPE_int:
-                    *(int32*)(bufferptr) = *(nflag*)fromaddr ? 1 : 0;
+                    *(int32*)(bufferptr) = *(bool8*)fromaddr ? 1 : 0;
                     return (void*)(bufferptr);
                 case TYPE_float:
-                    *(real*)(bufferptr) = *(nflag*)fromaddr ? 1.0f : 0.0f;
+                    *(float32*)(bufferptr) = *(bool8*)fromaddr ? 1.0f : 0.0f;
                     return (void*)(bufferptr);
                 default:
                     break;
@@ -231,10 +231,10 @@ void* TypeConvert(eVarType fromtype, void* fromaddr, eVarType totype) {
         case TYPE_float:
             switch(totype) {
                 case TYPE_bool:
-                    *(nflag*)(bufferptr) = (*(real*)(fromaddr) != 0.0f);
+                    *(bool8*)(bufferptr) = (*(float32*)(fromaddr) != 0.0f);
                     return (void*)(bufferptr);
                 case TYPE_int:
-                    *(int32*)(bufferptr) = (int32)*(real*)(fromaddr);
+                    *(int32*)(bufferptr) = (int32)*(float32*)(fromaddr);
                     return (void*)(bufferptr);
                 default:
                     break;
@@ -270,7 +270,7 @@ const char* DebugPrintVar(void* addr, eVarType vartype) {
     return convertbuf;
 }
 
-nflag SafeStrcpy(char* dest, const char* src, int32 max) {
+bool8 SafeStrcpy(char* dest, const char* src, int32 max) {
 	// terminate the dest pointer, in case we copy a zero length string
 	if (dest)
 		*dest = '\0';

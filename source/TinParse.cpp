@@ -142,7 +142,7 @@ eReservedKeyword GetReservedKeywordType(const char* token, int32 length) {
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag IsFirstClassValue(eTokenType type, eVarType& vartype) {
+bool8 IsFirstClassValue(eTokenType type, eVarType& vartype) {
     if(type == TOKEN_FLOAT) {
         vartype = TYPE_float;
         return true;
@@ -162,7 +162,7 @@ nflag IsFirstClassValue(eTokenType type, eVarType& vartype) {
     return false;
 }
 
-nflag IsAssignBinOp(eOpCode optype) {
+bool8 IsAssignBinOp(eOpCode optype) {
 	return (optype == OP_Assign || optype == OP_AssignAdd || optype == OP_AssignSub ||
 			optype == OP_AssignMult || optype == OP_AssignDiv || optype == OP_AssignMod);
 }
@@ -180,14 +180,14 @@ const char* TokenPrint(tReadToken& token) {
     return bufferptr;
 }
 
-nflag SkipWhiteSpace(tReadToken& token) {
+bool8 SkipWhiteSpace(tReadToken& token) {
     const char*& inbuf = token.inbufptr;
     int32& linenumber = token.linenumber;
 	if(!inbuf)
 		return false;
 
     // -- we're going to count comments as whitespace
-    nflag foundcomment = false;
+    bool8 foundcomment = false;
     do {
         foundcomment = false;
         // -- first skip actual whitespace
@@ -225,7 +225,7 @@ nflag SkipWhiteSpace(tReadToken& token) {
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag IsIdentifierChar(const char c, nflag allownumerics) {
+bool8 IsIdentifierChar(const char c, bool8 allownumerics) {
 	if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' ||
 								(allownumerics && c >= '0' && c <= '9')) {
 		return true;
@@ -243,7 +243,7 @@ const char* gTokenTypeStrings[] = {
 static const int32 kNumSymbols = 9;
 const char symbols[kNumSymbols + 1] = "(),;.{}[]";
 
-nflag GetToken(tReadToken& token, nflag unaryop) {
+bool8 GetToken(tReadToken& token, bool8 unaryop) {
     if(!SkipWhiteSpace(token))
         return false;
 	token.tokenptr = GetToken(token.inbufptr, token.length, token.type, NULL, token.linenumber, unaryop);
@@ -251,7 +251,7 @@ nflag GetToken(tReadToken& token, nflag unaryop) {
 }
 
 const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const char* expectedtoken,
-					 int32& linenumber, nflag expectunaryop) {
+					 int32& linenumber, bool8 expectunaryop) {
 
 	// -- initialize the return results
 	length = 0;
@@ -303,7 +303,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 		return tokenptr;
 	}
 
-	// -- see if we have a nflag
+	// -- see if we have a bool8
 	if(!Strncmp_(tokenptr, "false", 5)) {
 		if(!IsIdentifierChar(tokenptr[5], true)) {
 			length = 5;
@@ -331,7 +331,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 		length = (uint32)(tokenendptr) - (uint32)(tokenptr);
 
 		// -- see if the identifier is a keyword
-		nflag foundidtype = false;
+		bool8 foundidtype = false;
 		if(! foundidtype) {
 			int32 reservedwordtype = GetReservedKeywordType(tokenptr, length);
 			if (reservedwordtype != KEYWORD_NULL) {
@@ -358,7 +358,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
     // -- valid at the beginning of an expression.  If we're expecting a unary
     // -- unary op, and we found one, return immediately, otherwise return after
     // -- we've ruled out assignment and binary ops
-    nflag unaryopfound = false;
+    bool8 unaryopfound = false;
     int32 unaryoplength = 0;
     for(int32 i = 0; i < UNARY_COUNT; ++i) {
 		int32 operatorlength = strlen(gUnaryOperatorString[i]);
@@ -426,18 +426,18 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 		return tokenptr;
 	}
 
-	// -- see if we have a real or an integer
+	// -- see if we have a float32 or an integer
 	const char* numericptr = tokenptr;
 	while(*numericptr >= '0' && *numericptr <= '9')
 		++numericptr;
 	if(numericptr > tokenptr) {
-		// -- see if we have a real, or an integer
+		// -- see if we have a float32, or an integer
 		if(*numericptr == '.' && numericptr[1] >= '0' && numericptr[1] <= '9') {
 			++numericptr;
 			while(*numericptr >= '0' && *numericptr <= '9')
 				++numericptr;
 
-			// -- initialize the return values for a real
+			// -- initialize the return values for a float32
 			length = (uint32)(numericptr) - (uint32)(tokenptr);
 			type = TOKEN_FLOAT;
 			inbuf = numericptr;
@@ -511,7 +511,7 @@ const char* ReadFileAllocBuf(const char* filename) {
 	fseek(filehandle, 0, SEEK_SET);
 
 	// -- allocate a buffer and read the file into it (will null terminate)
-	char* filebuf = new char[filesize + 1];
+	char* filebuf = (char*)TinAllocArray(ALLOC_FileBuf, char, filesize + 1);
 	fseek(filehandle, 0, SEEK_SET);
 	int32 bytesread = fread(filebuf, 1, filesize, filehandle);
 
@@ -532,7 +532,7 @@ const char* ReadFileAllocBuf(const char* filename) {
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag DumpFile(const char* filename) {
+bool8 DumpFile(const char* filename) {
 	// -- see if we can open the file
 	const char* filebuf = ReadFileAllocBuf(filename);
 	if(! filebuf) {
@@ -545,7 +545,7 @@ nflag DumpFile(const char* filename) {
 	eTokenType tokentype = TOKEN_NULL;
 	const char* bufptr = filebuf;
 	tReadToken token(filebuf, 0);
-	nflag success = false;
+	bool8 success = false;
 	do {
 		success = GetToken(token);
 		char tokenbuf[kMaxTokenLength] = { 0 };
@@ -559,7 +559,7 @@ nflag DumpFile(const char* filename) {
 }
 
 // ------------------------------------------------------------------------------------------------
-void DumpTree(const CCompileTreeNode* root, int32 indent, nflag isleft, nflag isright) {
+void DumpTree(const CCompileTreeNode* root, int32 indent, bool8 isleft, bool8 isright) {
 
 	while(root) {
 		int32 debuglength = 2048;
@@ -603,7 +603,7 @@ void DestroyTree(CCompileTreeNode* root) {
             root->rightchild = NULL;
         }
 
-        delete root;
+        TinFree(root);
         root = nextroot;
     }
 }
@@ -677,7 +677,7 @@ void DumpFuncTable(const tFuncTable* functable) {
 // ------------------------------------------------------------------------------------------------
 
 // ------------------------------------------------------------------------------------------------
-nflag TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
+bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
 
 	// -- use temporary vars, to ensure we dont' change the actual bufptr, unless successful
 	tReadToken nexttoken(filebuf);
@@ -695,7 +695,7 @@ nflag TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 		return false;
 
     // -- the only allowed keyword to serve as an expression is 'self'
-    nflag selfvardecl = false;
+    bool8 selfvardecl = false;
     tReadToken selftoken(nexttoken);
     if(idtoken.type == TOKEN_KEYWORD) {
 	    int32 reservedwordtype = GetReservedKeywordType(idtoken.tokenptr, idtoken.length);
@@ -756,9 +756,9 @@ nflag TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         }
 
         // -- create the node
-        CSelfVarDeclNode* valuenode = new CSelfVarDeclNode(codeblock, link, idtoken.linenumber,
-                                                           idtoken.tokenptr, idtoken.length,
-                                                           registeredtype);
+        CSelfVarDeclNode* valuenode = TinAlloc(ALLOC_TreeNode, CSelfVarDeclNode, codeblock, link,
+                                               idtoken.linenumber, idtoken.tokenptr,
+                                               idtoken.length, registeredtype);
 
         // -- reset the nexttoken to be at the start of "self.*", in case we find an assign op
         nexttoken = selftoken;
@@ -792,19 +792,19 @@ nflag TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         }
 
         // -- create the ArrayVarDeclNode, leftchild is the hashtable var, right is the hash value
-        CArrayVarDeclNode* arrayvarnode =
-            new CArrayVarDeclNode(codeblock, link, filebuf.linenumber, registeredtype);
+        CArrayVarDeclNode* arrayvarnode = TinAlloc(ALLOC_TreeNode, CArrayVarDeclNode, codeblock,
+                                                   link, filebuf.linenumber, registeredtype);
 
         // -- left child is the variable
-        CValueNode* valuenode = new CValueNode(codeblock, arrayvarnode->leftchild,
-                                               filebuf.linenumber, idtoken.tokenptr,
-                                               idtoken.length, true, var->GetType());
+        CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock,
+                                         arrayvarnode->leftchild, filebuf.linenumber,
+                                         idtoken.tokenptr, idtoken.length, true, var->GetType());
 
         // -- the right child is the hash value
         if(!TryParseArrayHash(codeblock, filebuf, arrayvarnode->rightchild))
         {
             ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
-                            "Error - unable to parse array hash for variable %s\n", UnHash(varhash));
+                          "Error - unable to parse array hash for variable %s\n", UnHash(varhash));
 			return false;
         }
 
@@ -920,7 +920,7 @@ CCompileTreeNode** SortBinOpPrecedence(CCompileTreeNode** toplink) {
 }
 
 void SortTreeBinaryOps(CCompileTreeNode** toplink) {
-    static nflag enablesort = true;
+    static bool8 enablesort = true;
     if(!enablesort)
         return;
 
@@ -931,7 +931,7 @@ void SortTreeBinaryOps(CCompileTreeNode** toplink) {
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
+bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
 
 	// -- an statement is one of:
     // -- a semicolon
@@ -1024,12 +1024,13 @@ nflag TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
             CCompileTreeNode* templeftchild = *templink;
 		    eBinaryOpType binoptype = GetBinaryOpType(nexttoken.tokenptr, nexttoken.length);
-            CBinaryOpNode* binopnode = new CBinaryOpNode(codeblock, *templink, readexpr.linenumber,
-                                                         binoptype, false, TYPE__resolve);
+            CBinaryOpNode* binopnode = TinAlloc(ALLOC_TreeNode, CBinaryOpNode, codeblock,
+                                                *templink, readexpr.linenumber, binoptype,
+                                                false, TYPE__resolve);
             binopnode->leftchild = templeftchild;
 
 		    // -- ensure we have an expression to fill the right child
-		    nflag result = TryParseExpression(codeblock, readexpr, binopnode->rightchild);
+		    bool8 result = TryParseExpression(codeblock, readexpr, binopnode->rightchild);
 		    if(!result || !binopnode->rightchild) {
                 ScriptAssert_(0, codeblock->GetFileName(), readexpr.linenumber,
                               "Error - Binary operator without a rhs expression\n");
@@ -1058,12 +1059,13 @@ nflag TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
             CCompileTreeNode* templeftchild = *templink;
             eAssignOpType assoptype = GetAssignOpType(nexttoken.tokenptr, nexttoken.length);
-		    CBinaryOpNode* binopnode = new CBinaryOpNode(codeblock, *templink, readexpr.linenumber,
-                                                         assoptype, true, TYPE__resolve);
+		    CBinaryOpNode* binopnode = TinAlloc(ALLOC_TreeNode, CBinaryOpNode, codeblock,
+                                                *templink, readexpr.linenumber, assoptype,
+                                                true, TYPE__resolve);
             binopnode->leftchild = templeftchild;
 
 		    // -- ensure we have an expression to fill the right child
-		    nflag result = TryParseExpression(codeblock, readexpr, binopnode->rightchild);
+		    bool8 result = TryParseExpression(codeblock, readexpr, binopnode->rightchild);
 		    if(!result || !binopnode->rightchild) {
 			    ScriptAssert_(0, codeblock->GetFileName(), readexpr.linenumber,
                               "Error - Assignment operator without a rhs expression\n");
@@ -1109,9 +1111,9 @@ nflag TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
                 // -- create an object method node, the left child will resolve to the objectID
                 // -- and the right child will be the tree handling the method call
                 CCompileTreeNode* temprightchild = *templink;
-		        CObjMethodNode* objmethod = new CObjMethodNode(codeblock, *templink, readexpr.linenumber,
-                                                               membertoken.tokenptr,
-                                                               membertoken.length);
+		        CObjMethodNode* objmethod = TinAlloc(ALLOC_TreeNode, CObjMethodNode, codeblock,
+                                                     *templink, readexpr.linenumber,
+                                                     membertoken.tokenptr, membertoken.length);
 
                 // -- the left child is the branch that resolves to an object
                 objmethod->leftchild = templeftchild;
@@ -1125,9 +1127,9 @@ nflag TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
                 readexpr = membertoken;
 
                 // -- create the member node
-		        CObjMemberNode* objmember =
-                    new CObjMemberNode(codeblock, *templink, readexpr.linenumber,
-                                       membertoken.tokenptr, membertoken.length);
+		        CObjMemberNode* objmember = TinAlloc(ALLOC_TreeNode, CObjMemberNode, codeblock,
+                                                     *templink, readexpr.linenumber,
+                                                     membertoken.tokenptr, membertoken.length);
 
                 // -- the left child is the branch that resolves to an object
                 objmember->leftchild = templeftchild;
@@ -1161,7 +1163,7 @@ nflag TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
+bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
 
 	// -- an expression is one of:
     // -- a function call
@@ -1180,7 +1182,8 @@ nflag TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
     CUnaryOpNode* unarynode = NULL;
     if(unarytoken.type == TOKEN_UNARY) {
         eUnaryOpType unarytype = GetUnaryOpType(unarytoken.tokenptr, unarytoken.length);
-		unarynode = new CUnaryOpNode(codeblock, link, filebuf.linenumber, unarytype);
+		unarynode = TinAlloc(ALLOC_TreeNode, CUnaryOpNode, codeblock, link, filebuf.linenumber,
+                             unarytype);
 
         // $$TZA pre-increment and pre-decrement require more work to also include the assignment
         // -- as well as ensuring they preceed variables and not values.
@@ -1220,7 +1223,7 @@ nflag TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
 	    if (reservedwordtype == KEYWORD_self) {
             // -- committed to self
             filebuf = firsttoken;
-		    CSelfNode* selfnode = new CSelfNode(codeblock, exprlink, filebuf.linenumber);
+		    CSelfNode* selfnode = TinAlloc(ALLOC_TreeNode, CSelfNode, codeblock, exprlink, filebuf.linenumber);
             return true;
         }
         else
@@ -1238,9 +1241,9 @@ nflag TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
         // -- committed to value
         filebuf = firsttoken;
 
-		CValueNode* valuenode = new CValueNode(codeblock, exprlink, filebuf.linenumber,
-                                               firsttoken.tokenptr, firsttoken.length, false,
-                                               firstclassvartype);
+		CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, exprlink, filebuf.linenumber,
+                                         firsttoken.tokenptr, firsttoken.length, false,
+                                         firstclassvartype);
         return true;
     }
 
@@ -1257,9 +1260,9 @@ nflag TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
 		if(var) {
             filebuf = firsttoken;
 
-		    CValueNode* valuenode = new CValueNode(codeblock, exprlink, filebuf.linenumber,
-                                                   firsttoken.tokenptr, firsttoken.length, true,
-                                                   var->GetType());
+		    CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, exprlink, filebuf.linenumber,
+                                             firsttoken.tokenptr, firsttoken.length, true,
+                                             var->GetType());
 
             // -- if the type is a hash table, try to parse a hash table lookup
             tReadToken arrayhashtoken(filebuf);
@@ -1278,11 +1281,11 @@ nflag TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
             // -- no way to verify, but it will assert on execution
             filebuf = firsttoken;
 		    CObjMemberNode* objmember =
-                new CObjMemberNode(codeblock, exprlink, filebuf.linenumber,
+                TinAlloc(ALLOC_TreeNode, CObjMemberNode, codeblock, exprlink, filebuf.linenumber,
                                     firsttoken.tokenptr, firsttoken.length);
 
             // -- push a 'self' node as the left child
-		    CSelfNode* selfnode = new CSelfNode(codeblock, objmember->leftchild, filebuf.linenumber);
+		    CSelfNode* selfnode = TinAlloc(ALLOC_TreeNode, CSelfNode, codeblock, objmember->leftchild, filebuf.linenumber);
 
             return true;
         }
@@ -1300,7 +1303,8 @@ nflag TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
     // -- parse the contained expression
     if(firsttoken.type == TOKEN_PAREN_OPEN) {
         filebuf = firsttoken;
-        CParenOpenNode* parenopennode = new CParenOpenNode(codeblock, exprlink, filebuf.linenumber);
+        CParenOpenNode* parenopennode = TinAlloc(ALLOC_TreeNode, CParenOpenNode, codeblock,
+                                                 exprlink, filebuf.linenumber);
 
         // -- increment the parenthesis stack
         ++gGlobalExprParenDepth;
@@ -1327,7 +1331,7 @@ nflag TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
         // -- hook up the link to the correct subtree, and delete the unneeded paren node
         exprlink = parenopennode->leftchild;
         parenopennode->leftchild = NULL;
-        delete parenopennode;
+        TinFree(parenopennode);
 
         // -- success
         return true;
@@ -1338,7 +1342,7 @@ nflag TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
+bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
 	// -- the first token can be anything but a reserved word or type
 	tReadToken firsttoken(filebuf);
 	if(!GetToken(firsttoken))
@@ -1367,10 +1371,11 @@ nflag TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 
 	// -- an 'if' statement has the expression tree as it's left child,
 	// -- and a branch node as it's right child, based on the true/false
-	CIfStatementNode* ifstmtnode = new CIfStatementNode(codeblock, link, filebuf.linenumber);
+	CIfStatementNode* ifstmtnode = TinAlloc(ALLOC_TreeNode, CIfStatementNode, codeblock, link,
+                                            filebuf.linenumber);
 
 	// we need to have a valid expression for the left hand child
-	nflag result = TryParseStatement(codeblock, filebuf, ifstmtnode->leftchild);
+	bool8 result = TryParseStatement(codeblock, filebuf, ifstmtnode->leftchild);
 	if(!result) {
 		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
                       "Error - 'if statement' without a conditional expression\n");
@@ -1387,8 +1392,8 @@ nflag TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
     --gGlobalExprParenDepth;
 
 	// -- we've got our conditional expression - the right child is a branch node
-	CCondBranchNode* condbranchnode = new CCondBranchNode(codeblock, ifstmtnode->rightchild,
-                                                          filebuf.linenumber);
+	CCondBranchNode* condbranchnode = TinAlloc(ALLOC_TreeNode, CCondBranchNode, codeblock,
+                                               ifstmtnode->rightchild, filebuf.linenumber);
 
 	// -- the left side of the condbranchnode is the 'true' branch
 	// -- see if we have a statement, or a statement block
@@ -1472,7 +1477,7 @@ nflag TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
+bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
 	// -- the first token can be anything but a reserved word or type
 	tReadToken firsttoken(filebuf);
 	if(!GetToken(firsttoken))
@@ -1506,10 +1511,11 @@ nflag TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
 	// -- a while loop has the expression tree as it's left child,
 	// -- and the body as a statement block as its right child
-	CWhileLoopNode* whileloopnode = new CWhileLoopNode(codeblock, link, filebuf.linenumber);
+	CWhileLoopNode* whileloopnode = TinAlloc(ALLOC_TreeNode, CWhileLoopNode, codeblock, link,
+                                             filebuf.linenumber);
 
 	// we need to have a valid expression for the left hand child
-	nflag result = TryParseStatement(codeblock, filebuf, whileloopnode->leftchild);
+	bool8 result = TryParseStatement(codeblock, filebuf, whileloopnode->leftchild);
 	if(!result) {
 		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
                       "Error - 'while loop' without a conditional expression\n");
@@ -1555,7 +1561,7 @@ nflag TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
+bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
 	// -- the first token can be anything but a reserved word or type
 	tReadToken firsttoken(filebuf);
 	if(!GetToken(firsttoken))
@@ -1595,7 +1601,7 @@ nflag TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	CCompileTreeNode* forlooproot = link;
 
 	// -- initial expression
-	nflag result = TryParseStatement(codeblock, filebuf, AppendToRoot(*forlooproot));
+	bool8 result = TryParseStatement(codeblock, filebuf, AppendToRoot(*forlooproot));
 	if(! result) {
 		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
                       "Error - unable to parse the initial expression\n");
@@ -1610,8 +1616,8 @@ nflag TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	}
 
 	// add the while loop node
-	CWhileLoopNode* whileloopnode = new CWhileLoopNode(codeblock, AppendToRoot(*forlooproot),
-                                                       filebuf.linenumber);
+	CWhileLoopNode* whileloopnode = TinAlloc(ALLOC_TreeNode, CWhileLoopNode, codeblock,
+                                             AppendToRoot(*forlooproot), filebuf.linenumber);
 
 	// -- the for loop condition is the left child of the while loop node
 	result = TryParseStatement(codeblock, filebuf, whileloopnode->leftchild);
@@ -1688,7 +1694,7 @@ nflag TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
+bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
 
 	// -- use temporary vars, to ensure we dont' change the actual bufptr, unless successful
 	tReadToken returntype(filebuf);
@@ -1709,7 +1715,7 @@ nflag TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 		return false;
 
     // -- see if this is a namespaced function declaration
-    nflag usenamespace = false;
+    bool8 usenamespace = false;
     tReadToken nsnametoken(idtoken);
     tReadToken nstoken(idtoken);
     if(GetToken(nstoken) && nstoken.type == TOKEN_NAMESPACE) {
@@ -1901,10 +1907,10 @@ nflag TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     filebuf = peektoken;
 
     // -- add a funcdecl node, and set its left child to be the statement block
-    CFuncDeclNode* funcdeclnode = new CFuncDeclNode(codeblock, link, filebuf.linenumber,
-                                                    idtoken.tokenptr, idtoken.length,
-                                                    usenamespace ? nsnametoken.tokenptr : "",
-                                                    usenamespace ? nsnametoken.length : 0);
+    CFuncDeclNode* funcdeclnode = TinAlloc(ALLOC_TreeNode, CFuncDeclNode, codeblock, link,
+                                           filebuf.linenumber, idtoken.tokenptr, idtoken.length,
+                                           usenamespace ? nsnametoken.tokenptr : "",
+                                           usenamespace ? nsnametoken.length : 0);
     
     // -- read the function body
     int32 result = ParseStatementBlock(codeblock, funcdeclnode->leftchild, filebuf, true);
@@ -1917,13 +1923,14 @@ nflag TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     // $$$TZA technically we should be doing the "ensure all exits return a value"
     // -- we're going to force every script function to have a return value, to ensure
     // -- we can consistently pop the stack after every function call regardless of return type
-    // -- this node will never be hit, if a *real* return statement was found
-    CFuncReturnNode* funcreturnnode =
-        new CFuncReturnNode(codeblock, AppendToRoot(*funcdeclnode->leftchild), filebuf.linenumber);
+    // -- this node will never be hit, if a *float32* return statement was found
+    CFuncReturnNode* funcreturnnode = TinAlloc(ALLOC_TreeNode, CFuncReturnNode, codeblock,
+                                               AppendToRoot(*funcdeclnode->leftchild),
+                                               filebuf.linenumber);
 
-    CValueNode* nullreturn =
-        new CValueNode(codeblock, funcreturnnode->leftchild, filebuf.linenumber, "", 0, false,
-                       TYPE_int);
+    CValueNode* nullreturn = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock,
+                                      funcreturnnode->leftchild, filebuf.linenumber, "", 0, false,
+                                      TYPE_int);
 
     // -- clear the active function definition
     CObjectEntry* dummy = NULL;
@@ -1934,8 +1941,8 @@ nflag TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link,
-                      nflag ismethod) {
+bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link,
+                      bool8 ismethod) {
 
 	// -- see if the next token is an identifier
 	tReadToken idtoken(filebuf);
@@ -1946,7 +1953,7 @@ nflag TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 		return false;
 
     // -- see if this is a namespaced function declaration
-    nflag usenamespace = false;
+    bool8 usenamespace = false;
     tReadToken nsnametoken(idtoken);
     tReadToken nstoken(idtoken);
     if(GetToken(nstoken) && nstoken.type == TOKEN_NAMESPACE) {
@@ -1979,11 +1986,11 @@ nflag TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
     // -- object available, there's no way to know, so methods currently require the 'self' keyword
 
     // -- add a funccall node, and set its left child to be the tree of parameter assignments
-    CFuncCallNode* funccallnode = new CFuncCallNode(codeblock, link, filebuf.linenumber,
-                                                    idtoken.tokenptr, idtoken.length,
-                                                    usenamespace ? nsnametoken.tokenptr : "",
-                                                    usenamespace ? nsnametoken.length : 0,
-                                                    ismethod);
+    CFuncCallNode* funccallnode = TinAlloc(ALLOC_TreeNode, CFuncCallNode, codeblock, link,
+                                           filebuf.linenumber, idtoken.tokenptr, idtoken.length,
+                                           usenamespace ? nsnametoken.tokenptr : "",
+                                           usenamespace ? nsnametoken.length : 0,
+                                           ismethod);
     
     // -- $$$TZA add default args
 
@@ -2023,16 +2030,16 @@ nflag TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
         ++paramindex;
 
         // -- create an assignment binary op
-		CBinaryOpNode* binopnode =
-            new CBinaryOpNode(codeblock, AppendToRoot(*assignments), filebuf.linenumber, ASSOP_Assign,
-                              true, TYPE__resolve);
+		CBinaryOpNode* binopnode = TinAlloc(ALLOC_TreeNode, CBinaryOpNode, codeblock,
+                                            AppendToRoot(*assignments), filebuf.linenumber,
+                                            ASSOP_Assign, true, TYPE__resolve);
 
    		// -- create the (parameter) value node, add it to the assignment node
-		CValueNode* valuenode =
-            new CValueNode(codeblock, binopnode->leftchild, filebuf.linenumber, paramindex,
-                           TYPE__resolve);
+		CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock,
+                                         binopnode->leftchild, filebuf.linenumber, paramindex,
+                                         TYPE__resolve);
 
-        nflag result = TryParseStatement(codeblock, filebuf, binopnode->rightchild);
+        bool8 result = TryParseStatement(codeblock, filebuf, binopnode->rightchild);
         if(!result) {
             ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
                           "Error - Unable to evaluate parameter %d in call to %s()\n", paramindex,
@@ -2049,7 +2056,7 @@ nflag TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag TryParseReturn(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
+bool8 TryParseReturn(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
 
     // -- can't return from a function, if there's no active function being defined
     int32 stacktopdummy = 0;
@@ -2069,8 +2076,9 @@ nflag TryParseReturn(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNod
     filebuf = peektoken;
 
     // -- add a return node to the tree, and parse the return expression
-    CFuncReturnNode* returnnode = new CFuncReturnNode(codeblock, link, filebuf.linenumber);
-    nflag result = TryParseStatement(codeblock, filebuf, returnnode->leftchild);
+    CFuncReturnNode* returnnode = TinAlloc(ALLOC_TreeNode, CFuncReturnNode, codeblock, link,
+                                           filebuf.linenumber);
+    bool8 result = TryParseStatement(codeblock, filebuf, returnnode->leftchild);
 	if(!result) {
 		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
                       "Error - failed to parse 'return' statement\n");
@@ -2079,9 +2087,9 @@ nflag TryParseReturn(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNod
 
     // -- ensure we have a non-empty return - all functions return a value
     if(!returnnode->leftchild) {
-        CValueNode* nullreturn =
-            new CValueNode(codeblock, returnnode->leftchild, filebuf.linenumber, "", 0, false,
-                           TYPE_int);
+        CValueNode* nullreturn = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock,
+                                          returnnode->leftchild, filebuf.linenumber, "", 0, false,
+                                          TYPE_int);
     }
 
     // -- success
@@ -2090,7 +2098,7 @@ nflag TryParseReturn(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNod
 
 // ------------------------------------------------------------------------------------------------
 // $$$TZA - only global variable hashtables are currently supported
-nflag TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
+bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
     tReadToken nexttoken(filebuf);
     if(!GetToken(nexttoken) || nexttoken.type != TOKEN_SQUARE_OPEN)
         return false;
@@ -2102,8 +2110,8 @@ nflag TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
     // -- first we push a "0" hash - this will get bumped down every time we create a new
     // -- CArrayHash node
-    CValueNode* valnode = new CValueNode(codeblock, link, filebuf.linenumber,
-                                         "", 0, false, TYPE_int);
+    CValueNode* valnode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, link,
+                                   filebuf.linenumber, "", 0, false, TYPE_int);
 
     // -- create a temp link, to look for the next array hash statement
     int32 hashexprcount = 0;
@@ -2147,7 +2155,8 @@ nflag TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
         ++hashexprcount;
         ++gGlobalExprParenDepth;
         CCompileTreeNode* templink = NULL;
-        CArrayHashNode* ahn = new CArrayHashNode(codeblock, templink, filebuf.linenumber);
+        CArrayHashNode* ahn = TinAlloc(ALLOC_TreeNode, CArrayHashNode, codeblock, templink,
+                                       filebuf.linenumber);
         if(!TryParseStatement(codeblock, filebuf, ahn->rightchild)) {
             ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
                             "Error - expecting ']'\n");
@@ -2179,7 +2188,7 @@ nflag TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
+bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
     // -- ensure the next token is the 'new' keyword
     tReadToken peektoken(filebuf);
     if(!GetToken(peektoken) || peektoken.type != TOKEN_KEYWORD)
@@ -2203,7 +2212,7 @@ nflag TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 
     // -- the left child is the tree resolving to an objectid
     CCompileTreeNode* templink = NULL;
-    nflag result = TryParseStatement(codeblock, filebuf, templink);
+    bool8 result = TryParseStatement(codeblock, filebuf, templink);
     if(!result) {
         ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
                       "Error - Unable to resolve object ID in schedule() call\n");
@@ -2250,8 +2259,9 @@ nflag TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
     filebuf = idtoken;
 
     // -- add a CScheduleNode node
-    CScheduleNode* schedulenode = new CScheduleNode(codeblock, link, filebuf.linenumber,
-                                                    idtoken.tokenptr, idtoken.length, delaytime);
+    CScheduleNode* schedulenode = TinAlloc(ALLOC_TreeNode, CScheduleNode, codeblock, link,
+                                           filebuf.linenumber, idtoken.tokenptr, idtoken.length,
+                                           delaytime);
 
     // -- set its left child to be the tree resolving to an object ID
     schedulenode->leftchild = templink;
@@ -2289,11 +2299,11 @@ nflag TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
         ++paramindex;
 
         // -- create a schedule param node
-		CSchedParamNode* schedparamnode =
-            new CSchedParamNode(codeblock, AppendToRoot(*assignments), filebuf.linenumber,
-                                paramindex);
+		CSchedParamNode* schedparamnode = TinAlloc(ALLOC_TreeNode, CSchedParamNode, codeblock,
+                                                   AppendToRoot(*assignments), filebuf.linenumber,
+                                                   paramindex);
 
-        nflag result = TryParseStatement(codeblock, filebuf, schedparamnode->leftchild);
+        bool8 result = TryParseStatement(codeblock, filebuf, schedparamnode->leftchild);
         if(!result) {
             ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
                           "Error - Unable to evaluate parameter %d in call to %s()\n", paramindex,
@@ -2310,7 +2320,7 @@ nflag TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
+bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
     // -- ensure the next token is the 'new' keyword
     tReadToken peektoken(filebuf);
     if(!GetToken(peektoken) || peektoken.type != TOKEN_KEYWORD)
@@ -2361,21 +2371,22 @@ nflag TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileT
 
     // -- create the node
     if(objnametoken.type == TOKEN_STRING) {
-        CCreateObjectNode* newobjnode =
-            new CCreateObjectNode(codeblock, link, filebuf.linenumber, classtoken.tokenptr,
-                                  classtoken.length, objnametoken.tokenptr, objnametoken.length);
+        CCreateObjectNode* newobjnode = TinAlloc(ALLOC_TreeNode, CCreateObjectNode, codeblock,
+                                                 link, filebuf.linenumber, classtoken.tokenptr,
+                                                 classtoken.length, objnametoken.tokenptr,
+                                                 objnametoken.length);
     }
     else {
-        CCreateObjectNode* newobjnode =
-            new CCreateObjectNode(codeblock, link, filebuf.linenumber, classtoken.tokenptr,
-                                  classtoken.length, "", 0);
+        CCreateObjectNode* newobjnode = TinAlloc(ALLOC_TreeNode, CCreateObjectNode, codeblock,
+                                                 link, filebuf.linenumber, classtoken.tokenptr,
+                                                 classtoken.length, "", 0);
     }
 
     return true;
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag TryParseDestroyObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
+bool8 TryParseDestroyObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
     // -- ensure the next token is the 'new' keyword
     tReadToken peektoken(filebuf);
     if(!GetToken(peektoken) || peektoken.type != TOKEN_KEYWORD)
@@ -2388,8 +2399,8 @@ nflag TryParseDestroyObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompile
     filebuf = peektoken;
 
     // -- create a destroy object node
-    CDestroyObjectNode* destroyobjnode =
-        new CDestroyObjectNode(codeblock, link, filebuf.linenumber);
+    CDestroyObjectNode* destroyobjnode = TinAlloc(ALLOC_TreeNode, CDestroyObjectNode, codeblock,
+                                                  link, filebuf.linenumber);
 
     // -- ensure we have a valid statement
     if(!TryParseStatement(codeblock, filebuf, destroyobjnode->leftchild)) {
@@ -2410,8 +2421,8 @@ CCompileTreeNode*& AppendToRoot(CCompileTreeNode& root) {
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& link, tReadToken& filebuf,
-                         nflag requiresbraceclose) {
+bool8 ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& link, tReadToken& filebuf,
+                         bool8 requiresbraceclose) {
     
     // -- within a statement block, since we have no scoping to variable, we only
     // -- care that the brace depth balances out.  If we require a brace, it means
@@ -2426,7 +2437,7 @@ nflag ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& link, tReadT
 	tReadToken filetokenbuf(filebuf);
 
 	// build the compile tree
-	nflag foundtoken = true;
+	bool8 foundtoken = true;
 	do {
         // -- a small optimization, skip whitespace and comments at the start of the loop
         if(!SkipWhiteSpace(filetokenbuf)) {
@@ -2471,7 +2482,7 @@ nflag ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& link, tReadT
 		}
 
 		// -- parsing node priority
-		nflag found = false;
+		bool8 found = false;
 		found = found || TryParseVarDeclaration(codeblock, filetokenbuf, curroot->next);
 		found = found || TryParseStatement(codeblock, filetokenbuf, curroot->next);
 		found = found || TryParseIfStatement(codeblock, filetokenbuf, curroot->next);
@@ -2511,7 +2522,7 @@ nflag ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& link, tReadT
 }
 
 // ------------------------------------------------------------------------------------------------
-static nflag gDebugParseTree = false;
+static bool8 gDebugParseTree = false;
 
 CCodeBlock* ParseFile(const char* filename) {
 	// -- see if we can open the file
@@ -2534,7 +2545,7 @@ if(GetDebugCodeBlock()) {
     if(!filebuf)
         return NULL;
 
-    CCodeBlock* codeblock = new CCodeBlock(filename);
+    CCodeBlock* codeblock = TinAlloc(ALLOC_CodeBlock, CCodeBlock, filename);
 
 	// create the starting root, initial token, and parse the existing statements
 	CCompileTreeNode* root = CCompileTreeNode::CreateTreeRoot(codeblock);
@@ -2571,7 +2582,7 @@ if(GetDebugCodeBlock()) {
 }
 
 // ------------------------------------------------------------------------------------------------
-nflag SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
+bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
     if(!codeblock || !binfilename)
         return false;
 
@@ -2710,7 +2721,7 @@ CCodeBlock* LoadBinary(const char* binfilename) {
     }
 
     // -- create the codeblock
-    CCodeBlock* codeblock = new CCodeBlock(binfilename);
+    CCodeBlock* codeblock = TinAlloc(ALLOC_CodeBlock, CCodeBlock, binfilename);
     codeblock->AllocateInstructionBlock(instrcount, linenumbercount);
 
     // -- read the file into the codeblock
@@ -2753,7 +2764,7 @@ CVariableEntry* AddVariable(tVarTable* curglobalvartable, CFunctionEntry* curfun
         // -- if the variable already exists, we're done
         ve = curglobalvartable->FindItem(varhash);
         if(!ve) {
-	        ve = new CVariableEntry(varname, varhash, vartype, false, 0, false);
+	        ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, varname, varhash, vartype, false, 0, false);
 	        uint32 hash = ve->GetHash();
 	        curglobalvartable->AddItem(*ve, hash);
         }
@@ -2763,7 +2774,7 @@ CVariableEntry* AddVariable(tVarTable* curglobalvartable, CFunctionEntry* curfun
 	    tVarTable* globalvartable = GetGlobalNamespace()->GetVarTable();
         ve = globalvartable->FindItem(varhash);
         if(!ve) {
-	        ve = new CVariableEntry(varname, varhash, vartype, false, 0, false);
+	        ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, varname, varhash, vartype, false, 0, false);
 	        uint32 hash = ve->GetHash();
 	        globalvartable->AddItem(*ve, hash);
         }
@@ -2874,11 +2885,12 @@ CFunctionEntry* FuncDeclaration(CNamespace* nsentry, const char* funcname, uint3
 	CFunctionEntry* fe = nsentry->GetFuncTable()->FindItem(funchash);
 	if(fe) {
         nsentry->GetFuncTable()->RemoveItem(fe->GetHash());
-        delete fe;
+        TinFree(fe);
     }
 
 	// -- create the function entry, and add it to the global table
-	fe = new CFunctionEntry(nsentry->GetHash(), funcname, funchash, type, (void*)NULL);
+	fe = TinAlloc(ALLOC_FuncEntry, CFunctionEntry, nsentry->GetHash(), funcname, funchash, type,
+                  (void*)NULL);
 	uint32 hash = fe->GetHash();
 	nsentry->GetFuncTable()->AddItem(*fe, hash);
     return fe;
@@ -2888,15 +2900,15 @@ CFunctionEntry* FuncDeclaration(CNamespace* nsentry, const char* funcname, uint3
 
 // ------------------------------------------------------------------------------------------------
 // Debug helper functions
-void SetDebugParseTree(nflag torf) {
+void SetDebugParseTree(bool8 torf) {
     TinScript::gDebugParseTree = torf;
 }
 
-nflag GetDebugParseTree() {
+bool8 GetDebugParseTree() {
     return TinScript::gDebugParseTree;
 }
 
-REGISTER_FUNCTION_P1(SetDebugParseTree, SetDebugParseTree, void, nflag);
+REGISTER_FUNCTION_P1(SetDebugParseTree, SetDebugParseTree, void, bool8);
 
 // ------------------------------------------------------------------------------------------------
 // eof

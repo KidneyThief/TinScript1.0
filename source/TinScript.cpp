@@ -46,12 +46,12 @@
 // statics - mostly for the quick and dirty console implementation
 static const uint32 gFramesPerSecond = 33;
 static const uint32 gMSPerFrame = 1000 / gFramesPerSecond;
-static const real gSecPerFrame = (1.0f / real(gFramesPerSecond));
+static const float32 gSecPerFrame = (1.0f / float32(gFramesPerSecond));
 static uint32 gCurrentTime = 0;
-static nflag gRefreshConsoleString = false;
+static bool8 gRefreshConsoleString = false;
 static uint32 gRefreshConsoleTimestamp = 0;
 static char gConsoleInputBuf[TinScript::kMaxTokenLength];
-static const real gRefreshDelay = 0.25f;
+static const float32 gRefreshDelay = 0.25f;
 
 namespace TinScript {
 
@@ -82,7 +82,8 @@ void CRegisterGlobal::RegisterGlobals() {
     CRegisterGlobal* global = CRegisterGlobal::head;
     while(global) {
         // -- create the var entry, add it to the global namespace
-        CVariableEntry* ve = new CVariableEntry(global->name, global->type, global->addr);
+        CVariableEntry* ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, global->name, global->type,
+                                      global->addr);
 	    uint32 hash = ve->GetHash();
 	    GetGlobalNamespace()->GetVarTable()->AddItem(*ve, hash);
 
@@ -92,15 +93,15 @@ void CRegisterGlobal::RegisterGlobals() {
 }
 
 // ------------------------------------------------------------------------------------------------
-static nflag gAssertEnableTrace = false;
-static nflag gAssertStackSkipped = false;
+static bool8 gAssertEnableTrace = false;
+static bool8 gAssertStackSkipped = false;
 void ResetAssertStack() {
     gAssertEnableTrace = false;
     gAssertStackSkipped = false;
 }
 
 // -- returns false if we should break
-nflag AssertHandled(const char* condition, const char* file, int32 linenumber, const char* fmt, ...) {
+bool8 AssertHandled(const char* condition, const char* file, int32 linenumber, const char* fmt, ...) {
     if(!gAssertStackSkipped || gAssertEnableTrace) {
         if(!gAssertStackSkipped)
             printf("*************************************************************\n");
@@ -388,7 +389,7 @@ void LoadStringTable() {
 // ------------------------------------------------------------------------------------------------
 // helper functions
 
-nflag GetLastWriteTime(const char* filename, FILETIME& writetime)
+bool8 GetLastWriteTime(const char* filename, FILETIME& writetime)
 {
     if(!filename || !filename[0])
         return false;
@@ -409,7 +410,7 @@ nflag GetLastWriteTime(const char* filename, FILETIME& writetime)
     return true;
 }
 
-nflag GetBinaryFileName(const char* filename, char* binfilename, int32 maxnamelength) {
+bool8 GetBinaryFileName(const char* filename, char* binfilename, int32 maxnamelength) {
     if(!filename)
         return false;
 
@@ -426,7 +427,7 @@ nflag GetBinaryFileName(const char* filename, char* binfilename, int32 maxnamele
     return true;
 }
 
-nflag NeedToCompile(const char* filename, const char* binfilename) {
+bool8 NeedToCompile(const char* filename, const char* binfilename) {
 
 #if FORCE_COMPILE
     return true;
@@ -476,7 +477,7 @@ CCodeBlock* CompileScript(const char* filename) {
     return codeblock;
 }
 
-nflag ExecScript(const char* filename) {
+bool8 ExecScript(const char* filename) {
 
     char binfilename[kMaxNameLength];
     if(!GetBinaryFileName(filename, binfilename, kMaxNameLength)) {
@@ -487,7 +488,7 @@ nflag ExecScript(const char* filename) {
 
     CCodeBlock* codeblock = NULL;
 
-    nflag needtocompile = NeedToCompile(filename, binfilename);
+    bool8 needtocompile = NeedToCompile(filename, binfilename);
     if(needtocompile) {
         codeblock = CompileScript(filename);
         if(!codeblock) {
@@ -500,9 +501,9 @@ nflag ExecScript(const char* filename) {
     }
 
     // -- execute the codeblock
-    nflag result = true;
+    bool8 result = true;
     if(codeblock) {
-	    nflag result = ExecuteCodeBlock(*codeblock);
+	    bool8 result = ExecuteCodeBlock(*codeblock);
         if(!result) {
             ScriptAssert_(0, "<internal>", -1, "Error - unable to execute file: %s\n", filename);
             result = false;
@@ -523,11 +524,11 @@ CCodeBlock* CompileCommand(const char* statement) {
     return commandblock;
 }
 
-nflag ExecCommand(const char* statement) {
+bool8 ExecCommand(const char* statement) {
 
     CCodeBlock* stmtblock = CompileCommand(statement);
     if(stmtblock) {
-        nflag result = ExecuteCodeBlock(*stmtblock);
+        bool8 result = ExecuteCodeBlock(*stmtblock);
 
         ResetAssertStack();
 
@@ -549,13 +550,13 @@ nflag ExecCommand(const char* statement) {
 // ------------------------------------------------------------------------------------------------
 // -- TinScript functions and registrations
 // ------------------------------------------------------------------------------------------------
-nflag Compile(const char* filename) {
+bool8 Compile(const char* filename) {
     CCodeBlock* result = TinScript::CompileScript(filename);
     ResetAssertStack();
     return (result != NULL);
 }
-REGISTER_FUNCTION_P1(Compile, Compile, nflag, const char*);
-REGISTER_FUNCTION_P1(Exec, ExecScript, nflag, const char*);
+REGISTER_FUNCTION_P1(Compile, Compile, bool8, const char*);
+REGISTER_FUNCTION_P1(Exec, ExecScript, bool8, const char*);
 
 // $$$TZA complete hack, but if anything prints to the screen, after it's done, we'll need to
 // -- reprint the console input...  having an actual QT app to separate input and output is needed
@@ -571,8 +572,8 @@ void Print(const char* string) {
 REGISTER_FUNCTION_P1(Print, Print, void, const char*);
 
 // ------------------------------------------------------------------------------------------------
-nflag IsObject(uint32 objectid) {
-    nflag found = TinScript::CNamespace::FindObject(objectid) != NULL;
+bool8 IsObject(uint32 objectid) {
+    bool8 found = TinScript::CNamespace::FindObject(objectid) != NULL;
     return found;
 }
 
@@ -585,7 +586,7 @@ uint32 FindObjectByName(const char* objname) {
     return oe ? oe->GetID() : 0;
 }
 
-REGISTER_FUNCTION_P1(IsObject, IsObject, nflag, uint32);
+REGISTER_FUNCTION_P1(IsObject, IsObject, bool8, uint32);
 REGISTER_FUNCTION_P1(FindObjectByName, FindObjectByName, uint32, const char*);
 REGISTER_FUNCTION_P3(AddDynamicVariable, TinScript::CNamespace::AddDynamicVariable, void, uint32, const char*, const char*);
 REGISTER_FUNCTION_P2(LinkNamespaces, TinScript::CNamespace::LinkNamespaces, void, const char*, const char*);

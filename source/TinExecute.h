@@ -34,7 +34,7 @@ class CExecStack {
 			size = _size;
 			assert(size > 0);
 
-			stack = new unsigned int[size];
+			stack = TinAllocInstrBlock(size);
 			stacktop = stack;
 		}
 
@@ -108,7 +108,7 @@ class CFunctionCallStack {
 		CFunctionCallStack(uint32 _size = 0) {
    			size = _size;
 			assert(size > 0);
-			funcentrystack = new tFunctionCallEntry[size];
+			funcentrystack = TinAllocArray(ALLOC_FuncCallEntry, tFunctionCallEntry, size);
 			stacktop = 0;
 		}
 

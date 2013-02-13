@@ -38,23 +38,23 @@
 // statics - mostly for the quick and dirty console implementation
 static const uint32 gFramesPerSecond = 33;
 static const uint32 gMSPerFrame = 1000 / gFramesPerSecond;
-static const real gSecPerFrame = (1.0f / real(gFramesPerSecond));
+static const float32 gSecPerFrame = (1.0f / float32(gFramesPerSecond));
 static uint32 gCurrentTime = 0;
-static nflag gRefreshConsoleString = false;
+static bool8 gRefreshConsoleString = false;
 static uint32 gRefreshConsoleTimestamp = 0;
 static char gConsoleInputBuf[TinScript::kMaxTokenLength];
-static const real gRefreshDelay = 0.25f;
+static const float32 gRefreshDelay = 0.25f;
 
 // ------------------------------------------------------------------------------------------------
 // quick and dirty console framework
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-static nflag gRunning = true;
+static bool8 gRunning = true;
 void Quit() {
     gRunning = false;
 }
 
-static nflag gPaused = false;
+static bool8 gPaused = false;
 void Pause() {
     gPaused = true;
 }
@@ -70,20 +70,20 @@ uint32 GetCurrentSimTime() {
     return gCurrentTime;
 }
 
-real GetSimTime() {
-    real curtime = (real)(GetCurrentSimTime()) / 1000.0f;
+float32 GetSimTime() {
+    float32 curtime = (float32)(GetCurrentSimTime()) / 1000.0f;
     return curtime;
 }
-REGISTER_FUNCTION_P0(GetSimTime, GetSimTime, real);
+REGISTER_FUNCTION_P0(GetSimTime, GetSimTime, float32);
 
-real TimeDiffSeconds(uint32 starttime, uint32 endtime) {
+float32 TimeDiffSeconds(uint32 starttime, uint32 endtime) {
     if(endtime <= starttime)
         return 0.0f;
     uint32 framecount = (endtime - starttime) / gMSPerFrame;
-    return real(framecount) * gSecPerFrame;
+    return float32(framecount) * gSecPerFrame;
 }
 
-void RefreshConsoleInput(nflag force = false) {
+void RefreshConsoleInput(bool8 force = false) {
     if(force || gRefreshConsoleString) {
         gRefreshConsoleString = false;
         printf("\nConsole => %s", gConsoleInputBuf);
@@ -95,7 +95,7 @@ int32 _tmain(int32 argc, _TCHAR* argv[])
 	TinScript::Initialize();
 
     // -- required to ensure registered functions from unittest.cpp are linked.
-    extern nflag gUnitTestIncludeMe;
+    extern bool8 gUnitTestIncludeMe;
     gUnitTestIncludeMe = true;
 
 	// -- convert all the wide args into an array of const char*
@@ -141,7 +141,7 @@ int32 _tmain(int32 argc, _TCHAR* argv[])
 	}
 
     // -- q&d history implementation
-    nflag historyfull = false;
+    bool8 historyfull = false;
     const int32 maxhistory = 64;
     int32 historyindex = -1;
     int32 historylastindex = -1;
@@ -172,7 +172,7 @@ int32 _tmain(int32 argc, _TCHAR* argv[])
         if(_kbhit()) {
 
             // -- read the next key
-            nflag special_key = false;
+            bool8 special_key = false;
             char c = _getch();
             if(c == -32) {
                 special_key = true;

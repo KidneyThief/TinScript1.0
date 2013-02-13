@@ -59,7 +59,7 @@ CObjectEntry::CObjectEntry(uint32 _objid, uint32 _namehash, CNamespace* _objname
 CObjectEntry::~CObjectEntry() {
     if(dynamicvariables) {
         dynamicvariables->DestroyAll();
-        delete dynamicvariables;
+        TinFree(dynamicvariables);
     }
 }
 
@@ -92,7 +92,7 @@ CFunctionEntry* CObjectEntry::GetFunctionEntry(uint32 nshash, uint32 funchash) {
     return fe;
 }
 
-nflag CObjectEntry::AddDynamicVariable(uint32 varhash, eVarType vartype) {
+bool8 CObjectEntry::AddDynamicVariable(uint32 varhash, eVarType vartype) {
     // -- sanity check
     if(varhash == 0 || vartype < FIRST_VALID_TYPE)
         return false;
@@ -112,9 +112,11 @@ nflag CObjectEntry::AddDynamicVariable(uint32 varhash, eVarType vartype) {
 
     // -- ensure we have a dictionary to hold the dynamic tags
     if(!dynamicvariables) {
-        dynamicvariables = new CHashTable<CVariableEntry>(kLocalVarTableSize);
+        dynamicvariables = TinAlloc(ALLOC_HashTable, CHashTable<CVariableEntry>,
+                                    kLocalVarTableSize);
     }
-	ve = new CVariableEntry(UnHash(varhash), varhash, vartype, false, 0, true);
+	ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, UnHash(varhash), varhash, vartype,
+                  false, 0, true);
 	dynamicvariables->AddItem(*ve, varhash);
 
     return (ve != NULL);
@@ -126,12 +128,12 @@ nflag CObjectEntry::AddDynamicVariable(uint32 varhash, eVarType vartype) {
 void CNamespace::Initialize() {
 
     // -- allocate the dictinary to store creation functions
-    gNamespaceDictionary = new CHashTable<CNamespace>(kGlobalFuncTableSize);
+    gNamespaceDictionary = TinAlloc(ALLOC_HashTable, CHashTable<CNamespace>, kGlobalFuncTableSize);
 
     // -- allocate the dictionary to store the address of all objects created from script.
-    gObjectDictionary = new CHashTable<CObjectEntry>(kObjectTableSize);
-    gAddressDictionary = new CHashTable<CObjectEntry>(kObjectTableSize);
-    gNameDictionary = new CHashTable<CObjectEntry>(kObjectTableSize);
+    gObjectDictionary = TinAlloc(ALLOC_HashTable, CHashTable<CObjectEntry>, kObjectTableSize);
+    gAddressDictionary = TinAlloc(ALLOC_HashTable, CHashTable<CObjectEntry>, kObjectTableSize);
+    gNameDictionary = TinAlloc(ALLOC_HashTable, CHashTable<CObjectEntry>, kObjectTableSize);
 
     // -- register the namespace - these are the namespaces
     // -- registered from code, so we need to populate the NamespaceDictionary,
@@ -139,7 +141,7 @@ void CNamespace::Initialize() {
     // -- note, because we register class derived from parent, we need to
     // -- iterate and ensure parents are always registered before children
     while(CNamespaceReg::head != NULL) {
-        nflag abletoregister = false;
+        bool8 abletoregister = false;
         CNamespaceReg* regptr = CNamespaceReg::head;
         CNamespaceReg** prevptr = &CNamespaceReg::head;
         while(regptr) {
@@ -168,15 +170,16 @@ void CNamespace::Initialize() {
             // -- unhook this object from the linked list awaiting registration
             *prevptr = regptr->GetNext();
 
-            // -- set the nflag to track that we're actually making progress
+            // -- set the bool8 to track that we're actually making progress
             abletoregister = true;
 
             // -- ensure the namespace doesn't already exist
             CNamespace* namespaceentry = gNamespaceDictionary->FindItem(regptr->GetHash());
             if(namespaceentry == NULL) {
                 // -- create the namespace
-                CNamespace* newnamespace = new CNamespace(regptr->GetName(), regptr->GetCreateFunction(),
-                                                          regptr->GetDestroyFunction());
+                CNamespace* newnamespace = TinAlloc(ALLOC_Namespace, CNamespace, regptr->GetName(),
+                                                    regptr->GetCreateFunction(),
+                                                    regptr->GetDestroyFunction());
 
                 // -- add the creation method to the hash dictionary
                 gNamespaceDictionary->AddItem(*newnamespace, regptr->GetHash());
@@ -215,26 +218,26 @@ void CNamespace::Shutdown() {
     // -- delete the Namespace dictionary
     if(gNamespaceDictionary) {
         gNamespaceDictionary->DestroyAll();
-        delete gNamespaceDictionary;
+        TinFree(gNamespaceDictionary);
         gNamespaceDictionary = NULL;
     }
 
     // -- delete the Object dictionaries
     if(gObjectDictionary) {
         gObjectDictionary->DestroyAll();
-        delete gObjectDictionary;
+        TinFree(gObjectDictionary);
         gObjectDictionary = NULL;
     }
 
     // -- objects will have been destroyed above, so simply clear this hash table
     if(gAddressDictionary) {
         gAddressDictionary->RemoveAll();
-        delete gAddressDictionary;
+        TinFree(gAddressDictionary);
         gAddressDictionary = NULL;
     }
     if(gNameDictionary) {
         gNameDictionary->RemoveAll();
-        delete gNameDictionary;
+        TinFree(gNameDictionary);
         gNameDictionary = NULL;
     }
 }
@@ -253,7 +256,7 @@ CVariableEntry* CNamespace::GetVarEntry(uint32 varhash) {
     return NULL;
 }
 
-CNamespace* CNamespace::FindOrCreateNamespace(const char* _nsname, nflag create) {
+CNamespace* CNamespace::FindOrCreateNamespace(const char* _nsname, bool8 create) {
     // $$$TZA if we didn't give a name, use a global namespace... ideally we should verify
     // -- ensure the name lives in the string table
     const char* nsname = _nsname && _nsname[0] ? CStringTable::AddString(_nsname)
@@ -261,7 +264,7 @@ CNamespace* CNamespace::FindOrCreateNamespace(const char* _nsname, nflag create)
     uint32 nshash = Hash(nsname);
     CNamespace* namespaceentry = gNamespaceDictionary->FindItem(nshash);
     if(!namespaceentry && create) {
-        namespaceentry = new CNamespace(nsname, NULL);
+        namespaceentry = TinAlloc(ALLOC_Namespace, CNamespace, nsname, NULL);
 
         // -- add the namespace to the dictionary
         gNamespaceDictionary->AddItem(*namespaceentry, nshash);
@@ -402,7 +405,8 @@ uint32 CNamespace::CreateObject(uint32 classhash, uint32 objnamehash) {
         }
 
         // -- add this object to the dictionary of all objects created from script
-        CObjectEntry* newobjectentry = new CObjectEntry(objectid, objnamehash, objnamens, newobj);
+        CObjectEntry* newobjectentry = TinAlloc(ALLOC_ObjEntry, CObjectEntry,objectid, objnamehash,
+                                                objnamens, newobj);
         gObjectDictionary->AddItem(*newobjectentry, objectid);
 
         // -- add the object to the dictionary by address
@@ -462,7 +466,8 @@ uint32 CNamespace::RegisterObject(void* objaddr, const char* classname,
     }
 
     // -- add this object to the dictionary of all objects created from script
-    CObjectEntry* newobjectentry = new CObjectEntry(objectid, objnamehash, objnamens, objaddr);
+    CObjectEntry* newobjectentry = TinAlloc(ALLOC_ObjEntry, CObjectEntry, objectid, objnamehash,
+                                            objnamens, objaddr);
     gObjectDictionary->AddItem(*newobjectentry, objectid);
 
     // -- add the object to the dictionary by address
@@ -528,7 +533,7 @@ void CNamespace::DestroyObject(uint32 objectid) {
     CScheduler::CancelObject(objectid);
 
     // -- delete the object entry
-    delete oe;
+    TinFree(oe);
 
     // -- delete the actual object
     (*destroyptr)(objaddr);
@@ -603,15 +608,15 @@ CNamespace::CNamespace(const char* _name, CreateInstance _createinstance,
     next = NULL;
     createfuncptr = _createinstance;
     destroyfuncptr = _destroyinstance;
-    membertable = new tVarTable(kLocalVarTableSize);
-    methodtable = new tFuncTable(kLocalFuncTableSize);
+    membertable = TinAlloc(ALLOC_VarTable, tVarTable, kLocalVarTableSize);
+    methodtable = TinAlloc(ALLOC_FuncTable, tFuncTable, kLocalFuncTableSize);
 }
 
 CNamespace::~CNamespace() {
     membertable->DestroyAll();
-    delete membertable;
+    TinFree(membertable);
     methodtable->DestroyAll();
-    delete methodtable;
+    TinFree(methodtable);
 }
 
 };
