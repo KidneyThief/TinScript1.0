@@ -44,30 +44,36 @@ typedef CHashTable<CFunctionEntry> tFuncTable;
 // variable table
 class CVariableEntry {
 	public:
-		CVariableEntry(const char* _name = NULL, eVarType _type = TYPE_NULL, void* _addr = NULL);
-		CVariableEntry(const char* _name, unsigned int _hash, eVarType _type, bool isoffset,
-                       unsigned int _offset, bool _isdynamic = false);
+		CVariableEntry(CScriptContext* script_context, const char* _name = NULL,
+                       eVarType _type = TYPE_NULL, void* _addr = NULL);
+		CVariableEntry(CScriptContext* script_context, const char* _name, uint32 _hash,
+                       eVarType _type, bool isoffset, uint32 _offset,
+                       bool _isdynamic = false);
 
 		virtual ~CVariableEntry();
 
+        CScriptContext* GetScriptContext() {
+            return (mContextOwner);
+        }
+
 		const char* GetName() const {
-			return name;
+			return mName;
 		}
 
 		eVarType GetType() const {
-			return type;
+			return mType;
 		}
 
-		unsigned int GetHash() const {
-			return hash;
+		uint32 GetHash() const {
+			return mHash;
 		}
 
         int GetStackOffset() const {
-            return stackoffset;
+            return mStackOffset;
         }
 
         void SetStackOffset(int _stackoffset) {
-            stackoffset = _stackoffset;
+            mStackOffset = _stackoffset;
         }
 
         // -- added to accomodate converting StringTableEntry hash values back into
@@ -77,49 +83,50 @@ class CVariableEntry {
             // -- if we're providing an object address, this var is a member
             // -- if it's a dynamic var, it belongs to the object,
             // -- but lives in a local dyanmic hashtable
-            if(objaddr && !isdynamic)
-                valueaddr = (void*)((char*)objaddr + offset);
+            if(objaddr && !mIsDynamic)
+                valueaddr = (void*)((char*)objaddr + mOffset);
             else
-			    valueaddr = addr;
-            if(type == TYPE_string)
-                return (void*)CStringTable::FindString(*(unsigned int*)valueaddr);
+			    valueaddr = mAddr;
+            if(mType == TYPE_string)
+                return (void*)mContextOwner->GetStringTable()->FindString(*(uint32*)valueaddr);
             else
                 return valueaddr;
 		}
 
 		void* GetAddr(void* objaddr) const {
             // -- if we're providing an object address, this var is a member
-            if(objaddr && !isdynamic)
-                return (void*)((char*)objaddr + offset);
+            if(objaddr && !mIsDynamic)
+                return (void*)((char*)objaddr + mOffset);
             else
-			    return addr;
+			    return mAddr;
 		}
 
-        unsigned int GetOffset() const {
-            return offset;
+        uint32 GetOffset() const {
+            return mOffset;
         }
 
 		void SetValue(void* objaddr, void* value);
         void SetValueAddr(void* objaddr, void* value);
 
         void SetFunctionEntry(CFunctionEntry* _funcentry) {
-            assert(funcentry == NULL || funcentry == _funcentry);
-            funcentry = _funcentry;
+            mFuncEntry = _funcentry;
         }
         CFunctionEntry* GetFunctionEntry() {
-            return funcentry;
+            return mFuncEntry;
         }
 
 	private:
-		char name[kMaxNameLength];
-		unsigned int hash;
-		eVarType type;
-		void* addr;
-        unsigned int offset;
-        bool isdynamic;
-		bool scriptvar;
-        int stackoffset;
-        CFunctionEntry* funcentry;
+        CScriptContext* mContextOwner;
+
+		char mName[kMaxNameLength];
+		uint32 mHash;
+		eVarType mType;
+		void* mAddr;
+        uint32 mOffset;
+        bool mIsDynamic;
+		bool mScriptVar;
+        int mStackOffset;
+        CFunctionEntry* mFuncEntry;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -127,21 +134,26 @@ class CVariableEntry {
 class CFunctionContext {
 
     public:
-        CFunctionContext();
+        CFunctionContext(CScriptContext* script_context);
         virtual ~CFunctionContext();
 
-        bool AddParameter(const char* varname, unsigned int varhash, eVarType type);
-        bool AddParameter(const char* varname, unsigned int varhash, eVarType type, int paramindex);
-        CVariableEntry* AddLocalVar(const char* varname, unsigned int varhash,
+        CScriptContext* GetScriptContext() {
+            return mContextOwner;
+        }
+
+        bool AddParameter(const char* varname, uint32 varhash, eVarType type);
+        bool AddParameter(const char* varname, uint32 varhash, eVarType type, int paramindex);
+        CVariableEntry* AddLocalVar(const char* varname, uint32 varhash,
                                     eVarType type);
         int GetParameterCount();
         CVariableEntry* GetParameter(int index);
-        CVariableEntry* GetLocalVar(unsigned int varhash);
+        CVariableEntry* GetLocalVar(uint32 varhash);
         tVarTable* GetLocalVarTable();
         bool IsParameter(CVariableEntry* ve);
         void InitStackVarOffsets();
 
     private:
+        CScriptContext* mContextOwner;
 
         enum { eMaxParameterCount = 16, eMaxLocalVarCount = 37 };
 
@@ -180,7 +192,7 @@ class CRegFunctionBase {
         virtual void DispatchFunction(void* objaddr) {
         }
 
-        virtual void Register() = 0;
+        virtual void Register(CScriptContext* script_context) = 0;
         CRegFunctionBase* GetNext() {
             return next;
         }
@@ -198,32 +210,36 @@ class CRegFunctionBase {
 // Function Entry
 class CFunctionEntry {
 	public:
-		CFunctionEntry(unsigned int _nshash, const char* _name, unsigned int _hash,
-                       EFunctionType _type, void* _addr);
-		CFunctionEntry(unsigned int _nshash, const char* _name, unsigned int _hash,
-                       EFunctionType _type, CRegFunctionBase* _func);
+		CFunctionEntry(CScriptContext* script_context, uint32 _nshash, const char* _name,
+                       uint32 _hash, EFunctionType _type, void* _addr);
+		CFunctionEntry(CScriptContext* script_context, uint32 _nshash, const char* _name,
+                       uint32 _hash, EFunctionType _type, CRegFunctionBase* _func);
 		virtual ~CFunctionEntry();
 
+        CScriptContext* GetScriptContext() {
+            return (mContextOwner);
+        }
+
 		const char* GetName() const {
-			return name;
+			return (mName);
 		}
 
 		EFunctionType GetType() const {
-			return type;
+			return (mType);
 		}
 
-		unsigned int GetNamespaceHash() const {
-			return namespacehash;
+		uint32 GetNamespaceHash() const {
+			return (mNamespaceHash);
 		}
 
-		unsigned int GetHash() const {
-			return hash;
+		uint32 GetHash() const {
+			return (mHash);
 		}
 
 		void* GetAddr() const;
 
-        void SetCodeBlockOffset(CCodeBlock* _codeblock, unsigned int _offset);
-        unsigned int GetCodeBlockOffset(CCodeBlock*& _codeblock) const;
+        void SetCodeBlockOffset(CCodeBlock* _codeblock, uint32 _offset);
+        uint32 GetCodeBlockOffset(CCodeBlock*& _codeblock) const;
         CFunctionContext* GetContext();
 
         eVarType GetReturnType();
@@ -231,18 +247,20 @@ class CFunctionEntry {
         CRegFunctionBase* GetRegObject();
 
 	private:
-		char name[kMaxNameLength];
-		unsigned int hash;
-		EFunctionType type;
-        unsigned int namespacehash;
+        CScriptContext* mContextOwner;
 
-        void* addr;
-		unsigned int instroffset;
-        CCodeBlock* codeblock;
+		char mName[kMaxNameLength];
+		uint32 mHash;
+		EFunctionType mType;
+        uint32 mNamespaceHash;
 
-        CFunctionContext context;
+        void* mAddr;
+		uint32 mInstrOffset;
+        CCodeBlock* mCodeblock;
 
-        CRegFunctionBase* regobject;
+        CFunctionContext mContext;
+
+        CRegFunctionBase* mRegObject;
 };
 
 // ------------------------------------------------------------------------------------------------

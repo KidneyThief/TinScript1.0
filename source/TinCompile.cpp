@@ -44,8 +44,6 @@ bool8 gDebugCodeBlock = false;
 
 namespace TinScript {
 
-CHashTable<CCodeBlock>* CCodeBlock::gCodeBlockList;
-
 // ------------------------------------------------------------------------------------------------
 // CCompileTree implementation
 const char* gCompileNodeTypes[eNodeTypeCount] = {
@@ -356,10 +354,11 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
 			uint32 varhash = Hash(value);
             uint32 funchash = curfunction ? curfunction->GetHash() : 0;
             uint32 nshash = curfunction ? curfunction->GetNamespaceHash() : 0;
-            CVariableEntry* var = GetVariable(codeblock->smCurrentGlobalVarTable, nshash, funchash,
+            CVariableEntry* var = GetVariable(codeblock->GetScriptContext(),
+                                              codeblock->smCurrentGlobalVarTable, nshash, funchash,
                                               varhash, 0);
 			if(!var) {
-                ScriptAssert_(0, codeblock->GetFileName(), linenumber,
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
                               "Error - undefined variable: %s\n", value);
 				return 0;
 			}
@@ -369,7 +368,8 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
             // -- result, then we'd better have a hash value to dereference the table
             if(vartype == TYPE_hashtable && pushresult != TYPE_hashtable) {
                 if(!rightchild) {
-                    ScriptAssert_(0, codeblock->GetFileName(), linenumber,
+                    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                                  linenumber,
                                   "Error - hashtable variable %s missing a rightchild\n",
                                   UnHash(var->GetHash()));
 				    return 0;
@@ -402,7 +402,8 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
                         // -- for local vars, it's the offset on the stack we need to push
                         int32 stackoffset = var->GetStackOffset();
                         if(!countonly && stackoffset < 0) {
-                            ScriptAssert_(0, codeblock->GetFileName(), linenumber,
+                            ScriptAssert_(codeblock->GetScriptContext(), 0,
+                                          codeblock->GetFileName(), linenumber,
                                           "Error - invalid stack offset for local var: %s\n",
                                           UnHash(var->GetHash()));
                             return 0;
@@ -431,7 +432,8 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
                         // -- for local vars, it's the offset on the stack we need to push
                         int32 stackoffset = var->GetStackOffset();
                         if(!countonly && stackoffset < 0) {
-                            ScriptAssert_(0, codeblock->GetFileName(), linenumber,
+                            ScriptAssert_(codeblock->GetScriptContext(), 0,
+                                          codeblock->GetFileName(), linenumber,
                                           "Error - invalid stack offset for local var: %s\n",
                                           UnHash(var->GetHash()));
                             return 0;
@@ -857,22 +859,23 @@ int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
     uint32 funcnshash = funcnamespace[0] != '\0' ? Hash(funcnamespace) : 0;
     tFuncTable* functable = NULL;
     if(funcnshash != 0) {
-        CNamespace* nsentry = CNamespace::FindOrCreateNamespace(funcnamespace, true);
+        CNamespace* nsentry =
+            codeblock->GetScriptContext()->FindOrCreateNamespace(funcnamespace, true);
         if(!nsentry) {
-            ScriptAssert_(0, codeblock->GetFileName(), linenumber,
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
                           "Error - Failed to find/create Namespace: %s\n", funcnamespace);
             return 0;
         }
         functable = nsentry->GetFuncTable();
     }
     else {
-	    functable = GetGlobalNamespace()->GetFuncTable();
+	    functable = codeblock->GetScriptContext()->GetGlobalNamespace()->GetFuncTable();
     }
 
 	CFunctionEntry* fe = functable->FindItem(funchash);
 	if(!fe) {
-		ScriptAssert_(0, codeblock->GetFileName(), linenumber,  "Error - undefined function: %s\n",
-                     funcname);
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
+                      "Error - undefined function: %s\n", funcname);
 		return 0;
 	}
 
@@ -1043,9 +1046,10 @@ int32 CFuncReturnNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counto
 
     // -- all functions are required to return a value, to keep the virtual machine consistent
     if(!leftchild) {
-        ScriptAssert_(leftchild != NULL, codeblock->GetFileName(), linenumber,
-                        "Error - CFuncReturnNode::Eval() - invalid return from function %s()\n",
-                        functionentry->GetName());
+        ScriptAssert_(codeblock->GetScriptContext(), leftchild != NULL, codeblock->GetFileName(),
+                      linenumber,
+                      "Error - CFuncReturnNode::Eval() - invalid return from function %s()\n",
+                      functionentry->GetName());
         return 0;
     }
 
@@ -1107,14 +1111,16 @@ int32 CArrayHashNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 	int32 size = 0;
 
     if(!leftchild) {
-        ScriptAssert_(leftchild != NULL, codeblock->GetFileName(), linenumber,
-                        "Error - CArrayHashNode::Eval() - missing leftchild\n");
+        ScriptAssert_(codeblock->GetScriptContext(), leftchild != NULL, codeblock->GetFileName(),
+                      linenumber,
+                      "Error - CArrayHashNode::Eval() - missing leftchild\n");
         return 0;
     }
 
     if(!rightchild) {
-        ScriptAssert_(rightchild != NULL, codeblock->GetFileName(), linenumber,
-                        "Error - CArrayHashNode::Eval() - missing rightchild\n");
+        ScriptAssert_(codeblock->GetScriptContext(), rightchild != NULL, codeblock->GetFileName(),
+                      linenumber,
+                      "Error - CArrayHashNode::Eval() - missing rightchild\n");
         return 0;
     }
 
@@ -1146,14 +1152,16 @@ int32 CArrayVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 coun
 	int32 size = 0;
 
     if(!leftchild) {
-        ScriptAssert_(leftchild != NULL, codeblock->GetFileName(), linenumber,
-                        "Error - CArrayHashNode::Eval() - missing leftchild\n");
+        ScriptAssert_(codeblock->GetScriptContext(), leftchild != NULL, codeblock->GetFileName(),
+                      linenumber,
+                      "Error - CArrayHashNode::Eval() - missing leftchild\n");
         return 0;
     }
 
     if(!rightchild) {
-        ScriptAssert_(rightchild != NULL, codeblock->GetFileName(), linenumber,
-                        "Error - CArrayHashNode::Eval() - missing rightchild\n");
+        ScriptAssert_(codeblock->GetScriptContext(), rightchild != NULL, codeblock->GetFileName(),
+                      linenumber,
+                      "Error - CArrayHashNode::Eval() - missing rightchild\n");
         return 0;
     }
 
@@ -1337,64 +1345,68 @@ int32 CDestroyObjectNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 cou
 
 // ------------------------------------------------------------------------------------------------
 // CodeBlock implementation
-CCodeBlock::CCodeBlock(const char* _filename) {
-    instrblock = NULL;
-    instrcount = 0;
+CCodeBlock::CCodeBlock(CScriptContext* script_context, const char* _filename) {
+    mContextOwner = script_context;
+
+    mIsParsing = true;
+
+    mInstrBlock = NULL;
+    mInstrCount = 0;
 
     smFuncDefinitionStack = TinAlloc(ALLOC_FuncCallStack, CFunctionCallStack, kFunctionCallStackSize);
     smCurrentGlobalVarTable = TinAlloc(ALLOC_VarTable, tVarTable, kLocalVarTableSize);
-    functionlist = TinAlloc(ALLOC_FuncTable, tFuncTable, kLocalFuncTableSize);
+    mFunctionList = TinAlloc(ALLOC_FuncTable, tFuncTable, kLocalFuncTableSize);
 
     // -- add to the resident list of codeblocks, if a name was given
-    filename[0] = '\0';
-    filenamehash = 0;
+    mFileName[0] = '\0';
+    mFileNameHash = 0;
     if(_filename && _filename[0]) {
-        SafeStrcpy(filename, _filename, kMaxNameLength);
-        filenamehash = Hash(filename);
-        gCodeBlockList->AddItem(*this, filenamehash);
+        SafeStrcpy(mFileName, _filename, kMaxNameLength);
+        mFileNameHash = Hash(mFileName);
+        script_context->GetCodeBlockList()->AddItem(*this, mFileNameHash);
     }
 
     // -- keep track of the linenumber offsets
-    linenumberindex = 0;
-    linenumbercount = 0;
-    linenumbers = NULL;
+    mLineNumberIndex = 0;
+    mLineNumberCount = 0;
+    mLineNumbers = NULL;
 }
 
 CCodeBlock::~CCodeBlock() {
-	if(instrblock)
-		TinFreeArray(instrblock);
+	if(mInstrBlock)
+		TinFreeArray(mInstrBlock);
     smCurrentGlobalVarTable->DestroyAll();
     TinFree(smCurrentGlobalVarTable);
-    functionlist->DestroyAll();
-    TinFree(functionlist);
+    mFunctionList->DestroyAll();
+    TinFree(mFunctionList);
 
-    if(linenumbers)
-        TinFreeArray(linenumbers);
+    if(mLineNumbers)
+        TinFreeArray(mLineNumbers);
 }
 
 int32 CCodeBlock::CalcInstrCount(const CCompileTreeNode& root) {
 
 	// -- the root is always a NOP, which will loop through and eval its siblings
 	uint32* instrptr = NULL;
-    int32 instrcount = 0;
+    int32 mInstrCount = 0;
 
     // -- add the size needed to store this block's global variables
-    instrcount += CompileVarTable(smCurrentGlobalVarTable, instrptr, true);
+    mInstrCount += CompileVarTable(smCurrentGlobalVarTable, instrptr, true);
 
     // -- run through the tree, calculating the size needed to contain the compiled code
-	instrcount += root.Eval(instrptr, TYPE_void, true);
+	mInstrCount += root.Eval(instrptr, TYPE_void, true);
 
     // -- add one to account for the OP_EOF added to the end of every code block
-    ++instrcount;
+    ++mInstrCount;
 
-    return instrcount;
+    return mInstrCount;
 }
 
 // ------------------------------------------------------------------------------------------------
 bool8 CCodeBlock::CompileTree(const CCompileTreeNode& root) {
 
 	// -- the root is always a NOP, which will loop through and eval its siblings
-	uint32* instrptr = instrblock;
+	uint32* instrptr = mInstrBlock;
 
     // -- write out the instructions to populate the global variables needed
     CompileVarTable(smCurrentGlobalVarTable, instrptr, false);
@@ -1405,8 +1417,8 @@ bool8 CCodeBlock::CompileTree(const CCompileTreeNode& root) {
 	// -- push the specific operation to be performed
 	PushInstruction(false, instrptr, OP_EOF, DBG_instr);
 
-    uint32 verifysize = (uint32)instrptr - (uint32)(instrblock);
-	assert(instrcount == verifysize >> 2);
+    uint32 verifysize = (uint32)instrptr - (uint32)(mInstrBlock);
+	assert(mInstrCount == verifysize >> 2);
 
 	return true;
 }

@@ -28,6 +28,10 @@
 #ifndef __INTEGRATION_H
 #define __INTEGRATION_H
 
+// ------------------------------------------------------------------------------------------------
+// -- TYPES
+// ------------------------------------------------------------------------------------------------
+
 typedef bool            bool8;
 typedef char            int8;
 typedef unsigned char   uint8;
@@ -37,11 +41,16 @@ typedef int             int32;
 typedef unsigned int    uint32;
 typedef float           float32;
 
+// ------------------------------------------------------------------------------------------------
+// -- MEMORY
+// ------------------------------------------------------------------------------------------------
+
 // -- memory allocation types - to adjust to custom memory strategies
 // -- e.g.  TreeNode is temporary mem used only for compiling
 // --       VarEntry, ObjEntry, FuncEntry are all fixed sizes, and would
 // --       perform well if allocated from a memory pool...
 #define AllocTypeTuple              \
+    AllocTypeEntry(ScriptContext)   \
     AllocTypeEntry(TreeNode)        \
     AllocTypeEntry(CodeBlock)       \
     AllocTypeEntry(FuncCallStack)   \
@@ -83,6 +92,28 @@ enum eAllocType {
 #define TinFreeArray(addr) \
     delete [] addr;
 
+// ------------------------------------------------------------------------------------------------
+// Misc hooks
+// ------------------------------------------------------------------------------------------------
+// -- Pass a function of the following prototype when creating the CScriptContext
+typedef bool8 (*TinAssertHandler)(const char* condition, const char* file, int32 linenumber,
+                                  const char* fmt, ...);
+#define ScriptAssert_(scriptcontext, condition, file, linenumber, fmt, ...)                     \
+    {                                                                                           \
+        if(!(condition)) {                                                                      \
+            if(!scriptcontext->GetAssertHandler()(#condition, file, linenumber,                 \
+                                                  fmt, __VA_ARGS__)) {                          \
+                __asm   int 3                                                                   \
+            }                                                                                   \
+        }                                                                                       \
+    }
+
+// -- Pass a function of the following prototype when creating the CScriptContext
+typedef int (*TinPrintHandler)(const char* fmt, ...);
+#define TinPrint(scriptcontext, fmt, ...)                           \
+    {                                                               \
+        scriptcontext->GetPrintHandler()(fmt, __VA_ARGS__);         \
+    }
 
 #endif // __INTEGRATION_H
 

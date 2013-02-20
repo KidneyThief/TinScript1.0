@@ -23,6 +23,7 @@
 // Generated macros for function registration
 // ------------------------------------------------------------------------------------------------
 
+
 // -- Parameter count: 0
 #define REGISTER_FUNCTION_P0(scriptname, funcname, R) \
     static TinScript::CRegFunctionP0<R> _reg_##scriptname(#scriptname, funcname);
@@ -112,4 +113,3 @@
         return obj->methodname(t1, t2, t3, t4, t5, t6, t7, t8);    \
     }    \
     static TinScript::CRegMethodP8<classname, R, T1, T2, T3, T4, T5, T6, T7, T8> _reg_##classname##methodname(#scriptname, classname##methodname);
-

@@ -49,11 +49,6 @@ static const char gQuoteChars[kNumQuoteChars + 1] = "\"'`";
 static int32 gGlobalExprParenDepth = 0;
 
 // ------------------------------------------------------------------------------------------------
-// -- private class to manage string lookups from hash values
-// -- also used to detect hash collisions - as such, implementing as a singleton
-CStringTable* CStringTable::gInstance = NULL;
-
-// ------------------------------------------------------------------------------------------------
 // binary operators
 static const char* gBinOperatorString[] = {
 	#define BinaryOperatorEntry(a, b, c) b,
@@ -477,7 +472,10 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 	}
 
 	// -- error
-	ScriptAssert_(0, "<internal>", linenumber, "Error - unable to parse: %s\n", tokenptr);
+    // $$$TZA Probably should restrict parsing of files to only the MainThread...  any thread
+    // -- can execute
+    ScriptAssert_(CScriptContext::GetMainThreadContext(), 0, "<internal>", linenumber,
+                  "Error - unable to parse: %s\n", tokenptr);
 	length = 0;
 	type = TOKEN_ERROR;
 	inbuf = NULL;
@@ -742,7 +740,8 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         uint32 funchash = curfunction ? curfunction->GetHash() : 0;
         uint32 nshash = curfunction ? curfunction->GetNamespaceHash() : 0;
         if(funchash == 0 || nshash == 0) {
-            ScriptAssert_(0, codeblock->GetFileName(), idtoken.linenumber,
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          idtoken.linenumber,
                           "Error - attempting to declare self.%s var outside a method\n",
                           TokenPrint(idtoken));
             return false;
@@ -750,7 +749,8 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
         // $$$TZA ensure we're not trying to declare a self.hashtable
         if(registeredtype == TYPE_hashtable) {
-            ScriptAssert_(0, codeblock->GetFileName(), idtoken.linenumber,
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          idtoken.linenumber,
                           "Error - hashtable variables are only valid for global variables\n");
             return false;
         }
@@ -783,11 +783,13 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 		uint32 varhash = Hash(idtoken.tokenptr, idtoken.length);
         uint32 funchash = curfunction ? curfunction->GetHash() : 0;
         uint32 nshash = curfunction ? curfunction->GetNamespaceHash() : 0;
-        CVariableEntry* var = GetVariable(codeblock->smCurrentGlobalVarTable, nshash, funchash,
+        CVariableEntry* var = GetVariable(codeblock->GetScriptContext(),
+                                          codeblock->smCurrentGlobalVarTable, nshash, funchash,
                                           varhash, 0);
         if(var->GetType() != TYPE_hashtable) {
-            ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
-                            "Error - variable %s is not of type hashtable\n", UnHash(varhash));
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber,
+                          "Error - variable %s is not of type hashtable\n", UnHash(varhash));
 			return false;
         }
 
@@ -803,7 +805,8 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         // -- the right child is the hash value
         if(!TryParseArrayHash(codeblock, filebuf, arrayvarnode->rightchild))
         {
-            ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber,
                           "Error - unable to parse array hash for variable %s\n", UnHash(varhash));
 			return false;
         }
@@ -819,16 +822,18 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 	    // -- add the variable to the table
         int32 stacktopdummy = 0;
         CObjectEntry* dummy = NULL;
-        CFunctionEntry* curfunction = codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
+        CFunctionEntry* curfunction =
+            codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
 
         // $$$TZA ensure we're not trying to declare a self.hashtable
         if(curfunction != NULL && registeredtype == TYPE_hashtable) {
-            ScriptAssert_(0, codeblock->GetFileName(), idtoken.linenumber,
-                            "Error - hashtable variables are only valid for global variables\n");
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          idtoken.linenumber,
+                          "Error - hashtable variables are only valid for global variables\n");
             return false;
         }
 
-        AddVariable(codeblock->smCurrentGlobalVarTable, curfunction,
+        AddVariable(codeblock->GetScriptContext(), codeblock->smCurrentGlobalVarTable, curfunction,
                     TokenPrint(idtoken), Hash(TokenPrint(idtoken)), registeredtype);
 
 	    // -- get the final token
@@ -1032,7 +1037,8 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 		    // -- ensure we have an expression to fill the right child
 		    bool8 result = TryParseExpression(codeblock, readexpr, binopnode->rightchild);
 		    if(!result || !binopnode->rightchild) {
-                ScriptAssert_(0, codeblock->GetFileName(), readexpr.linenumber,
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              readexpr.linenumber,
                               "Error - Binary operator without a rhs expression\n");
 			    return false;
 		    }
@@ -1043,8 +1049,8 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
             // -- successfully read the rhs, get the next token
             nexttoken = readexpr;
             if(!GetToken(nexttoken)) {
-			    ScriptAssert_(0, codeblock->GetFileName(), readexpr.linenumber,
-                              "Error - expecting ';'\n");
+			    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              readexpr.linenumber, "Error - expecting ';'\n");
 			    return false;
             }
         }
@@ -1067,7 +1073,8 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 		    // -- ensure we have an expression to fill the right child
 		    bool8 result = TryParseExpression(codeblock, readexpr, binopnode->rightchild);
 		    if(!result || !binopnode->rightchild) {
-			    ScriptAssert_(0, codeblock->GetFileName(), readexpr.linenumber,
+			    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              readexpr.linenumber,
                               "Error - Assignment operator without a rhs expression\n");
 			    return false;
 		    }
@@ -1078,8 +1085,8 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
             // -- successfully read the rhs, get the next token
             nexttoken = readexpr;
             if(!GetToken(nexttoken)) {
-			    ScriptAssert_(0, codeblock->GetFileName(), readexpr.linenumber,
-                              "Error - expecting ';'\n");
+			    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              readexpr.linenumber, "Error - expecting ';'\n");
 			    return false;
             }
         }
@@ -1096,8 +1103,8 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
             // -- ensure we've got an identifier for the member name next
             tReadToken membertoken(readexpr);
             if(!GetToken(membertoken) || membertoken.type != TOKEN_IDENTIFIER) {
-                ScriptAssert_(false, codeblock->GetFileName(), filebuf.linenumber,
-                              "Error - Expecting a member name\n");
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber, "Error - Expecting a member name\n");
                 return false;
             }
 
@@ -1146,14 +1153,14 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
             // -- successfully read the rhs, get the next token
             nexttoken = readexpr;
             if(!GetToken(nexttoken)) {
-			    ScriptAssert_(0, codeblock->GetFileName(), readexpr.linenumber,
-                              "Error - expecting ';'\n");
+			    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              readexpr.linenumber, "Error - expecting ';'\n");
 			    return false;
             }
         }
         else {
-		    ScriptAssert_(0, codeblock->GetFileName(), readexpr.linenumber,
-                          "Error - expecting ';'\n");
+		    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          readexpr.linenumber, "Error - expecting ';'\n");
 		    return false;
         }
     }
@@ -1188,7 +1195,8 @@ bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
         // $$TZA pre-increment and pre-decrement require more work to also include the assignment
         // -- as well as ensuring they preceed variables and not values.
         if(unarytype == UNARY_UnaryPreInc || unarytype == UNARY_UnaryPreDec) {
-            ScriptAssert_(0, codeblock->GetFileName(), unarytoken.linenumber,
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          unarytoken.linenumber,
                           "Error - Unary operators '++' and '--' are not yet supported\n");
             return false;
         }
@@ -1255,7 +1263,8 @@ bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
 		uint32 varhash = Hash(firsttoken.tokenptr, firsttoken.length);
         uint32 funchash = curfunction ? curfunction->GetHash() : 0;
         uint32 nshash = curfunction ? curfunction->GetNamespaceHash() : 0;
-        CVariableEntry* var = GetVariable(codeblock->smCurrentGlobalVarTable, nshash, funchash,
+        CVariableEntry* var = GetVariable(codeblock->GetScriptContext(),
+                                          codeblock->smCurrentGlobalVarTable, nshash, funchash,
                                           varhash, 0);
 		if(var) {
             filebuf = firsttoken;
@@ -1275,6 +1284,8 @@ bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
 		}
         // $$$TZA not currently able to provide this assumption for methods... questionable
         // -- to allow the difference, so disabling for now...
+        // -- also...  during the conversion from TinScript to C, "self.member" will be useful
+        // -- to identify custom conversion requirements
         /*
         else if(funchash != 0 && nshash != 0) {
             // -- if we're inside a namespaced function, assume this is a member.
@@ -1291,9 +1302,10 @@ bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
         }
         */
         else {
-            // $$$TZA identifier but not a keyword or type, and we're not inside a namespaced method,
+            // -- identifier but not a keyword or type, and we're not inside a namespaced method,
             // -- so this can't be a member
-            ScriptAssert_(0, codeblock->GetFileName(), firsttoken.linenumber,
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          firsttoken.linenumber,
                           "Error - unknown identifier: %s\n", TokenPrint(firsttoken));
             return false;
         }
@@ -1312,15 +1324,16 @@ bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
         // -- read the statement that should exist between the parenthesis
         int32 result = TryParseStatement(codeblock, filebuf, parenopennode->leftchild);
         if(!result) {
-            ScriptAssert_(0, codeblock->GetFileName(), firsttoken.linenumber,
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          firsttoken.linenumber,
                           "Error - Unable to parse expression following '('\n");
             return false;
         }
 
         // -- read the closing parenthesis
         if(!GetToken(filebuf) || filebuf.type != TOKEN_PAREN_CLOSE) {
-            ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
-                          "Error - expecting ')'\n");
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber, "Error - expecting ')'\n");
             return false;
         }
 
@@ -1362,7 +1375,8 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 	// -- next token better be an open parenthesis
 	if(!GetToken(filebuf) || (filebuf.type != TOKEN_PAREN_OPEN))
 	{
-		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber, "Error - expecting '('\n");
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), filebuf.linenumber,
+                      "Error - expecting '('\n");
 		return false;
 	}
 
@@ -1377,14 +1391,16 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 	// we need to have a valid expression for the left hand child
 	bool8 result = TryParseStatement(codeblock, filebuf, ifstmtnode->leftchild);
 	if(!result) {
-		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber,
                       "Error - 'if statement' without a conditional expression\n");
 		return false;
 	}
 
     // -- consume the closing parenthesis
     if(!GetToken(filebuf) || filebuf.type != TOKEN_PAREN_CLOSE) {
-        ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber, "Error - expecting ')'\n");
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber, "Error - expecting ')'\n");
         return false;
     }
 
@@ -1399,7 +1415,8 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 	// -- see if we have a statement, or a statement block
 	tReadToken peektoken(filebuf);
 	if(!GetToken(peektoken)) {
-		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber,
                       "Error - 'if statement' without a following statement block\n");
 		return false;
 	}
@@ -1408,7 +1425,8 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 		filebuf = peektoken;
 		result = ParseStatementBlock(codeblock, condbranchnode->leftchild, filebuf, true);
 		if(!result) {
-			ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber,
                           "Error - failed to read statement block\n");
 			return false;
 		}
@@ -1418,7 +1436,8 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 	{
 		result = TryParseStatement(codeblock, filebuf, condbranchnode->leftchild);
 		if(!result) {
-			ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber,
                           "Error - 'if statement' without a statement block\n");
 			return false;
 		}
@@ -1446,7 +1465,8 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 
 		// -- next, see if we have a statement block
 		if(!GetToken(peektoken)) {
-			ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber,
                           "Error - 'else' without a statement block\n");
 			return false;
 		}
@@ -1454,7 +1474,8 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 			filebuf = peektoken;
 			result = ParseStatementBlock(codeblock, condbranchnode->rightchild, filebuf, true);
 			if(!result) {
-				ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+				ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber,
                               "Error - unable to parse statmentblock following 'else'\n");
 				return false;
 			}
@@ -1465,7 +1486,8 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 		else {
 			result = TryParseStatement(codeblock, filebuf, condbranchnode->rightchild);
 			if(!result) {
-				ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+				ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber,
                               "Error - unable to parse expression following 'else'\n");
 				return false;
 			}
@@ -1498,8 +1520,8 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 	tReadToken peektoken(firsttoken);
 	if(!GetToken(peektoken) || (peektoken.type != TOKEN_PAREN_OPEN))
 	{
-		ScriptAssert_(0, codeblock->GetFileName(), firsttoken.linenumber,
-                      "Error - expecting '('\n");
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      firsttoken.linenumber, "Error - expecting '('\n");
 		return false;
 	}
 
@@ -1517,14 +1539,16 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 	// we need to have a valid expression for the left hand child
 	bool8 result = TryParseStatement(codeblock, filebuf, whileloopnode->leftchild);
 	if(!result) {
-		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber,
                       "Error - 'while loop' without a conditional expression\n");
 		return false;
 	}
 
     // -- consume the closing parenthesis
     if(!GetToken(filebuf) || filebuf.type != TOKEN_PAREN_CLOSE) {
-        ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber, "Error - expecting ')'\n");
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), filebuf.linenumber,
+                      "Error - expecting ')'\n");
         return false;
     }
 
@@ -1534,7 +1558,7 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 	// -- see if we've got a statement block, or a single statement
 	peektoken = filebuf;
 	if(!GetToken(peektoken)) {
-		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), filebuf.linenumber,
                       "Error - 'while loop' without a body\n");
 		return false;
 	}
@@ -1542,7 +1566,8 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 		filebuf = peektoken;
 		result = ParseStatementBlock(codeblock, whileloopnode->rightchild, filebuf, true);
 		if(!result) {
-			ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber,
                           "Error - unable to parse the while loop statmentblock\n");
 			return false;
 		}
@@ -1552,7 +1577,8 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 	else {
 		result = TryParseStatement(codeblock, filebuf, whileloopnode->rightchild);
 		if(!result) {
-			ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber,
                           "Error - unable to parse the while loop body\n");
 			return false;
 		}
@@ -1582,8 +1608,8 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	tReadToken peektoken(firsttoken);
 	if(!GetToken(peektoken) || (peektoken.type != TOKEN_PAREN_OPEN))
 	{
-		ScriptAssert_(0, codeblock->GetFileName(), firsttoken.linenumber,
-                      "Error - expecting '('\n");
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      firsttoken.linenumber, "Error - expecting '('\n");
 		return false;
 	}
 
@@ -1603,7 +1629,8 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	// -- initial expression
 	bool8 result = TryParseStatement(codeblock, filebuf, AppendToRoot(*forlooproot));
 	if(! result) {
-		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber,
                       "Error - unable to parse the initial expression\n");
 		return false;
 	}
@@ -1611,7 +1638,8 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
   	// -- consume the separating semicolon
 	if(!GetToken(filebuf) || (filebuf.type != TOKEN_SEMICOLON))
 	{
-		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber, "Error - expecting ';'\n");
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber, "Error - expecting ';'\n");
 		return false;
 	}
 
@@ -1622,7 +1650,8 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	// -- the for loop condition is the left child of the while loop node
 	result = TryParseStatement(codeblock, filebuf, whileloopnode->leftchild);
 	if(!result) {
-		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber,
                       "Error - unable to parse the conditional expression\n"); 
 		return false;
 	}
@@ -1630,7 +1659,8 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
    	// -- consume the separating semicolon
 	if(!GetToken(filebuf) || (filebuf.type != TOKEN_SEMICOLON))
 	{
-		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber, "Error - expecting ';'\n");
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber, "Error - expecting ';'\n");
 		return false;
 	}
 
@@ -1638,7 +1668,8 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	CCompileTreeNode* tempendofloop = NULL;
 	result = TryParseStatement(codeblock, filebuf, tempendofloop);
 	if(!result) {
-		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber,
                       "Error - unable to parse the end of loop expression\n");
 		return false;
 	}
@@ -1646,7 +1677,8 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
    	// -- consume the closing parenthesis semicolon
 	if(!GetToken(filebuf) || (filebuf.type != TOKEN_PAREN_CLOSE))
 	{
-		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber, "Error - expecting ')'\n");
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber, "Error - expecting ')'\n");
 		return false;
 	}
 
@@ -1659,7 +1691,8 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	// -- see if it's a single statement, or a statement block
 	peektoken = filebuf;
 	if(!GetToken(peektoken)) {
-		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber,
                       "Error - unable to parse the for loop body\n");
 		return false;
 	}
@@ -1669,7 +1702,8 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 		result = ParseStatementBlock(codeblock, AppendToRoot(*whileloopnode->rightchild), filebuf,
                                      true);
 		if(!result) {
-			ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber,
                           "Error - failed to read statement block\n");
 			return false;
 		}
@@ -1679,7 +1713,8 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	{
 		result = TryParseStatement(codeblock, filebuf, AppendToRoot(*whileloopnode->rightchild));
 		if(!result) {
-			ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber,
                           "Error - failed to read statement block\n");
 			return false;
 		}
@@ -1723,7 +1758,8 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         // -- we'd better find another identifier
         idtoken = nstoken;
         if(!GetToken(idtoken) || idtoken.type != TOKEN_IDENTIFIER) {
-            ScriptAssert_(0, codeblock->GetFileName(), idtoken.linenumber,
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          idtoken.linenumber,
                           "Error - Expecting an identifier after namespace %s::\n",
                           TokenPrint(nsnametoken));
             return false;
@@ -1744,9 +1780,11 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     tFuncTable* functable = NULL;
     if(usenamespace) {
         // -- see if we need to create a new namespace
-        CNamespace* nsentry = CNamespace::FindOrCreateNamespace(TokenPrint(nsnametoken), true);
+        CNamespace* nsentry = codeblock->GetScriptContext()->
+                                         FindOrCreateNamespace(TokenPrint(nsnametoken), true);
         if(!nsentry) {
-            ScriptAssert_(0, codeblock->GetFileName(), peektoken.linenumber,
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          peektoken.linenumber,
                           "Error - Failed to find/create Namespace: %s\n",
                           TokenPrint(nsnametoken));
             return false;
@@ -1756,10 +1794,11 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
     // -- no namespace - must be a global function
     else {
-        functable = GetGlobalNamespace()->GetFuncTable();
+        functable = codeblock->GetScriptContext()->GetGlobalNamespace()->GetFuncTable();
     }
     if(!functable) {
-        ScriptAssert_(0, codeblock->GetFileName(), peektoken.linenumber,
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      peektoken.linenumber,
                       "Error - How do we not have a function table???\n");
         return false;
     }
@@ -1772,8 +1811,8 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
     // -- if thus function doesn't exist, we're defining it now
     if(! exists) {
-	    curfunction = FuncDeclaration(nshash, TokenPrint(idtoken), Hash(TokenPrint(idtoken)),
-                                      eFuncTypeScript);
+	    curfunction = FuncDeclaration(codeblock->GetScriptContext(), nshash, TokenPrint(idtoken),
+                                      Hash(TokenPrint(idtoken)), eFuncTypeScript);
         codeblock->smFuncDefinitionStack->Push(curfunction, NULL, 0);
     }
     else {
@@ -1788,7 +1827,8 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     if(!exists)
         funccontext->AddParameter("__return", Hash("__return"), regreturntype);
     else if(exists->GetReturnType() != regreturntype) {
-        ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber,
                       "Error - return type doesn't match for function %s()\n", exists->GetName());
         return false;
     }
@@ -1799,8 +1839,8 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         // -- 
         tReadToken paramtypetoken(filebuf);
         if(!GetToken(paramtypetoken)) {
-            ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
-                          "Error - expecting ')'\n");
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber, "Error - expecting ')'\n");
             return false;
         }
 
@@ -1814,16 +1854,16 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         // -- ensure we read a valid type (also, no void parameters)
         eVarType paramtype = GetRegisteredType(paramtypetoken.tokenptr, paramtypetoken.length);
         if(paramtype == TYPE_NULL || paramtype == TYPE_void) {
-            ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
-                          "Error - parameter type\n");
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber, "Error - parameter type\n");
             return false;
         }
 
         // -- get the parameter name
         tReadToken paramname(paramtypetoken);
         if(!GetToken(paramname) || paramname.type != TOKEN_IDENTIFIER) {
-            ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
-                          "Error - parameter identifier\n");
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber, "Error - parameter identifier\n");
             return false;
         }
 
@@ -1835,7 +1875,8 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
             // -- add the parameter to the context
             if(!funccontext->AddParameter(TokenPrint(paramname), Hash(TokenPrint(paramname)),
                                           paramtype)) {
-                ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber,
                               "Error - unable to add parameter %s to function declaration %s\n",
                               TokenPrint(paramname), TokenPrint(idtoken));
                 return false;
@@ -1846,7 +1887,8 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         else {
             CVariableEntry* paramexists = exists->GetContext()->GetParameter(paramcount);
             if(!paramexists || paramexists->GetType() != paramtype) {
-                ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber,
                               "Error - function signature does not match: %s\n",
                               TokenPrint(idtoken));
                 return false;
@@ -1859,8 +1901,8 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         // -- see if we've got a comma
         tReadToken peektoken(filebuf);
         if(!GetToken(peektoken)) {
-            ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
-                          "Error - expecting ')'\n");
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber, "Error - expecting ')'\n");
             return false;
         }
         if(peektoken.type == TOKEN_COMMA) {
@@ -1868,8 +1910,8 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
             // -- if we do have a comma, ensure the token after it is the next param type
             tReadToken peektoken2(peektoken);
             if(!GetToken(peektoken2) || peektoken2.type != TOKEN_REGTYPE) {
-                ScriptAssert_(0, codeblock->GetFileName(), peektoken.linenumber,
-                              "Error - expecting ')'\n");
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              peektoken.linenumber, "Error - expecting ')'\n");
                 return false;
             }
 
@@ -1881,7 +1923,8 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     // see if we're simply declaring the function
     peektoken = filebuf;
     if(!GetToken(peektoken)) {
-        ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber, "Error - expecting '{'\n");
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber, "Error - expecting '{'\n");
         return false;
     }
 
@@ -1899,7 +1942,8 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
     // -- after the function prototype, we should have the statement body, beginning with a brace
     if(peektoken.type != TOKEN_BRACE_OPEN) {
-        ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber, "Error - expecting '{'\n");
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber, "Error - expecting '{'\n");
         return false;
     }
 
@@ -1915,7 +1959,8 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     // -- read the function body
     int32 result = ParseStatementBlock(codeblock, funcdeclnode->leftchild, filebuf, true);
     if(!result) {
-        ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber,
                       "Error - unabled to parse statement block\n");
         return false;
     }
@@ -1961,7 +2006,8 @@ bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
         // -- we'd better find another identifier
         idtoken = nstoken;
         if(!GetToken(idtoken) || idtoken.type != TOKEN_IDENTIFIER) {
-            ScriptAssert_(0, codeblock->GetFileName(), idtoken.linenumber,
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          idtoken.linenumber,
                           "Error - Expecting an identifier after namespace %s::\n",
                           TokenPrint(nsnametoken));
             return false;
@@ -2005,8 +2051,8 @@ bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
         // -- see if we have a closing parenthesis
         tReadToken peektoken(filebuf);
         if(!GetToken(peektoken)) {
-            ScriptAssert_(0, codeblock->GetFileName(), peektoken.linenumber,
-                          "Error - expecting ')'\n");
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          peektoken.linenumber, "Error - expecting ')'\n");
             return false;
         }
         if(peektoken.type == TOKEN_PAREN_CLOSE) {
@@ -2019,7 +2065,8 @@ bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
         // -- we'd better find the separating comma
         if(paramindex >= 1) {
             if(!GetToken(filebuf) || filebuf.type != TOKEN_COMMA) {
-                ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber,
                               "Error - Expecting ',' after parameter %d in call to %s()\n",
                               paramindex, TokenPrint(idtoken));
                 return false;
@@ -2041,7 +2088,8 @@ bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 
         bool8 result = TryParseStatement(codeblock, filebuf, binopnode->rightchild);
         if(!result) {
-            ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber,
                           "Error - Unable to evaluate parameter %d in call to %s()\n", paramindex,
                           TokenPrint(idtoken));
             return false;
@@ -2080,7 +2128,8 @@ bool8 TryParseReturn(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNod
                                            filebuf.linenumber);
     bool8 result = TryParseStatement(codeblock, filebuf, returnnode->leftchild);
 	if(!result) {
-		ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber,
                       "Error - failed to parse 'return' statement\n");
 		return false;
 	}
@@ -2118,8 +2167,8 @@ bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
     while(true) {
         tReadToken hashexpr(filebuf);
         if(!GetToken(hashexpr)) {
-            ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
-                          "Error - expecting ']'\n");
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber, "Error - expecting ']'\n");
             return false;
         }
 
@@ -2130,8 +2179,8 @@ bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
             // -- ensure we found at least one hash value
             if(hashexprcount == 0) {
-                ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
-                              "Error - empty array hash []\n");
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber, "Error - empty array hash []\n");
                 return false;
             }
             else
@@ -2142,8 +2191,8 @@ bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
         // -- if this isn't our first hash expr, then we'd better find a comma
         if(hashexprcount > 0) {
             if(hashexpr.type != TOKEN_COMMA) {
-                ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
-                              "Error - expecting ']'\n");
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber, "Error - expecting ']'\n");
                 return false;
             }
 
@@ -2158,8 +2207,8 @@ bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
         CArrayHashNode* ahn = TinAlloc(ALLOC_TreeNode, CArrayHashNode, codeblock, templink,
                                        filebuf.linenumber);
         if(!TryParseStatement(codeblock, filebuf, ahn->rightchild)) {
-            ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
-                            "Error - expecting ']'\n");
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber, "Error - expecting ']'\n");
             return false;
         }
         --gGlobalExprParenDepth;
@@ -2178,8 +2227,8 @@ bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
         tReadToken peektoken(filebuf);
         if(!GetToken(peektoken) || peektoken.type == TOKEN_SEMICOLON ||
            peektoken.type == TOKEN_PAREN_CLOSE) {
-            ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
-                    "Error - expecting ']'\n");
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber, "Error - expecting ']'\n");
             return false;
         }
     }
@@ -2214,7 +2263,8 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
     CCompileTreeNode* templink = NULL;
     bool8 result = TryParseStatement(codeblock, filebuf, templink);
     if(!result) {
-        ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber,
                       "Error - Unable to resolve object ID in schedule() call\n");
         return false;
     }
@@ -2222,7 +2272,8 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
     // -- read a comma next
     peektoken = filebuf;
     if(!GetToken(peektoken)) {
-        ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber,
                       "Error - expecting ',' in schedule() call\n");
         return false;
     }
@@ -2231,7 +2282,8 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
     // $$$TZA read a statement?  tree resolving to the scheduled delay time?
     tReadToken delaytoken(peektoken);
     if(!GetToken(delaytoken) || delaytoken.type != TOKEN_INTEGER) {
-        ScriptAssert_(0, codeblock->GetFileName(), delaytoken.linenumber,
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      delaytoken.linenumber,
                       "Error - expecting delay (msec) in schedule() call\n");
         return false;
     }
@@ -2242,7 +2294,8 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
     // -- read a comma next
     peektoken = delaytoken;
     if(!GetToken(peektoken)) {
-        ScriptAssert_(0, codeblock->GetFileName(), peektoken.linenumber,
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      peektoken.linenumber,
                       "Error - expecting ',' in schedule() call\n");
         return false;
     }
@@ -2250,7 +2303,8 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
     // -- read an identifier next
     tReadToken idtoken(peektoken);
     if(!GetToken(idtoken) || idtoken.type != TOKEN_IDENTIFIER) {
-        ScriptAssert_(0, codeblock->GetFileName(), idtoken.linenumber,
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      idtoken.linenumber,
                       "Error - expecting identifier in schedule() call\n");
         return false;
     }
@@ -2277,7 +2331,8 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
         // -- see if we have a closing parenthesis
         tReadToken peektoken(filebuf);
         if(!GetToken(peektoken)) {
-            ScriptAssert_(0, codeblock->GetFileName(), peektoken.linenumber,
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          peektoken.linenumber,
                           "Error - expecting ')'\n");
             return false;
         }
@@ -2289,9 +2344,10 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 
         // -- if we didn't find a closing parenthesis, we'd better find the separating comma
         if(!GetToken(filebuf) || filebuf.type != TOKEN_COMMA) {
-            ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
-                            "Error - Expecting ',' after parameter %d in schedule() call\n",
-                            paramindex);
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber,
+                          "Error - Expecting ',' after parameter %d in schedule() call\n",
+                          paramindex);
             return false;
         }
 
@@ -2305,7 +2361,8 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 
         bool8 result = TryParseStatement(codeblock, filebuf, schedparamnode->leftchild);
         if(!result) {
-            ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber,
                           "Error - Unable to evaluate parameter %d in call to %s()\n", paramindex,
                           TokenPrint(idtoken));
             return false;
@@ -2334,16 +2391,16 @@ bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileT
 
     tReadToken classtoken(filebuf);
     if(!GetToken(classtoken) || classtoken.type != TOKEN_IDENTIFIER) {
-        ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
-                      "Error - expecting class name\n");
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber, "Error - expecting class name\n");
         return false;
     }
 
     // -- read an open parenthesis
     tReadToken nexttoken(classtoken);
     if(!GetToken(nexttoken) || nexttoken.type != TOKEN_PAREN_OPEN) {
-        ScriptAssert_(0, codeblock->GetFileName(), nexttoken.linenumber,
-                      "Error - expecting '('\n");
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      nexttoken.linenumber, "Error - expecting '('\n");
         return false;
     }
 
@@ -2351,8 +2408,8 @@ bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileT
     tReadToken objnametoken(nexttoken);
     if(!GetToken(objnametoken) || (objnametoken.type != TOKEN_STRING &&
                                    objnametoken.type != TOKEN_PAREN_CLOSE)) {
-        ScriptAssert_(0, codeblock->GetFileName(), objnametoken.linenumber,
-                      "Error - expecting ')'\n");
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      objnametoken.linenumber, "Error - expecting ')'\n");
         return false;
     }
 
@@ -2360,8 +2417,8 @@ bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileT
     nexttoken = objnametoken;
     if(objnametoken.type == TOKEN_STRING) {
         if(!GetToken(nexttoken) || nexttoken.type != TOKEN_PAREN_CLOSE) {
-            ScriptAssert_(0, codeblock->GetFileName(), nexttoken.linenumber,
-                          "Error - expecting ')'\n");
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          nexttoken.linenumber, "Error - expecting ')'\n");
             return false;
         }
     }
@@ -2404,7 +2461,8 @@ bool8 TryParseDestroyObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompile
 
     // -- ensure we have a valid statement
     if(!TryParseStatement(codeblock, filebuf, destroyobjnode->leftchild)) {
-        ScriptAssert_(0, codeblock->GetFileName(), filebuf.linenumber,
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber,
                       "Error - 'destroy' found, expecting an object statement\n");
         return false;
     }
@@ -2441,8 +2499,8 @@ bool8 ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& link, tReadT
 	do {
         // -- a small optimization, skip whitespace and comments at the start of the loop
         if(!SkipWhiteSpace(filetokenbuf)) {
-		    ScriptAssert_(0, codeblock->GetFileName(), filetokenbuf.linenumber,
-                          "Error - unexpected EOF\n");
+		    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filetokenbuf.linenumber, "Error - unexpected EOF\n");
             return false;
         }
 
@@ -2450,8 +2508,8 @@ bool8 ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& link, tReadT
 		tReadToken peekbuf(filetokenbuf);
 		if(! GetToken(peekbuf)) {
             if(bracedepth > 0) {
-				ScriptAssert_(0, codeblock->GetFileName(), filetokenbuf.linenumber,
-                              "Error - expecting '}'\n");
+				ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filetokenbuf.linenumber, "Error - expecting '}'\n");
 				return false;
             }
             else {
@@ -2509,8 +2567,8 @@ bool8 ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& link, tReadT
 			// -- not found - dump out the token
 			foundtoken = GetToken(filetokenbuf);
 			if(foundtoken) {
-				ScriptAssert_(0, codeblock->GetFileName(), filetokenbuf.linenumber,
-                              "Unhandled token: [%s] %s, line %d\n",
+				ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filetokenbuf.linenumber, "Unhandled token: [%s] %s, line %d\n",
                               gTokenTypeStrings[filetokenbuf.type], TokenPrint(filetokenbuf),
                               filetokenbuf.linenumber);
 			}
@@ -2524,13 +2582,13 @@ bool8 ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& link, tReadT
 // ------------------------------------------------------------------------------------------------
 static bool8 gDebugParseTree = false;
 
-CCodeBlock* ParseFile(const char* filename) {
+CCodeBlock* ParseFile(CScriptContext* script_context, const char* filename) {
 	// -- see if we can open the file
 	const char* filebuf = ReadFileAllocBuf(filename);
-    return ParseText(filename, filebuf);
+    return ParseText(script_context, filename, filebuf);
 }
 
-CCodeBlock* ParseText(const char* filename, const char* filebuf) {
+CCodeBlock* ParseText(CScriptContext* script_context, const char* filename, const char* filebuf) {
 
 #if DEBUG_CODEBLOCK
 if(GetDebugCodeBlock()) {
@@ -2545,14 +2603,15 @@ if(GetDebugCodeBlock()) {
     if(!filebuf)
         return NULL;
 
-    CCodeBlock* codeblock = TinAlloc(ALLOC_CodeBlock, CCodeBlock, filename);
+    CCodeBlock* codeblock = TinAlloc(ALLOC_CodeBlock, CCodeBlock, script_context, filename);
 
 	// create the starting root, initial token, and parse the existing statements
 	CCompileTreeNode* root = CCompileTreeNode::CreateTreeRoot(codeblock);
 	tReadToken parsetoken(filebuf, 0);
 	if(!ParseStatementBlock(codeblock, root->next, parsetoken, false)) {
-		ScriptAssert_(0, codeblock->GetFileName(), parsetoken.linenumber,
+		ScriptAssert_(script_context, 0, codeblock->GetFileName(), parsetoken.linenumber,
                       "Error - failed to ParseStatementBlock()\n");
+        codeblock->SetFinishedParsing();
         return NULL;
 	}
 
@@ -2567,18 +2626,20 @@ if(GetDebugCodeBlock()) {
 
     // -- run through the tree again, this time actually compiling it
     if(!codeblock->CompileTree(*root)) {
-		ScriptAssert_(0, codeblock->GetFileName(), -1, "Error - failed to CompileTree()\n");
+		ScriptAssert_(script_context, 0, codeblock->GetFileName(), -1,
+                      "Error - failed to CompileTree()\n");
+        codeblock->SetFinishedParsing();
         codeblock = NULL;
     }
 
     // -- update the string table
-    SaveStringTable();
+    SaveStringTable(script_context);
 
     // -- destroy the tree
     DestroyTree(root);
 
     // -- return the result
-	return codeblock;
+	return (codeblock);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2591,14 +2652,14 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
 	if(binfilename) {
 		 int32 result = fopen_s(&filehandle, binfilename, "wb");
 		 if (result != 0) {
-             ScriptAssert_(0, codeblock->GetFileName(), -1, "Error - unable to write file %s\n",
-                           binfilename);
+             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
+                           "Error - unable to write file %s\n", binfilename);
 			 return false;
          }
 	}
 	if(!filehandle) {
-        ScriptAssert_(0, codeblock->GetFileName(), -1, "Error - unable to write file %s\n",
-                      binfilename);
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
+                      "Error - unable to write file %s\n", binfilename);
 		return false;
     }
     setvbuf(filehandle, NULL, _IOFBF, BUFSIZ);
@@ -2607,8 +2668,8 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
     int32 version = kCompilerVersion;
     int32 instrwritten = fwrite((void*)&version, sizeof(int32), 1, filehandle);
     if(instrwritten != 1) {
-        ScriptAssert_(0, codeblock->GetFileName(), -1, "Error - unable to write file %s\n",
-                      binfilename);
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
+                      "Error - unable to write file %s\n", binfilename);
         return false;
     }
 
@@ -2616,8 +2677,8 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
     int32 instrcount = codeblock->GetInstructionCount();
     instrwritten = fwrite((void*)&instrcount, sizeof(int32), 1, filehandle);
     if(instrwritten != 1) {
-        ScriptAssert_(0, codeblock->GetFileName(), -1, "Error - unable to write file %s\n",
-                      binfilename);
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
+                      "Error - unable to write file %s\n", binfilename);
         return false;
     }
 
@@ -2625,8 +2686,8 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
     int32 linenumbercount = codeblock->GetLineNumberCount();
     instrwritten = fwrite((void*)&linenumbercount, sizeof(int32), 1, filehandle);
     if(instrwritten != 1) {
-        ScriptAssert_(0, codeblock->GetFileName(), -1, "Error - unable to write file %s\n",
-                      binfilename);
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
+                      "Error - unable to write file %s\n", binfilename);
         return false;
     }
 
@@ -2639,8 +2700,8 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
         int32 instrwritten = fwrite((void*)instrptr, sizeof(uint32), writecount, filehandle);
         fflush(filehandle);
         if(instrwritten != writecount) {
-            ScriptAssert_(0, codeblock->GetFileName(), -1, "Error - unable to write file %s\n",
-                          binfilename);
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
+                          "Error - unable to write file %s\n", binfilename);
             return false;
         }
         instrptr += writecount;
@@ -2655,8 +2716,8 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
         int32 instrwritten = fwrite((void*)instrptr, sizeof(uint32), writecount, filehandle);
         fflush(filehandle);
         if(instrwritten != writecount) {
-            ScriptAssert_(0, codeblock->GetFileName(), -1, "Error - unable to write file %s\n",
-                          binfilename);
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
+                          "Error - unable to write file %s\n", binfilename);
             return false;
         }
         instrptr += writecount;
@@ -2669,7 +2730,7 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
 }
 
 // ------------------------------------------------------------------------------------------------
-CCodeBlock* LoadBinary(const char* binfilename) {
+CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename) {
 
     // -- sanity check
     if(!binfilename)
@@ -2680,12 +2741,14 @@ CCodeBlock* LoadBinary(const char* binfilename) {
 	if(binfilename) {
 		 int32 result = fopen_s(&filehandle, binfilename, "rb");
 		 if (result != 0) {
-             ScriptAssert_(0, "<internal>", -1, "Error - failed to load file: %s\n", binfilename);
+             ScriptAssert_(script_context, 0, "<internal>", -1,
+                           "Error - failed to load file: %s\n", binfilename);
 			 return NULL;
          }
 	}
 	if(!filehandle) {
-        ScriptAssert_(0, "<internal>", -1, "Error - failed to load file: %s\n", binfilename);
+        ScriptAssert_(script_context, 0, "<internal>", -1,
+                      "Error - failed to load file: %s\n", binfilename);
 		return NULL;
     }
 
@@ -2694,7 +2757,8 @@ CCodeBlock* LoadBinary(const char* binfilename) {
     int32 instrread = fread((int32*)&version, sizeof(int32), 1, filehandle);
     if(ferror(filehandle) || instrread != 1) {
         fclose(filehandle);
-        ScriptAssert_(0, "<internal>", -1, "Error - unable to read file: %s\n", binfilename);
+        ScriptAssert_(script_context, 0, "<internal>", -1,
+                      "Error - unable to read file: %s\n", binfilename);
         return NULL;
     }
 
@@ -2703,7 +2767,8 @@ CCodeBlock* LoadBinary(const char* binfilename) {
     instrread = fread((int32*)&instrcount, sizeof(int32), 1, filehandle);
     if(ferror(filehandle) || instrread != 1) {
         fclose(filehandle);
-        ScriptAssert_(0, "<internal>", -1, "Error - unable to read file: %s\n", binfilename);
+        ScriptAssert_(script_context, 0, "<internal>", -1,
+                      "Error - unable to read file: %s\n", binfilename);
         return NULL;
     }
     if(instrcount <= 0) {
@@ -2716,12 +2781,13 @@ CCodeBlock* LoadBinary(const char* binfilename) {
     instrread = fread((int32*)&linenumbercount, sizeof(int32), 1, filehandle);
     if(ferror(filehandle) || instrread != 1) {
         fclose(filehandle);
-        ScriptAssert_(0, "<internal>", -1, "Error - unable to read file: %s\n", binfilename);
+        ScriptAssert_(script_context, 0, "<internal>", -1,
+                      "Error - unable to read file: %s\n", binfilename);
         return NULL;
     }
 
     // -- create the codeblock
-    CCodeBlock* codeblock = TinAlloc(ALLOC_CodeBlock, CCodeBlock, binfilename);
+    CCodeBlock* codeblock = TinAlloc(ALLOC_CodeBlock, CCodeBlock, script_context, binfilename);
     codeblock->AllocateInstructionBlock(instrcount, linenumbercount);
 
     // -- read the file into the codeblock
@@ -2729,13 +2795,17 @@ CCodeBlock* LoadBinary(const char* binfilename) {
     instrread = fread(readptr, sizeof(uint32), instrcount, filehandle);
     if(ferror(filehandle)) {
         fclose(filehandle);
-        ScriptAssert_(0, "<internal>", -1, "Error - unable to read file: %s\n", binfilename);
+        ScriptAssert_(script_context, 0, "<internal>", -1,
+                      "Error - unable to read file: %s\n", binfilename);
+        codeblock->SetFinishedParsing();
         return NULL;
     }
 
     if(instrread != instrcount) {
 	    fclose(filehandle);
-        ScriptAssert_(0, "<internal>", -1, "Error - unable to read file: %s\n", binfilename);
+        ScriptAssert_(script_context, 0, "<internal>", -1,
+                      "Error - unable to read file: %s\n", binfilename);
+        codeblock->SetFinishedParsing();
         return NULL;
     }
 
@@ -2743,12 +2813,14 @@ CCodeBlock* LoadBinary(const char* binfilename) {
     fclose(filehandle);
 
     // -- return the result
-    return codeblock;
+    codeblock->SetFinishedParsing();
+    return (codeblock);
 }
 
 // ------------------------------------------------------------------------------------------------
-CVariableEntry* AddVariable(tVarTable* curglobalvartable, CFunctionEntry* curfuncdefinition,
-                            const char* varname, uint32 varhash, eVarType vartype) {
+CVariableEntry* AddVariable(CScriptContext* script_context, tVarTable* curglobalvartable,
+                            CFunctionEntry* curfuncdefinition, const char* varname, uint32 varhash,
+                            eVarType vartype) {
 
     // get the function we're currently defining
     CVariableEntry* ve = NULL;
@@ -2764,17 +2836,19 @@ CVariableEntry* AddVariable(tVarTable* curglobalvartable, CFunctionEntry* curfun
         // -- if the variable already exists, we're done
         ve = curglobalvartable->FindItem(varhash);
         if(!ve) {
-	        ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, varname, varhash, vartype, false, 0, false);
+	        ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, script_context, varname, varhash,
+                                                          vartype, false, 0, false);
 	        uint32 hash = ve->GetHash();
 	        curglobalvartable->AddItem(*ve, hash);
         }
     }
     else {
         // -- if the variable already exists, we're done
-	    tVarTable* globalvartable = GetGlobalNamespace()->GetVarTable();
+	    tVarTable* globalvartable = script_context->GetGlobalNamespace()->GetVarTable();
         ve = globalvartable->FindItem(varhash);
         if(!ve) {
-	        ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, varname, varhash, vartype, false, 0, false);
+	        ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, script_context, varname, varhash,
+                                                          vartype, false, 0, false);
 	        uint32 hash = ve->GetHash();
 	        globalvartable->AddItem(*ve, hash);
         }
@@ -2783,31 +2857,31 @@ CVariableEntry* AddVariable(tVarTable* curglobalvartable, CFunctionEntry* curfun
 }
 
 // ------------------------------------------------------------------------------------------------
-CVariableEntry* GetVariable(tVarTable* globalVarTable, uint32 nshash, uint32 funchash,
-                            uint32 varhash, uint32 arrayvarhash) {
+CVariableEntry* GetVariable(CScriptContext* script_context, tVarTable* globalVarTable,
+                            uint32 nshash, uint32 funchash, uint32 varhash, uint32 arrayvarhash) {
 
     // --if we've been given a non-zero nshash, the function belongs to that namespace,
     // -- and the variable is a local, to that function
     CFunctionEntry* fe = NULL;
     CNamespace* nsentry = NULL;
     if(nshash != 0) {
-        nsentry = CNamespace::FindNamespace(nshash);
+        nsentry = script_context->FindNamespace(nshash);
         if(!nsentry) {
-            ScriptAssert_(0, "<internal>", -1, "Error - Unable to find namespace: %s\n",
-                          UnHash(nshash));
+            ScriptAssert_(script_context, 0, "<internal>", -1,
+                          "Error - Unable to find namespace: %s\n", UnHash(nshash));
             return NULL;
         }
 
         fe = nsentry->GetFuncTable()->FindItem(funchash);
         if(!fe) {
-            ScriptAssert_(0, "<internal>", -1,
+            ScriptAssert_(script_context, 0, "<internal>", -1,
                           "Error - Unable to find function: %s:() in namespace: %s\n",
                           UnHash(funchash), UnHash(nshash));
             return NULL;
         }
     }
     else if(funchash != 0) {
-        fe = GetGlobalNamespace()->GetFuncTable()->FindItem(funchash);
+        fe = script_context->GetGlobalNamespace()->GetFuncTable()->FindItem(funchash);
     }
 
     // -- get the currently executing function
@@ -2827,15 +2901,15 @@ CVariableEntry* GetVariable(tVarTable* globalVarTable, uint32 nshash, uint32 fun
     }
 
     // -- still not found - try the actual global vartable
-    if(!ve && GetGlobalNamespace()->GetVarTable()) {
-        ve = GetGlobalNamespace()->GetVarTable()->FindItem(varhash);
+    if(!ve && script_context->GetGlobalNamespace()->GetVarTable()) {
+        ve = script_context->GetGlobalNamespace()->GetVarTable()->FindItem(varhash);
     }
 
     // -- if we found a variable, and we're expecting it to be a hashtable,
     // -- look up the variable within that table
     if(ve && arrayvarhash != 0) {
         if(ve->GetType() != TYPE_hashtable) {
-            ScriptAssert_(0, "<internal>", -1,
+            ScriptAssert_(script_context, 0, "<internal>", -1,
                           "Error - expecting variable %s to be a hashtable\n",
                           UnHash(ve->GetHash()));
             return NULL;
@@ -2846,7 +2920,7 @@ CVariableEntry* GetVariable(tVarTable* globalVarTable, uint32 nshash, uint32 fun
         // -- look for the entry in the vartable
         CVariableEntry* vte = vartable->FindItem(arrayvarhash);
         if(!vte) {
-            ScriptAssert_(0, "<internal>", -1,
+            ScriptAssert_(script_context, 0, "<internal>", -1,
                           "Error - HashTable Variable %s: unable to find entry: %d\n",
                           UnHash(ve->GetHash()), arrayvarhash);
             return false;
@@ -2860,25 +2934,25 @@ CVariableEntry* GetVariable(tVarTable* globalVarTable, uint32 nshash, uint32 fun
 }
 
 // ------------------------------------------------------------------------------------------------
-CFunctionEntry* FuncDeclaration(uint32 namespacehash, const char* funcname, uint32 funchash,
-                                EFunctionType type) {
-    CNamespace* nsentry = CNamespace::FindNamespace(namespacehash);
+CFunctionEntry* FuncDeclaration(CScriptContext* script_context, uint32 namespacehash,
+                                const char* funcname, uint32 funchash, EFunctionType type) {
+    CNamespace* nsentry = script_context->FindNamespace(namespacehash);
     if(!nsentry) {
-        ScriptAssert_(0, "<internal>", -1,
+        ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - unable to find Namespace: %s\n", UnHash(namespacehash));
         return NULL;
     }
 
-    return FuncDeclaration(nsentry, funcname, funchash, type);
+    return FuncDeclaration(script_context, nsentry, funcname, funchash, type);
 }
 
 // ------------------------------------------------------------------------------------------------
-CFunctionEntry* FuncDeclaration(CNamespace* nsentry, const char* funcname, uint32 funchash,
-                                EFunctionType type) {
+CFunctionEntry* FuncDeclaration(CScriptContext* script_context, CNamespace* nsentry,
+                                const char* funcname, uint32 funchash, EFunctionType type) {
 
     // -- no namespace means by definition this is a global function
     if(!nsentry) {
-        nsentry = GetGlobalNamespace();
+        nsentry = script_context->GetGlobalNamespace();
     }
 
     // -- remove any existing function decl
@@ -2889,8 +2963,8 @@ CFunctionEntry* FuncDeclaration(CNamespace* nsentry, const char* funcname, uint3
     }
 
 	// -- create the function entry, and add it to the global table
-	fe = TinAlloc(ALLOC_FuncEntry, CFunctionEntry, nsentry->GetHash(), funcname, funchash, type,
-                  (void*)NULL);
+	fe = TinAlloc(ALLOC_FuncEntry, CFunctionEntry, script_context, nsentry->GetHash(), funcname,
+                                                   funchash, type, (void*)NULL);
 	uint32 hash = fe->GetHash();
 	nsentry->GetFuncTable()->AddItem(*fe, hash);
     return fe;

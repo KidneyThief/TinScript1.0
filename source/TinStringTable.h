@@ -33,35 +33,30 @@ namespace TinScript {
 // CStringTable is a singleton, used to create a dictionary of hashed strings
 class CStringTable {
     public:
-        CStringTable(unsigned int _size) {
-            assert(_size > 0);
-            size = _size;
-            buffer = TinAllocArray(ALLOC_StringTable, char, size);
-            bufptr = buffer;
+        CStringTable(CScriptContext* owner, unsigned int _size) {
+            mContextOwner = owner;
 
-            stringdictionary = TinAlloc(ALLOC_StringTable, CHashTable<const char>,
+            assert(_size > 0);
+            mSize = _size;
+            mBuffer = TinAllocArray(ALLOC_StringTable, char, mSize);
+            mBufptr = mBuffer;
+
+            mStringDictionary = TinAlloc(ALLOC_StringTable, CHashTable<const char>,
                                         kStringTableDictionarySize);
         }
 
         virtual ~CStringTable() {
-            TinFree(stringdictionary);
-            TinFree(buffer);
+            TinFree(mStringDictionary);
+            TinFree(mBuffer);
         }
 
-        static void Initialize() {
-            assert(gInstance == NULL);
-            gInstance = TinAlloc(ALLOC_StringTable, CStringTable, kStringTableSize);
+        CScriptContext* GetScriptContext() {
+            return (mContextOwner);
         }
 
-        static void Shutdown() {
-            assert(gInstance != NULL);
-            TinFree(gInstance);
-            gInstance = NULL;
-        }
-
-        static const char* AddString(const char* s, int length = -1, unsigned int hash = 0) {
+        const char* AddString(const char* s, int length = -1, unsigned int hash = 0) {
             // -- sanity check
-            if(!gInstance || !s)
+            if(!s)
                 return "";
 
             if(hash == 0) {
@@ -76,19 +71,19 @@ class CStringTable {
                     length = strlen(s);
 
                 // -- space left
-                int remaining = gInstance->size - ((unsigned int)gInstance->bufptr -
-                                                            (unsigned int)gInstance->buffer);
+                int remaining = mSize - ((unsigned int)mBufptr - (unsigned int)mBuffer);
                 if(remaining < length + 1) {
-                    ScriptAssert_(0, "<internal>", -1, "Error - StringTable of size %d is full!\n",
-                                  gInstance->size);
+                    ScriptAssert_(mContextOwner, 0,
+                                  "<internal>", -1, "Error - StringTable of size %d is full!\n",
+                                  mSize);
                     return NULL;
                 }
-                const char* stringptr = gInstance->bufptr;
-                SafeStrcpy(gInstance->bufptr, s, length + 1);
-                gInstance->bufptr += length + 1;
+                const char* stringptr = mBufptr;
+                SafeStrcpy(mBufptr, s, length + 1);
+                mBufptr += length + 1;
 
                 // -- add the entry to the dictionary
-                gInstance->stringdictionary->AddItem(*stringptr, hash);
+                mStringDictionary->AddItem(*stringptr, hash);
 
                 return stringptr;
             }
@@ -99,34 +94,33 @@ class CStringTable {
                 if(length < 0)
                     length = strlen(s);
                 if(strncmp(exists, s, length) != 0) {
-                    ScriptAssert_(0, "<internal>", -1, "Error - Hash collision: '%s', '%s'\n", exists, s);
+                    ScriptAssert_(mContextOwner, 0, "<internal>", -1,
+                                  "Error - Hash collision: '%s', '%s'\n", exists, s);
                 }
                 return exists;
             }
         }
-        static const char* FindString(unsigned int hash) {
+        const char* FindString(unsigned int hash) {
             // -- sanity check
-            if(!gInstance || hash == 0)
+            if(hash == 0)
                 return "";
 
-            const char* stringptr = gInstance->stringdictionary->FindItem(hash);
+            const char* stringptr = mStringDictionary->FindItem(hash);
             return stringptr;
         }
 
-        static const CHashTable<const char>* GetStringDictionary() {
-            if(!gInstance)
-                return NULL;
-            return gInstance->stringdictionary;
+        const CHashTable<const char>* GetStringDictionary() {
+            return mStringDictionary;
         }
 
     private:
-        static CStringTable* gInstance;
+        CScriptContext* mContextOwner;
 
-        unsigned int size;
-        char* buffer;
-        char* bufptr;
+        unsigned int mSize;
+        char* mBuffer;
+        char* mBufptr;
 
-        CHashTable<const char>* stringdictionary;
+        CHashTable<const char>* mStringDictionary;
 };
 
 } // TinScript

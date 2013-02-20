@@ -79,13 +79,15 @@ StringToType gRegisteredStringToType[TYPE_COUNT] = {
 	#undef VarTypeEntry
 };
 
-uint32 gRegisteredTypeID[TYPE_COUNT] = {
-	#define VarTypeEntry(a, b, c, d, e) GetTypeID<e>(),
-	VarTypeTuple
-	#undef VarTypeEntry
-};
-
 eVarType GetRegisteredType(uint32 id) {
+    // -- if this array is declared in the global scope, GetTypeID<>() initializes
+    // -- the entire array to 0s...
+    static uint32 gRegisteredTypeID[TYPE_COUNT] = {
+	    #define VarTypeEntry(a, b, c, d, e) GetTypeID<e>(),
+	    VarTypeTuple
+	    #undef VarTypeEntry
+    };
+
 	for(eVarType i = FIRST_VALID_TYPE; i < TYPE_COUNT; i = eVarType(i + 1)) {
         if(id == gRegisteredTypeID[i]) {
 			return i;
@@ -110,7 +112,8 @@ bool8 StringToVoid(void* addr, char* value) {
 // ------------------------------------------------------------------------------------------------
 bool8 STEToString(void* value, char* buf, int32 bufsize) {
 	if(value && buf && bufsize > 0) {
-        sprintf_s(buf, bufsize, "%s", CStringTable::FindString(*(uint32*)value));
+        sprintf_s(buf, bufsize, "%s",
+            CScriptContext::GetMainThreadContext()->GetStringTable()->FindString(*(uint32*)value));
 		return true;
 	}
 	return false;

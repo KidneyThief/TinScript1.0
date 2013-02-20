@@ -29,77 +29,86 @@ namespace TinScript {
 
 class CExecStack {
 	public:
-		CExecStack(unsigned int _size = 0) {
-			stack = NULL;
-			size = _size;
-			assert(size > 0);
+		CExecStack(CScriptContext* script_context, uint32 _size = 0) {
+            mContextOwner = script_context;
 
-			stack = TinAllocInstrBlock(size);
-			stacktop = stack;
+			mStack = NULL;
+			mSize = _size;
+			assert(mSize > 0);
+
+			mStack = TinAllocInstrBlock(mSize);
+			mStackTop = mStack;
 		}
 
 		virtual ~CExecStack() {
-			if(stack)
-				delete[] stack;
+			if(mStack)
+                TinFreeArray(mStack);
 		}
+
+        CScriptContext* GetContextOwner() {
+            return (mContextOwner);
+        }
 
 		void Push(void* content, eVarType contenttype)
 		{
 			assert(content != NULL);
-			unsigned int contentsize = kBytesToWordCount(gRegisteredTypeSize[contenttype]);
-			unsigned int* contentptr = (unsigned int*)content;
-			for(unsigned int i = 0; i < contentsize; ++i)
-				*stacktop++ = *contentptr++;
+			uint32 contentsize = kBytesToWordCount(gRegisteredTypeSize[contenttype]);
+			uint32* contentptr = (uint32*)content;
+			for(uint32 i = 0; i < contentsize; ++i)
+				*mStackTop++ = *contentptr++;
 
 			// -- push the type of the content as well, so we know what to pull
-			*stacktop++ = (unsigned int)contenttype;
+			*mStackTop++ = (uint32)contenttype;
 		}
 
 		void* Pop(eVarType& contenttype) {
-			unsigned int stacksize = ((unsigned int)stacktop - (unsigned int)stack) / 4;
+			uint32 stacksize = ((uint32)mStackTop - (uint32)mStack) / 4;
 			assert(stacksize > 0);
-			contenttype = (eVarType)(*(--stacktop));
+			contenttype = (eVarType)(*(--mStackTop));
 			assert(contenttype >= 0 && contenttype < TYPE_COUNT);
-			unsigned int contentsize = kBytesToWordCount(gRegisteredTypeSize[contenttype]);
+			uint32 contentsize = kBytesToWordCount(gRegisteredTypeSize[contenttype]);
 
 			// -- ensure we have enough data on the stack, both the content, and the type
 			assert(stacksize >= contentsize + 1);
-			stacktop -= contentsize;
-			return (void*)stacktop;
+			mStackTop -= contentsize;
+			return (void*)mStackTop;
 		}
 
         void Reserve(int wordcount) {
-            stacktop += wordcount;
+            mStackTop += wordcount;
         }
 
         void UnReserve(int wordcount) {
-            stacktop -= wordcount;
+            mStackTop -= wordcount;
         }
 
         int GetStackTop() {
-            return ((unsigned int)stacktop - (unsigned int)stack) / sizeof(unsigned int);
+            return ((uint32)mStackTop - (uint32)mStack) / sizeof(uint32);
         }
 
         void* GetStackVarAddr(int varstacktop, int varoffset) {
-            unsigned int* varaddr = &stack[varstacktop];
+            uint32* varaddr = &mStack[varstacktop];
 
             // -- increment by (varoffset * MAX_TYPE_SIZE), so we're pointing
             // -- at the start of the memory block for the variable.
             varaddr += varoffset * MAX_TYPE_SIZE;
 
             // -- validate and return the addr
-            if(varaddr < stack || varaddr >= stacktop) {
-                ScriptAssert_(0, "<internal>", -1, "Error - GetStackVarAddr() out of range\n");
+            if(varaddr < mStack || varaddr >= mStackTop) {
+                ScriptAssert_(GetContextOwner(), 0, "<internal>", -1,
+                              "Error - GetStackVarAddr() out of range\n");
                 return NULL;
             }
             return varaddr;
         }
 
 	private:
-		unsigned int* stack;
-		unsigned int size;
+        CScriptContext* mContextOwner;
 
-		unsigned int* stacktop;
+		uint32* mStack;
+		uint32 mSize;
+
+		uint32* mStackTop;
 };
 
 class CFunctionCallStack {
@@ -198,12 +207,12 @@ class CFunctionCallStack {
 
 	private:
         tFunctionCallEntry* funcentrystack;
-		unsigned int size;
-		unsigned int stacktop;
+		uint32 size;
+		uint32 stacktop;
 };
 
 bool ExecuteCodeBlock(CCodeBlock& codeblock);
-bool ExecuteScheduledFunction(unsigned int objectid, unsigned int funchash,
+bool ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, uint32 funchash,
                               CFunctionContext* parameters);
 
 }  // TinScript

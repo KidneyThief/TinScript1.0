@@ -32,23 +32,24 @@
 // ------------------------------------------------------------------------------------------------
 // -- These macros are included by DECLARE_SCRIPT_CLASS and IMPLEMENT_SCRIPT_CLASS...
 // -- not to be used independently (or publicly unless you know what you're doing!)
+// $$$TZA More MainThread issues
 #define SCRIPT_DEFAULT_METHODS(classname)                                                    \
-    static unsigned int classname##GetObjectID(classname* obj);                              \
+    static uint32 classname##GetObjectID(classname* obj);                              \
     static const char* classname##GetObjectName(classname* obj);                             \
     static void classname##ListMembers(classname* obj);                                      \
     static void classname##ListMethods(classname* obj);
 
 #define IMPLEMENT_DEFAULT_METHODS(classname)                                                 \
-    static unsigned int classname##GetObjectID(classname* obj) {                             \
-        return TinScript::CNamespace::FindIDByAddress((void*)obj);                           \
+    static uint32 classname##GetObjectID(classname* obj) {                             \
+        return TinScript::CScriptContext::GetMainThreadContext()->FindIDByAddress((void*)obj);                           \
     }                                                                                        \
-    static TinScript::CRegMethodP0<classname, unsigned int>                                  \
+    static TinScript::CRegMethodP0<classname, uint32>                                  \
         _reg_##classname##GetObjectID                                                        \
         ("GetObjectID", classname##GetObjectID);                                             \
                                                                                              \
     static const char* classname##GetObjectName(classname* obj) {                            \
         TinScript::CObjectEntry* oe =                                                        \
-            TinScript::CNamespace::FindObjectByAddress((void*)obj);                          \
+            TinScript::CScriptContext::GetMainThreadContext()->FindObjectByAddress((void*)obj);                          \
         return oe ? oe->GetName() : "";                                                      \
     }                                                                                        \
     static TinScript::CRegMethodP0<classname, const char*>                                   \
@@ -57,7 +58,7 @@
                                                                                              \
     static void classname##ListMembers(classname* obj) {                                     \
         TinScript::CObjectEntry* oe =                                                        \
-            TinScript::CNamespace::FindObjectByAddress((void*)obj);                          \
+            TinScript::CScriptContext::GetMainThreadContext()->FindObjectByAddress((void*)obj);                          \
         TinScript::DumpVarTable(oe);                                                         \
     }                                                                                        \
     static TinScript::CRegMethodP0<classname, void>                                          \
@@ -66,7 +67,7 @@
                                                                                              \
     static void classname##ListMethods(classname* obj) {                                     \
         TinScript::CObjectEntry* oe =                                                        \
-            TinScript::CNamespace::FindObjectByAddress((void*)obj);                          \
+            TinScript::CScriptContext::GetMainThreadContext()->FindObjectByAddress((void*)obj);                          \
         TinScript::DumpFuncTable(oe);                                                        \
     }                                                                                        \
     static TinScript::CRegMethodP0<classname, void>                                          \
@@ -76,6 +77,7 @@
 
 namespace TinScript {
 
+class CScriptContext;
 class CVariableEntry;
 class CFunctionEntry;
 class CNamespace;
@@ -87,42 +89,65 @@ typedef CHashTable<CFunctionEntry> tFuncTable;
 // ------------------------------------------------------------------------------------------------
 class CObjectEntry {
     public:
-        CObjectEntry(unsigned int _objid, unsigned int _namehash, CNamespace* _objnamespace,
-                     void* _objaddr);
+        CObjectEntry(CScriptContext* script_context, uint32 _objid, uint32 _namehash,
+                     CNamespace* _objnamespace, void* _objaddr);
         virtual ~CObjectEntry();
 
-        unsigned int GetID() const {
-            return objectid;
+        CScriptContext* GetScriptContext() {
+            return (mContextOwner);
+        }
+
+        uint32 GetID() const {
+            return mObjectID;
         }
 
         const char* GetName() const {
-            return UnHash(namehash);
+            return UnHash(mNameHash);
         }
 
-        unsigned int GetNameHash() const {
-            return namehash;
+        uint32 GetNameHash() const {
+            return mNameHash;
         }
 
         CNamespace* GetNamespace() const {
-            return objectnamespace;
+            return mObjectNamespace;
         }
 
         void* GetAddr() const {
-            return objectaddr;
+            return mObjectAddr;
         }
 
-        CVariableEntry* GetVariableEntry(unsigned int varhash);
-        CFunctionEntry* GetFunctionEntry(unsigned int nshash, unsigned int funchash);
+        CVariableEntry* GetVariableEntry(uint32 varhash);
+        CFunctionEntry* GetFunctionEntry(uint32 nshash, uint32 funchash);
 
-        bool AddDynamicVariable(unsigned int varhash, eVarType vartype);
+        bool AddDynamicVariable(uint32 varhash, eVarType vartype);
+
+    private:
+        CScriptContext* mContextOwner;
+
+        uint32 mObjectID;
+        uint32 mNameHash;
+        CNamespace* mObjectNamespace;
+        void* mObjectAddr;
+        CHashTable<CVariableEntry>* mDynamicVariables;
+};
+
+// ------------------------------------------------------------------------------------------------
+class CNamespaceContext {
+
+    public:
+
+        CNamespaceContext(CScriptContext* script_context);
+        virtual ~CNamespaceContext();
+
+        CScriptContext* GetScriptContext() {
+            return (mContextOwner);
+        }
 
     private:
 
-        unsigned int objectid;
-        unsigned int namehash;
-        CNamespace* objectnamespace;
-        void* objectaddr;
-        CHashTable<CVariableEntry>* dynamicvariables;
+        CScriptContext* mContextOwner;
+
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -132,109 +157,83 @@ class CNamespace {
         typedef void (*DestroyInstance)(void* addr);
         typedef void (*Register)(CNamespace* reg);
 
-        CNamespace(const char* name, CreateInstance _createinstance = NULL,
-                   DestroyInstance _destroyinstance = NULL);
+        CNamespace(CScriptContext* script_context, const char* name,
+                   CreateInstance _createinstance = NULL, DestroyInstance _destroyinstance = NULL);
         virtual ~CNamespace();
 
-        const char* GetName() {
-            return name;
+        CScriptContext* GetScriptContext() {
+            return (mContextOwner);
         }
 
-        unsigned int GetHash() {
-            return hash;
+        const char* GetName() {
+            return (mName);
+        }
+
+        uint32 GetHash() {
+            return (mHash);
         }
 
         CNamespace* GetNext() const {
-            return next;
+            return (mNext);
+        }
+        void SetNext(CNamespace* _next) {
+            mNext = _next;
         }
 
         CreateInstance GetCreateInstance() const {
-            return createfuncptr;
+            return (mCreateFuncptr);
         }
 
         // -- it's possible that this is a script-derived namespace...
         // -- find the highest level child with a proper destructor
         DestroyInstance GetDestroyInstance() const {
             const CNamespace* ns = this;
-            while(ns && ns->destroyfuncptr == NULL)
-                ns = ns->next;
+            while(ns && ns->mDestroyFuncptr == NULL)
+                ns = ns->mNext;
             if(ns)
-                return ns->destroyfuncptr;
+                return (ns->mDestroyFuncptr);
             else
-                return NULL;
+                return (NULL);
         }
 
-        CVariableEntry* GetVarEntry(unsigned int varhash);
+        CVariableEntry* GetVarEntry(uint32 varhash);
 
         tVarTable* GetVarTable() {
-            return membertable;
+            return (mMemberTable);
         }
 
         tFuncTable* GetFuncTable() {
-            return methodtable;
+            return (mMethodTable);
         }
-
-        static void Initialize();
-        static void Shutdown();
-
-        static CNamespace* FindOrCreateNamespace(const char* _nsname, bool create);
-        static CNamespace* FindNamespace(unsigned int nshash);
-        static void LinkNamespaces(const char* parentnsname, const char* childnsname);
-        static void LinkNamespaces(CNamespace* parentns, CNamespace* childns);
-
-        static unsigned int GetNextObjectID();
-        static unsigned int CreateObject(unsigned int classhash, unsigned int objnamehash);
-        static unsigned int RegisterObject(void* objaddr, const char* classname,
-                                           const char* objectname);
-        static void DestroyObject(unsigned int objectid);
-
-        static CObjectEntry* FindObjectByAddress(void* addr);
-        static CObjectEntry* FindObjectByName(const char* objname);
-        static CObjectEntry* FindObject(unsigned int objectid);
-        static unsigned int FindIDByAddress(void* addr);
-
-        static void* FindObjectAddr(unsigned int objectid);
-
-        static void AddDynamicVariable(unsigned int objectid, unsigned int varhash,
-                                       eVarType vartype);
-        static void AddDynamicVariable(unsigned int objectid, const char* varname,
-                                       const char* vartypename);
-        static void ListObjects();
 
     private:
         CNamespace() { }
 
-        const char* name;
-        unsigned int hash;
-        CNamespace* next;
+        CScriptContext* mContextOwner;
 
-        CreateInstance createfuncptr;
-        DestroyInstance destroyfuncptr;
+        const char* mName;
+        uint32 mHash;
+        CNamespace* mNext;
 
-        tVarTable* membertable;
-        tFuncTable* methodtable;
+        CreateInstance mCreateFuncptr;
+        DestroyInstance mDestroyFuncptr;
 
-        // -- need to keep a list of all the current codeblocks, hashed by filename
-        static CHashTable<CNamespace>* gNamespaceDictionary;
-
-        // -- an array of all objects that were created from script
-        static CHashTable<CObjectEntry>* gObjectDictionary;
-        static CHashTable<CObjectEntry>* gAddressDictionary;
-        static CHashTable<CObjectEntry>* gNameDictionary;
+        tVarTable* mMemberTable;
+        tFuncTable* mMethodTable;
 };
 
 class CNamespaceReg {
     public:
         CNamespaceReg(const char* _name, const char* _parentname, void* _createfuncptr,
                       void* _destroyfuncptr, void* _regfuncptr, CNamespace** _classnamespace) {
-            name = _name;
-            hash = Hash(name);
-            parentname = _parentname;
-            parenthash = Hash(parentname);
-            createfuncptr = (CNamespace::CreateInstance)_createfuncptr;
-            destroyfuncptr = (CNamespace::DestroyInstance)_destroyfuncptr;
-            regfuncptr = (CNamespace::Register)_regfuncptr;
-            classnamespace = _classnamespace;
+            mName = _name;
+            mHash = Hash(mName);
+            mParentName = _parentname;
+            mParentHash = Hash(mParentName);
+            mCreateFuncptr = (CNamespace::CreateInstance)_createfuncptr;
+            mDestroyFuncptr = (CNamespace::DestroyInstance)_destroyfuncptr;
+            mRegFuncptr = (CNamespace::Register)_regfuncptr;
+            mClassNamespace = _classnamespace;
 
             next = head;
             head = this;
@@ -245,19 +244,19 @@ class CNamespaceReg {
         CNamespaceReg* next;
 
         const char* GetName() const {
-            return name;
+            return mName;
         }
 
         const char* GetParentName() const {
-            return parentname;
+            return mParentName;
         }
 
-        unsigned int GetHash() const {
-            return hash;
+        uint32 GetHash() const {
+            return mHash;
         }
 
-        unsigned int GetParentHash() const {
-            return parenthash;
+        uint32 GetParentHash() const {
+            return mParentHash;
         }
 
         CNamespaceReg* GetNext() const {
@@ -265,35 +264,35 @@ class CNamespaceReg {
         }
 
         CNamespace* GetClassNamespace() const {
-            return *classnamespace;
+            return *mClassNamespace;
         }
 
         CNamespace::CreateInstance GetCreateFunction() const {
-            return createfuncptr;
+            return mCreateFuncptr;
         }
 
         CNamespace::DestroyInstance GetDestroyFunction() const {
-            return destroyfuncptr;
+            return mDestroyFuncptr;
         }
 
         void SetClassNamespace(CNamespace* _namespace) {
-            *classnamespace = _namespace;
+            *mClassNamespace = _namespace;
         }
 
         void RegisterNamespace() {
-            regfuncptr(*classnamespace);
+            mRegFuncptr(*mClassNamespace);
         }
 
     private:
-        const char* name;
-        unsigned int hash;
-        const char* parentname;
-        unsigned int parenthash;
+        const char* mName;
+        uint32 mHash;
+        const char* mParentName;
+        uint32 mParentHash;
 
-        CNamespace::CreateInstance createfuncptr;
-        CNamespace::DestroyInstance destroyfuncptr;
-        CNamespace::Register regfuncptr;
-        CNamespace** classnamespace;
+        CNamespace::CreateInstance mCreateFuncptr;
+        CNamespace::DestroyInstance mDestroyFuncptr;
+        CNamespace::Register mRegFuncptr;
+        CNamespace** mClassNamespace;
 
         CNamespaceReg() { }
 };

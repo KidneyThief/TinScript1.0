@@ -33,50 +33,52 @@
 #include "TinScheduler.h"
 
 // ------------------------------------------------------------------------------------------------
-// -- forward declares
-extern uint32 GetCurrentSimTime();
-
 namespace TinScript {
 
-CScheduler::CCommand* CScheduler::head = NULL;
-
-void CScheduler::Initialize() {
+CScheduler::CScheduler(CScriptContext* script_context) {
+    mContextOwner = script_context;
+    mHead = NULL;
+    mCurrentSimTime = 0;
+    mCurrentSchedule = NULL;
 }
 
-void CScheduler::Shutdown() {
+CScheduler::~CScheduler() {
     // -- clean up all pending scheduled events
-    while(head) {
-        CCommand* next = head->next;
-        TinFree(head);
-        head = next;
+    while(mHead) {
+        CCommand* next = mHead->mNext;
+        TinFree(mHead);
+        mHead = next;
     }
 }
 
 void CScheduler::Update(uint32 curtime) {
 
+    // -- cache the current time
+    mCurrentSimTime = curtime;
+
     // -- execute all commands scheduled for dispatch by this time
-    while(head && head->dispatchtime <= curtime) {
+    while(mHead && mHead->mDispatchTime <= curtime) {
 
         // -- get the current command, and remove it from the list - now, before we execute,
         // -- since executing this command could 
-        CCommand* curcommand = head;
-        if(curcommand->next)
-            curcommand->next->prev = NULL;
-        head = curcommand->next;
+        CCommand* curcommand = mHead;
+        if(curcommand->mNext)
+            curcommand->mNext->mPrev = NULL;
+        mHead = curcommand->mNext;
 
         // -- dispatch the command - see if it's a direct function call, or a command buf
-        if(curcommand->funchash != 0) {
-            ExecuteScheduledFunction(curcommand->objectid, curcommand->funchash,
-                                     curcommand->funccontext);
+        if(curcommand->mFuncHash != 0) {
+            ExecuteScheduledFunction(GetScriptContext(), curcommand->mObjectID, curcommand->mFuncHash,
+                                     curcommand->mFuncContext);
         }
         else {
-            if(curcommand->objectid > 0) {
+            if(curcommand->mObjectID > 0) {
                 int32 dummy = 0;
-                ObjExecF(curcommand->objectid, dummy, curcommand->commandbuf);
+                ObjExecF(curcommand->mObjectID, dummy, curcommand->mCommandBuf);
             }
             else {
                 // $$$TZA is there anything we can do with the result?
-                ExecCommand(curcommand->commandbuf);
+                GetScriptContext()->ExecCommand(curcommand->mCommandBuf);
             }
         }
 
@@ -99,61 +101,67 @@ void CScheduler::CancelRequest(int32 reqid) {
 
 void CScheduler::Cancel(uint32 objectid, int32 reqid) {
     // -- loop through and delete any schedules pending for this object
-    CCommand** prevcommand = &head;
-    CCommand* curcommand = head;
+    CCommand** prevcommand = &mHead;
+    CCommand* curcommand = mHead;
     while(curcommand) {
-        if(curcommand->objectid == objectid || curcommand->reqid == reqid) {
-            *prevcommand = curcommand->next;
+        if(curcommand->mObjectID == objectid || curcommand->mReqID == reqid) {
+            *prevcommand = curcommand->mNext;
             TinFree(curcommand);
             curcommand = *prevcommand;
         }
         else {
-            prevcommand = &curcommand->next;
-            curcommand = curcommand->next;
+            prevcommand = &curcommand->mNext;
+            curcommand = curcommand->mNext;
         }
     }
 }
 
 void CScheduler::Dump() {
     // -- loop through and delete any schedules pending for this object
-    CCommand* curcommand = head;
+    CCommand* curcommand = mHead;
     while(curcommand) {
-        printf("ReqID: %d, ObjID: %d, Command: %s\n", curcommand->reqid, curcommand->objectid,
-               curcommand->commandbuf);
-        curcommand = curcommand->next;
+        printf("ReqID: %d, ObjID: %d, Command: %s\n", curcommand->mReqID, curcommand->mObjectID,
+               curcommand->mCommandBuf);
+        curcommand = curcommand->mNext;
     }
 }
 
-CScheduler::CCommand::CCommand(int32 _reqid, uint32 _objectid, uint32 _dispatchtime,
-                               const char* _command) {
+CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uint32 _objectid,
+                               uint32 _dispatchtime, const char* _command) {
+    // -- set the context
+    mContextOwner = script_context;
+
     // --  members copy the command members
-    reqid = _reqid;
-    objectid = _objectid;
-    dispatchtime = _dispatchtime;
-    SafeStrcpy(commandbuf, _command, kMaxTokenLength);
+    mReqID = _reqid;
+    mObjectID = _objectid;
+    mDispatchTime = _dispatchtime;
+    SafeStrcpy(mCommandBuf, _command, kMaxTokenLength);
 
     // -- command string, null out the direct function call members
-    funchash = 0;
-    funccontext = NULL;
+    mFuncHash = 0;
+    mFuncContext = NULL;
 }
 
-CScheduler::CCommand::CCommand(int32 _reqid, uint32 _objectid, uint32 _dispatchtime,
-                               uint32 _funchash) {
+CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uint32 _objectid,
+                               uint32 _dispatchtime, uint32 _funchash) {
+    // -- set the context
+    mContextOwner = script_context;
+
     // --  members copy the command members
-    reqid = _reqid;
-    objectid = _objectid;
-    dispatchtime = _dispatchtime;
-    commandbuf[0] = '\0';
+    mReqID = _reqid;
+    mObjectID = _objectid;
+    mDispatchTime = _dispatchtime;
+    mCommandBuf[0] = '\0';
 
     // -- command string, null out the direct function call members
-    funchash = _funchash;
-    funccontext = TinAlloc(ALLOC_FuncContext, CFunctionContext);
+    mFuncHash = _funchash;
+    mFuncContext = TinAlloc(ALLOC_FuncContext, CFunctionContext, script_context);
 }
 
 CScheduler::CCommand::~CCommand() {
     // clean up the function context, if it exists
-    if(funccontext)
-        TinFree(funccontext);
+    if(mFuncContext)
+        TinFree(mFuncContext);
 }
 
 static int32 gScheduleID = 0;
@@ -165,34 +173,34 @@ int32 CScheduler::Schedule(uint32 objectid, int32 delay, const char* commandstri
         return 0;
 
     // -- calculate the dispatch time - enforce a one-frame delay
-    uint32 dispatchtime = GetCurrentSimTime() + (delay > 0 ? delay : 1);
+    uint32 dispatchtime = mCurrentSimTime + (delay > 0 ? delay : 1);
 
     // -- create the new commmand
-    CCommand* newcommand = TinAlloc(ALLOC_SchedCmd, CCommand, gScheduleID, objectid, dispatchtime,
-                                    commandstring);
+    CCommand* newcommand = TinAlloc(ALLOC_SchedCmd, CCommand, GetScriptContext(), gScheduleID,
+                                    objectid, dispatchtime, commandstring);
 
     // -- see if it goes at the front of the list
-    if(!head || dispatchtime <= head->dispatchtime) {
-        newcommand->next = head;
-        newcommand->prev = NULL;
-        if(head)
-            head->prev = newcommand;
-        head = newcommand;
+    if(!mHead || dispatchtime <= mHead->mDispatchTime) {
+        newcommand->mNext = mHead;
+        newcommand->mPrev = NULL;
+        if(mHead)
+            mHead->mPrev = newcommand;
+        mHead = newcommand;
     }
     else {
         // -- insert it into the list, in after curschedule
-        CCommand* curschedule = head;
-        while(curschedule->next && curschedule->dispatchtime < dispatchtime)
-            curschedule = curschedule->next;
-        newcommand->next = curschedule->next;
-        newcommand->prev = curschedule;
-        if(curschedule->next)
-            curschedule->next->prev = newcommand;
-        curschedule->next = newcommand;
+        CCommand* curschedule = mHead;
+        while(curschedule->mNext && curschedule->mDispatchTime < dispatchtime)
+            curschedule = curschedule->mNext;
+        newcommand->mNext = curschedule->mNext;
+        newcommand->mPrev = curschedule;
+        if(curschedule->mNext)
+            curschedule->mNext->mPrev = newcommand;
+        curschedule->mNext = newcommand;
     }
 
     // -- return the request id, so we have a way to cancel
-    return newcommand->reqid;
+    return newcommand->mReqID;
 }
 
 CScheduler::CCommand* CScheduler::ScheduleCreate(uint32 objectid, int32 delay,
@@ -200,30 +208,30 @@ CScheduler::CCommand* CScheduler::ScheduleCreate(uint32 objectid, int32 delay,
     ++gScheduleID;
 
     // -- calculate the dispatch time - enforce a one-frame delay
-    uint32 dispatchtime = GetCurrentSimTime() + (delay > 0 ? delay : 1);
+    uint32 dispatchtime = mCurrentSimTime + (delay > 0 ? delay : 1);
 
     // -- create the new commmand
-    CCommand* newcommand = TinAlloc(ALLOC_SchedCmd, CCommand, gScheduleID, objectid, dispatchtime,
-                                    funchash);
+    CCommand* newcommand = TinAlloc(ALLOC_SchedCmd, CCommand, GetScriptContext(), gScheduleID,
+                                    objectid, dispatchtime, funchash);
 
     // -- see if it goes at the front of the list
-    if(!head || dispatchtime <= head->dispatchtime) {
-        newcommand->next = head;
-        newcommand->prev = NULL;
-        if(head)
-            head->prev = newcommand;
-        head = newcommand;
+    if(!mHead || dispatchtime <= mHead->mDispatchTime) {
+        newcommand->mNext = mHead;
+        newcommand->mPrev = NULL;
+        if(mHead)
+            mHead->mPrev = newcommand;
+        mHead = newcommand;
     }
     else {
         // -- insert it into the list, in after curschedule
-        CCommand* curschedule = head;
-        while(curschedule->next && curschedule->dispatchtime < dispatchtime)
-            curschedule = curschedule->next;
-        newcommand->next = curschedule->next;
-        newcommand->prev = curschedule;
-        if(curschedule->next)
-            curschedule->next->prev = newcommand;
-        curschedule->next = newcommand;
+        CCommand* curschedule = mHead;
+        while(curschedule->mNext && curschedule->mDispatchTime < dispatchtime)
+            curschedule = curschedule->mNext;
+        newcommand->mNext = curschedule->mNext;
+        newcommand->mPrev = curschedule;
+        if(curschedule->mNext)
+            curschedule->mNext->mPrev = newcommand;
+        curschedule->mNext = newcommand;
     }
 
     // -- return the actual commmand object, since we'll be updating the parameter values
@@ -241,12 +249,16 @@ int32 CScheduler::Thread(int32 reqid, uint32 objectid, int32 delay, const char* 
 // ------------------------------------------------------------------------------------------------
 // script registered interface
 
+// $$$TZA schedule is a keyword within the language...  these external functions either need
+// -- to be converted to methods from an (CScriptContext*) object
+/*
 REGISTER_FUNCTION_P3(Schedule, TinScript::CScheduler::Schedule, int32, uint32, int32, const char*);
 REGISTER_FUNCTION_P4(ScheduleThread, TinScript::CScheduler::Thread, int32, int32, uint32, int32, const char*);
 
 REGISTER_FUNCTION_P1(ScheduleCancelObject, TinScript::CScheduler::CancelObject, void, uint32);
 REGISTER_FUNCTION_P1(ScheduleCancelRequest, TinScript::CScheduler::CancelRequest, void, int32);
 REGISTER_FUNCTION_P0(ListSchedules, TinScript::CScheduler::Dump, void);
+*/
 
 // ------------------------------------------------------------------------------------------------
 // eof

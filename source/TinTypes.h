@@ -50,6 +50,7 @@ bool8 CompareTypes() {
     return GetTypeID<T0>() == GeTypeID<T1>();
 }
 
+// ------------------------------------------------------------------------------------------------
 template<typename T>
 struct is_pointer {
     static const bool8 value = false;
@@ -160,6 +161,37 @@ enum eVarType {
 	TYPE_COUNT
 };
 
+// ------------------------------------------------------------------------------------------------
+// -- for some reason, typedef'ing natural types (e.g. unsigned int to uint32)
+// -- broke the population of gRegisteredTypeID, which uses GetTypeID();
+/*
+template<>
+uint32 GetTypeID<uint32>() {
+    return TYPE_object;
+}
+
+template<>
+uint32 GetTypeID<const char*>() {
+    return TYPE_string;
+}
+
+template<>
+uint32 GetTypeID<int32>() {
+    return TYPE_int;
+}
+
+template<>
+uint32 GetTypeID<bool8>() {
+    return TYPE_bool;
+}
+
+template<>
+uint32 GetTypeID<float32>() {
+    return TYPE_float;
+}
+*/
+
+// ------------------------------------------------------------------------------------------------
 void* TypeConvert(eVarType fromtype, void* fromaddr, eVarType totype);
 const char* DebugPrintVar(void* addr, eVarType vartype);
 

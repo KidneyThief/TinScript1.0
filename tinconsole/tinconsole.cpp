@@ -66,6 +66,12 @@ REGISTER_FUNCTION_P0(Quit, Quit, void);
 REGISTER_FUNCTION_P0(Pause, Pause, void);
 REGISTER_FUNCTION_P0(UnPause, UnPause, void);
 
+void Print(const char* string) {
+    printf("%s\n", string);
+}
+
+REGISTER_FUNCTION_P1(Print, Print, void, const char*);
+
 uint32 GetCurrentSimTime() {
     return gCurrentTime;
 }
@@ -90,9 +96,58 @@ void RefreshConsoleInput(bool8 force = false) {
     }
 }
 
+TinScript::CScriptContext* gScriptContext = NULL;
+
+// -- returns false if we should break
+bool8 AssertHandler(const char* condition, const char* file,
+                                           int32 linenumber, const char* fmt, ...) {
+    if(!gScriptContext->IsAssertStackSkipped() || gScriptContext->IsAssertEnableTrace()) {
+        if(!gScriptContext->IsAssertStackSkipped())
+            printf("*************************************************************\n");
+        else
+            printf("\n");
+
+        if(linenumber >= 0)
+            printf("Assert(%s) file: %s, line %d:\n", condition, file, linenumber + 1);
+        else
+            printf("Exec Assert(%s):\n", condition);
+
+        va_list args;
+        va_start(args, fmt);
+        char msgbuf[2048];
+        vsprintf_s(msgbuf, 2048, fmt, args);
+        va_end(args);
+        printf(msgbuf);
+
+        if(!gScriptContext->IsAssertStackSkipped())
+            printf("*************************************************************\n");
+        if(!gScriptContext->IsAssertStackSkipped()) {
+            printf("Press 'b' to break, 't' to trace, otherwise skip...\n");
+            char ch = getchar();
+            if(ch == 'b')
+                return false;
+            else if(ch == 't') {
+                gScriptContext->SetAssertStackSkipped(true);
+                gScriptContext->SetAssertEnableTrace(true);
+                return true;
+            }
+            else {
+                gScriptContext->SetAssertStackSkipped(true);
+                gScriptContext->SetAssertEnableTrace(false);
+                return true;
+            }
+        }
+    }
+
+    // -- handled - return true so we don't break
+    return true;
+}
+
+
 int32 _tmain(int32 argc, _TCHAR* argv[])
 {
-	TinScript::Initialize();
+    // -- initialize
+    gScriptContext = TinScript::CScriptContext::Create(NULL, printf, AssertHandler);
 
     // -- required to ensure registered functions from unittest.cpp are linked.
     extern bool8 gUnitTestIncludeMe;
@@ -135,7 +190,7 @@ int32 _tmain(int32 argc, _TCHAR* argv[])
 	}
 
 	// -- parse the file
-	if(infilename && infilename[0] && ! TinScript::ExecScript(infilename)) {
+	if(infilename && infilename[0] && !gScriptContext->ExecScript(infilename)) {
 		printf("Error - unable to parse file: %s\n", infilename);
 		return 1;
 	}
@@ -160,7 +215,7 @@ int32 _tmain(int32 argc, _TCHAR* argv[])
         }
 
         // -- keep the system running...
-        TinScript::Update(gCurrentTime);
+        gScriptContext->Update(gCurrentTime);
         
         // -- see if we should auto-refresh the console
         if(gRefreshConsoleString && TimeDiffSeconds(gRefreshConsoleTimestamp, gCurrentTime) >
@@ -254,7 +309,7 @@ int32 _tmain(int32 argc, _TCHAR* argv[])
                 }
                 historyindex = -1;
 
-                TinScript::ExecCommand(gConsoleInputBuf);
+                gScriptContext->ExecCommand(gConsoleInputBuf);
                 inputptr = gConsoleInputBuf;
                 *inputptr = '\0';
                 printf("\nConsole => ");
@@ -270,7 +325,7 @@ int32 _tmain(int32 argc, _TCHAR* argv[])
         }
     }
 
-	TinScript::Shutdown();
+    TinScript::CScriptContext::Destroy(gScriptContext);
 
 	return 0;
 }

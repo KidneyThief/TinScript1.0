@@ -32,60 +32,63 @@ namespace TinScript {
 // ------------------------------------------------------------------------------------------------
 // variable table
 
-CVariableEntry::CVariableEntry(const char* _name, eVarType _type, void* _addr) {
-	SafeStrcpy(name, _name, kMaxNameLength);
-	type = _type;
-	hash = Hash(_name);
-    offset = 0;
-    addr = _addr;
-    isdynamic = false;
-    scriptvar = false;
-    stackoffset = -1;
-    funcentry = NULL;
+CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name, eVarType _type,
+                               void* _addr) {
+    mContextOwner = script_context;
+	SafeStrcpy(mName, _name, kMaxNameLength);
+	mType = _type;
+	mHash = Hash(_name);
+    mOffset = 0;
+    mAddr = _addr;
+    mIsDynamic = false;
+    mScriptVar = false;
+    mStackOffset = -1;
+    mFuncEntry = NULL;
 }
 
-CVariableEntry::CVariableEntry(const char* _name, uint32 _hash, eVarType _type,
-                               bool8 isoffset, uint32 _offset, bool8 _isdynamic) {
-	SafeStrcpy(name, _name, kMaxNameLength);
-	type = _type;
-	hash = _hash;
-    offset = 0;
-    isdynamic = _isdynamic;
-    scriptvar = false;
-    stackoffset = -1;
-    funcentry = NULL;
+CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name, uint32 _hash,
+                               eVarType _type, bool8 isoffset, uint32 _offset, bool8 _isdynamic) {
+    mContextOwner = script_context;
+	SafeStrcpy(mName, _name, kMaxNameLength);
+	mType = _type;
+	mHash = _hash;
+    mOffset = 0;
+    mIsDynamic = _isdynamic;
+    mScriptVar = false;
+    mStackOffset = -1;
+    mFuncEntry = NULL;
 
     // -- hashtables are tables of variable entries...
     // -- they can only be created from script
-    if(type == TYPE_hashtable) {
-        scriptvar = true;
+    if(mType == TYPE_hashtable) {
+        mScriptVar = true;
         // -- setting allocation type as a VarTable, although this may be an exception:
         // -- since it's actually a script variable allocation...  it's size is not
         // -- consistent with the normal size of variable storage
-        addr = (void*)TinAlloc(ALLOC_VarTable, tVarTable, kLocalVarTableSize);
+        mAddr = (void*)TinAlloc(ALLOC_VarTable, tVarTable, kLocalVarTableSize);
     }
     else if(isoffset) {
-        addr = NULL;
-        offset = _offset;
+        mAddr = NULL;
+        mOffset = _offset;
     }
 
     // -- not an offset (e.g not a class member)
     // -- globals are constructed above, so this is a script var, requiring us to allocate
     else {
-		scriptvar = true;
-		addr = (void*)TinAllocVarContent(_type);
-		memset(addr, 0, gRegisteredTypeSize[_type]);
+		mScriptVar = true;
+		mAddr = (void*)TinAllocVarContent(_type);
+		memset(mAddr, 0, gRegisteredTypeSize[_type]);
     }
 }
 
 CVariableEntry::~CVariableEntry() {
-	if(scriptvar) {
-        if(type != TYPE_hashtable) {
-		    TinFree(addr);
+	if(mScriptVar) {
+        if(mType != TYPE_hashtable) {
+		    TinFree(mAddr);
         }
         // -- if this is a hashtable, need to destroy all of its entries
         else {
-            tVarTable* ht = static_cast<tVarTable*>(addr);
+            tVarTable* ht = static_cast<tVarTable*>(mAddr);
             ht->DestroyAll();
 
             // -- now delete the hashtable itself
@@ -96,7 +99,7 @@ CVariableEntry::~CVariableEntry() {
 
 void CVariableEntry::SetValue(void* objaddr, void* value) {
 	assert(value);
-	int32 size = gRegisteredTypeSize[type];
+	int32 size = gRegisteredTypeSize[mType];
 
     // -- if we're providing an objaddr, this variable is actually a member
     void* varaddr = GetAddr(objaddr);
@@ -107,10 +110,10 @@ void CVariableEntry::SetValue(void* objaddr, void* value) {
 // -- const char*, before calling dispatch
 void CVariableEntry::SetValueAddr(void* objaddr, void* value) {
     assert(value);
-	int32 size = gRegisteredTypeSize[type];
+	int32 size = gRegisteredTypeSize[mType];
 
     void* varaddr = GetAddr(objaddr);
-    if(type == TYPE_string) {
+    if(mType == TYPE_string) {
         uint32 hash = Hash((const char*)value);
         memcpy(varaddr, &hash, size);
     }
@@ -120,7 +123,8 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value) {
 
 // ------------------------------------------------------------------------------------------------
 // CFunctionContext
-CFunctionContext::CFunctionContext() {
+CFunctionContext::CFunctionContext(CScriptContext* script_context) {
+    mContextOwner = script_context;
     localvartable = TinAlloc(ALLOC_VarTable, tVarTable, eMaxLocalVarCount);
     paramcount = 0;
     for(int32 i = 0; i < eMaxParameterCount; ++i) {
@@ -195,8 +199,8 @@ CVariableEntry* CFunctionContext::AddLocalVar(const char* varname, uint32 varhas
     }
 
     // -- create the Variable entry
-    CVariableEntry* ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, varname, varhash, type,
-                                  false, 0, false);
+    CVariableEntry* ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, GetScriptContext(), varname,
+                                                                  varhash, type, false, 0, false);
 	uint32 hash = ve->GetHash();
 	localvartable->AddItem(*ve, hash);
 
@@ -267,75 +271,79 @@ void CFunctionContext::InitStackVarOffsets() {
 
 // ------------------------------------------------------------------------------------------------
 // CFunctionEntry implementation
-CFunctionEntry::CFunctionEntry(uint32 _nshash, const char* _name, uint32 _hash,
-                               EFunctionType _type, void* _addr) {
-	SafeStrcpy(name, _name, kMaxNameLength);
-	type = _type;
-	hash = _hash;
-    namespacehash = _nshash;
-	addr = _addr;
-    codeblock = NULL;
-    instroffset = 0;
-    regobject = NULL;
+CFunctionEntry::CFunctionEntry(CScriptContext* script_context, uint32 _nshash, const char* _name,
+                               uint32 _hash, EFunctionType _type, void* _addr) :
+                               mContext(script_context) {
+    mContextOwner = script_context;
+	SafeStrcpy(mName, _name, kMaxNameLength);
+	mType = _type;
+	mHash = _hash;
+    mNamespaceHash = _nshash;
+	mAddr = _addr;
+    mCodeblock = NULL;
+    mInstrOffset = 0;
+    mRegObject = NULL;
 }
 
-CFunctionEntry::CFunctionEntry(uint32 _nshash, const char* _name, uint32 _hash,
-                               EFunctionType _type, CRegFunctionBase* _func) {
-	SafeStrcpy(name, _name, kMaxNameLength);
-	type = _type;
-	hash = _hash;
-    namespacehash = _nshash;
-    codeblock = NULL;
-	instroffset = 0;
-    regobject = _func;
+CFunctionEntry::CFunctionEntry(CScriptContext* script_context, uint32 _nshash, const char* _name,
+                               uint32 _hash, EFunctionType _type, CRegFunctionBase* _func) :
+                               mContext(script_context) {
+    mContextOwner = script_context;
+	SafeStrcpy(mName, _name, kMaxNameLength);
+	mType = _type;
+	mHash = _hash;
+    mNamespaceHash = _nshash;
+    mCodeblock = NULL;
+	mInstrOffset = 0;
+    mRegObject = _func;
 }
 
 CFunctionEntry::~CFunctionEntry() {
     // -- notify the codeblock that this entry no longer exists
-    if(codeblock)
-        codeblock->RemoveFunction(this);
+    if(mCodeblock)
+        mCodeblock->RemoveFunction(this);
 }
 
 void* CFunctionEntry::GetAddr() const {
-    assert(type != eFuncTypeScript);
-	return addr;
+    assert(mType != eFuncTypeScript);
+	return mAddr;
 }
 
 void CFunctionEntry::SetCodeBlockOffset(CCodeBlock* _codeblock, uint32 _offset) {
-    assert(type == eFuncTypeScript);
+    assert(mType == eFuncTypeScript);
 
     // -- if we're switching codeblocks (recompiling...) change owners
-    if(codeblock && codeblock != _codeblock) {
-        codeblock->RemoveFunction(this);
+    if(mCodeblock && mCodeblock != _codeblock) {
+        mCodeblock->RemoveFunction(this);
     }
-    codeblock = _codeblock;
-    instroffset = _offset;
-    if(codeblock)
-        codeblock->AddFunction(this);
+    mCodeblock = _codeblock;
+    mInstrOffset = _offset;
+    if(mCodeblock)
+        mCodeblock->AddFunction(this);
 }
 
 uint32 CFunctionEntry::GetCodeBlockOffset(CCodeBlock*& _codeblock) const {
-    assert(type == eFuncTypeScript);
-    _codeblock = codeblock;
-    return instroffset;
+    assert(mType == eFuncTypeScript);
+    _codeblock = mCodeblock;
+    return mInstrOffset;
 }
 
 CFunctionContext* CFunctionEntry::GetContext() {
-    return &context;
+    return &mContext;
 }
 
 eVarType CFunctionEntry::GetReturnType() {
     // -- return value is always the first var entry in the array
-    assert(context.GetParameterCount() > 0);
-    return context.GetParameter(0)->GetType();
+    assert(mContext.GetParameterCount() > 0);
+    return (mContext.GetParameter(0)->GetType());
 }
 
 tVarTable* CFunctionEntry::GetLocalVarTable() {
-    return context.GetLocalVarTable();
+    return mContext.GetLocalVarTable();
 }
 
 CRegFunctionBase* CFunctionEntry::GetRegObject() {
-    return regobject;
+    return mRegObject;
 }
 
 }  // TinScript

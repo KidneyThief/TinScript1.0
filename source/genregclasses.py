@@ -30,10 +30,38 @@ import ctypes
 from ctypes import *
 
 # -----------------------------------------------------------------------------
+def OutputLicense(outputfile):
+
+    outputfile.write("// ------------------------------------------------------------------------------------------------\n");
+    outputfile.write("//  The MIT License\n");
+    outputfile.write("//  \n");
+    outputfile.write("//  Copyright (c) 2013 Tim Andersen\n");
+    outputfile.write("//  \n");
+    outputfile.write("//  Permission is hereby granted, free of charge, to any person obtaining a copy of this software\n");
+    outputfile.write("//  and associated documentation files (the \"Software\"), to deal in the Software without\n");
+    outputfile.write("//  restriction, including without limitation the rights to use, copy, modify, merge, publish,\n");
+    outputfile.write("//  distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the\n");
+    outputfile.write("//  Software is furnished to do so, subject to the following conditions:\n");
+    outputfile.write("//  \n");
+    outputfile.write("//  The above copyright notice and this permission notice shall be included in all copies or\n");
+    outputfile.write("//  substantial portions of the Software.\n");
+    outputfile.write("//  \n");
+    outputfile.write("//  THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING\n");
+    outputfile.write("//  BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND\n");
+    outputfile.write("//  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,\n");
+    outputfile.write("//  DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n");
+    outputfile.write("//  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n");
+    outputfile.write("// ------------------------------------------------------------------------------------------------\n");
+    outputfile.write("\n");
+
+# -----------------------------------------------------------------------------
 def GenerateMacros(maxparamcount, outputfilename):
     
     #open the output file
     outputfile = open(outputfilename, 'w');
+
+	# -- add the MIT license to the top of the output file
+    OutputLicense(outputfile);
     
     outputfile.write("// ------------------------------------------------------------------------------------------------\n");
     outputfile.write("// Generated macros for function registration\n");
@@ -99,7 +127,7 @@ def GenerateMacros(maxparamcount, outputfilename):
         # next class definition
         paramcount = paramcount + 1;
         
-    outputfile.write("\n\n");
+    outputfile.write("\n");
     outputfile.close();
 
     
@@ -110,7 +138,10 @@ def GenerateClasses(maxparamcount, outputfilename):
     
     #open the output file
     outputfile = open(outputfilename, 'w');
-    
+
+	# -- add the MIT license to the top of the output file
+    OutputLicense(outputfile);
+
     outputfile.write("// ------------------------------------------------------------------------------------------------\n");
     outputfile.write("// Generated classes for function registration\n");
     outputfile.write("// ------------------------------------------------------------------------------------------------\n");
@@ -209,8 +240,8 @@ def GenerateClasses(maxparamcount, outputfilename):
         outputfile.write("\n");
         
         outputfile.write("    // -- registration method\n");
-        outputfile.write("    virtual void Register() {\n");
-        outputfile.write("        CFunctionEntry* fe = new CFunctionEntry(0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);\n");
+        outputfile.write("    virtual void Register(CScriptContext* script_context) {\n");
+        outputfile.write("        CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);\n");
         outputfile.write("        SetContext(fe->GetContext());\n");
         outputfile.write("        GetContext()->AddParameter(\"__return\", Hash(\"__return\"), GetRegisteredType(GetTypeID<R>()));\n");
         i = 1;
@@ -219,7 +250,7 @@ def GenerateClasses(maxparamcount, outputfilename):
             i = i + 1;
         outputfile.write("\n");
         outputfile.write("        unsigned int hash = fe->GetHash();\n");
-        outputfile.write("        tFuncTable* globalfunctable = CNamespace::FindNamespace(0)->GetFuncTable();\n");
+        outputfile.write("        tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();\n");
         outputfile.write("        globalfunctable->AddItem(*fe, hash);\n");
         outputfile.write("    }\n");
         outputfile.write("\n");
@@ -318,8 +349,8 @@ def GenerateClasses(maxparamcount, outputfilename):
         outputfile.write("\n");
         
         outputfile.write("    // -- registration method\n");
-        outputfile.write("    virtual void Register() {\n");
-        outputfile.write("        CFunctionEntry* fe = new CFunctionEntry(0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);\n");
+        outputfile.write("    virtual void Register(CScriptContext* script_context) {\n");
+        outputfile.write("        CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);\n");
         outputfile.write("        SetContext(fe->GetContext());\n");
         outputfile.write("        GetContext()->AddParameter(\"__return\", Hash(\"__return\"), TYPE_void);\n");
         i = 1;
@@ -328,7 +359,7 @@ def GenerateClasses(maxparamcount, outputfilename):
             i = i + 1;
         outputfile.write("\n");
         outputfile.write("        unsigned int hash = fe->GetHash();\n");
-        outputfile.write("        tFuncTable* globalfunctable = CNamespace::FindNamespace(0)->GetFuncTable();\n");
+        outputfile.write("        tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();\n");
         outputfile.write("        globalfunctable->AddItem(*fe, hash);\n");
         outputfile.write("    }\n");
         outputfile.write("\n");
@@ -418,8 +449,8 @@ def GenerateClasses(maxparamcount, outputfilename):
         outputfile.write("\n");
         
         outputfile.write("    // -- registration method\n");
-        outputfile.write("    virtual void Register() {\n");
-        outputfile.write("        CFunctionEntry* fe = new CFunctionEntry(Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);\n");
+        outputfile.write("    virtual void Register(CScriptContext* script_context) {\n");
+        outputfile.write("        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);\n");
         outputfile.write("        SetContext(fe->GetContext());\n");
         outputfile.write("        GetContext()->AddParameter(\"__return\", Hash(\"__return\"), GetRegisteredType(GetTypeID<R>()));\n");
         i = 1;
@@ -520,8 +551,8 @@ def GenerateClasses(maxparamcount, outputfilename):
         outputfile.write("\n");
         
         outputfile.write("    // -- registration method\n");
-        outputfile.write("    virtual void Register() {\n");
-        outputfile.write("        CFunctionEntry* fe = new CFunctionEntry(Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);\n");
+        outputfile.write("    virtual void Register(CScriptContext* script_context) {\n");
+        outputfile.write("        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);\n");
         outputfile.write("        SetContext(fe->GetContext());\n");
         outputfile.write("        GetContext()->AddParameter(\"__return\", Hash(\"__return\"), TYPE_void);\n");
         i = 1;

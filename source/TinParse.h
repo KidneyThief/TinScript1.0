@@ -229,11 +229,11 @@ const char* ReadFileAllocBuf(const char* filename);
 CCompileTreeNode*& AppendToRoot(CCompileTreeNode& root);
 bool ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& root, tReadToken& filebuf,
                          bool requiresbraceclose);
-CCodeBlock* ParseFile(const char* filename);
-CCodeBlock* ParseText(const char* filename, const char* filebuf);
+CCodeBlock* ParseFile(CScriptContext* script_context, const char* filename);
+CCodeBlock* ParseText(CScriptContext* script_context, const char* filename, const char* filebuf);
 
 bool SaveBinary(CCodeBlock* codeblock, const char* binfilename);
-CCodeBlock* LoadBinary(const char* binfilename);
+CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename);
 
 bool TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
 bool TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
@@ -250,15 +250,17 @@ bool TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 bool TryParseDestroyObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
 
 // ------------------------------------------------------------------------------------------------
-CVariableEntry* AddVariable(tVarTable* curglobalvartable, CFunctionEntry* curfuncdefinition,
-                            const char* varname, unsigned int varhash, eVarType vartype);
-CVariableEntry* GetVariable(tVarTable* globalVarTable, unsigned int nshash, unsigned int funchash,
+CVariableEntry* AddVariable(CScriptContext* script_context, tVarTable* curglobalvartable,
+                            CFunctionEntry* curfuncdefinition, const char* varname,
+                            unsigned int varhash, eVarType vartype);
+CVariableEntry* GetVariable(CScriptContext* script_context, tVarTable* globalVarTable,
+                            unsigned int nshash, unsigned int funchash,
                             unsigned int varhash, unsigned int arrayvarhash);
 
-CFunctionEntry* FuncDeclaration(unsigned int namespacehash, const char* funcname, unsigned int funchash,
-                                EFunctionType type);
-CFunctionEntry* FuncDeclaration(CNamespace* nsentry, const char* funcname, unsigned int funchash,
-                                EFunctionType type);
+CFunctionEntry* FuncDeclaration(CScriptContext* script_context, unsigned int namespacehash,
+                                const char* funcname, unsigned int funchash, EFunctionType type);
+CFunctionEntry* FuncDeclaration(CScriptContext* script_context, CNamespace* nsentry,
+                                const char* funcname, unsigned int funchash, EFunctionType type);
 
 tExprParenDepthStack* GetGlobalParenStack();
 

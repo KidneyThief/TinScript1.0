@@ -32,42 +32,54 @@ class CFunctionContext;
 
 class CScheduler {
     public:
-        static void Initialize();
-        static void Shutdown();
-        static void Update(unsigned int curtime);
+
+        CScheduler(CScriptContext* script_context = NULL);
+        virtual ~CScheduler();
+
+        CScriptContext* GetScriptContext() {
+            return (mContextOwner);
+        }
+
+        void Update(uint32 curtime);
 
         class CCommand {
             public:
-                CCommand(int _reqid, unsigned int _objectid = 0, unsigned int _dispatchtime = 0,
-                         const char* _command = NULL);
-                CCommand(int _reqid, unsigned int _objectid, unsigned int _dispatchtime,
-                         unsigned int _funchash);
+                CCommand(CScriptContext* script_context, int _reqid, uint32 _objectid = 0,
+                         uint32 _dispatchtime = 0, const char* _command = NULL);
+                CCommand(CScriptContext* script_context, int _reqid, uint32 _objectid,
+                         uint32 _dispatchtime, uint32 _funchash);
 
                 virtual ~CCommand();
 
-                CCommand* prev;
-                CCommand* next;
+                CCommand* mPrev;
+                CCommand* mNext;
 
-                int reqid;
-                unsigned int objectid;
-                unsigned int dispatchtime;
-                char commandbuf[kMaxTokenLength];
+                CScriptContext* mContextOwner;
 
-                unsigned int funchash;
-                CFunctionContext* funccontext;
+                int mReqID;
+                uint32 mObjectID;
+                uint32 mDispatchTime;
+                char mCommandBuf[kMaxTokenLength];
+
+                uint32 mFuncHash;
+                CFunctionContext* mFuncContext;
         };
 
-        static int Schedule(unsigned int objectid, int delay, const char* commandstring);
-        static int Thread(int reqid, unsigned int objectid, int delay, const char* commandstring);
-        static void CancelObject(unsigned int objectid);
-        static void CancelRequest(int reqid);
-        static void Cancel(unsigned int objectid, int reqid);
-        static void Dump();
+        int Schedule(uint32 objectid, int delay, const char* commandstring);
+        int Thread(int reqid, uint32 objectid, int delay, const char* commandstring);
+        void CancelObject(uint32 objectid);
+        void CancelRequest(int reqid);
+        void Cancel(uint32 objectid, int reqid);
+        void Dump();
 
-        static CCommand* ScheduleCreate(unsigned int objectid, int delay, unsigned int funchash);
+        CCommand* ScheduleCreate(uint32 objectid, int delay, uint32 funchash);
+        CScheduler::CCommand* mCurrentSchedule;
 
     private:
-        static CCommand* head;
+        CScriptContext* mContextOwner;
+
+        CCommand* mHead;
+        uint32 mCurrentSimTime;
 };
 
 } // TinScript

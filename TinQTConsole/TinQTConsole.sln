@@ -1,0 +1,29 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual C++ Express 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TinQTConsole", "TinQTConsole.vcxproj", "{E9995DEE-FB14-412D-A9E6-7D7FF17016B8}"
+	ProjectSection(ProjectDependencies) = postProject
+		{24C5875A-E1CC-461A-8E8C-21C229379A49} = {24C5875A-E1CC-461A-8E8C-21C229379A49}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tinscript", "..\_build\tinscript.vcxproj", "{24C5875A-E1CC-461A-8E8C-21C229379A49}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E9995DEE-FB14-412D-A9E6-7D7FF17016B8}.Debug|Win32.ActiveCfg = Debug|Win32
+		{E9995DEE-FB14-412D-A9E6-7D7FF17016B8}.Debug|Win32.Build.0 = Debug|Win32
+		{E9995DEE-FB14-412D-A9E6-7D7FF17016B8}.Release|Win32.ActiveCfg = Release|Win32
+		{E9995DEE-FB14-412D-A9E6-7D7FF17016B8}.Release|Win32.Build.0 = Release|Win32
+		{24C5875A-E1CC-461A-8E8C-21C229379A49}.Debug|Win32.ActiveCfg = Debug|Win32
+		{24C5875A-E1CC-461A-8E8C-21C229379A49}.Debug|Win32.Build.0 = Debug|Win32
+		{24C5875A-E1CC-461A-8E8C-21C229379A49}.Release|Win32.ActiveCfg = Release|Win32
+		{24C5875A-E1CC-461A-8E8C-21C229379A49}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
