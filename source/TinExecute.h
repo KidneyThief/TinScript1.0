@@ -156,11 +156,12 @@ class CFunctionCallStack {
             }
         }
 
-        void BeginExecution() {
-			assert(stacktop > 0);
-            assert(funcentrystack[stacktop - 1].isexecuting == false);
-            funcentrystack[stacktop - 1].isexecuting = true;
-        }
+        int32 DebuggerGetCallstack(uint32* codeblock_array, uint32* objid_array,
+                                   uint32* namespace_array, uint32* func_array,
+                                   uint32* linenumber_array, int max_array_size);
+
+        void BeginExecution(const uint32* instrptr);
+        void BeginExecution();
 
         CFunctionEntry* GetExecuting(CObjectEntry*& objentry, int& varoffset) {
             int temp = stacktop - 1;
@@ -196,12 +197,14 @@ class CFunctionCallStack {
                 funcentry = _funcentry;
                 objentry = _objentry;
                 stackvaroffset = _varoffset;
+                linenumberfunccall = 0;
                 isexecuting = false;
             }
 
             CFunctionEntry* funcentry;
             CObjectEntry* objentry;
             int stackvaroffset;
+            uint32 linenumberfunccall;
             bool isexecuting;
         };
 

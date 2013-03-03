@@ -49,43 +49,7 @@
 
 namespace TinScript {
 
-CScriptContext* CScriptContext::gMainThreadContext = NULL;
-CHashTable<CScriptContext>* CScriptContext::gScriptContextList = NULL;
-
-CRegFunctionBase* CRegFunctionBase::gRegistrationList = NULL;
-
 static const char* gStringTableFileName = "stringtable.txt";
-
-// ------------------------------------------------------------------------------------------------
-// --  CRegisterGlobal  ---------------------------------------------------------------------------
-
-CRegisterGlobal* CRegisterGlobal::head = NULL;
-CRegisterGlobal::CRegisterGlobal(const char* _name, TinScript::eVarType _type, void* _addr) {
-    name = _name;
-    type = _type;
-    addr = _addr;
-    next = NULL;
-
-    // -- if we've got and address, hook it into the linked list for registration
-    if(name && name[0] && addr) {
-        next = head;
-        head = this;
-    }
-}
-
-void CRegisterGlobal::RegisterGlobals(CScriptContext* script_context) {
-    CRegisterGlobal* global = CRegisterGlobal::head;
-    while(global) {
-        // -- create the var entry, add it to the global namespace
-        CVariableEntry* ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, script_context, global->name,
-                                                                      global->type, global->addr);
-	    uint32 hash = ve->GetHash();
-	    script_context->GetGlobalNamespace()->GetVarTable()->AddItem(*ve, hash);
-
-        // -- next registration object
-        global = global->next;
-    }
-}
 
 // ------------------------------------------------------------------------------------------------
 void CScriptContext::ResetAssertStack() {
@@ -125,7 +89,7 @@ CScriptContext* CScriptContext::FindThreadContext(const char* thread_name) {
     }
 
     // -- same code as used when creating - if no thread name is given, assume MainThread
-    if(thread_name == NULL || thread_name == '\0' || !_stricmp(thread_name, kMainThreadName)) {
+    if(thread_name == NULL || thread_name[0] == '\0' || !_stricmp(thread_name, kMainThreadName)) {
         thread_name = kMainThreadName;
     }
 
@@ -174,6 +138,9 @@ CScriptContext::CScriptContext(const char* thread_name, TinPrintHandler printfun
     // -- create the global namespace for this context
     mGlobalNamespace = FindOrCreateNamespace(NULL, true);
 
+    // -- register the context functions (default functions available to every context)
+    RegisterContextFunctions();
+
     // -- register functions, each to their namespace
     CRegFunctionBase* regfunc = CRegFunctionBase::gRegistrationList;
     while(regfunc != NULL) {
@@ -206,6 +173,14 @@ CScriptContext::CScriptContext(const char* thread_name, TinPrintHandler printfun
 
     // -- add this context to the list
     gScriptContextList->AddItem(*this, mHash);
+
+    // -- register the debugger interface separately
+    mBreakpointCallback = NULL;
+    mCallstackCallback = NULL;
+    mCodeblockLoadedCallback = NULL;
+
+    mDebuggerBreakStep = false;
+    mDebuggerLastBreak = -1;
 }
 
 void CScriptContext::InitializeDictionaries() {
@@ -357,7 +332,6 @@ void CScriptContext::ShutdownDictionaries() {
         TinFree(mNameDictionary);
     }
 }
-
 
 void CScriptContext::Update(uint32 curtime) {
     mScheduler->Update(curtime);
@@ -691,6 +665,13 @@ bool8 CScriptContext::ExecScript(const char* filename) {
         codeblock = LoadBinary(this, binfilename);
     }
 
+    // -- notify the debugger
+    // $$$TZA in a connected tool, we actually need to wait until the tool has a chance
+    // -- to send the list of breakpoints for this codeblock
+    if(codeblock) {
+        NotifyCodeblockLoaded(codeblock->GetFilenameHash());
+    }
+
     // -- execute the codeblock
     bool8 result = true;
     if(codeblock) {
@@ -743,6 +724,126 @@ bool8 CScriptContext::ExecCommand(const char* statement) {
 }
 
 // ------------------------------------------------------------------------------------------------
+// -- debugger interface
+void CScriptContext::SetBreakpointCallback(DebuggerBreakpointHit breakpoint_callback) {
+    mBreakpointCallback = breakpoint_callback;
+}
+
+void CScriptContext::SetCallstackCallback(DebuggerCallstackFunc callstack_callback) {
+    mCallstackCallback = callstack_callback;
+}
+
+void CScriptContext::SetCodeblockLoadedCallback(CodeblockLoadedFunc codeblock_callback) {
+    mCodeblockLoadedCallback = codeblock_callback;
+}
+
+bool8 CScriptContext::NotifyBreakpointHit(uint32 codeblock_hash, int32& line_number) {
+
+    // -- no debugger registered - return true - allows us to keep running
+    if(!mBreakpointCallback)
+        return (true);
+
+    // -- otherwise, let the callback determine if we should run or step
+    else {
+        bool8 continue_run = mBreakpointCallback(codeblock_hash, line_number);
+        return (continue_run);
+    }
+}
+
+void CScriptContext::NotifyCallstack(uint32* codeblock_array, uint32* objid_array,
+                                     uint32* namespace_array,uint32* func_array,
+                                     uint32* linenumber_array, int array_size) {
+    if(!mCallstackCallback)
+        return;
+    mCallstackCallback(codeblock_array, objid_array, namespace_array, func_array,
+                       linenumber_array, array_size);
+}
+
+void CScriptContext::NotifyCodeblockLoaded(uint32 codeblock_hash) {
+    if(mCodeblockLoadedCallback) {
+        mCodeblockLoadedCallback(codeblock_hash);
+    }
+}
+
+void CScriptContext::RegisterDebugger(const char* thread_name,
+                                      DebuggerBreakpointHit breakpoint_func,
+                                      DebuggerCallstackFunc callstack_func,
+                                      CodeblockLoadedFunc codeblock_func) {
+    CScriptContext* script_context = FindThreadContext(thread_name);
+    if(script_context) {
+        script_context->SetBreakpointCallback(breakpoint_func);
+        script_context->SetCallstackCallback(callstack_func);
+        script_context->SetCodeblockLoadedCallback(codeblock_func);
+    }
+}
+
+int32 CScriptContext::AddBreakpoint(const char* thread_name, const char* filename,
+                                    int32 line_number) {
+
+    // -- sanity check
+    if(!filename || !filename[0])
+        return (-1);
+
+    CScriptContext* script_context = FindThreadContext(thread_name);
+    if(!script_context) {
+        return (-1);
+    }
+
+    // -- find the code block within the thread
+    uint32 filename_hash = Hash(filename);
+    CCodeBlock* code_block = script_context->GetCodeBlockList()->FindItem(filename_hash);
+    if(! code_block) {
+        return (-1);
+    }
+
+    // -- add the breakpoint
+    return (code_block->AddBreakpoint(line_number));
+}
+
+int32 CScriptContext::RemoveBreakpoint(const char* thread_name, const char* filename,
+                                      int32 line_number) {
+    // -- sanity check
+    if(!filename || !filename[0])
+        return (-1);
+
+    CScriptContext* script_context = FindThreadContext(thread_name);
+    if(!script_context) {
+        return (-1);
+    }
+
+    // -- find the code block within the thread
+    uint32 filename_hash = Hash(filename);
+    CCodeBlock* code_block = script_context->GetCodeBlockList()->FindItem(filename_hash);
+    if(! code_block) {
+        return (-1);
+    }
+
+    // -- add the breakpoint
+    return (code_block->RemoveBreakpoint(line_number));
+}
+
+void CScriptContext::RemoveAllBreakpoints(const char* thread_name, const char* filename) {
+    // -- sanity check
+    if(!filename || !filename[0])
+        return;
+
+    CScriptContext* script_context = FindThreadContext(thread_name);
+    if(!script_context) {
+        return;
+    }
+
+    // -- find the code block within the thread
+    uint32 filename_hash = Hash(filename);
+    CCodeBlock* code_block = script_context->GetCodeBlockList()->FindItem(filename_hash);
+    if(! code_block) {
+        return;
+    }
+
+    code_block->RemoveAllBreakpoints();
+
+}
+
+// ------------------------------------------------------------------------------------------------
 // -- TinScript functions and registrations
 // ------------------------------------------------------------------------------------------------
 bool8 Compile(const char* filename) {
@@ -758,49 +859,6 @@ bool8 ExecScript(const char* filename) {
 // $$$TZA More ThreadSafe stuff
 REGISTER_FUNCTION_P1(Compile, Compile, bool8, const char*);
 REGISTER_FUNCTION_P1(Exec, ExecScript, bool8, const char*);
-
-// ------------------------------------------------------------------------------------------------
-// -- $$$TZA this is the registered interface - use the main thread
-
-bool8 IsObject(uint32 objectid) {
-    bool8 found =
-        CScriptContext::GetMainThreadContext()->FindObject(objectid) != NULL;
-    return found;
-}
-
-void* FindObject(uint32 objectid) {
-    return CScriptContext::GetMainThreadContext()->FindObject(objectid);
-}
-
-uint32 FindObjectByName(const char* objname) {
-    TinScript::CObjectEntry* oe =
-        CScriptContext::GetMainThreadContext()->FindObjectByName(objname);
-    return oe ? oe->GetID() : 0;
-}
-
-void AddDynamicVariable(uint32 objectid, const char* varname, const char* vartype) {
-    // -- $$$TZA this is the registered interface - use the main thread
-    CScriptContext* script_context = CScriptContext::GetMainThreadContext();
-    script_context->AddDynamicVariable(objectid, varname, vartype);
-}
-
-void LinkNamespaces(const char* childns, const char* parentns) {
-    // -- $$$TZA this is the registered interface - use the main thread
-    CScriptContext* script_context = CScriptContext::GetMainThreadContext();
-    script_context->LinkNamespaces(childns, parentns);
-}
-
-void ListObjects() {
-    // -- $$$TZA this is the registered interface - use the main thread
-    CScriptContext* script_context = CScriptContext::GetMainThreadContext();
-    script_context->ListObjects();
-}
-
-REGISTER_FUNCTION_P1(IsObject, IsObject, bool8, uint32);
-REGISTER_FUNCTION_P1(FindObjectByName, FindObjectByName, uint32, const char*);
-REGISTER_FUNCTION_P3(AddDynamicVariable, AddDynamicVariable, void, uint32, const char*, const char*);
-REGISTER_FUNCTION_P2(LinkNamespaces, LinkNamespaces, void, const char*, const char*);
-REGISTER_FUNCTION_P0(ListObjects, ListObjects, void);
 
 } // TinScript
 

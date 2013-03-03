@@ -33,46 +33,48 @@
 // -- These macros are included by DECLARE_SCRIPT_CLASS and IMPLEMENT_SCRIPT_CLASS...
 // -- not to be used independently (or publicly unless you know what you're doing!)
 // $$$TZA More MainThread issues
-#define SCRIPT_DEFAULT_METHODS(classname)                                                    \
-    static uint32 classname##GetObjectID(classname* obj);                              \
-    static const char* classname##GetObjectName(classname* obj);                             \
-    static void classname##ListMembers(classname* obj);                                      \
+#define SCRIPT_DEFAULT_METHODS(classname)                                                           \
+    static uint32 classname##GetObjectID(classname* obj);                                           \
+    static const char* classname##GetObjectName(classname* obj);                                    \
+    static void classname##ListMembers(classname* obj);                                             \
     static void classname##ListMethods(classname* obj);
 
-#define IMPLEMENT_DEFAULT_METHODS(classname)                                                 \
-    static uint32 classname##GetObjectID(classname* obj) {                             \
-        return TinScript::CScriptContext::GetMainThreadContext()->FindIDByAddress((void*)obj);                           \
-    }                                                                                        \
-    static TinScript::CRegMethodP0<classname, uint32>                                  \
-        _reg_##classname##GetObjectID                                                        \
-        ("GetObjectID", classname##GetObjectID);                                             \
-                                                                                             \
-    static const char* classname##GetObjectName(classname* obj) {                            \
-        TinScript::CObjectEntry* oe =                                                        \
-            TinScript::CScriptContext::GetMainThreadContext()->FindObjectByAddress((void*)obj);                          \
-        return oe ? oe->GetName() : "";                                                      \
-    }                                                                                        \
-    static TinScript::CRegMethodP0<classname, const char*>                                   \
-        _reg_##classname##GetObjectName                                                      \
-        ("GetObjectName", classname##GetObjectName);                                         \
-                                                                                             \
-    static void classname##ListMembers(classname* obj) {                                     \
-        TinScript::CObjectEntry* oe =                                                        \
-            TinScript::CScriptContext::GetMainThreadContext()->FindObjectByAddress((void*)obj);                          \
-        TinScript::DumpVarTable(oe);                                                         \
-    }                                                                                        \
-    static TinScript::CRegMethodP0<classname, void>                                          \
-        _reg_##classname##ListMembers                                                        \
-        ("ListMembers", classname##ListMembers);                                             \
-                                                                                             \
-    static void classname##ListMethods(classname* obj) {                                     \
-        TinScript::CObjectEntry* oe =                                                        \
-            TinScript::CScriptContext::GetMainThreadContext()->FindObjectByAddress((void*)obj);                          \
-        TinScript::DumpFuncTable(oe);                                                        \
-    }                                                                                        \
-    static TinScript::CRegMethodP0<classname, void>                                          \
-        _reg_##classname##ListMethods                                                        \
-        ("ListMethods", classname##ListMethods);                                             \
+#define IMPLEMENT_DEFAULT_METHODS(classname)                                                        \
+    static uint32 classname##GetObjectID(TinScript::CScriptContext* script_context,                 \
+                                         classname* obj) {                                          \
+        return script_context->FindIDByAddress((void*)obj);                                         \
+    }                                                                                               \
+    static TinScript::CRegContextMethodP0<classname, uint32>                                        \
+        _reg_##classname##GetObjectID                                                               \
+        ("GetObjectID", classname##GetObjectID);                                                    \
+                                                                                                    \
+    static const char* classname##GetObjectName(TinScript::CScriptContext* script_context,          \
+                                                classname* obj) {                                   \
+        TinScript::CObjectEntry* oe =                                                               \
+            script_context->FindObjectByAddress((void*)obj);                                        \
+        return oe ? oe->GetName() : "";                                                             \
+    }                                                                                               \
+    static TinScript::CRegContextMethodP0<classname, const char*>                                   \
+        _reg_##classname##GetObjectName                                                             \
+        ("GetObjectName", classname##GetObjectName);                                                \
+                                                                                                    \
+    static void classname##ListMembers(TinScript::CScriptContext* script_context, classname* obj) { \
+        TinScript::CObjectEntry* oe =                                                               \
+            script_context->FindObjectByAddress((void*)obj);                                        \
+        TinScript::DumpVarTable(oe);                                                                \
+    }                                                                                               \
+    static TinScript::CRegContextMethodP0<classname, void>                                          \
+        _reg_##classname##ListMembers                                                               \
+        ("ListMembers", classname##ListMembers);                                                    \
+                                                                                                    \
+    static void classname##ListMethods(TinScript::CScriptContext* script_context, classname* obj) { \
+        TinScript::CObjectEntry* oe =                                                               \
+            script_context->FindObjectByAddress((void*)obj);                                        \
+        TinScript::DumpFuncTable(oe);                                                               \
+    }                                                                                               \
+    static TinScript::CRegContextMethodP0<classname, void>                                          \
+        _reg_##classname##ListMethods                                                               \
+        ("ListMethods", classname##ListMethods);                                                    \
 
 
 namespace TinScript {
@@ -130,24 +132,6 @@ class CObjectEntry {
         CNamespace* mObjectNamespace;
         void* mObjectAddr;
         CHashTable<CVariableEntry>* mDynamicVariables;
-};
-
-// ------------------------------------------------------------------------------------------------
-class CNamespaceContext {
-
-    public:
-
-        CNamespaceContext(CScriptContext* script_context);
-        virtual ~CNamespaceContext();
-
-        CScriptContext* GetScriptContext() {
-            return (mContextOwner);
-        }
-
-    private:
-
-        CScriptContext* mContextOwner;
-
 };
 
 // ------------------------------------------------------------------------------------------------

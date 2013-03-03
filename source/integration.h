@@ -67,6 +67,7 @@ typedef float           float32;
     AllocTypeEntry(CreateObj)       \
     AllocTypeEntry(StringTable)     \
     AllocTypeEntry(FileBuf)         \
+    AllocTypeEntry(Debugger)        \
 
 enum eAllocType {
     #define AllocTypeEntry(a) ALLOC_##a,

@@ -29,6 +29,7 @@
 #define __TINHASH_H
 
 #include "assert.h"
+#include "stdio.h"
 
 namespace TinScript {
 

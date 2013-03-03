@@ -668,6 +668,57 @@ bool8 CopyStackParameters(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& exec
     return true;
 }
 
+int32 CFunctionCallStack::DebuggerGetCallstack(uint32* codeblock_array, uint32* objid_array,
+                                               uint32* namespace_array, uint32* func_array,
+                                               uint32* linenumber_array, int max_array_size) {
+
+    int entry_count = 0;
+    int temp = stacktop - 1;
+    while(temp >= 0 && entry_count < max_array_size) {
+        if(funcentrystack[temp].isexecuting) {
+            CCodeBlock* codeblock = NULL;
+            funcentrystack[temp].funcentry->GetCodeBlockOffset(codeblock);
+            uint32 codeblock_hash = codeblock->GetFilenameHash();
+            uint32 objid = funcentrystack[temp].objentry ? funcentrystack[temp].objentry->GetID() : 0;
+            uint32 namespace_hash = funcentrystack[temp].funcentry->GetNamespaceHash();
+            uint32 func_hash = funcentrystack[temp].funcentry->GetHash();
+            uint32 linenumber = funcentrystack[temp].linenumberfunccall;
+
+            codeblock_array[entry_count] = codeblock_hash;
+            objid_array[entry_count] = objid;
+            namespace_array[entry_count] = namespace_hash;
+            func_array[entry_count] = func_hash;
+            linenumber_array[entry_count] = linenumber;
+            ++entry_count;
+        }
+        --temp;
+    }
+    return (entry_count);
+}
+
+void CFunctionCallStack::BeginExecution(const uint32* instrptr) {
+    // -- the top entry on the function stack is what we're about to call...
+    // -- the stacktop - 2, therefore, is the calling function (if it exists)...
+    // -- tag it with the offset into the codeblock, for a debugger callstack
+    if (stacktop >= 2 && funcentrystack[stacktop - 2].funcentry->GetType() == eFuncTypeScript) {
+        CCodeBlock* callingfunc_cb = NULL;
+        funcentrystack[stacktop - 2].funcentry->GetCodeBlockOffset(callingfunc_cb);
+        funcentrystack[stacktop - 2].linenumberfunccall = callingfunc_cb->CalcLineNumber(instrptr);
+    }
+
+    BeginExecution();
+}
+
+void CFunctionCallStack::BeginExecution() {
+	assert(stacktop > 0);
+    assert(funcentrystack[stacktop - 1].isexecuting == false);
+    funcentrystack[stacktop - 1].isexecuting = true;
+
+    // -- calling a new function - possibly the same as the function we're in -
+    // -- reset the debugger line break
+    funcentrystack[stacktop - 1].funcentry->GetScriptContext()->mDebuggerLastBreak = -1;
+}
+
 bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
                            CFunctionCallStack& funccallstack) {
 
@@ -691,6 +742,11 @@ bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
 
         // -- execute the function via codeblock/offset
         bool8 success = funccb->Execute(funcoffset, execstack, funccallstack);
+
+        // -- reset debug break members
+        funccb->GetScriptContext()->mDebuggerBreakStep = false;
+        funccb->GetScriptContext()->mDebuggerLastBreak = -1;
+
         if(!success) {
             ScriptAssert_(fe->GetScriptContext(), 0, "<internal>", -1,
                           "Error - error executing function: %s()\n",
@@ -844,8 +900,48 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 
 	while (instrptr != NULL) {
 
+        // -- see if there's a breakpoint set for this line
+        if(GetScriptContext()->mDebuggerBreakStep || HasBreakpoints()) {
+            // -- get the current line number - see if we should break
+            int32 cur_line = CalcLineNumber(instrptr);
+
+            // -- if we're stepping, and we're on a different line, or if
+            // -- we're not stepping, and on a different line, and this new line has a breakpoint
+            if((GetScriptContext()->mDebuggerBreakStep &&
+                GetScriptContext()->mDebuggerLastBreak != cur_line) ||
+                (!GetScriptContext()->mDebuggerBreakStep &&
+                 cur_line != GetScriptContext()->mDebuggerLastBreak &&
+                 mBreakpoints->FindItem(cur_line))) {
+
+                GetScriptContext()->mDebuggerLastBreak = cur_line;
+
+                // -- build the callstack arrays
+                // $$$TZA when this is a connected tool, we'll need to handle this as a handshake
+                uint32 codeblock_array[kDebuggerCallstackSize];
+                uint32 objid_array[kDebuggerCallstackSize];
+                uint32 namespace_array[kDebuggerCallstackSize];
+                uint32 func_array[kDebuggerCallstackSize];
+                uint32 linenumber_array[kDebuggerCallstackSize];
+                int32 stack_size =
+                    funccallstack.DebuggerGetCallstack(codeblock_array, objid_array,
+                                                       namespace_array, func_array,
+                                                       linenumber_array, kDebuggerCallstackSize);
+                // -- note - the line number for the function we're currently in, won't have been set
+                // -- in the function call stack
+                linenumber_array[0] = cur_line;
+
+                GetScriptContext()->NotifyCallstack(codeblock_array, objid_array,
+                                                    namespace_array, func_array,
+                                                    linenumber_array, stack_size);
+
+                bool8 continue_to_run = GetScriptContext()->NotifyBreakpointHit(GetFilenameHash(), cur_line);
+                GetScriptContext()->mDebuggerBreakStep = !continue_to_run;
+            }
+        }
+
 		// -- get the operation and process it
 		eOpCode curoperation = (eOpCode)(*instrptr++);
+
 		switch (curoperation) {
 			case OP_NOP:
                 DebugTrace(curoperation, "");
@@ -1387,6 +1483,8 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 
 			case OP_FuncCallArgs:
 			{
+                // -- we're about to call a new function - from this point in the currently executing function
+
 				// -- get the hash of the function name
 				uint32 nshash = *instrptr++;
 				uint32 funchash = *instrptr++;
@@ -1520,7 +1618,7 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
                 // -- notify the stack that we're now actually executing the top function
                 // -- this is to ensure that stack variables now reference this function's
                 // -- reserved space on the stack.
-                funccallstack.BeginExecution();
+                funccallstack.BeginExecution(instrptr - 1);
 
                 DebugTrace(curoperation, "func: %s", UnHash(fe->GetHash()));
 

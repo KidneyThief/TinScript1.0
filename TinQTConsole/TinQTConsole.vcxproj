@@ -57,7 +57,7 @@
       <AdditionalDependencies>..\..\Qt\5.0.1\msvc2010\lib\Qt5Widgets.lib;..\..\Qt\5.0.1\msvc2010\lib\Qt5Core.lib;..\..\Qt\5.0.1\msvc2010\lib\Qt5Gui.lib;$(IntDir)tinscript.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>..\..\Qt\5.0.1\msvc2010\bin\moc.exe TinQTConsole.h &gt; TinQTMoc.cpp</Command>
+      <Command>TinQTMoc.bat</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -88,7 +88,9 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="TinQTBreakpointsWin.cpp" />
     <ClCompile Include="TinQTConsole.cpp" />
+    <ClCompile Include="TinQTSourceWin.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -506,7 +506,11 @@ class CCodeBlock {
         }
 
         const char* GetFileName() const {
-            return mFileName;
+            return (mFileName);
+        }
+
+        uint32 GetFilenameHash() const {
+            return (mFileNameHash);
         }
 
         void AddLineNumber(int linenumber, uint32* instrptr) {
@@ -549,7 +553,7 @@ class CCodeBlock {
                 uint32 offset = mLineNumbers[lineindex] >> 16;
                 uint32 line = mLineNumbers[lineindex] & 0xffff;
                 if(curoffset < offset && line != 0xffff)
-                    return (line - 1); // text editors count from 1
+                    return (line);
                 ++lineindex;
             } while (lineindex < mLineNumberCount);
 
@@ -585,6 +589,13 @@ class CCodeBlock {
 
         CFunctionCallStack* smFuncDefinitionStack;
         tVarTable* smCurrentGlobalVarTable;
+
+        // -- debugger interface
+        bool8 HasBreakpoints();
+        int32 AdjustLineNumber(int32 line_number);
+        int32 AddBreakpoint(int32 line_number);
+        int32 RemoveBreakpoint(int32 line_number);
+        void RemoveAllBreakpoints();
 
         static void DestroyCodeBlock(CCodeBlock* codeblock) {
             if(!codeblock)
@@ -634,6 +645,9 @@ class CCodeBlock {
 
         // -- need to keep a list of all functions that are tied to this codeblock
         tFuncTable* mFunctionList;
+
+        // -- keep a list of all lines to be broken on, for this code block
+        CHashTable<int32>* mBreakpoints;
 };
 
 // ------------------------------------------------------------------------------------------------

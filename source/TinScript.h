@@ -102,6 +102,9 @@ const int32 kMaxArgLength = 256;
 
 const int32 kScriptContextThreadSize = 7;
 
+const int32 kDebuggerCallstackSize = 32;
+const int32 kBreakpointTableSize = 17;
+
 const int32 kGlobalFuncTableSize = 97;
 const int32 kGlobalVarTableSize = 97;
 
@@ -129,7 +132,6 @@ class CCodeBlock;
 class CStringTable;
 class CScheduler;
 class CScriptContext;
-class CNamespaceContext;
 class CObjectEntry;
 
 typedef CHashTable<CVariableEntry> tVarTable;
@@ -177,6 +179,8 @@ class CScriptContext {
         void ShutdownDictionaries();
 
         void Update(uint32 curtime);
+
+        void RegisterContextFunctions();
 
         static CCodeBlock* CompileScript(CScriptContext* script_context, const char* filename);
         bool8 ExecScript(const char* filename);
@@ -252,6 +256,38 @@ class CScriptContext {
             return (gScriptContextList);
         }
 
+        // -- debugger interface
+        typedef bool8 (*DebuggerBreakpointHit)(uint32 codeblock_hash, int32& line_number);
+        typedef void (*DebuggerCallstackFunc)(uint32* codeblock_array, uint32* objid_array,
+                                              uint32* namespace_array, uint32* func_array,
+                                              uint32* linenumber_array, int array_size);
+        typedef void (*CodeblockLoadedFunc)(uint32 codeblock_hash);
+
+        void SetBreakpointCallback(DebuggerBreakpointHit breakpoint_callback);
+        void SetCallstackCallback(DebuggerCallstackFunc callstack_callback);
+        void SetCodeblockLoadedCallback(CodeblockLoadedFunc codeblock_callback);
+
+        bool NotifyBreakpointHit(uint32 codeblock_hash, int32& line_number);
+        void NotifyCallstack(uint32* codeblock_array, uint32* objid_array,
+                             uint32* namespace_array,uint32* func_array,
+                             uint32* linenumber_array, int array_size);
+        void NotifyCodeblockLoaded(uint32 codeblock_hash);
+
+        static void RegisterDebugger(const char* thread_name,
+                                     DebuggerBreakpointHit breakpoint_func = NULL,
+                                     DebuggerCallstackFunc callstack_func = NULL,
+                                     CodeblockLoadedFunc codeblock_func = NULL);
+
+        static int32 AddBreakpoint(const char* thread_name, const char* filename,
+                                   int32 line_number);
+        static int32 RemoveBreakpoint(const char* thread_name, const char* filename,
+                                      int32 line_number);
+        static void RemoveAllBreakpoints(const char* thread_name, const char* filename);
+
+        // -- set the bool to indicate we're not stepping through each line in a debugger
+        bool8 mDebuggerBreakStep;
+        int32 mDebuggerLastBreak;
+
     private:
         static CScriptContext* gMainThreadContext;
         static CHashTable<CScriptContext>* gScriptContextList;
@@ -282,6 +318,11 @@ class CScriptContext {
 
         // -- context scheduler
         CScheduler* mScheduler;
+
+        // -- debugger interface
+        DebuggerBreakpointHit mBreakpointCallback;
+        DebuggerCallstackFunc mCallstackCallback;
+        CodeblockLoadedFunc mCodeblockLoadedCallback;
 };
 
 }  // TinScript

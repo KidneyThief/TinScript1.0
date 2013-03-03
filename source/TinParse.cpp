@@ -614,30 +614,31 @@ void DumpVarTable(CObjectEntry* oe) {
 
     CNamespace* curentry = oe->GetNamespace();
     while(curentry) {
-        printf("\nNamespace: %s\n", UnHash(curentry->GetHash()));
-        DumpVarTable(oe, curentry->GetVarTable());
+        TinPrint(oe->GetScriptContext(), "\nNamespace: %s\n", UnHash(curentry->GetHash()));
+        DumpVarTable(oe->GetScriptContext(), oe, curentry->GetVarTable());
         curentry = curentry->GetNext();
     }
 }
 
-void DumpVarTable(CObjectEntry* oe, const tVarTable* vartable) {
+void DumpVarTable(CScriptContext* script_context, CObjectEntry* oe, const tVarTable* vartable) {
 	// -- sanity check
-	if(!oe && !vartable)
+	if(!script_context || (!oe && !vartable))
 		return;
 
     void* objaddr = oe ? oe->GetAddr() : NULL;
 
-	printf("=== VarTable Begin ===\n");
+	TinPrint(script_context, "=== VarTable Begin ===\n");
 	for(uint32 i = 0; i < vartable->Size(); ++i) {
 		CVariableEntry* ve = vartable->FindItemByBucket(i);
 		while(ve) {
 			char valbuf[kMaxTokenLength];
 			gRegisteredTypeToString[ve->GetType()](ve->GetValueAddr(objaddr), valbuf, kMaxTokenLength);
-			printf("[%s] %s: %s\n", gRegisteredTypeNames[ve->GetType()], ve->GetName(), valbuf);
+			TinPrint(script_context, "[%s] %s: %s\n", gRegisteredTypeNames[ve->GetType()],
+                     ve->GetName(), valbuf);
 			ve = vartable->GetNextItemInBucket(i);
 		}
 	}
-	printf("=== VarTable End ===\n");
+	TinPrint(script_context, "=== VarTable End ===\n");
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -648,26 +649,26 @@ void DumpFuncTable(CObjectEntry* oe) {
 
     CNamespace* curentry = oe->GetNamespace();
     while(curentry) {
-        printf("\nNamespace: %s\n", UnHash(curentry->GetHash()));
-        DumpFuncTable(curentry->GetFuncTable());
+        TinPrint(oe->GetScriptContext(), "\nNamespace: %s\n", UnHash(curentry->GetHash()));
+        DumpFuncTable(oe->GetScriptContext(), curentry->GetFuncTable());
         curentry = curentry->GetNext();
     }
 }
 
-void DumpFuncTable(const tFuncTable* functable) {
+void DumpFuncTable(CScriptContext* script_context, const tFuncTable* functable) {
 	// -- sanity check
-	if(!functable)
+	if(!functable || !script_context)
 		return;
 
-	printf("=== FuncTable Begin ===\n");
+	TinPrint(script_context, "=== FuncTable Begin ===\n");
 	for(uint32 i = 0; i < functable->Size(); ++i) {
 		CFunctionEntry* fe = functable->FindItemByBucket(i);
 		while(fe) {
-			printf("%s()\n", UnHash(fe->GetHash()));
+			TinPrint(script_context, "%s()\n", UnHash(fe->GetHash()));
 			fe = functable->GetNextItemInBucket(i);
 		}
 	}
-	printf("=== FuncTable End ===\n");
+	TinPrint(script_context, "=== FuncTable End ===\n");
 }
 
 // ------------------------------------------------------------------------------------------------

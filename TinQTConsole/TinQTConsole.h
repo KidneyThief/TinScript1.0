@@ -25,17 +25,26 @@
 #ifndef __TINQTCONSOLE_H
 #define __TINQTCONSOLE_H
 
+#include <qlineedit.h>
+#include <qpushbutton.h>
+#include <qlayout.h>
+#include <qlabel.h>
+
 class CConsoleInput;
 class CConsoleOutput;
+class CDebugSourceWin;
+class CDebugToolBar;
+class QGridLayout;
+class CDebugBreakpointsWin;
+class CDebugCallstackWin;
 
 class CConsoleWindow {
     public:
         CConsoleWindow();
         virtual ~CConsoleWindow();
+        static CConsoleWindow* GetInstance() { return (gConsoleWindow); }
 
-        int Exec() {
-            return mApp->exec();
-        }
+        int Exec();
 
         // -- scripted methods
         void Quit() { mQuit = true; }
@@ -48,17 +57,43 @@ class CConsoleWindow {
         void AddText(char* msg);
 
         // -- Qt component accessors
-        CConsoleOutput* GetOutput() { return mConsoleOutput; }
-        CConsoleInput* GetInput() { return mConsoleInput; }
+        CConsoleOutput* GetOutput() { return (mConsoleOutput); }
+        CConsoleInput* GetInput() { return (mConsoleInput); }
+        QLineEdit* GetFileLineEdit() { return (mFileLineEdit); }
+        CDebugSourceWin* GetDebugSourceWin() { return (mDebugSourceWin); }
+        CDebugBreakpointsWin* GetDebugBreakpointsWin() { return (mBreakpointsWin); }
+        CDebugCallstackWin* GetDebugCallstackWin() { return (mCallstackWin); }
 
         // -- Qt components
         QApplication* mApp;
         QWidget* mMainWindow;
         QGridLayout* mGridLayout;
+
         CConsoleOutput* mConsoleOutput;
         CConsoleInput* mConsoleInput;
+        CDebugSourceWin* mDebugSourceWin;
+        CDebugBreakpointsWin* mBreakpointsWin;
+        CDebugCallstackWin* mCallstackWin;
+
+        QHBoxLayout* mToolbarLayout;
+        QLabel* mFileLabel;
+        QLineEdit* mFileLineEdit;
+        QPushButton* mButtonRun;
+        QPushButton* mButtonStep;
+        QPushButton* mButtonPause;
+        QWidget* mSpacer;
+
+        // -- debugger methods
+        int32 ToggleBreakpoint(uint32 codeblock_hash, int32 line_number, bool add, bool enable);
+
+        void HandleBreakpointHit(const char* breakpoint_msg);
+        bool mBreakpointRun;
+        bool mBreakpointStep;
+
 
     private:
+        static CConsoleWindow* gConsoleWindow;
+
         // -- pause/unpause members
         bool mQuit;
         bool mPaused;
@@ -73,6 +108,10 @@ class CConsoleInput : public QLineEdit {
 
     public slots:
         void OnReturnPressed();
+        void OnFileEditReturnPressed();
+        void OnButtonRunPressed();
+        void OnButtonStepPressed();
+        void OnButtonPausePressed();
 
     protected:
         virtual void keyPressEvent(QKeyEvent * event);
@@ -95,6 +134,7 @@ class CConsoleOutput : public QListWidget {
         virtual ~CConsoleOutput();
 
         static const unsigned int kUpdateTime = 33;
+        int32 GetSimTime() { return (mCurrentTime); }
 
     public slots:
         void Update();
@@ -106,6 +146,9 @@ class CConsoleOutput : public QListWidget {
 
         unsigned int mCurrentTime;
 };
+
+TinScript::CScriptContext* GetScriptContext();
+int ConsolePrint(const char* fmt, ...);
 
 #endif
 

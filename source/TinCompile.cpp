@@ -838,7 +838,9 @@ int32 CParenOpenNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 CFuncDeclNode::CFuncDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
                              const char* _funcname, int32 _length, const char* _funcns,
                              int32 _funcnslength) :
-                             CCompileTreeNode(_codeblock, _link, eFuncDecl, _linenumber) {
+                             CCompileTreeNode(_codeblock, _link, eFuncDecl, -1) {
+    // -- note:  this is the one node, where a line number is not applicable, as function
+    // -- function declarations are not executable statements
     SafeStrcpy(funcname, _funcname, _length + 1);
     SafeStrcpy(funcnamespace, _funcns, _funcnslength + 1);
 
@@ -1356,6 +1358,7 @@ CCodeBlock::CCodeBlock(CScriptContext* script_context, const char* _filename) {
     smFuncDefinitionStack = TinAlloc(ALLOC_FuncCallStack, CFunctionCallStack, kFunctionCallStackSize);
     smCurrentGlobalVarTable = TinAlloc(ALLOC_VarTable, tVarTable, kLocalVarTableSize);
     mFunctionList = TinAlloc(ALLOC_FuncTable, tFuncTable, kLocalFuncTableSize);
+    mBreakpoints = TinAlloc(ALLOC_Debugger, CHashTable<int32>, kBreakpointTableSize);
 
     // -- add to the resident list of codeblocks, if a name was given
     mFileName[0] = '\0';
@@ -1382,6 +1385,10 @@ CCodeBlock::~CCodeBlock() {
 
     if(mLineNumbers)
         TinFreeArray(mLineNumbers);
+
+    // -- clear out the breakpoints list
+    mBreakpoints->RemoveAll();
+    TinFree(mBreakpoints);
 }
 
 int32 CCodeBlock::CalcInstrCount(const CCompileTreeNode& root) {
@@ -1421,6 +1428,47 @@ bool8 CCodeBlock::CompileTree(const CCompileTreeNode& root) {
 	assert(mInstrCount == verifysize >> 2);
 
 	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+// -- debugger interface
+bool8 CCodeBlock::HasBreakpoints() {
+    return (mBreakpoints->Used() > 0);
+}
+
+int32 CCodeBlock::AdjustLineNumber(int32 line_number) {
+    // -- sanity check
+    if(mLineNumberCount == 0)
+        return (0);
+
+    // -- ensure the line number we're attempting to set, is one that will actually execute
+    for(uint32 i = 0; i < mLineNumberCount; ++i) {
+        int32 instr_line_number = mLineNumbers[i] & 0xffff;
+        if(instr_line_number != 0xffff && instr_line_number >= line_number) {
+            return (mLineNumbers[i] & 0xffff);
+        }
+    }
+
+    // -- return the last line
+    return (mLineNumbers[mLineNumberCount - 1] & 0xffff);
+}
+
+int32 CCodeBlock::AddBreakpoint(int32 line_number) {
+    int32 adjusted_line_number = AdjustLineNumber(line_number);
+    if(!mBreakpoints->FindItem(adjusted_line_number)) {
+        mBreakpoints->AddItem(adjusted_line_number, adjusted_line_number);
+    }
+    return (adjusted_line_number);
+}
+
+int32 CCodeBlock::RemoveBreakpoint(int32 line_number) {
+    int32 adjusted_line_number = AdjustLineNumber(line_number);
+    mBreakpoints->RemoveItem(adjusted_line_number);
+    return (adjusted_line_number);
+}
+
+void CCodeBlock::RemoveAllBreakpoints() {
+    mBreakpoints->RemoveAll();
 }
 
 // ------------------------------------------------------------------------------------------------

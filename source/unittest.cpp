@@ -333,7 +333,6 @@ void BeginUnitTests(int32 teststart, int32 testend)
     }
 
     // --
-    // $$$TZA need to fix up FindObject() to be thread safe
     ++testindex;
     CBase* testobj = NULL;
     if(testindex >= teststart && testindex <= testend) {

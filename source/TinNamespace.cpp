@@ -121,7 +121,7 @@ bool8 CObjectEntry::AddDynamicVariable(uint32 varhash, eVarType vartype) {
 }
 
 // ------------------------------------------------------------------------------------------------
-// -- CNamespaceContext
+// -- CVariableEntry
 // ------------------------------------------------------------------------------------------------
 
 CVariableEntry* CNamespace::GetVarEntry(uint32 varhash) {
@@ -478,7 +478,7 @@ void CScriptContext::ListObjects() {
     for(int32 i = 0; i < kObjectTableSize; ++i) {
         CObjectEntry* oe = GetObjectDictionary()->FindItemByBucket(i);
         while(oe) {
-            printf("%d: %s\n", oe->GetID(), UnHash(oe->GetNamespace()->GetHash()));
+            TinPrint(this, "%d: %s\n", oe->GetID(), UnHash(oe->GetNamespace()->GetHash()));
             oe = GetObjectDictionary()->GetNextItemInBucket(i);
         }
     }
@@ -507,60 +507,6 @@ CNamespace::~CNamespace() {
 }
 
 };
-
-// ------------------------------------------------------------------------------------------------
-// $$$TZA Move these to a "set current context / call context method" version
-/*
-void ListVariables(uint32 objectid) {
-    if(objectid > 0) {
-        TinScript::CObjectEntry* oe = TinScript::CNamespace::FindObject(objectid);
-        if(!oe) {
-            ScriptAssert_(0, "<internal>", -1, "Error - Unable to find object: %d\n", objectid);
-        }
-        else {
-            TinScript::DumpVarTable(oe);
-        }
-    }
-    else {
-        TinScript::DumpVarTable(NULL, TinScript::GetGlobalNamespace()->GetVarTable());
-    }
-}
-
-void ListFunctions(uint32 objectid) {
-    if(objectid > 0) {
-        TinScript::CObjectEntry* oe = TinScript::CNamespace::FindObject(objectid);
-        if(!oe) {
-            ScriptAssert_(0, "<internal>", -1, "Error - Unable to find object: %d\n", objectid);
-        }
-        else {
-            TinScript::DumpFuncTable(oe);
-        }
-    }
-    else {
-        TinScript::DumpFuncTable(TinScript::GetGlobalNamespace()->GetFuncTable());
-    }
-}
-
-const char* GetObjectNamespace(uint32 objectid) {
-    if(objectid > 0) {
-        TinScript::CObjectEntry* oe = TinScript::CNamespace::FindObject(objectid);
-        if(!oe) {
-            return "";
-        }
-        else {
-            return TinScript::UnHash(oe->GetNamespace()->GetHash());
-        }
-    }
-    else {
-        return "";
-    }
-}
-*/
-
-// $$$TZA Move these to a "set current context / call context method" version
-//REGISTER_FUNCTION_P1(ListVariables, ListVariables, void, uint32);
-//REGISTER_FUNCTION_P1(ListFunctions, ListFunctions, void, uint32);
-//REGISTER_FUNCTION_P1(GetObjectNamespace, GetObjectNamespace, const char*, uint32);
 
 // ------------------------------------------------------------------------------------------------
 // eof

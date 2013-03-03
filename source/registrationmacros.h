@@ -28,6 +28,9 @@
 #define REGISTER_FUNCTION_P0(scriptname, funcname, R) \
     static TinScript::CRegFunctionP0<R> _reg_##scriptname(#scriptname, funcname);
 
+#define CONTEXT_FUNCTION_P0(scriptname, funcname, R) \
+    static TinScript::CRegContextFunctionP0<R> _reg_##scriptname(#scriptname, funcname);
+
 #define REGISTER_METHOD_P0(classname, scriptname, methodname, R)    \
     static R classname##methodname(classname* obj) {    \
         return obj->methodname();    \
@@ -37,6 +40,9 @@
 // -- Parameter count: 1
 #define REGISTER_FUNCTION_P1(scriptname, funcname, R, T1) \
     static TinScript::CRegFunctionP1<R, T1> _reg_##scriptname(#scriptname, funcname);
+
+#define CONTEXT_FUNCTION_P1(scriptname, funcname, R, T1) \
+    static TinScript::CRegContextFunctionP1<R, T1> _reg_##scriptname(#scriptname, funcname);
 
 #define REGISTER_METHOD_P1(classname, scriptname, methodname, R, T1)    \
     static R classname##methodname(classname* obj, T1 t1) {    \
@@ -48,6 +54,9 @@
 #define REGISTER_FUNCTION_P2(scriptname, funcname, R, T1, T2) \
     static TinScript::CRegFunctionP2<R, T1, T2> _reg_##scriptname(#scriptname, funcname);
 
+#define CONTEXT_FUNCTION_P2(scriptname, funcname, R, T1, T2) \
+    static TinScript::CRegContextFunctionP2<R, T1, T2> _reg_##scriptname(#scriptname, funcname);
+
 #define REGISTER_METHOD_P2(classname, scriptname, methodname, R, T1, T2)    \
     static R classname##methodname(classname* obj, T1 t1, T2 t2) {    \
         return obj->methodname(t1, t2);    \
@@ -57,6 +66,9 @@
 // -- Parameter count: 3
 #define REGISTER_FUNCTION_P3(scriptname, funcname, R, T1, T2, T3) \
     static TinScript::CRegFunctionP3<R, T1, T2, T3> _reg_##scriptname(#scriptname, funcname);
+
+#define CONTEXT_FUNCTION_P3(scriptname, funcname, R, T1, T2, T3) \
+    static TinScript::CRegContextFunctionP3<R, T1, T2, T3> _reg_##scriptname(#scriptname, funcname);
 
 #define REGISTER_METHOD_P3(classname, scriptname, methodname, R, T1, T2, T3)    \
     static R classname##methodname(classname* obj, T1 t1, T2 t2, T3 t3) {    \
@@ -68,6 +80,9 @@
 #define REGISTER_FUNCTION_P4(scriptname, funcname, R, T1, T2, T3, T4) \
     static TinScript::CRegFunctionP4<R, T1, T2, T3, T4> _reg_##scriptname(#scriptname, funcname);
 
+#define CONTEXT_FUNCTION_P4(scriptname, funcname, R, T1, T2, T3, T4) \
+    static TinScript::CRegContextFunctionP4<R, T1, T2, T3, T4> _reg_##scriptname(#scriptname, funcname);
+
 #define REGISTER_METHOD_P4(classname, scriptname, methodname, R, T1, T2, T3, T4)    \
     static R classname##methodname(classname* obj, T1 t1, T2 t2, T3 t3, T4 t4) {    \
         return obj->methodname(t1, t2, t3, t4);    \
@@ -77,6 +92,9 @@
 // -- Parameter count: 5
 #define REGISTER_FUNCTION_P5(scriptname, funcname, R, T1, T2, T3, T4, T5) \
     static TinScript::CRegFunctionP5<R, T1, T2, T3, T4, T5> _reg_##scriptname(#scriptname, funcname);
+
+#define CONTEXT_FUNCTION_P5(scriptname, funcname, R, T1, T2, T3, T4, T5) \
+    static TinScript::CRegContextFunctionP5<R, T1, T2, T3, T4, T5> _reg_##scriptname(#scriptname, funcname);
 
 #define REGISTER_METHOD_P5(classname, scriptname, methodname, R, T1, T2, T3, T4, T5)    \
     static R classname##methodname(classname* obj, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5) {    \
@@ -88,6 +106,9 @@
 #define REGISTER_FUNCTION_P6(scriptname, funcname, R, T1, T2, T3, T4, T5, T6) \
     static TinScript::CRegFunctionP6<R, T1, T2, T3, T4, T5, T6> _reg_##scriptname(#scriptname, funcname);
 
+#define CONTEXT_FUNCTION_P6(scriptname, funcname, R, T1, T2, T3, T4, T5, T6) \
+    static TinScript::CRegContextFunctionP6<R, T1, T2, T3, T4, T5, T6> _reg_##scriptname(#scriptname, funcname);
+
 #define REGISTER_METHOD_P6(classname, scriptname, methodname, R, T1, T2, T3, T4, T5, T6)    \
     static R classname##methodname(classname* obj, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6) {    \
         return obj->methodname(t1, t2, t3, t4, t5, t6);    \
@@ -98,6 +119,9 @@
 #define REGISTER_FUNCTION_P7(scriptname, funcname, R, T1, T2, T3, T4, T5, T6, T7) \
     static TinScript::CRegFunctionP7<R, T1, T2, T3, T4, T5, T6, T7> _reg_##scriptname(#scriptname, funcname);
 
+#define CONTEXT_FUNCTION_P7(scriptname, funcname, R, T1, T2, T3, T4, T5, T6, T7) \
+    static TinScript::CRegContextFunctionP7<R, T1, T2, T3, T4, T5, T6, T7> _reg_##scriptname(#scriptname, funcname);
+
 #define REGISTER_METHOD_P7(classname, scriptname, methodname, R, T1, T2, T3, T4, T5, T6, T7)    \
     static R classname##methodname(classname* obj, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6, T7 t7) {    \
         return obj->methodname(t1, t2, t3, t4, t5, t6, t7);    \
@@ -107,6 +131,9 @@
 // -- Parameter count: 8
 #define REGISTER_FUNCTION_P8(scriptname, funcname, R, T1, T2, T3, T4, T5, T6, T7, T8) \
     static TinScript::CRegFunctionP8<R, T1, T2, T3, T4, T5, T6, T7, T8> _reg_##scriptname(#scriptname, funcname);
+
+#define CONTEXT_FUNCTION_P8(scriptname, funcname, R, T1, T2, T3, T4, T5, T6, T7, T8) \
+    static TinScript::CRegContextFunctionP8<R, T1, T2, T3, T4, T5, T6, T7, T8> _reg_##scriptname(#scriptname, funcname);
 
 #define REGISTER_METHOD_P8(classname, scriptname, methodname, R, T1, T2, T3, T4, T5, T6, T7, T8)    \
     static R classname##methodname(classname* obj, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6, T7 t7, T8 t8) {    \

@@ -275,9 +275,9 @@ void DestroyTree(CCompileTreeNode* root);
 
 int CalcVarTableSize(tVarTable* vartable);
 void DumpVarTable(CObjectEntry* oe);
-void DumpVarTable(CObjectEntry* oe, const tVarTable* vartable);
+void DumpVarTable(CScriptContext* script_context, CObjectEntry* oe, const tVarTable* vartable);
 void DumpFuncTable(CObjectEntry* oe);
-void DumpFuncTable(const tFuncTable* functable);
+void DumpFuncTable(CScriptContext* script_context, const tFuncTable* functable);
 
 // ------------------------------------------------------------------------------------------------
 

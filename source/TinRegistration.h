@@ -181,6 +181,14 @@ class CRegFunctionBase {
             return funcname;
         }
 
+        void SetScriptContext(CScriptContext* script_context) {
+            mScriptContext = script_context;
+        }
+
+        CScriptContext* GetScriptContext() {
+            return (mScriptContext);
+        }
+
         void SetContext(CFunctionContext* fe) {
             funccontext = fe;
         }
@@ -202,6 +210,7 @@ class CRegFunctionBase {
     private:
         const char* funcname;
         CFunctionContext* funccontext;
+        CScriptContext* mScriptContext;
 
         CRegFunctionBase* next;
 };

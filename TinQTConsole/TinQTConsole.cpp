@@ -37,6 +37,7 @@
 #include <QTimer>
 #include <QKeyEvent>
 #include <QMessageBox>
+#include <qcolor.h>
 
 #include "qmainwindow.h"
 #include "qmetaobject.h"
@@ -46,17 +47,24 @@
 #include "TinRegistration.h"
 
 #include "TinQTConsole.h"
+#include "TinQTSourceWin.h"
+#include "TinQTBreakpointsWin.h"
 
 // ------------------------------------------------------------------------------------------------
 // -- override the macro from integration.h
 #undef TinPrint
 #define TinPrint Print
 
-TinScript::CScriptContext* gScriptContext = NULL;
+static TinScript::CScriptContext* gScriptContext = NULL;
+TinScript::CScriptContext* GetScriptContext() {
+    return (gScriptContext);
+}
 
 // ------------------------------------------------------------------------------------------------
-CConsoleWindow* gConsoleWindow = NULL;
+CConsoleWindow* CConsoleWindow::gConsoleWindow = NULL;
 CConsoleWindow::CConsoleWindow() {
+    // -- set the singleton
+    gConsoleWindow = this;
 
     // -- create the Qt application components
     int argcount = 0;
@@ -66,7 +74,7 @@ CConsoleWindow::CConsoleWindow() {
 
     // -- create the main window
     mMainWindow = new QWidget();
-    mMainWindow->resize(QSize(640, 480));
+    mMainWindow->resize(QSize(1200, 800));
 
     // -- create the output widget
     mConsoleOutput = new CConsoleOutput(this);
@@ -76,30 +84,97 @@ CConsoleWindow::CConsoleWindow() {
     mConsoleInput = new CConsoleInput(this);
     mConsoleInput->setFixedHeight(24);
 
+    // -- create the debugger components
+    mToolbarLayout = new QHBoxLayout();
+    mFileLabel = new QLabel("File:");
+    mFileLineEdit = new QLineEdit();
+    mButtonRun = new QPushButton();
+    mButtonRun->setText("Run");
+    mButtonRun->setGeometry(0, 0, 32, 24); 
+    mButtonStep = new QPushButton();
+    mButtonStep->setText("Step");
+    mButtonStep->setGeometry(0, 0, 32, 24);
+    mButtonPause = new QPushButton();
+    mButtonPause->setText("Pause");
+    mButtonPause->setGeometry(0, 0, 32, 24);
+    mSpacer = new QWidget();
+
+    mToolbarLayout->addWidget(mFileLabel);
+    mToolbarLayout->addWidget(mFileLineEdit);
+    mToolbarLayout->addWidget(mButtonRun);
+    mToolbarLayout->addWidget(mButtonStep);
+    mToolbarLayout->addWidget(mButtonPause);
+    mToolbarLayout->addWidget(mSpacer, 1);
+
+    mDebugSourceWin = new CDebugSourceWin(this);
+
+    // -- create the breakpoints window
+    mBreakpointsWin = new CDebugBreakpointsWin(this);
+
+    // -- create the callstack window
+    mCallstackWin = new CDebugCallstackWin(this);
+
+    // -- column 0
     mGridLayout = new QGridLayout();
-    mGridLayout->addWidget(mConsoleOutput, 0, 0, 1, Qt::AlignLeft);
-    mGridLayout->addWidget(mConsoleInput, 1, 0, 1, Qt::AlignLeft);
+    mGridLayout->addLayout(mToolbarLayout,  0, 0, 1, Qt::AlignLeft);
+    mGridLayout->addWidget(mDebugSourceWin, 1, 0, 1, Qt::AlignLeft);
+    mGridLayout->addWidget(mConsoleOutput,  2, 0, 1, Qt::AlignLeft);
+    mGridLayout->addWidget(mConsoleInput,   3, 0, 1, Qt::AlignLeft);
+
+    // -- column 1
+    mGridLayout->addWidget(mCallstackWin,   1, 1, 1, Qt::AlignLeft);
+    mGridLayout->addWidget(mBreakpointsWin, 2, 1, 1, Qt::AlignLeft);
 
     // -- connect the widgets
     QObject::connect(mConsoleInput, SIGNAL(returnPressed()), mConsoleInput, SLOT(OnReturnPressed()));
 
+    QObject::connect(mDebugSourceWin, SIGNAL(itemDoubleClicked(QListWidgetItem*)), mDebugSourceWin,
+                                      SLOT(OnDoubleClicked(QListWidgetItem*)));
+
+    QObject::connect(mFileLineEdit, SIGNAL(returnPressed()), mConsoleInput,
+                                    SLOT(OnFileEditReturnPressed()));
+
+    QObject::connect(mButtonRun, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonRunPressed()));
+    QObject::connect(mButtonStep, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonStepPressed()));
+    QObject::connect(mButtonPause, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonPausePressed()));
+
+    QObject::connect(mCallstackWin, SIGNAL(itemDoubleClicked(QListWidgetItem*)), mCallstackWin,
+                                    SLOT(OnDoubleClicked(QListWidgetItem*)));
+
+    QObject::connect(mBreakpointsWin, SIGNAL(itemDoubleClicked(QListWidgetItem*)), mBreakpointsWin,
+                                      SLOT(OnDoubleClicked(QListWidgetItem*)));
+    QObject::connect(mBreakpointsWin, SIGNAL(itemClicked(QListWidgetItem*)), mBreakpointsWin,
+                                      SLOT(OnClicked(QListWidgetItem*)));
+
     mMainWindow->setLayout(mGridLayout);
     mMainWindow->show();
 
-    // -- force the console input to hold on to keyboard focus
-    mConsoleInput->grabKeyboard();
-
     // -- initialize the running members
     mQuit = false;
-    mPaused = false;;
+    mPaused = false;
 }
 
 CConsoleWindow::~CConsoleWindow() {
+    delete mFileLabel;
+    delete mFileLineEdit;
+    delete mButtonRun;
+    delete mButtonStep;
+    delete mButtonPause;
+    delete mSpacer;
+    delete mToolbarLayout;
+
+    delete mCallstackWin;
+    delete mBreakpointsWin;
+    delete mDebugSourceWin;
     delete mConsoleInput;
     delete mConsoleOutput;
     delete mGridLayout;
     delete mMainWindow;
     delete mApp;
+}
+
+int CConsoleWindow::Exec() {
+    return mApp->exec();
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -114,7 +189,7 @@ int ConsolePrint(const char* fmt, ...) {
     vsprintf_s(buffer, 2048, fmt, args);
     va_end(args);
 
-    gConsoleWindow->AddText(buffer);
+    CConsoleWindow::GetInstance()->AddText(buffer);
     return(0);
 }
 
@@ -159,6 +234,99 @@ bool8 AssertHandler(const char* condition, const char* file,
     return true;
 }
 
+// ------------------------------------------------------------------------------------------------
+void PushBreakpointDialog(const char* breakpoint_msg) {
+    QMessageBox msgBox;
+    msgBox.setModal(true);
+    msgBox.setText(breakpoint_msg);
+    msgBox.show();
+}
+
+// ------------------------------------------------------------------------------------------------
+int32 CConsoleWindow::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number,
+                                       bool add, bool enable) {
+    const char* filename = TinScript::UnHash(codeblock_hash);
+    if(!filename)
+        return (-1);
+
+    // -- three components need to be informed:  the script context
+    int32 actual_line = add && enable ?
+                        GetScriptContext()->AddBreakpoint("", filename, line_number) :
+                        GetScriptContext()->RemoveBreakpoint("", filename, line_number);
+
+    // -- if the codeblock hasn't yet been compiled (loaded), use the original line_number
+    if(actual_line < 0)
+        actual_line = line_number;
+
+    // -- the Source Window
+    GetDebugSourceWin()->ToggleBreakpoint(codeblock_hash, actual_line, add, enable);
+
+    // -- the Breakpoints Window
+    GetDebugBreakpointsWin()->ToggleBreakpoint(codeblock_hash, actual_line, add, enable);
+
+    return (actual_line);
+}
+
+// ------------------------------------------------------------------------------------------------
+void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg) {
+    mBreakpointRun = false;
+    mBreakpointStep = false;
+
+    // -- highlight the button in green
+    mButtonRun->setAutoFillBackground(true);
+	QPalette myPalette = mButtonRun->palette();
+	myPalette.setColor(QPalette::Button, Qt::red);	
+	mButtonRun->setPalette(myPalette);
+
+    while(!mBreakpointRun && !mBreakpointStep) {
+        QCoreApplication::processEvents();
+    }
+
+    // -- back to normal color
+	myPalette.setColor(QPalette::Button, Qt::transparent);	
+	mButtonRun->setPalette(myPalette);
+
+    // -- clear the callstack
+    GetDebugCallstackWin()->ClearCallstack();
+}
+
+// ------------------------------------------------------------------------------------------------
+// -- debugger support
+bool8 DebuggerBreakpointHit(uint32 codeblock_hash, int32& line_number) {
+    bool8 press_ignore_run = false;
+    bool8 press_trace_step = false;
+    char breakpoint_msg[256];
+    sprintf_s(breakpoint_msg, 256, "Break on line: %d", line_number);
+
+    // -- set the PC
+    CConsoleWindow::GetInstance()->mDebugSourceWin->SetCurrentPC(codeblock_hash, line_number);
+
+    // -- loop until we press either "Run" or "Step"
+    CConsoleWindow::GetInstance()->HandleBreakpointHit(breakpoint_msg);
+
+    // -- clear the PC
+    CConsoleWindow::GetInstance()->mDebugSourceWin->SetCurrentPC(codeblock_hash, -1);
+
+    // -- return true if we're supposed to keep running
+    if(CConsoleWindow::GetInstance()->mBreakpointRun)
+        return (true);
+
+    // -- otherwise return false, to step to the next statement
+    else
+        return (false);
+}
+
+void NotifyCallstack(uint32* codeblock_array, uint32* objid_array, uint32* namespace_array,
+                     uint32* func_array, uint32* linenumber_array, int array_size) {
+    CConsoleWindow::GetInstance()->GetDebugCallstackWin()->
+        NotifyCallstack(codeblock_array, objid_array, namespace_array,
+                        func_array, linenumber_array, array_size);
+}
+
+void NotifyCodeblockLoaded(uint32 codeblock_hash) {
+    CConsoleWindow::GetInstance()->GetDebugBreakpointsWin()->NotifyCodeblockLoaded(codeblock_hash);
+}
+        
 // ------------------------------------------------------------------------------------------------
 void CConsoleWindow::AddText(char* msg) {
     if(!msg)
@@ -205,6 +373,41 @@ void CConsoleInput::OnReturnPressed() {
 
     gScriptContext->ExecCommand(input_text);
     setText("");
+}
+
+void CConsoleInput::OnFileEditReturnPressed() {
+    QLineEdit* fileedit = CConsoleWindow::GetInstance()->GetFileLineEdit();
+    QString filename = fileedit->text();
+    CConsoleWindow::GetInstance()->GetDebugSourceWin()->OpenSourceFile(filename.toUtf8());
+}
+
+void CConsoleInput::OnButtonRunPressed() {
+    CConsoleWindow::GetInstance()->mBreakpointRun = true;
+}
+
+void CConsoleInput::OnButtonStepPressed() {
+    CConsoleWindow::GetInstance()->mBreakpointStep = true;
+}
+
+void CConsoleInput::OnButtonPausePressed() {
+    mOwner->mButtonPause->setAutoFillBackground(true);
+	QPalette myPalette = mOwner->mButtonPause->palette();
+
+    bool is_paused = mOwner->IsPaused();
+    if(is_paused) {
+        mOwner->Unpause();
+        mOwner->mButtonPause->setText("Pause");
+
+        myPalette.setColor(QPalette::Button, Qt::transparent);	
+	    mOwner->mButtonPause->setPalette(myPalette);
+    }
+    else {
+        mOwner->Pause();
+        mOwner->mButtonPause->setText("Unpause");
+
+        myPalette.setColor(QPalette::Button, Qt::red);	
+	    mOwner->mButtonPause->setPalette(myPalette);
+    }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -328,8 +531,12 @@ int _tmain(int argc, _TCHAR* argv[])
     // -- initialize
     gScriptContext = TinScript::CScriptContext::Create("", ConsolePrint, AssertHandler);
 
-    gConsoleWindow = new CConsoleWindow();
-    int result = gConsoleWindow->Exec();
+    // -- register the debugger breakpoint function
+    gScriptContext->RegisterDebugger("", DebuggerBreakpointHit, NotifyCallstack,
+                                     NotifyCodeblockLoaded);
+
+    new CConsoleWindow();
+    int result = CConsoleWindow::GetInstance()->Exec();
 
     // -- shutdown
     TinScript::CScriptContext::Destroy(gScriptContext);
@@ -339,20 +546,28 @@ int _tmain(int argc, _TCHAR* argv[])
 
 // ------------------------------------------------------------------------------------------------
 void Quit() {
-    gConsoleWindow->Quit();
+    CConsoleWindow::GetInstance()->Quit();
 }
 
 void Pause() {
-    gConsoleWindow->Pause();
+    CConsoleWindow::GetInstance()->Pause();
 }
 
 void Unpause() {
-    gConsoleWindow->Unpause();
+    CConsoleWindow::GetInstance()->Unpause();
+}
+
+float32 GetSimTime() {
+    int32 cur_time = CConsoleWindow::GetInstance()->GetOutput()->GetSimTime();
+    float32 seconds = (float32)cur_time / 1000.0f;
+    return (seconds);
 }
 
 REGISTER_FUNCTION_P0(Quit, Quit, void);
 REGISTER_FUNCTION_P0(Pause, Pause, void);
 REGISTER_FUNCTION_P0(Unpause, Unpause, void);
+
+REGISTER_FUNCTION_P0(GetSimTime, GetSimTime, float32);
 
 void Print(const char* string) {
     ConsolePrint(string);
@@ -361,7 +576,7 @@ void Print(const char* string) {
 REGISTER_FUNCTION_P1(Print, Print, void, const char*);
 
 // ------------------------------------------------------------------------------------------------
-#include "TinQTMoc.cpp"
+#include "TinQTConsoleMoc.cpp"
 
 // ------------------------------------------------------------------------------------------------
 // eof
