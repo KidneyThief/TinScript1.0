@@ -60,35 +60,43 @@
             TinFree(obj);                                                                         \
         }                                                                                         \
     }                                                                                             \
-    uint32 GetObjectID() const {                                                                  \
-        return TinScript::CScriptContext::GetMainThreadContext()->FindIDByAddress((void*)this);  \
-    }                                                                                             \
     SCRIPT_DEFAULT_METHODS(classname);                                                            \
-    static void Register(TinScript::CNamespace* _classnamespace);                                 \
-    static TinScript::CNamespace* classnamespace;
+    static void Register(::TinScript::CScriptContext* script_context, ::TinScript::CNamespace* _classnamespace);    \
 
-#define IMPLEMENT_SCRIPT_CLASS(classname, parentname)                                        \
-    TinScript::CNamespace* classname::classnamespace = NULL;                                 \
-    TinScript::CNamespaceReg reg_##classname(#classname, #parentname, classname::Create,     \
-                                             classname::Destroy, classname::Register,        \
-                                             &classname::classnamespace);                    \
-    IMPLEMENT_DEFAULT_METHODS(classname);                                                    \
-    void classname::Register(TinScript::CNamespace *classnamespace)
+#define IMPLEMENT_SCRIPT_CLASS_BEGIN(classname, parentname)                                             \
+    ::TinScript::CNamespaceReg reg_##classname(#classname, #parentname, (void*)classname::Create,       \
+                                             (void*)classname::Destroy, (void*)classname::Register);    \
+    IMPLEMENT_DEFAULT_METHODS(classname);                                                               \
+    void classname::Register(::TinScript::CScriptContext* script_context, ::TinScript::CNamespace* classnamespace)  \
+    {                                                                                                   \
+        Unused_(script_context);                                                                        \
+        Unused_(classnamespace);
 
-#define REGISTER_MEMBER(classname, scriptname, membername)                                   \
-    {                                                                                        \
-        classname* classptr = reinterpret_cast<classname*>(0);                               \
-        uint32 varhash = TinScript::Hash(#scriptname);                                       \
-        TinScript::CVariableEntry* ve =                                                      \
-            TinAlloc(ALLOC_VarEntry, TinScript::CVariableEntry, TinScript::CScriptContext::GetMainThreadContext(), #scriptname, varhash,        \
-            TinScript::GetRegisteredType(TinScript::GetTypeID(classptr->membername)), true,  \
-            offsetof(classname, membername));                                                \
-        classnamespace->GetVarTable()->AddItem(*ve, varhash);                                \
+#define IMPLEMENT_SCRIPT_CLASS_END()    \
+    }
+
+#define REGISTER_MEMBER(classname, scriptname, membername)                                              \
+    {                                                                                                   \
+        classname* classptr = reinterpret_cast<classname*>(0);                                          \
+        uint32 varhash = ::TinScript::Hash(#scriptname);                                                \
+        ::TinScript::CVariableEntry* ve =                                                               \
+            TinAlloc(ALLOC_VarEntry, ::TinScript::CVariableEntry, script_context, #scriptname, varhash, \
+            ::TinScript::GetRegisteredType(::TinScript::GetTypeID(classptr->membername)), true,         \
+            Offsetof_(classname, membername));                                                          \
+        classnamespace->GetVarTable()->AddItem(*ve, varhash);                                           \
     }
 
 #define REGISTER_GLOBAL_VAR(scriptname, var)                                                 \
-    TinScript::CRegisterGlobal _reg_gv_##scriptname(#scriptname,                             \
-        TinScript::GetRegisteredType(TinScript::GetTypeID(var)), (void*)&var);
+    ::TinScript::CRegisterGlobal _reg_gv_##scriptname(#scriptname,                           \
+        ::TinScript::GetRegisteredType(::TinScript::GetTypeID(var)), (void*)&var);
+
+#define DECLARE_FILE(filename) \
+    bool8 g_##filename##_registered = false;
+
+#define REGISTER_FILE(filename) \
+    extern bool8 g_##filename##_registered; \
+    g_##filename##_registered = true;
+
 
 // ------------------------------------------------------------------------------------------------
 // constants
@@ -118,7 +126,8 @@ const int32 kStringTableDictionarySize = 199;
 
 const int32 kObjectTableSize = 10007;
 
-#define kBytesToWordCount(a) ((a) + 3) / 4;
+const int32 kMasterMembershipTableSize = 97;
+const int32 kObjectGroupTableSize = 17;
 
 namespace TinScript {
 
@@ -133,6 +142,7 @@ class CStringTable;
 class CScheduler;
 class CScriptContext;
 class CObjectEntry;
+class CMasterMembershipList;
 
 typedef CHashTable<CVariableEntry> tVarTable;
 typedef CHashTable<CFunctionEntry> tFuncTable;
@@ -143,8 +153,7 @@ void LoadStringTable(CScriptContext* script_context);
 // --Global Var Registration-----------------------------------------------------------------------
 class CRegisterGlobal {
     public:
-        CRegisterGlobal(const char* _name = NULL, TinScript::eVarType _type = TinScript::TYPE_NULL,
-                        void* _addr = NULL);
+        CRegisterGlobal(const char* _name = NULL, eVarType _type = TYPE_NULL, void* _addr = NULL);
         virtual ~CRegisterGlobal() { }
 
         static void RegisterGlobals(CScriptContext* script_context);
@@ -173,7 +182,7 @@ class CScriptContext {
 
         CScriptContext(const char* thread_name = NULL, TinPrintHandler printhandler = NULL,
                        TinAssertHandler asserthandler = NULL);
-        void CScriptContext::InitializeDictionaries();
+        void InitializeDictionaries();
 
         virtual ~CScriptContext();
         void ShutdownDictionaries();
@@ -212,6 +221,10 @@ class CScriptContext {
             return (mScheduler);
         }
 
+        CMasterMembershipList* GetMasterMembershipList() {
+            return (mMasterMembershipList);
+        }
+
         CHashTable<CNamespace>* GetNamespaceDictionary() {
             return (mNamespaceDictionary);
         }
@@ -236,7 +249,7 @@ class CScriptContext {
         static uint32 GetNextObjectID();
         uint32 CreateObject(uint32 classhash, uint32 objnamehash);
         uint32 RegisterObject(void* objaddr, const char* classname, const char* objectname);
-        void DestroyObject(uint32 objectid);
+        void DestroyObject(uint32 objectid, bool8 unregister_only = false);
 
         bool8 IsObject(uint32 objectid);
         void* FindObject(uint32 objectid);
@@ -245,6 +258,9 @@ class CScriptContext {
         CObjectEntry* FindObjectByName(const char* objname);
         CObjectEntry* FindObjectEntry(uint32 objectid);
         uint32 FindIDByAddress(void* addr);
+
+        bool8 HasMethod(void* addr, const char* method_name);
+        bool8 HasMethod(uint32 objectid, const char* method_name);
 
         void AddDynamicVariable(uint32 objectid, uint32 varhash,
                                        eVarType vartype);
@@ -318,6 +334,9 @@ class CScriptContext {
 
         // -- context scheduler
         CScheduler* mScheduler;
+
+        // -- master object list
+        CMasterMembershipList* mMasterMembershipList;
 
         // -- debugger interface
         DebuggerBreakpointHit mBreakpointCallback;

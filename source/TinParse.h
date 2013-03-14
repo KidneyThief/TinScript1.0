@@ -192,7 +192,7 @@ struct tReadToken
 		inbufptr = _in.inbufptr;
 		tokenptr = _in.tokenptr;
 		length = _in.length;
-        eTokenType type = _in.type;
+        type = _in.type;
 		linenumber = _in.linenumber;
 	}
 
@@ -200,15 +200,15 @@ struct tReadToken
 		inbufptr = _inbufptr;
 		tokenptr = NULL;
 		length = 0;
-		eTokenType type = TOKEN_NULL;
+		type = TOKEN_NULL;
 		linenumber = _linenumber;
 	}
 
 	const char* inbufptr;
 	const char* tokenptr;
-	int length;
+	int32 length;
 	eTokenType type;
-	int linenumber;
+	int32 linenumber;
 
 	private:
 		tReadToken() { }

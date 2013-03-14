@@ -25,6 +25,8 @@
 
 #include "stdafx.h"
 #include "TinRegistration.h"
+#include "TinScheduler.h"
+#include "TinObjectGroup.h"
 #include "TinScript.h"
 
 // ------------------------------------------------------------------------------------------------
@@ -36,8 +38,6 @@ CScriptContext* CScriptContext::gMainThreadContext = NULL;
 CHashTable<CScriptContext>* CScriptContext::gScriptContextList = NULL;
 
 CRegFunctionBase* CRegFunctionBase::gRegistrationList = NULL;
-
-static const char* gStringTableFileName = "stringtable.txt";
 
 // ------------------------------------------------------------------------------------------------
 // --  CRegisterGlobal  ---------------------------------------------------------------------------
@@ -73,6 +73,20 @@ void CRegisterGlobal::RegisterGlobals(CScriptContext* script_context) {
 // ------------------------------------------------------------------------------------------------
 // -- Set of functions that all access the interals of the ScriptContext...
 // -- need to be regeistered separately, as they all take a CScriptContext* as the first param
+
+void ContextPrint(CScriptContext* script_context, const char* msg) {
+    TinPrint(script_context, "%s\n", msg);
+}
+
+bool8 ContextCompile(CScriptContext* script_context, const char* filename) {
+    CCodeBlock* result = TinScript::CScriptContext::CompileScript(script_context, filename);
+    script_context->ResetAssertStack();
+    return (result != NULL);
+}
+
+bool8 ContextExecScript(CScriptContext* script_context, const char* filename) {
+    return (script_context->ExecScript(filename));
+}
 
 void ContextListObjects(CScriptContext* script_context) {
     script_context->ListObjects();
@@ -146,9 +160,38 @@ const char* ContextGetObjectNamespace(CScriptContext* script_context, uint32 obj
     }
 }
 
+void ContextListSchedules(CScriptContext* script_context) {
+    script_context->GetScheduler()->Dump();
+}
+
+void ContextScheduleCancel(CScriptContext* script_context, int32 reqid) {
+    script_context->GetScheduler()->CancelRequest(reqid);
+}
+
+void ContextScheduleCancelObject(CScriptContext* script_context, uint32 objectid) {
+    script_context->GetScheduler()->CancelObject(objectid);
+}
+
+uint32 ContextCreateObjectSet(CScriptContext* script_context, const char* name) {
+    CObjectSet* object_set = TinAlloc(ALLOC_ObjectGroup, CObjectSet, script_context,
+                                      kObjectGroupTableSize);
+    uint32 object_id = script_context->RegisterObject(object_set, "CObjectSet", name);
+    return (object_id);
+}
+
+uint32 ContextCreateObjectGroup(CScriptContext* script_context, const char* name) {
+    CObjectSet* object_set = TinAlloc(ALLOC_ObjectGroup, CObjectGroup, script_context,
+        kObjectGroupTableSize);
+    uint32 object_id = script_context->RegisterObject(object_set, "CObjectGroup", name);
+    return (object_id);
+}
+
 // ------------------------------------------------------------------------------------------------
 // -- all CScriptContexts have these functions registered automatically
 void CScriptContext::RegisterContextFunctions() {
+    CONTEXT_FUNCTION_P1(Print, ContextPrint, void, const char*);
+    CONTEXT_FUNCTION_P1(Compile, ContextCompile, bool8, const char*);
+    CONTEXT_FUNCTION_P1(Exec, ContextExecScript, bool8, const char*);
     CONTEXT_FUNCTION_P0(ListObjects, ContextListObjects, void);
     CONTEXT_FUNCTION_P1(IsObject, ContextIsObject, bool8, uint32);
     CONTEXT_FUNCTION_P1(FindObject, ContextFindObjectByName, uint32, const char*);
@@ -157,6 +200,12 @@ void CScriptContext::RegisterContextFunctions() {
     CONTEXT_FUNCTION_P1(ListVariables, ContextListVariables, void, uint32);
     CONTEXT_FUNCTION_P1(ListFunctions, ContextListFunctions, void, uint32);
     CONTEXT_FUNCTION_P1(GetObjectNamespace, ContextGetObjectNamespace, const char*, uint32);
+    CONTEXT_FUNCTION_P1(CreateObjectSet, ContextCreateObjectSet, uint32, const char*);
+    CONTEXT_FUNCTION_P1(CreateObjectGroup, ContextCreateObjectGroup, uint32, const char*);
+
+    CONTEXT_FUNCTION_P0(ListSchedules, ContextListSchedules, void);
+    CONTEXT_FUNCTION_P1(ScheduleCancel, ContextScheduleCancel, void, int32);
+    CONTEXT_FUNCTION_P1(ScheduleCancelObject, ContextScheduleCancelObject, void, uint32);
 }
 
 } // TinScript

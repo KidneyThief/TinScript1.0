@@ -30,6 +30,7 @@
 #include "TinNamespace.h"
 #include "TinParse.h"
 #include "TinScheduler.h"
+#include "TinObjectGroup.h"
 #include "TinStringTable.h"
 #include "TinRegistration.h"
 
@@ -51,6 +52,7 @@ CObjectEntry::CObjectEntry(CScriptContext* script_context, uint32 _objid, uint32
     mObjectNamespace = _objnamespace;
     mObjectAddr = _objaddr;
     mDynamicVariables = NULL;
+    mGroupOwner = NULL;
 }
 
 CObjectEntry::~CObjectEntry() {
@@ -290,7 +292,7 @@ uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash) {
         GetObjectDictionary()->AddItem(*newobjectentry, objectid);
 
         // -- add the object to the dictionary by address
-        GetAddressDictionary()->AddItem(*newobjectentry, (uint32)newobj);
+        GetAddressDictionary()->AddItem(*newobjectentry, kPointerToUInt32(newobj));
 
         // -- if the item is named, add it to the name dictionary
         // $$$TZA Note:  names are not guaranteed unique...  warn?
@@ -301,9 +303,11 @@ uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash) {
         // -- see if the "OnCreate" has been defined - it's not required to
         CFunctionEntry* createfunc = newobjectentry->GetFunctionEntry(0, Hash("OnCreate"));
         if(createfunc) {
-            // -- call the script "OnInit" for the object
-            int32 dummy = 0;
-            ObjExecF(objectid, dummy, "OnCreate();");
+            // -- call the script "OnCreate" for the object
+            if(HasMethod(newobj, "OnCreate")) {
+                int32 dummy = 0;
+                ObjExecF(this, objectid, dummy, "OnCreate();");
+            }
         }
 
         return objectid;
@@ -353,20 +357,22 @@ uint32 CScriptContext::RegisterObject(void* objaddr, const char* classname,
     GetObjectDictionary()->AddItem(*newobjectentry, objectid);
 
     // -- add the object to the dictionary by address
-    GetAddressDictionary()->AddItem(*newobjectentry, (uint32)objaddr);
+    GetAddressDictionary()->AddItem(*newobjectentry, kPointerToUInt32(objaddr));
 
     // -- see if the "OnCreate" has been defined - it's not required to
     CFunctionEntry* createfunc = newobjectentry->GetFunctionEntry(0, Hash("OnCreate"));
     if(createfunc) {
-        // -- call the script "OnInit" for the object
-        int32 dummy = 0;
-        ObjExecF(objectid, dummy, "OnCreate(%d);", 57);
+        // -- call the script "OnCreate" for the object
+        if(HasMethod(objectid, "OnCreate")) {
+            int32 dummy = 0;
+            ObjExecF(this, objectid, dummy, "OnCreate();");
+        }
     }
 
     return objectid;
 }
 
-void CScriptContext::DestroyObject(uint32 objectid) {
+void CScriptContext::DestroyObject(uint32 objectid, bool8 unregister_only) {
     // -- find this object in the dictionary of all objects created from script
     CObjectEntry* oe = GetObjectDictionary()->FindItem(objectid);
     if(!oe) {
@@ -374,6 +380,9 @@ void CScriptContext::DestroyObject(uint32 objectid) {
                       "Error - Unable to find object: %d\n", objectid);
         return;
     }
+
+    // -- notify the master membership list to remove it from all groups
+    GetMasterMembershipList()->OnDelete(oe);
 
     // -- get the namespace entry for the object
     CNamespace* namespaceentry = oe->GetNamespace();
@@ -396,8 +405,10 @@ void CScriptContext::DestroyObject(uint32 objectid) {
     CFunctionEntry* destroyfunc = oe->GetFunctionEntry(0, Hash("OnDestroy"));
     if(destroyfunc) {
         // -- call the script "OnInit" for the object
-        int32 dummy = 0;
-        ObjExecF(objectid, dummy, "OnDestroy();");
+        if(HasMethod(oe->GetID(), "OnCreate")) {
+            int32 dummy = 0;
+            ObjExecF(this, objectid, dummy, "OnDestroy();");
+        }
     }
 
     // -- get the address of the object
@@ -408,19 +419,21 @@ void CScriptContext::DestroyObject(uint32 objectid) {
         return;
     }
 
-    // -- remove the object from the dictionary, and delete the entry
-    GetObjectDictionary()->RemoveItem(objectid);
-    GetAddressDictionary()->RemoveItem((uint32)objaddr);
-    GetNameDictionary()->RemoveItem(oe->GetNameHash());
-
     // -- cancel all pending schedules related to this object
     GetScheduler()->CancelObject(objectid);
 
-    // -- delete the object entry
-    TinFree(oe);
+    // -- delete the actual object, unless we're only unregistering
+    if(!unregister_only) {
+        (*destroyptr)(objaddr);
+    }
 
-    // -- delete the actual object
-    (*destroyptr)(objaddr);
+    // -- remove the object from the dictionary, and delete the entry
+    GetObjectDictionary()->RemoveItem(objectid);
+    GetAddressDictionary()->RemoveItem(kPointerToUInt32(objaddr));
+    GetNameDictionary()->RemoveItem(oe->GetNameHash());
+
+    // -- delete the object entry *after* the object
+    TinFree(oe);
 }
 
 CObjectEntry* CScriptContext::FindObjectEntry(uint32 objectid) {
@@ -429,7 +442,7 @@ CObjectEntry* CScriptContext::FindObjectEntry(uint32 objectid) {
 }
 
 CObjectEntry* CScriptContext::FindObjectByAddress(void* addr) {
-    CObjectEntry* oe = GetAddressDictionary()->FindItem((uint32)addr);
+    CObjectEntry* oe = GetAddressDictionary()->FindItem(kPointerToUInt32(addr));
     return oe;
 }
 
@@ -441,13 +454,41 @@ CObjectEntry* CScriptContext::FindObjectByName(const char* objname) {
 }
 
 uint32 CScriptContext::FindIDByAddress(void* addr) {
-    CObjectEntry* oe = GetAddressDictionary()->FindItem((uint32)addr);
+    CObjectEntry* oe = GetAddressDictionary()->FindItem(kPointerToUInt32(addr));
     return oe ? oe->GetID() : 0;
 }
 
 void* CScriptContext::FindObject(uint32 objectid) {
     CObjectEntry* oe = GetObjectDictionary()->FindItem(objectid);
     return oe ? oe->GetAddr() : NULL;
+}
+
+bool8 CScriptContext::HasMethod(void* addr, const char* method_name) {
+    if(!addr || !method_name)
+        return (false);
+
+    CObjectEntry* oe = GetAddressDictionary()->FindItem(kPointerToUInt32(addr));
+    if(!oe) {
+        return (false);
+    }
+
+    uint32 function_hash = Hash(method_name);
+    CFunctionEntry* fe = oe->GetFunctionEntry(0, function_hash);
+    return (fe != NULL);
+}
+
+bool8 CScriptContext::HasMethod(uint32 objectid, const char* method_name) {
+    if(!method_name)
+        return (false);
+
+    CObjectEntry* oe = GetObjectDictionary()->FindItem(objectid);
+    if(!oe) {
+        return (false);
+    }
+
+    uint32 function_hash = Hash(method_name);
+    CFunctionEntry* fe = oe->GetFunctionEntry(0, function_hash);
+    return (fe != NULL);
 }
 
 void CScriptContext::AddDynamicVariable(uint32 objectid, uint32 varhash,
@@ -470,7 +511,7 @@ void CScriptContext::AddDynamicVariable(uint32 objectid, const char* varname,
     }
 
     uint32 varhash = Hash(varname);
-    eVarType vartype = GetRegisteredType(vartypename, strlen(vartypename));
+    eVarType vartype = GetRegisteredType(vartypename, (int32)strlen(vartypename));
     return AddDynamicVariable(objectid, varhash, vartype);
 }
 
@@ -478,7 +519,8 @@ void CScriptContext::ListObjects() {
     for(int32 i = 0; i < kObjectTableSize; ++i) {
         CObjectEntry* oe = GetObjectDictionary()->FindItemByBucket(i);
         while(oe) {
-            TinPrint(this, "%d: %s\n", oe->GetID(), UnHash(oe->GetNamespace()->GetHash()));
+            TinPrint(this, "[%d] %s: %s\n", oe->GetID(), UnHash(oe->GetNamespace()->GetHash()),
+                     oe->GetName());
             oe = GetObjectDictionary()->GetNextItemInBucket(i);
         }
     }

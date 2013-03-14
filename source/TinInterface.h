@@ -26,6 +26,7 @@
 #ifndef __TININTERFACE_H
 #define __TININTERFACE_H
 
+#include "TinVariableEntry.h"
 #include "TinParse.h"
 
 namespace TinScript {
@@ -34,7 +35,7 @@ namespace TinScript {
 // -- GetGlobalVar function to access scripted globals
 // $$$TZA From which context?
 template <typename T>
-bool GetGlobalVar(const char* varname, T& value) {
+bool8 GetGlobalVar(const char* varname, T& value) {
     // $$$TZA From which context? Find the object in the MainThreadScriptContext
     CScriptContext* script_context = CScriptContext::GetMainThreadContext();
 
@@ -56,10 +57,13 @@ bool GetGlobalVar(const char* varname, T& value) {
         return false;
 
     // -- set the return value
-    if(returntype == TYPE_string)
-        value = reinterpret_cast<T>(convertvalue);
-    else
-        value = *reinterpret_cast<T*>(convertvalue);
+    if(returntype == TYPE_string) {
+        uint32 val = kPointerToUInt32(convertvalue);
+        value = static_cast<T>(val);
+    }
+    else {
+        value = *reinterpret_cast<T*>((uint32*)(convertvalue));
+    }
 
     return true;
 }
@@ -67,13 +71,51 @@ bool GetGlobalVar(const char* varname, T& value) {
 // ------------------------------------------------------------------------------------------------
 // -- ObjExecF
 template <typename T>
-bool ObjExecF(unsigned int objectid, T& returnval, const char* methodformat, ...) {
+bool8 ObjExecF(CScriptContext* script_context, void* objaddr, T& returnval,
+              const char* methodformat, ...) {
+    if(!script_context || !objaddr)
+        return (false);
+    uint32 objectid = script_context->FindIDByAddress(objaddr);
+    if(objectid == 0) {
+        ScriptAssert_(script_context, 0,
+                      "<internal>", -1, "Error - object not registered: 0x%x\n",
+                      kPointerToUInt32(objaddr));
+        return false;
+    }
+
+	// -- ensure we have a variable to hold the return value
+    AddVariable(script_context, script_context->GetGlobalNamespace()->GetVarTable(), NULL,
+                "__return", Hash("__return"), TYPE_string);
+
+    // -- expand the formatted buffer
+    va_list args;
+    va_start(args, methodformat);
+    char methodbuf[kMaxTokenLength];
+    vsprintf_s(methodbuf, kMaxTokenLength, methodformat, args);
+    va_end(args);
+
+    char execbuf[kMaxTokenLength];
+    sprintf_s(execbuf, kMaxTokenLength - strlen(methodbuf), "__return = %d.%s", objectid,
+              methodbuf);
+
+        // -- execute the command
+    bool result = script_context->ExecCommand(execbuf);
+
+    // -- if successful, return the result
+    if(result)
+        return GetGlobalVar("__return", returnval);
+    else
+        return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+// -- ObjExecF
+template <typename T>
+bool8 ObjExecF(CScriptContext* script_context, uint32 objectid, T& returnval,
+              const char* methodformat, ...) {
     // -- sanity check
     if(objectid == 0 || !methodformat || !methodformat[0])
         return false;
-
-    // $$$TZA From which context? Find the object in the MainThreadScriptContext
-    CScriptContext* script_context = CScriptContext::GetMainThreadContext();
 
     CObjectEntry* oe = script_context->FindObjectEntry(objectid);
     if(!oe) {
@@ -101,8 +143,6 @@ bool ObjExecF(unsigned int objectid, T& returnval, const char* methodformat, ...
     bool result = script_context->ExecCommand(execbuf);
 
     // -- if successful, return the result
-    // $$$TZA GetGlobalVar() needs to provide a CScriptContext - it also assumes it's
-    // from the main thread
     if(result)
         return GetGlobalVar("__return", returnval);
     else
@@ -117,8 +157,9 @@ bool ExecF(T& returnval, const char* stmtformat, ...) {
 
 	// -- ensure we have a variable to hold the return value
     // $$$TZA more MainThread crap
-    AddVariable(TinScript::CScriptContext::GetMainThreadContext(), TinScript::CScriptContext::GetMainThreadContext()->GetGlobalNamespace()->GetVarTable(), NULL, "__return", Hash("__return"),
-                TYPE_string);
+    AddVariable(::TinScript::CScriptContext::GetMainThreadContext(),
+                ::TinScript::CScriptContext::GetMainThreadContext()->GetGlobalNamespace()->GetVarTable(),
+                NULL, "__return", Hash("__return"), TYPE_string);
 
     va_list args;
     va_start(args, stmtformat);
@@ -130,7 +171,7 @@ bool ExecF(T& returnval, const char* stmtformat, ...) {
     sprintf_s(execbuf, kMaxTokenLength - strlen(stmtbuf), "__return = %s", stmtbuf);
 
     // -- execute the command
-    bool result = TinScript::CScriptContext::GetMainThreadContext()->ExecCommand(execbuf);
+    bool result = ::TinScript::CScriptContext::GetMainThreadContext()->ExecCommand(execbuf);
 
     // -- if successful, return the result
     if(result)

@@ -74,7 +74,7 @@ void CScheduler::Update(uint32 curtime) {
         else {
             if(curcommand->mObjectID > 0) {
                 int32 dummy = 0;
-                ObjExecF(curcommand->mObjectID, dummy, curcommand->mCommandBuf);
+                ObjExecF(GetScriptContext(), curcommand->mObjectID, dummy, curcommand->mCommandBuf);
             }
             else {
                 // $$$TZA is there anything we can do with the result?
@@ -120,8 +120,8 @@ void CScheduler::Dump() {
     // -- loop through and delete any schedules pending for this object
     CCommand* curcommand = mHead;
     while(curcommand) {
-        printf("ReqID: %d, ObjID: %d, Command: %s\n", curcommand->mReqID, curcommand->mObjectID,
-               curcommand->mCommandBuf);
+        TinPrint(GetScriptContext(), "ReqID: %d, ObjID: %d, Command: %s\n", curcommand->mReqID,
+                 curcommand->mObjectID, curcommand->mCommandBuf);
         curcommand = curcommand->mNext;
     }
 }

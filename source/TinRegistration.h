@@ -41,95 +41,6 @@ typedef CHashTable<CFunctionEntry> tFuncTable;
 #include "registrationmacros.h"
 
 // ------------------------------------------------------------------------------------------------
-// variable table
-class CVariableEntry {
-	public:
-		CVariableEntry(CScriptContext* script_context, const char* _name = NULL,
-                       eVarType _type = TYPE_NULL, void* _addr = NULL);
-		CVariableEntry(CScriptContext* script_context, const char* _name, uint32 _hash,
-                       eVarType _type, bool isoffset, uint32 _offset,
-                       bool _isdynamic = false);
-
-		virtual ~CVariableEntry();
-
-        CScriptContext* GetScriptContext() {
-            return (mContextOwner);
-        }
-
-		const char* GetName() const {
-			return mName;
-		}
-
-		eVarType GetType() const {
-			return mType;
-		}
-
-		uint32 GetHash() const {
-			return mHash;
-		}
-
-        int GetStackOffset() const {
-            return mStackOffset;
-        }
-
-        void SetStackOffset(int _stackoffset) {
-            mStackOffset = _stackoffset;
-        }
-
-        // -- added to accomodate converting StringTableEntry hash values back into
-        // -- const char*, before calling dispatch
-		void* GetValueAddr(void* objaddr) const {
-            void* valueaddr = NULL;
-            // -- if we're providing an object address, this var is a member
-            // -- if it's a dynamic var, it belongs to the object,
-            // -- but lives in a local dyanmic hashtable
-            if(objaddr && !mIsDynamic)
-                valueaddr = (void*)((char*)objaddr + mOffset);
-            else
-			    valueaddr = mAddr;
-            if(mType == TYPE_string)
-                return (void*)mContextOwner->GetStringTable()->FindString(*(uint32*)valueaddr);
-            else
-                return valueaddr;
-		}
-
-		void* GetAddr(void* objaddr) const {
-            // -- if we're providing an object address, this var is a member
-            if(objaddr && !mIsDynamic)
-                return (void*)((char*)objaddr + mOffset);
-            else
-			    return mAddr;
-		}
-
-        uint32 GetOffset() const {
-            return mOffset;
-        }
-
-		void SetValue(void* objaddr, void* value);
-        void SetValueAddr(void* objaddr, void* value);
-
-        void SetFunctionEntry(CFunctionEntry* _funcentry) {
-            mFuncEntry = _funcentry;
-        }
-        CFunctionEntry* GetFunctionEntry() {
-            return mFuncEntry;
-        }
-
-	private:
-        CScriptContext* mContextOwner;
-
-		char mName[kMaxNameLength];
-		uint32 mHash;
-		eVarType mType;
-		void* mAddr;
-        uint32 mOffset;
-        bool mIsDynamic;
-		bool mScriptVar;
-        int mStackOffset;
-        CFunctionEntry* mFuncEntry;
-};
-
-// ------------------------------------------------------------------------------------------------
 // Function Entry
 class CFunctionContext {
 
@@ -161,7 +72,7 @@ class CFunctionContext {
 
         // -- note:  the first parameter in the list is the return value
         // -- we're using an array to ensure the list stays ordered
-        int paramcount;
+        int32 paramcount;
         CVariableEntry* parameterlist[eMaxParameterCount];
 };
 
@@ -197,7 +108,7 @@ class CRegFunctionBase {
             return funccontext;
         }
 
-        virtual void DispatchFunction(void* objaddr) {
+        virtual void DispatchFunction(void*) {
         }
 
         virtual void Register(CScriptContext* script_context) = 0;

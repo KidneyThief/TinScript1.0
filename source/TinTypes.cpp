@@ -33,6 +33,11 @@
 #include "TinScript.h"
 #include "TinStringTable.h"
 
+// ------------------------------------------------------------------------------------------------
+// $$$TZA temporary C3Vector implementation
+const C3Vector C3Vector::zero(0.0f, 0.0f, 0.0f);
+const C3Vector C3Vector::realmax(1e8f, 1e8f, 1e8f);
+
 namespace TinScript {
 
 // ------------------------------------------------------------------------------------------------
@@ -51,9 +56,9 @@ eVarType GetRegisteredType(const char* token, int32 length) {
     if(!token)
         return TYPE_NULL;
 	for(eVarType i = TYPE_void; i < TYPE_COUNT; i = eVarType(i + 1)) {
-		int32 comparelength = int32(strlen(gRegisteredTypeNames[i])) > length ?
-																 strlen(gRegisteredTypeNames[i]) :
-																 length;
+		int32 comparelength = int32(strlen(gRegisteredTypeNames[i])) > length
+                              ? (int32)strlen(gRegisteredTypeNames[i])
+                              : length;
 		if(!Strncmp_(token, gRegisteredTypeNames[i], comparelength)) {
 			return i;
 		}
@@ -97,7 +102,7 @@ eVarType GetRegisteredType(uint32 id) {
 }
 
 // ------------------------------------------------------------------------------------------------
-bool8 VoidToString(void* value, char* buf, int32 bufsize) {
+bool8 VoidToString(void*, char* buf, int32 bufsize) {
 	if (buf && bufsize > 0) {
 		*buf = '\0';
 		return true;
@@ -105,7 +110,7 @@ bool8 VoidToString(void* value, char* buf, int32 bufsize) {
 	return false;
 }
 
-bool8 StringToVoid(void* addr, char* value) {
+bool8 StringToVoid(void*, char*) {
 	return true;
 }
 
@@ -159,8 +164,9 @@ bool8 BoolToString(void* value, char* buf, int32 bufsize) {
 bool8 StringToBool(void* addr, char* value) {
 	if(addr && value) {
 		bool8* varaddr = (bool8*)addr;
-		if (!_stricmp(value, "false") || !_stricmp(value, "0") ||
-					!_stricmp(value, "0.0") || !_stricmp(value, "0.0f") || !_stricmp(value, "")) {
+		if (!Strncmp_(value, "false", 6) || !Strncmp_(value, "0", 2) ||
+					!Strncmp_(value, "0.0", 4) || !Strncmp_(value, "0.0f", 5) ||
+                    !Strncmp_(value, "", 1)) {
 			*varaddr = false;
 			return true;
 		}
@@ -191,6 +197,26 @@ bool8 StringToFloat(void* addr, char* value) {
 }
 
 // ------------------------------------------------------------------------------------------------
+bool8 C3VectorToString(void* value, char* buf, int32 bufsize) {
+	if(value && buf && bufsize > 0) {
+        C3Vector* c3vector = (C3Vector*)value;
+		sprintf_s(buf, bufsize, "%.4f %.4f %.4f", c3vector->x, c3vector->y, c3vector->z);
+		return true;
+	}
+	return false;
+}
+
+bool8 StringToC3Vector(void* addr, char* value) {
+	if(addr && value) {
+		C3Vector* varaddr = (C3Vector*)addr;
+        if(sscanf_s(value, "%f %f %f", &varaddr->x, &varaddr->y, &varaddr->z) == 3) {
+		    return true;
+        }
+	}
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
 // -- non-string conversions - mostly to avoid converting fromtype -> string -> totype
 void* TypeConvert(eVarType fromtype, void* fromaddr, eVarType totype) {
 
@@ -200,11 +226,15 @@ void* TypeConvert(eVarType fromtype, void* fromaddr, eVarType totype) {
     static char buffers[8][kMaxTokenLength];
     char* bufferptr = buffers[(++bufferindex) % 8];
 
-    static char outbuf[kMaxTokenLength];
-
     // -- sanity check
     if(fromtype == totype || !fromaddr)
         return fromaddr;
+
+    // -- C3Vector
+    if((fromtype == TYPE_c3vector && totype != TYPE_string) ||
+       (totype == TYPE_c3vector && fromtype != TYPE_string)) {
+        return ((void*)"");
+    }
 
     switch(fromtype) {
         case TYPE_int:
@@ -251,18 +281,28 @@ void* TypeConvert(eVarType fromtype, void* fromaddr, eVarType totype) {
     // -- if we haven't handled the conversion above, do it the slow way
     // $$$TZA This is nasty - any conversion that hasn't been implemented
     // -- above, goes into string, then back out into the destination type
+    // $$$TZA This also pollutes the string table... every time you call Print()...!
     char* convertbuf = buffers[(++bufferindex) % 8];
     char* destbuf = buffers[(++bufferindex) % 8];
     // convert to string, then back into a value of the correct type
-	gRegisteredTypeToString[fromtype](fromaddr, convertbuf, kMaxTokenLength);
-	gRegisteredStringToType[totype]((void*)destbuf, convertbuf);
+	bool8 result = gRegisteredTypeToString[fromtype](fromaddr, convertbuf, kMaxTokenLength);
+    if(!result) {
+        ScriptAssert_(CScriptContext::GetMainThreadContext(), false, "<internal", -1,
+                      "Error - failed to convert to string from type %s\n", GetRegisteredTypeName(fromtype));
+        return ((void*)"");
+    }
+	result = gRegisteredStringToType[totype]((void*)destbuf, convertbuf);
+    if(!result) {
+        ScriptAssert_(CScriptContext::GetMainThreadContext(), false, "<internal", -1,
+            "Error - failed to convert string to type %s\n", convertbuf, GetRegisteredTypeName(totype));
+        return ((void*)"");
+    }
     return (void*)destbuf;
 }
 
 const char* DebugPrintVar(void* addr, eVarType vartype) {
     static int32 bufferindex = 0;
     static char buffers[8][kMaxTokenLength];
-    char* bufferptr = buffers[(++bufferindex) % 8];
 
     if(!addr)
         return "";

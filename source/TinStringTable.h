@@ -33,7 +33,7 @@ namespace TinScript {
 // CStringTable is a singleton, used to create a dictionary of hashed strings
 class CStringTable {
     public:
-        CStringTable(CScriptContext* owner, unsigned int _size) {
+        CStringTable(CScriptContext* owner, uint32 _size) {
             mContextOwner = owner;
 
             assert(_size > 0);
@@ -54,7 +54,7 @@ class CStringTable {
             return (mContextOwner);
         }
 
-        const char* AddString(const char* s, int length = -1, unsigned int hash = 0) {
+        const char* AddString(const char* s, int length = -1, uint32 hash = 0) {
             // -- sanity check
             if(!s)
                 return "";
@@ -68,10 +68,11 @@ class CStringTable {
             if(!exists)
             {
                 if(length < 0)
-                    length = strlen(s);
+                    length = (int32)strlen(s);
 
                 // -- space left
-                int remaining = mSize - ((unsigned int)mBufptr - (unsigned int)mBuffer);
+                int32 remaining = int32(mSize - (kPointerToUInt32(mBufptr) -
+                                                 kPointerToUInt32(mBuffer)));
                 if(remaining < length + 1) {
                     ScriptAssert_(mContextOwner, 0,
                                   "<internal>", -1, "Error - StringTable of size %d is full!\n",
@@ -92,7 +93,7 @@ class CStringTable {
             else
             {
                 if(length < 0)
-                    length = strlen(s);
+                    length = (int32)strlen(s);
                 if(strncmp(exists, s, length) != 0) {
                     ScriptAssert_(mContextOwner, 0, "<internal>", -1,
                                   "Error - Hash collision: '%s', '%s'\n", exists, s);
@@ -100,7 +101,7 @@ class CStringTable {
                 return exists;
             }
         }
-        const char* FindString(unsigned int hash) {
+        const char* FindString(uint32 hash) {
             // -- sanity check
             if(hash == 0)
                 return "";
@@ -116,7 +117,7 @@ class CStringTable {
     private:
         CScriptContext* mContextOwner;
 
-        unsigned int mSize;
+        uint32 mSize;
         char* mBuffer;
         char* mBufptr;
 

@@ -84,7 +84,7 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
 CVariableEntry::~CVariableEntry() {
 	if(mScriptVar) {
         if(mType != TYPE_hashtable) {
-		    TinFree(mAddr);
+		    TinFreeArray((char*)mAddr);
         }
         // -- if this is a hashtable, need to destroy all of its entries
         else {
@@ -254,7 +254,7 @@ void CFunctionContext::InitStackVarOffsets() {
     tVarTable* vartable = GetLocalVarTable();
     assert(vartable);
 	if(vartable) {
-		for(uint32 i = 0; i < vartable->Size(); ++i) {
+		for(int32 i = 0; i < vartable->Size(); ++i) {
 			CVariableEntry* ve = vartable->FindItemByBucket(i);
 			while (ve) {
                 if(!IsParameter(ve)) {

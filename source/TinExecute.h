@@ -62,8 +62,9 @@ class CExecStack {
 		}
 
 		void* Pop(eVarType& contenttype) {
-			uint32 stacksize = ((uint32)mStackTop - (uint32)mStack) / 4;
-			assert(stacksize > 0);
+			uint32 stacksize = kPointerDiffUInt32(mStackTop, mStack) / sizeof(uint32);
+            Unused_(stacksize);
+            assert(stacksize > 0);
 			contenttype = (eVarType)(*(--mStackTop));
 			assert(contenttype >= 0 && contenttype < TYPE_COUNT);
 			uint32 contentsize = kBytesToWordCount(gRegisteredTypeSize[contenttype]);
@@ -83,7 +84,7 @@ class CExecStack {
         }
 
         int GetStackTop() {
-            return ((uint32)mStackTop - (uint32)mStack) / sizeof(uint32);
+            return (kPointerDiffUInt32(mStackTop, mStack) / sizeof(uint32));
         }
 
         void* GetStackVarAddr(int varstacktop, int varoffset) {
@@ -203,9 +204,9 @@ class CFunctionCallStack {
 
             CFunctionEntry* funcentry;
             CObjectEntry* objentry;
-            int stackvaroffset;
+            int32 stackvaroffset;
             uint32 linenumberfunccall;
-            bool isexecuting;
+            bool8 isexecuting;
         };
 
 	private:

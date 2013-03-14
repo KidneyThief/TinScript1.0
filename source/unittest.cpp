@@ -33,7 +33,8 @@
 #include "TinScript.h"
 #include "TinRegistration.h"
 
-bool8 gUnitTestIncludeMe = false;
+// -- use the DECLARE_FILE/REGISTER_FILE macros to prevent deadstripping
+DECLARE_FILE(unittest_cpp);
 
 // -- constants -----------------------------------------------------------------------------------
 static const char* kUnitTestScriptName = "../scripts/unittest.cs";
@@ -46,10 +47,10 @@ REGISTER_GLOBAL_VAR(gCodeGlobalVar, gCodeGlobalVariable);
 int32 MultIntByTwo(int32 number) {
     return (number << 1);
 }
-REGISTER_FUNCTION_P1(MultIntByTwo, MultIntByTwo, int32, int32);\
+REGISTER_FUNCTION_P1(MultIntByTwo, MultIntByTwo, int32, int32);
 
 void MTPrint(const char* fmt, ...) {
-    TinScript::CScriptContext* main_thread = TinScript::CScriptContext::GetMainThreadContext();
+    TinScript::CScriptContext* main_thread = ::TinScript::CScriptContext::GetMainThreadContext();
     va_list args;
     va_start(args, fmt);
     char buf[2048];
@@ -103,11 +104,11 @@ class CBase {
         bool8 boolvalue;
 };
 
-IMPLEMENT_SCRIPT_CLASS(CBase, VOID) {
+IMPLEMENT_SCRIPT_CLASS_BEGIN(CBase, VOID)
     REGISTER_MEMBER(CBase, floatvalue, floatvalue);
     REGISTER_MEMBER(CBase, intvalue, intvalue);
     REGISTER_MEMBER(CBase, boolvalue, boolvalue);
-}
+IMPLEMENT_SCRIPT_CLASS_END()
 
 REGISTER_METHOD_P0(CBase, GetFloatValue, GetFloatValue, float32);
 REGISTER_METHOD_P0(CBase, GetIntValue, GetIntValue, int32);
@@ -137,8 +138,8 @@ class CChild : public CBase {
         }
 };
 
-IMPLEMENT_SCRIPT_CLASS(CChild, CBase) {
-}
+IMPLEMENT_SCRIPT_CLASS_BEGIN(CChild, CBase)
+IMPLEMENT_SCRIPT_CLASS_END()
 
 REGISTER_METHOD_P1(CChild, SetIntValue, SetIntValue, void, int32);
 
@@ -155,6 +156,21 @@ public:
         weaponlist = this;
     }
 
+    virtual ~CWeapon() {
+        if (weaponlist == this) {
+            weaponlist = next;
+        }
+        else {
+            CWeapon* curweapon = weaponlist;
+            while(curweapon) {
+                if(curweapon->next == this) {
+                    curweapon->next = next;
+                    break;
+                }
+            }
+        }
+    }
+
     DECLARE_SCRIPT_CLASS(CWeapon, VOID);
 
     static void UpdateWeaponList() {
@@ -166,9 +182,9 @@ public:
     }
 
     void Update() {
-        uint32 objectid = GetObjectID();
         int32 dummy = 0;
-        TinScript::ObjExecF(objectid, dummy, "OnUpdate();");
+        TinScript::ObjExecF(TinScript::CScriptContext::GetMainThreadContext(), this, dummy,
+                            "OnUpdate();");
     }
 
     static CWeapon* weaponlist;
@@ -180,9 +196,9 @@ private:
 
 CWeapon* CWeapon::weaponlist = NULL;
 
-IMPLEMENT_SCRIPT_CLASS(CWeapon, VOID) {
+IMPLEMENT_SCRIPT_CLASS_BEGIN(CWeapon, VOID)
     REGISTER_MEMBER(CWeapon, readytofire, readytofire);
-}
+IMPLEMENT_SCRIPT_CLASS_END()
 
 REGISTER_FUNCTION_P0(UpdateWeaponList, CWeapon::UpdateWeaponList, void);
 
@@ -447,6 +463,14 @@ void BeginUnitTests(int32 teststart, int32 testend)
 }
 
 REGISTER_FUNCTION_P2(BeginUnitTests, BeginUnitTests, void, int32, int32);
+
+// ------------------------------------------------------------------------------------------------
+// $$$TZA temporary C3Vector implementation
+float32 C3Length(C3Vector v) {
+    return (v.Length());
+}
+
+REGISTER_FUNCTION_P1(C3Length, C3Length, float32, C3Vector);
 
 // ------------------------------------------------------------------------------------------------
 // eof

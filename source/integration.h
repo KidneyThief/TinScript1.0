@@ -23,23 +23,38 @@
 // TinScript.h
 //
 
+// -- system includes
 #include <new>
 
 #ifndef __INTEGRATION_H
 #define __INTEGRATION_H
 
+namespace TinScript {
+    class CScriptContext;
+}
+
 // ------------------------------------------------------------------------------------------------
 // -- TYPES
 // ------------------------------------------------------------------------------------------------
 
-typedef bool            bool8;
-typedef char            int8;
-typedef unsigned char   uint8;
-typedef short           int16;
-typedef unsigned short  uint16;
-typedef int             int32;
-typedef unsigned int    uint32;
-typedef float           float32;
+typedef bool                bool8;
+typedef char                int8;
+typedef unsigned char       uint8;
+typedef short               int16;
+typedef unsigned short      uint16;
+typedef int                 int32;
+typedef unsigned int        uint32;
+typedef long long           int64;
+typedef unsigned long long  uint64;
+typedef float               float32;
+
+#define kBytesToWordCount(a) ((a) + 3) / 4;
+#define kPointerToUInt32(a) ((uint32)(*(uint64*)(&a)))
+#define kPointerToUInt64(a) (*(uint64*)(&a))
+#define kPointerDiffUInt32(a, b) ((uint32)((*(uint64*)(&a)) - (*(uint64*)(&b))))
+
+#define Unused_(var) __pragma(warning(suppress:4100)) var
+#define Offsetof_(s,m) (uint32)(unsigned long long)&(((s *)0)->m)
 
 // ------------------------------------------------------------------------------------------------
 // -- MEMORY
@@ -66,6 +81,7 @@ typedef float           float32;
     AllocTypeEntry(FuncCallEntry)   \
     AllocTypeEntry(CreateObj)       \
     AllocTypeEntry(StringTable)     \
+    AllocTypeEntry(ObjectGroup)     \
     AllocTypeEntry(FileBuf)         \
     AllocTypeEntry(Debugger)        \
 
@@ -97,13 +113,13 @@ enum eAllocType {
 // Misc hooks
 // ------------------------------------------------------------------------------------------------
 // -- Pass a function of the following prototype when creating the CScriptContext
-typedef bool8 (*TinAssertHandler)(const char* condition, const char* file, int32 linenumber,
-                                  const char* fmt, ...);
+typedef bool8 (*TinAssertHandler)(TinScript::CScriptContext* script_context, const char* condition,
+                                  const char* file, int32 linenumber, const char* fmt, ...);
 #define ScriptAssert_(scriptcontext, condition, file, linenumber, fmt, ...)                     \
     {                                                                                           \
         if(!(condition)) {                                                                      \
-            if(!scriptcontext->GetAssertHandler()(#condition, file, linenumber,                 \
-                                                  fmt, __VA_ARGS__)) {                          \
+            if(!scriptcontext->GetAssertHandler()(scriptcontext, #condition, file, linenumber,  \
+                                                  fmt, ##__VA_ARGS__)) {                        \
                 __asm   int 3                                                                   \
             }                                                                                   \
         }                                                                                       \
@@ -113,7 +129,7 @@ typedef bool8 (*TinAssertHandler)(const char* condition, const char* file, int32
 typedef int (*TinPrintHandler)(const char* fmt, ...);
 #define TinPrint(scriptcontext, fmt, ...)                           \
     {                                                               \
-        scriptcontext->GetPrintHandler()(fmt, __VA_ARGS__);         \
+        scriptcontext->GetPrintHandler()(fmt, ##__VA_ARGS__);       \
     }
 
 #endif // __INTEGRATION_H

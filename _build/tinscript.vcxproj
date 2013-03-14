@@ -79,6 +79,7 @@
     <ClCompile Include="..\source\TinCompile.cpp" />
     <ClCompile Include="..\source\TinExecute.cpp" />
     <ClCompile Include="..\source\TinNamespace.cpp" />
+    <ClCompile Include="..\source\TinObjectGroup.cpp" />
     <ClCompile Include="..\source\TinParse.cpp" />
     <ClCompile Include="..\source\TinRegistration.cpp" />
     <ClCompile Include="..\source\TinScheduler.cpp" />

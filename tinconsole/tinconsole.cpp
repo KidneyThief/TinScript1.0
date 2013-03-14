@@ -99,10 +99,10 @@ void RefreshConsoleInput(bool8 force = false) {
 TinScript::CScriptContext* gScriptContext = NULL;
 
 // -- returns false if we should break
-bool8 AssertHandler(const char* condition, const char* file,
-                                           int32 linenumber, const char* fmt, ...) {
-    if(!gScriptContext->IsAssertStackSkipped() || gScriptContext->IsAssertEnableTrace()) {
-        if(!gScriptContext->IsAssertStackSkipped())
+bool8 AssertHandler(TinScript::CScriptContext* script_context, const char* condition,
+                    const char* file, int32 linenumber, const char* fmt, ...) {
+    if(!script_context->IsAssertStackSkipped() || script_context->IsAssertEnableTrace()) {
+        if(!script_context->IsAssertStackSkipped())
             printf("*************************************************************\n");
         else
             printf("\n");
@@ -119,21 +119,21 @@ bool8 AssertHandler(const char* condition, const char* file,
         va_end(args);
         printf(msgbuf);
 
-        if(!gScriptContext->IsAssertStackSkipped())
+        if(!script_context->IsAssertStackSkipped())
             printf("*************************************************************\n");
-        if(!gScriptContext->IsAssertStackSkipped()) {
+        if(!script_context->IsAssertStackSkipped()) {
             printf("Press 'b' to break, 't' to trace, otherwise skip...\n");
             char ch = getchar();
             if(ch == 'b')
                 return false;
             else if(ch == 't') {
-                gScriptContext->SetAssertStackSkipped(true);
-                gScriptContext->SetAssertEnableTrace(true);
+                script_context->SetAssertStackSkipped(true);
+                script_context->SetAssertEnableTrace(true);
                 return true;
             }
             else {
-                gScriptContext->SetAssertStackSkipped(true);
-                gScriptContext->SetAssertEnableTrace(false);
+                script_context->SetAssertStackSkipped(true);
+                script_context->SetAssertEnableTrace(false);
                 return true;
             }
         }
@@ -143,15 +143,13 @@ bool8 AssertHandler(const char* condition, const char* file,
     return true;
 }
 
-
 int32 _tmain(int32 argc, _TCHAR* argv[])
 {
     // -- initialize
     gScriptContext = TinScript::CScriptContext::Create(NULL, printf, AssertHandler);
 
     // -- required to ensure registered functions from unittest.cpp are linked.
-    extern bool8 gUnitTestIncludeMe;
-    gUnitTestIncludeMe = true;
+    REGISTER_FILE(unittest_cpp);
 
 	// -- convert all the wide args into an array of const char*
 	char argstring[kMaxArgs][kMaxArgLength];

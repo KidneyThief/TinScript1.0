@@ -39,6 +39,7 @@
 #include "TinExecute.h"
 #include "TinNamespace.h"
 #include "TinScheduler.h"
+#include "TinObjectGroup.h"
 #include "TinStringTable.h"
 #include "TinRegistration.h"
 
@@ -59,12 +60,11 @@ void CScriptContext::ResetAssertStack() {
 
 // ------------------------------------------------------------------------------------------------
 // -- default print/assert handlers
-bool8 NullAssertHandler(const char* condition, const char* file, int32 linenumber,
-                        const char* fmt, ...) {
+bool8 NullAssertHandler(CScriptContext*, const char*, const char*, int32, const char*, ...) {
     return false;
 }
 
-int NullPrintHandler(const char* fmt, ...) {
+int NullPrintHandler(const char*, ...) {
     return (0);
 }
 
@@ -89,7 +89,8 @@ CScriptContext* CScriptContext::FindThreadContext(const char* thread_name) {
     }
 
     // -- same code as used when creating - if no thread name is given, assume MainThread
-    if(thread_name == NULL || thread_name[0] == '\0' || !_stricmp(thread_name, kMainThreadName)) {
+    if(thread_name == NULL || thread_name[0] == '\0' ||
+       !Strncmp_(thread_name, kMainThreadName, strlen(kMainThreadName))) {
         thread_name = kMainThreadName;
     }
 
@@ -109,7 +110,8 @@ CScriptContext::CScriptContext(const char* thread_name, TinPrintHandler printfun
 
     // -- not specifying a thread name implies this is the one (and only?) thread context
     bool8 is_main_thread = false;
-    if(thread_name == NULL || thread_name[0] == '\0' || !_stricmp(thread_name, kMainThreadName)) {
+    if(thread_name == NULL || thread_name[0] == '\0' ||
+       !Strncmp_(thread_name, kMainThreadName, strlen(kMainThreadName))) {
         is_main_thread = true;
         thread_name = kMainThreadName;
     }
@@ -152,7 +154,11 @@ CScriptContext::CScriptContext(const char* thread_name, TinPrintHandler printfun
     CRegisterGlobal::RegisterGlobals(this);
 
     // -- initialize the scheduler
-    mScheduler = TinAlloc(SchedCmd, CScheduler, this);
+    mScheduler = TinAlloc(ALLOC_SchedCmd, CScheduler, this);
+
+    // -- initialize the master object list
+    mMasterMembershipList = TinAlloc(ALLOC_ObjectGroup, CMasterMembershipList, this,
+                                     kMasterMembershipTableSize);
 
     // -- initialize the code block hash table
     mCodeBlockList = TinAlloc(ALLOC_HashTable, CHashTable<CCodeBlock>, kGlobalFuncTableSize);
@@ -193,23 +199,34 @@ void CScriptContext::InitializeDictionaries() {
     mAddressDictionary = TinAlloc(ALLOC_HashTable, CHashTable<CObjectEntry>, kObjectTableSize);
     mNameDictionary = TinAlloc(ALLOC_HashTable, CHashTable<CObjectEntry>, kObjectTableSize);
 
+    // $$$TZA still working on how we're going to handle different threads...  every
+    // -- class is registered in every CScriptContext?  or...
+    // -- for now, assume so, and initialize every namespacereg to unregistered
+    CNamespaceReg* tempptr = CNamespaceReg::head;
+    while(tempptr) {
+        tempptr->SetRegistered(false);
+        tempptr = tempptr->next;
+    }
+
     // -- register the namespace - these are the namespaces
     // -- registered from code, so we need to populate the NamespaceDictionary,
     // -- and register the members/methods
     // -- note, because we register class derived from parent, we need to
     // -- iterate and ensure parents are always registered before children
-    while(CNamespaceReg::head != NULL) {
+    while(true) {
+        CNamespaceReg* found_unregistered = NULL;
         bool8 abletoregister = false;
         CNamespaceReg* regptr = CNamespaceReg::head;
-        CNamespaceReg** prevptr = &CNamespaceReg::head;
         while(regptr) {
 
             // -- see if this namespace is already registered
-            if(regptr->GetClassNamespace() != NULL) {
-                prevptr = &regptr->next;
+            if(regptr->GetRegistered()) {
                 regptr = regptr->GetNext();
                 continue;
             }
+
+            // -- there's at least one namespace awaiting registration
+            found_unregistered = regptr;
 
             // -- see if this namespace still requires its parent to be registered
             static const uint32 nullparenthash = Hash("VOID");
@@ -219,14 +236,10 @@ void CScriptContext::InitializeDictionaries() {
                 parentnamespace = mNamespaceDictionary->FindItem(regptr->GetParentHash());
                 if(!parentnamespace) {
                     // -- skip this one, and wait until the parent is registered
-                    prevptr = &regptr->next;
                     regptr = regptr->GetNext();
                     continue;
                 }
             }
-
-            // -- unhook this object from the linked list awaiting registration
-            *prevptr = regptr->GetNext();
 
             // -- set the bool8 to track that we're actually making progress
             abletoregister = true;
@@ -243,17 +256,14 @@ void CScriptContext::InitializeDictionaries() {
                 // -- add the creation method to the hash dictionary
                 mNamespaceDictionary->AddItem(*newnamespace, regptr->GetHash());
 
-                // -- create the namespace - note, this actually sets the static
-                // -- namespace member, defined in the DECLARE_SCRIPT_CLASS macro
-                regptr->SetClassNamespace(newnamespace);
-
                 // -- link this namespace to its parent
                 if(parentnamespace) {
                     LinkNamespaces(newnamespace, parentnamespace);
                 }
 
                 // -- call the class registration method, to register members/methods
-                regptr->RegisterNamespace();
+                regptr->RegisterNamespace(this, newnamespace);
+                regptr->SetRegistered(true);
             }
             else {
                 ScriptAssert_(this, 0, "<internal>", -1,
@@ -262,16 +272,20 @@ void CScriptContext::InitializeDictionaries() {
                 return;
             }
 
-            prevptr = &regptr->next;
             regptr = regptr->GetNext();
         }
 
         // -- we'd better have registered at least one namespace, otherwise we're stuck
-        if(CNamespaceReg::head != NULL && !abletoregister) {
+        if(found_unregistered && !abletoregister) {
             ScriptAssert_(this, 0, "<internal>", -1,
                           "Error - Unable to register Namespace: %s\n",
-                          UnHash(CNamespaceReg::head->GetHash()));
+                          UnHash(found_unregistered->GetHash()));
             return;
+        }
+
+        // -- else see if we're done
+        else if(!found_unregistered) {
+            break;
         }
     }
 }
@@ -290,6 +304,9 @@ CScriptContext::~CScriptContext() {
 
     // -- clean up the scheduleer
     TinFree(mScheduler);
+
+    // -- cleanup the membership list
+    TinFree(mMasterMembershipList);
 
     // -- clean up the string table
     TinFree(mStringTable);
@@ -423,17 +440,17 @@ void SaveStringTable(CScriptContext* script_context) {
 		return;
     }
 
-    for(uint32 i = 0; i < stringtable->Size(); ++i) {
+    for(int32 i = 0; i < stringtable->Size(); ++i) {
 	    CHashTable<const char>::CHashTableEntry* ste = stringtable->FindRawEntryByBucket(i);
 	    while (ste) {
             uint32 stringhash = ste->hash;
             const char* string = ste->item;
-            uint32 length = strlen(string);
+            int32 length = (int32)strlen(string);
             char tempbuf[kMaxTokenLength];
 
             // -- write the hash
-            sprintf_s(tempbuf, "0x%08x: ", stringhash);
-            int32 count = fwrite(tempbuf, sizeof(char), 12, filehandle);
+            sprintf_s(tempbuf, kMaxTokenLength, "0x%08x: ", stringhash);
+            int32 count = (int32)fwrite(tempbuf, sizeof(char), 12, filehandle);
             if(count != 12) {
                 fclose(filehandle);
                 ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n",
@@ -442,8 +459,8 @@ void SaveStringTable(CScriptContext* script_context) {
             }
 
             // -- write the string length
-            sprintf_s(tempbuf, "%04d: ", length);
-            count = fwrite(tempbuf, sizeof(char), 6, filehandle);
+            sprintf_s(tempbuf, kMaxTokenLength, "%04d: ", length);
+            count = (int32)fwrite(tempbuf, sizeof(char), 6, filehandle);
             if(count != 6) {
                 fclose(filehandle);
                 ScriptAssert_(script_context, 0, "<internal>", -1,
@@ -452,7 +469,7 @@ void SaveStringTable(CScriptContext* script_context) {
             }
 
             // -- write the string
-            count = fwrite(string, sizeof(char), length, filehandle);
+            count = (int32)fwrite(string, sizeof(char), length, filehandle);
             if(count != length) {
                 fclose(filehandle);
                 ScriptAssert_(script_context, 0, "<internal>", -1,
@@ -461,7 +478,7 @@ void SaveStringTable(CScriptContext* script_context) {
             }
 
             // -- write the eol
-            count = fwrite("\r\n", sizeof(char), 2, filehandle);
+            count = (int32)fwrite("\r\n", sizeof(char), 2, filehandle);
             if(count != 2) {
                 fclose(filehandle);
                 ScriptAssert_(script_context, 0, "<internal>", -1,
@@ -497,12 +514,12 @@ void LoadStringTable(CScriptContext* script_context) {
 
         // -- read the hash
         uint32 hash = 0;
-        uint32 length = 0;
+        int32 length = 0;
         char string[kMaxTokenLength];
         char tempbuf[16];
 
         // -- read the hash
-        int32 count = fread(tempbuf, sizeof(char), 12, filehandle);
+        int32 count = (int32)fread(tempbuf, sizeof(char), 12, filehandle);
         if(ferror(filehandle) || count != 12) {
             // -- we're done
             break;
@@ -511,7 +528,7 @@ void LoadStringTable(CScriptContext* script_context) {
         sscanf_s(tempbuf, "0x%08x: ", &hash);
 
         // -- read the string length
-        count = fread(tempbuf, sizeof(char), 6, filehandle);
+        count = (int32)fread(tempbuf, sizeof(char), 6, filehandle);
         if(ferror(filehandle) || count != 6) {
             fclose(filehandle);
             ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to read file: %s\n",
@@ -523,7 +540,7 @@ void LoadStringTable(CScriptContext* script_context) {
 
 
         // -- read the string
-        count = fread(string, sizeof(char), length, filehandle);
+        count = (int32)fread(string, sizeof(char), length, filehandle);
         if(ferror(filehandle) || count != length) {
             fclose(filehandle);
             ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to read file: %s\n",
@@ -533,7 +550,7 @@ void LoadStringTable(CScriptContext* script_context) {
         string[length] = '\0';
 
         // -- read the eol
-        count = fread(tempbuf, sizeof(char), 2, filehandle);
+        count = (int32)fread(tempbuf, sizeof(char), 2, filehandle);
         if(ferror(filehandle) || count != 2) {
             fclose(filehandle);
             ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to read file: %s\n",
@@ -559,7 +576,7 @@ bool8 GetLastWriteTime(const char* filename, FILETIME& writetime)
         return false;
 
     // -- convert the filename to a wchar_t array
-    int32 length = strlen(filename);
+    int32 length = (int32)strlen(filename);
     wchar_t wfilename[kMaxNameLength];
     for(int32 i = 0; i < length + 1; ++i)
         wfilename[i] = filename[i];
@@ -580,11 +597,11 @@ bool8 GetBinaryFileName(const char* filename, char* binfilename, int32 maxnamele
 
     // -- a script file should end in ".cs"
     const char* extptr = strrchr(filename, '.');
-    if(!extptr || _stricmp(extptr, ".cs") != 0)
+    if(!extptr || Strncmp_(extptr, ".cs", 4) != 0)
         return false;
 
     // -- copy the root name
-    uint32 length = (uint32)extptr - uint32(filename);
+    uint32 length = kPointerDiffUInt32(extptr, filename);
     SafeStrcpy(binfilename, filename, maxnamelength);
     SafeStrcpy(&binfilename[length], ".cso", maxnamelength - length);
 
@@ -595,7 +612,7 @@ bool8 NeedToCompile(const char* filename, const char* binfilename) {
 
 #if FORCE_COMPILE
     return true;
-#endif
+#else
 
     // -- get the filetime for the original script
     // -- if fail, then we have nothing to compile
@@ -614,6 +631,7 @@ bool8 NeedToCompile(const char* filename, const char* binfilename) {
         return true;
     else
         return false;
+#endif
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -843,24 +861,25 @@ void CScriptContext::RemoveAllBreakpoints(const char* thread_name, const char* f
 
 }
 
-// ------------------------------------------------------------------------------------------------
-// -- TinScript functions and registrations
-// ------------------------------------------------------------------------------------------------
-bool8 Compile(const char* filename) {
-    CCodeBlock* result = TinScript::CScriptContext::CompileScript(CScriptContext::GetMainThreadContext(), filename);
-    CScriptContext::GetMainThreadContext()->ResetAssertStack();
-    return (result != NULL);
-}
-
-bool8 ExecScript(const char* filename) {
-    return (CScriptContext::GetMainThreadContext()->ExecScript(filename));
-}
-
-// $$$TZA More ThreadSafe stuff
-REGISTER_FUNCTION_P1(Compile, Compile, bool8, const char*);
-REGISTER_FUNCTION_P1(Exec, ExecScript, bool8, const char*);
-
 } // TinScript
+
+// ------------------------------------------------------------------------------------------------
+// -- generic object - has absolutely no functionality except to serve as something to
+// -- instantiate, that you can name, and then implement methods on the namespace
+
+class CScriptObject {
+public:
+    CScriptObject() { dummy = 0; }
+    virtual ~CScriptObject() {}
+
+    DECLARE_SCRIPT_CLASS(CScriptObject, VOID);
+
+private:
+    int64 dummy;
+};
+
+IMPLEMENT_SCRIPT_CLASS_BEGIN(CScriptObject, VOID)
+IMPLEMENT_SCRIPT_CLASS_END()
 
 // ------------------------------------------------------------------------------------------------
 // eof

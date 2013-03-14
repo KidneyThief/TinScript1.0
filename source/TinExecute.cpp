@@ -158,10 +158,126 @@ bool8 GetBinOpValues(CScriptContext* script_context, CExecStack& execstack,
 	return true;
 }
 
+bool8 ObjectNumericalBinOp(CScriptContext* script_context, eOpCode op, eVarType val0type,
+                           void* val0addr, eVarType val1type, void* val1addr, float32& result) {
+    // -- both types must be TYPE_object
+    if(val0type != TYPE_object || val1type != TYPE_object) {
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - BinOp of non-object types");
+        return (false);
+    }
+
+    uint32 object_id_0 = *(uint32*)val0addr;
+    uint32 object_id_1 = *(uint32*)val1addr;
+
+    switch(op) {
+        // -- comparisons are normally a subtraction, then compare the result to 0.0f
+        case OP_CompareEqual:
+        case OP_CompareNotEqual:
+            result = object_id_0 == object_id_1 ? 0.0f : 1.0f;
+            return (true);
+
+        // -- to have reached this point, we already know both objects exist
+        case OP_BooleanAnd:
+        {
+            CObjectEntry* oe0 = script_context->FindObjectEntry(object_id_0);
+            CObjectEntry* oe1 = script_context->FindObjectEntry(object_id_1);
+            result = (oe0 != NULL && oe1 != NULL) ? 0.0f : 1.0f;
+            return (true);
+        }
+        case OP_BooleanOr:
+        {
+            CObjectEntry* oe0 = script_context->FindObjectEntry(object_id_0);
+            CObjectEntry* oe1 = script_context->FindObjectEntry(object_id_1);
+            result = (oe0 != NULL || oe1 != NULL) ? 0.0f : 1.0f;
+            return (true);
+        }
+        default:
+            ScriptAssert_(script_context, 0, "<internal>", -1,
+                          "Error - unable to perform op: %s\n",
+                          GetOperationString(op));
+    }
+
+    // -- unhandled
+    return (false);
+}
+
+// ------------------------------------------------------------------------------------------------
+// -- C3Vector binary operations are limited
+bool8 C3VectorNumericalBinOp(CScriptContext* script_context, eOpCode op, eVarType val0type,
+                             void* val0addr, eVarType val1type, void* val1addr,
+                             float32& result, C3Vector& c3result) {
+
+    // -- if both types are C3Vectors...
+    if(val0type == val1type) {
+
+        switch(op) {
+            case OP_Add:
+                c3result = *(C3Vector*)(val0addr) + *(C3Vector*)(val1addr);
+                return (true);
+            case OP_Sub:
+                c3result = *(C3Vector*)(val0addr) - *(C3Vector*)(val1addr);
+                return (true);
+
+            // -- comparisons are normally a subtraction, then compare the result to 0.0f
+            case OP_CompareEqual:
+            case OP_CompareNotEqual:
+                result = *(C3Vector*)(val0addr) == *(C3Vector*)(val1addr) ? 0.0f : 1.0f;
+                return (true);
+            case OP_BooleanAnd:
+                result = (*(C3Vector*)(val0addr) != C3Vector::zero &&
+                          *(C3Vector*)(val0addr) != C3Vector::zero) ? 1.0f : 0.0f;
+                return (true);
+            case OP_BooleanOr:
+                result = (*(C3Vector*)(val0addr) != C3Vector::zero ||
+                          *(C3Vector*)(val0addr) != C3Vector::zero) ? 1.0f : 0.0f;
+                return (true);
+            default:
+                ScriptAssert_(script_context, 0, "<internal>", -1,
+                              "Error - unable to perform op: %s\n",
+                              GetOperationString(op));
+        }
+    }
+
+    // -- different types, one is a C3Vector, the other gets converted to a float
+    else {
+        C3Vector c3v = (val0type == TYPE_c3vector) ? *(C3Vector*)(val0addr)
+                                                   : *(C3Vector*)(val1addr);
+        float32 f = (val0type == TYPE_c3vector) ?
+                        *(float32*)(TypeConvert(val1type, val1addr, TYPE_float)) :
+                        *(float32*)(TypeConvert(val0type, val0addr, TYPE_float));
+
+        switch(op) {
+            case OP_Mult:
+                c3result = c3v * f;
+                return (true);
+            case OP_Div:
+                ScriptAssert_(script_context, f != 0.0f, "<internal>", -1,
+                              "Error - Divide by 0\n");
+                c3result = c3v / f;
+                return (true);
+            case OP_BooleanAnd:
+                result = (c3result != C3Vector::zero && f != 0.0f);
+                return (true);
+            case OP_BooleanOr:
+                result = (c3result != C3Vector::zero || f != 0.0f);
+                return (true);
+            default:
+                ScriptAssert_(script_context, 0, "<internal>", -1,
+                              "Error - unable to perform op: %s\n",
+                              GetOperationString(op));
+        }
+    }
+
+    // -- not handled
+    return (false);
+}
+
+// ------------------------------------------------------------------------------------------------
 // -- this is to consolidate all the math operations that pop two values from the stack
-// -- and compbine them... the operation is still responsible for handling pushing the result
+// -- and combine them... the operation is still responsible for handling pushing the result
 bool8 PerformNumericalBinOp(CScriptContext* script_context, CExecStack& execstack,
-                            CFunctionCallStack& funccallstack, eOpCode op, float32& result) {
+                            CFunctionCallStack& funccallstack, eOpCode op, float32& result,
+                            C3Vector& c3result) {
 
 	// -- Get both args from the stacks
 	eVarType val0type;
@@ -173,8 +289,23 @@ bool8 PerformNumericalBinOp(CScriptContext* script_context, CExecStack& execstac
 				GetOperationString(op));
 		return false;
 	}
+
+    // -- initialize the results
+    result = 1e8f;
+    c3result = C3Vector::realmax;
+
+    // -- if either argument is an object
+    if(val0type == TYPE_object || val1type == TYPE_object) {
+        return (ObjectNumericalBinOp(script_context, op, val0type, val0, val1type, val1, result));
+    }
+
+    // -- if either of the arguments is a C3Vector, things are slightly more complicated
+    if(val0type == TYPE_c3vector || val1type == TYPE_c3vector) {
+        return (C3VectorNumericalBinOp(script_context, op, val0type, val0, val1type, val1,
+                                       result, c3result));
+    }
  
-	// -- there are only two valid types to compare, floats, andints
+	// -- there are only two valid types to compare, floats, and ints
 	// -- any other form of "add" must be done through a function call
 	// $$$TZA expand the TypeToString tables to include operations
     if((val0type != TYPE_int && val0type != TYPE_float && val0type != TYPE_bool) ||
@@ -226,11 +357,11 @@ bool8 PerformNumericalBinOp(CScriptContext* script_context, CExecStack& execstac
             break;
 
         case OP_BooleanAnd:
-            result = (val0float != 0.0f && val1float != 0.0f);
+            result = (val0float != 0.0f && val1float != 0.0f) ? 1.0f : 0.0f;
             break;
 
         case OP_BooleanOr:
-            result = (val0float != 0.0f || val1float != 0.0f);
+            result = (val0float != 0.0f || val1float != 0.0f) ? 1.0f : 0.0f;
             break;
 
         default:
@@ -241,6 +372,7 @@ bool8 PerformNumericalBinOp(CScriptContext* script_context, CExecStack& execstac
     return true;
 }
 
+// ------------------------------------------------------------------------------------------------
 // -- this is to consolidate all the math operations that pop two values from the stack
 // -- and compbine them... the operation is still responsible for handling pushing the result
 bool8 PerformIntegerBinOp(CScriptContext* script_context, CExecStack& execstack,
@@ -297,6 +429,69 @@ bool8 PerformIntegerBinOp(CScriptContext* script_context, CExecStack& execstack,
     return true;
 }
 
+// ------------------------------------------------------------------------------------------------
+// -- C3Vector assignment operations are limited
+bool8 C3VectorAssignOp(CScriptContext* script_context, eOpCode op, bool8 isstackvar, void* varaddr,
+                       CVariableEntry* ve0, CObjectEntry* oe0, eVarType val1type, void* val1addr) {
+
+    C3Vector result;
+    C3Vector curvalue = isstackvar ? *(C3Vector*)(varaddr)
+                                   : *(C3Vector*)(ve0->GetAddr(oe0 ? oe0->GetAddr() : NULL));
+                        
+    if(val1type == TYPE_c3vector || val1type == TYPE_string) {
+        C3Vector c3v = *(C3Vector*)TypeConvert(val1type, val1addr, TYPE_c3vector);
+
+        switch(op) {
+            case OP_Assign:
+                result = c3v;
+                break;
+            case OP_AssignSub:
+                result = curvalue - c3v;
+                break;
+            case OP_AssignAdd:
+                result = curvalue + c3v;
+                break;
+            default:
+                ScriptAssert_(script_context, 0, "<internal>", -1,
+                              "Error - Op %s not defined for C3Vector\n", GetOperationString(op));
+                return (false);
+        }
+    }
+    // -- else, for the non-C3Vector assignments, always convert to a float
+    else {
+        float32 f = *(float32*)(TypeConvert(val1type, val1addr, TYPE_float));
+
+        switch(op) {
+            case OP_AssignMult:
+                result = curvalue * f;
+                break;
+            case OP_AssignDiv:
+                ScriptAssert_(script_context, f != 0.0f, "<internal>", -1,
+                              "Error - Divide by 0\n");
+                result = curvalue / f;
+                break;
+            default:
+                ScriptAssert_(script_context, 0, "<internal>", -1,
+                              "Error - Op %s not defined for C3Vector\n", GetOperationString(op));
+                return (false);
+        }
+    }
+
+    // -- assign the result
+    if(isstackvar) {
+        memcpy(varaddr, &result, MAX_TYPE_SIZE * sizeof(uint32));
+        DebugTrace(op, "StackVar: %s", DebugPrintVar(&result, TYPE_c3vector));
+    }
+    else {
+    	ve0->SetValue(oe0 ? oe0->GetAddr() : NULL, &result);
+        DebugTrace(op, "Var %s: %s", UnHash(ve0->GetHash()),
+                   DebugPrintVar(&result, TYPE_c3vector));
+    }
+
+    // -- success
+    return true;
+}
+
 bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
                       CFunctionCallStack& funccallstack, eOpCode op) {
 
@@ -321,14 +516,27 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
     if(!GetStackValue(script_context, execstack, funccallstack, var, varhashtype, ve0, oe0)) {
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - Failed to pop assignment variable\n");
-        return false;
+        return (false);
     }
 
     // -- ensure we're assigning to a variable, an object member, or a local stack variable
     if(!ve0 && !isstackvar) {
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - Attempting to assign to a non-variable\n");
-        return false;
+        return (false);
+    }
+
+    // -- C3Vector implementation
+    if(varhashtype == TYPE_c3vector) {
+        return (C3VectorAssignOp(script_context, op, isstackvar, var, ve0, oe0, val1type,
+                                 val1addr));
+    }
+
+    // -- the second type cannot be a c3vector, unless the variable is a c3vector
+    else if(val1type == TYPE_c3vector && varhashtype != TYPE_string) {
+        ScriptAssert_(script_context, 0, "<internal>", -1,
+                      "Error - Attempting to assign a C3Vector to a non-C3Vector\n");
+        return (false);
     }
 
     // -- if we're doing a straight up assignment, don't convert to float32
@@ -381,6 +589,13 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
                 val0int += val1int;
             result = (float32)(val0int % val1int);
             break;
+        }
+
+        default:
+        {
+            ScriptAssert_(script_context, false, "<internal>", -1,
+                          "Error - Unhandled operation: %s\n", GetOperationString(op));
+            return false;
         }
     }
 
@@ -478,6 +693,13 @@ bool8 PerformBitAssignOp(CScriptContext* script_context, CExecStack& execstack,
         case OP_AssignBitXor:
             result = veint ^ val1int;
             break;
+
+        default:
+        {
+            ScriptAssert_(script_context, false, "<internal>", -1,
+                "Error - Unhandled operation: %s\n", GetOperationString(op));
+            return false;
+        }
     }
 
     // -- convert back to our variable type
@@ -629,12 +851,10 @@ bool8 PerformUnaryOp(CScriptContext* script_context, CExecStack& execstack,
             return false;
         }
     }
-
-    return true;
 }
 
-bool8 CopyStackParameters(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
-                         CFunctionCallStack& funccallstack) {
+bool8 CopyStackParameters(CFunctionEntry* fe, CExecStack& execstack,
+                          CFunctionCallStack& funccallstack) {
 
     // -- sanity check
     if(fe == NULL || !fe->GetContext()) {
@@ -657,10 +877,11 @@ bool8 CopyStackParameters(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& exec
             return false;
         }
 
-        // -- set the value
-        if(src)
-            memcpy(dst, src->GetAddr(oe ? oe->GetAddr() : NULL),
-                   MAX_TYPE_SIZE * sizeof(uint32));
+        // -- set the value - note, parameters in a function context are never
+        // -- CVariableEntry's with object offsets
+        if(src) {
+            memcpy(dst, src->GetAddr(NULL), MAX_TYPE_SIZE * sizeof(uint32));
+        }
         else
             memset(dst, 0, MAX_TYPE_SIZE * sizeof(uint32));
     }
@@ -730,7 +951,7 @@ bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
     if(fe->GetType() == eFuncTypeScript) {
         // -- for scripted functions, we need to copy the localvartable onto the stack,
         // -- to ensure threaded or recursive function calls don't stomp each other
-        CopyStackParameters(fe, oe, execstack, funccallstack);
+        CopyStackParameters(fe, execstack, funccallstack);
 
         CCodeBlock* funccb = NULL;
         uint32 funcoffset = fe->GetCodeBlockOffset(funccb);
@@ -1242,8 +1463,9 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 
             case OP_PushSelf:
             {
+                int32 stacktop = 0;
                 CObjectEntry* oe = NULL;
-                CFunctionEntry* fe = funccallstack.GetTopMethod(oe);
+                CFunctionEntry* fe = funccallstack.GetExecuting(oe, stacktop);
                 if(!fe || !oe) {
                     ScriptAssert_(GetScriptContext(), 0, GetFileName(), CalcLineNumber(instrptr),
                                   "Error - PushSelf from outside a method\n");
@@ -1262,7 +1484,7 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 			case OP_Pop:
 			{
 				eVarType contenttype;
-				void* contentptr = execstack.Pop(contenttype);
+				execstack.Pop(contenttype);
 				break;
 			}
 
@@ -1273,15 +1495,24 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 			case OP_Mod:
 			{
                 float32 result = 0.0f;
+                C3Vector c3result = C3Vector::realmax;
                 if(!PerformNumericalBinOp(GetScriptContext(), execstack, funccallstack,
-                                          curoperation, result)) {
+                                          curoperation, result, c3result)) {
                     ScriptAssert_(GetScriptContext(), 0, GetFileName(), CalcLineNumber(instrptr),
                                   "Error - unable to perform op: %s\n",
                                   GetOperationString(curoperation));
                     return false;
                 }
-				execstack.Push((void*)&result, TYPE_float);
-                DebugTrace(curoperation, "%.2f", result);
+
+                // -- if we have a C3Vector result, push that, otherwise push a float result
+                if(c3result != C3Vector::realmax) {
+    				execstack.Push((void*)&c3result, TYPE_c3vector);
+                    DebugTrace(curoperation, "%.2f %2f %2f", c3result.x, c3result.y, c3result.z);
+                }
+                else {
+    				execstack.Push((void*)&result, TYPE_float);
+                    DebugTrace(curoperation, "%.2f", result);
+                }
 				break;
 			}
 
@@ -1289,8 +1520,9 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 			case OP_BooleanOr:
 			{
                 float32 result = 0.0f;
+                C3Vector c3result = C3Vector::realmax;
                 if(!PerformNumericalBinOp(GetScriptContext(), execstack, funccallstack,
-                                          curoperation, result)) {
+                                          curoperation, result, c3result)) {
                     return false;
                 }
                 bool8 boolresult = (result != 0.0f);
@@ -1301,8 +1533,9 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 			case OP_CompareEqual:
 			{
                 float32 result = 0.0f;
+                C3Vector c3result = C3Vector::realmax;
                 if(!PerformNumericalBinOp(GetScriptContext(), execstack, funccallstack,
-                                          curoperation, result)) {
+                                          curoperation, result, c3result)) {
                     return false;
                 }
                 bool8 boolresult = (result == 0.0f);
@@ -1314,8 +1547,9 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 			case OP_CompareNotEqual:
 			{
                 float32 result = 0.0f;
+                C3Vector c3result = C3Vector::realmax;
                 if(!PerformNumericalBinOp(GetScriptContext(), execstack, funccallstack,
-                                          curoperation, result)) {
+                                          curoperation, result, c3result)) {
                     return false;
                 }
                 bool8 boolresult = (result != 0.0f);
@@ -1327,8 +1561,9 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 			case OP_CompareLess:
 			{
                 float32 result = 0.0f;
+                C3Vector c3result = C3Vector::realmax;
                 if(!PerformNumericalBinOp(GetScriptContext(), execstack, funccallstack,
-                                          curoperation, result)) {
+                                          curoperation, result, c3result)) {
                     return false;
                 }
                 bool8 boolresult = (result < 0.0f);
@@ -1340,8 +1575,9 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 			case OP_CompareLessEqual:
 			{
                 float32 result = 0.0f;
+                C3Vector c3result = C3Vector::realmax;
                 if(!PerformNumericalBinOp(GetScriptContext(), execstack, funccallstack,
-                                          curoperation, result)) {
+                                          curoperation, result, c3result)) {
                     return false;
                 }
                 bool8 boolresult = (result <= 0.0f);
@@ -1353,8 +1589,9 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 			case OP_CompareGreater:
 			{
                 float32 result = 0.0f;
+                C3Vector c3result = C3Vector::realmax;
                 if(!PerformNumericalBinOp(GetScriptContext(), execstack, funccallstack,
-                                          curoperation, result)) {
+                                          curoperation, result, c3result)) {
                     return false;
                 }
                 bool8 boolresult = (result > 0.0f);
@@ -1366,8 +1603,9 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 			case OP_CompareGreaterEqual:
 			{
                 float32 result = 0.0f;
+                C3Vector c3result = C3Vector::realmax;
                 if(!PerformNumericalBinOp(GetScriptContext(), execstack, funccallstack,
-                                          curoperation, result)) {
+                                          curoperation, result, c3result)) {
 		            ScriptAssert_(GetScriptContext(), 0, GetFileName(), CalcLineNumber(instrptr),
                                   "Error - Operation failed: %s\n",
                                   GetOperationString(curoperation));

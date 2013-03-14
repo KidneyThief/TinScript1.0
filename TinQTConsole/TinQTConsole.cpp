@@ -194,10 +194,10 @@ int ConsolePrint(const char* fmt, ...) {
 }
 
 // -- returns false if we should break
-bool8 AssertHandler(const char* condition, const char* file,
-                                           int32 linenumber, const char* fmt, ...) {
-    if(!gScriptContext->IsAssertStackSkipped() || gScriptContext->IsAssertEnableTrace()) {
-        if(!gScriptContext->IsAssertStackSkipped())
+bool8 AssertHandler(TinScript::CScriptContext* script_context, const char* condition,
+                    const char* file, int32 linenumber, const char* fmt, ...) {
+    if(!script_context->IsAssertStackSkipped() || script_context->IsAssertEnableTrace()) {
+        if(!script_context->IsAssertStackSkipped())
             ConsolePrint("*************************************************************\n");
         else
             ConsolePrint("\n");
@@ -218,14 +218,14 @@ bool8 AssertHandler(const char* condition, const char* file,
         ConsolePrint(assertmsg);
         ConsolePrint(errormsg);
 
-        if(!gScriptContext->IsAssertStackSkipped())
+        if(!script_context->IsAssertStackSkipped())
             ConsolePrint("*************************************************************\n");
-        if(!gScriptContext->IsAssertStackSkipped()) {
+        if(!script_context->IsAssertStackSkipped()) {
             bool press_skip = false;
             bool press_trace = false;
             bool result = PushAssertDialog(assertmsg, errormsg, press_skip, press_trace);
-            gScriptContext->SetAssertEnableTrace(press_trace);
-            gScriptContext->SetAssertStackSkipped(press_skip);
+            script_context->SetAssertEnableTrace(press_trace);
+            script_context->SetAssertStackSkipped(press_skip);
             return (result);
         }
     }
@@ -525,8 +525,7 @@ bool PushAssertDialog(const char* assertmsg, const char* errormsg, bool& skip, b
 int _tmain(int argc, _TCHAR* argv[])
 {
     // -- required to ensure registered functions from unittest.cpp are linked.
-    extern bool8 gUnitTestIncludeMe;
-    gUnitTestIncludeMe = true;
+    REGISTER_FILE(unittest_cpp);
 
     // -- initialize
     gScriptContext = TinScript::CScriptContext::Create("", ConsolePrint, AssertHandler);

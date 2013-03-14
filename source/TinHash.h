@@ -31,13 +31,14 @@
 #include "assert.h"
 #include "stdio.h"
 
+#include "integration.h"
 namespace TinScript {
 
 // ------------------------------------------------------------------------------------------------
 // implemented in TinScript.cpp
-unsigned int Hash(const char *s, int length = -1);
-unsigned int HashAppend(unsigned int h, const char *string, int length = -1);
-const char* UnHash(unsigned int hash);
+uint32 Hash(const char *s, int32 length = -1);
+uint32 HashAppend(uint32 h, const char *string, int32 length = -1);
+const char* UnHash(uint32 hash);
 
 template <class T>
 class CHashTable {
@@ -46,31 +47,38 @@ class CHashTable {
 
 	class CHashTableEntry {
 		public:
-			CHashTableEntry(T& _item, unsigned int _hash) {
+			CHashTableEntry(T& _item, uint32 _hash) {
 				item = &_item;
 				hash = _hash;
-				next = NULL;
+				nextbucket = NULL;
+                next = NULL;
+                prev = NULL;
 			}
 			T* item;
-			unsigned int hash;
+			uint32 hash;
+			CHashTableEntry* nextbucket;
 			CHashTableEntry* next;
+			CHashTableEntry* prev;
 	};
 
 	// -- constructor / destructor
-	CHashTable(int _size = 0) {
+	CHashTable(int32 _size = 0) {
 		size = _size;
 		table = new CHashTableEntry*[size];
-		for(unsigned int i = 0; i < size; ++i)
+		for(int32 i = 0; i < size; ++i)
 			table[i] = NULL;
 		bucketiter = NULL;
+        iter = NULL;
         used = 0;
+        head = NULL;
+        tail = NULL;
 	}
 
 	virtual ~CHashTable() {
-		for(unsigned int i = 0; i < size; ++i) {
+		for(int32 i = 0; i < size; ++i) {
 			CHashTableEntry* entry = table[i];
 			while (entry) {
-				CHashTableEntry* nextentry = entry->next;
+				CHashTableEntry* nextentry = entry->nextbucket;
 				delete entry;
 				entry = nextentry;
 			}
@@ -78,70 +86,128 @@ class CHashTable {
         delete table;
 	}
 
-	void AddItem(T& _item, unsigned int _hash)
+	void AddItem(T& _item, uint32 _hash)
 	{
 		CHashTableEntry* hte = new CHashTableEntry(_item, _hash);
-		unsigned int bucket = _hash % size;
-		hte->next = table[bucket];
+		int32 bucket = _hash % size;
+		hte->nextbucket = table[bucket];
 		table[bucket] = hte;
 		bucketiter = NULL;
+        iter = NULL;
         ++used;
+
+        // -- add to the double-linked list
+        hte->next = NULL;
+        hte->prev = tail;
+        if(!head) {
+            head = hte;
+            tail = hte;
+        }
+        else {
+            tail->next = hte;
+            tail = hte;
+        }
 	}
 
-	T* FindItem(unsigned int _hash) const {
-		unsigned int bucket = _hash % size;
+	T* FindItem(uint32 _hash) const {
+		int32 bucket = _hash % size;
 		CHashTableEntry* hte = table[bucket];
 		while (hte) {
 			if (hte->hash == _hash)
 				return hte->item;
-			hte = hte->next;
+			hte = hte->nextbucket;
 		}
 
 		// -- not found
 		return NULL;
 	}
 
-	void RemoveItem(unsigned int _hash) {
+	void RemoveItem(uint32 _hash) {
 		bucketiter = NULL;
-		unsigned int bucket = _hash % size;
+        iter = NULL;
+		uint32 bucket = _hash % size;
 		CHashTableEntry** prevptr = &table[bucket];
 		CHashTableEntry* curentry = table[bucket];
 		while (curentry) {
 			if (curentry->hash == _hash) {
-				*prevptr = curentry->next;
+				*prevptr = curentry->nextbucket;
+
+                // -- remove from the double-linked list
+                if(curentry->prev)
+                    curentry->prev->next = curentry->next;
+                if(curentry->next)
+                    curentry->next->prev = curentry->prev;
+                if(curentry == head)
+                    head = curentry->next;
+                if(curentry == tail)
+                    tail = curentry->prev;
+
 				delete curentry;
                 --used;
 				return;
 			}
 			else {
-				prevptr = &curentry->next;
-				curentry = curentry->next;
+				prevptr = &curentry->nextbucket;
+				curentry = curentry->nextbucket;
 			}
 		}
 	}
 
-	void RemoveItem(T* _item, unsigned int _hash) {
+	void RemoveItem(T* _item, uint32 _hash) {
         if(!_item)
             return;
 		bucketiter = NULL;
-		unsigned int bucket = _hash % size;
+        iter = NULL;
+		int32 bucket = _hash % size;
 		CHashTableEntry** prevptr = &table[bucket];
 		CHashTableEntry* curentry = table[bucket];
 		while (curentry) {
 			if (curentry->hash == _hash && curentry->item == _item) {
-				*prevptr = curentry->next;
+				*prevptr = curentry->nextbucket;
+
+                // -- remove from the double-linked list
+                if(curentry->prev)
+                    curentry->prev->next = curentry->next;
+                if(curentry->next)
+                    curentry->next->prev = curentry->prev;
+                if(curentry == head)
+                    head = curentry->next;
+                if(curentry == tail)
+                    tail = curentry->prev;
+
 				delete curentry;
                 --used;
 				return;
 			}
 			else {
-				prevptr = &curentry->next;
-				curentry = curentry->next;
+				prevptr = &curentry->nextbucket;
+				curentry = curentry->nextbucket;
 			}
 		}
 	}
 
-	T* FindItemByBucket(unsigned int bucket) const {
+    T* First() const {
+        iter = head;
+        if(head)
+            return (head->item);
+        else
+            return (NULL);
+    }
+
+    T* Next() const {
+        if(iter)
+            iter = iter->next;
+        if(iter)
+            return (iter->item);
+        else
+            return NULL;
+    }
+
+    T* Last() const {
+        return (tail);
+    }
+
+	T* FindItemByBucket(int32 bucket) const {
 		if(bucket >= size)
 			return NULL;
 		bucketiter = table[bucket];
@@ -151,7 +217,7 @@ class CHashTable {
 			return NULL;
 	}
 
-	T* GetNextItemInBucket(unsigned int bucket) const {
+	T* GetNextItemInBucket(int32 bucket) const {
 		// -- ensure it's the same bucket
 		if(bucket >= size || !table[bucket]) {
 			bucketiter = NULL;
@@ -160,11 +226,11 @@ class CHashTable {
 		if(!bucketiter)
 			bucketiter = table[bucket];
 		else
-			bucketiter = bucketiter->next;
+			bucketiter = bucketiter->nextbucket;
 		return (bucketiter ? bucketiter->item : NULL);
 	}
 
-	CHashTableEntry* FindRawEntryByBucket(unsigned int bucket) const {
+	CHashTableEntry* FindRawEntryByBucket(int32 bucket) const {
 		if(bucket >= size)
 			return NULL;
 		bucketiter = table[bucket];
@@ -174,7 +240,7 @@ class CHashTable {
 			return NULL;
 	}
 
-	CHashTableEntry* GetNextRawEntryInBucket(unsigned int bucket) const {
+	CHashTableEntry* GetNextRawEntryInBucket(int32 bucket) const {
 		// -- ensure it's the same bucket
 		if(bucket >= size || !table[bucket]) {
 			bucketiter = NULL;
@@ -183,28 +249,28 @@ class CHashTable {
 		if(!bucketiter)
 			bucketiter = table[bucket];
 		else
-			bucketiter = bucketiter->next;
+			bucketiter = bucketiter->nextbucket;
 		return bucketiter;
 	}
 
-	unsigned int Size() const {
+	int32 Size() const {
 		return size;
 	}
 
-    unsigned int Used() const {
+    int32 Used() const {
         return used;
     }
 
-    bool IsEmpty() const {
+    bool8 IsEmpty() const {
         return (used == 0);
     }
 
     void RemoveAll() {
 		// -- delete all the entries
-		for(unsigned int i = 0; i < Size(); ++i) {
+		for(int32 i = 0; i < Size(); ++i) {
 			CHashTableEntry* entry = FindRawEntryByBucket(i);
 			while (entry != NULL) {
-				unsigned int hash = entry->hash;
+				int32 hash = entry->hash;
 				RemoveItem(hash);
 				entry = FindRawEntryByBucket(i);
 			}
@@ -215,7 +281,7 @@ class CHashTable {
     // -- This method doesn't just remove all entries from the
     // -- hash table, but it deletes the actual items stored
     void DestroyAll() {
-        for(unsigned int i = 0; i < Size(); ++i) {
+        for(int32 i = 0; i < Size(); ++i) {
 			CHashTableEntry* entry = FindRawEntryByBucket(i);
 		    T* object = FindItemByBucket(i);
 		    while(object != NULL) {
@@ -231,8 +297,12 @@ class CHashTable {
 	private:
 		CHashTableEntry** table;
 		mutable CHashTableEntry* bucketiter;
-		unsigned int size;
-        unsigned int used;
+		int32 size;
+        int32 used;
+
+		mutable CHashTableEntry* iter;
+        CHashTableEntry* head;
+        CHashTableEntry* tail;
 };
 
 }  // TinScript

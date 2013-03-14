@@ -102,6 +102,7 @@ void CBase::CallBaseMethod() {
 }
 
 void ScriptCallTestBaseMethod() {
+    gScriptBaseObject.floatvalue = 35.0f;
     gScriptBaseObject.CallBaseMethod();
 }
 
@@ -177,6 +178,22 @@ void ThreadTestCount(int num) {
 void BeginThreadTest() {
     gScriptNamedObject.intvalue = 30;
     gScriptNamedObject.TestThread();
+}
+
+// -- DEBUGGER Test Functions ----------------------------------------------------------------------
+int MultBy3(int value) {
+    int result = value * 3;
+    return (result);
+}
+
+int MultBy6(int value) {
+    int result = MultBy3(value) * 2;
+    return (result);
+}
+
+int MultBy24(int value) {
+    int result = MultBy6(value) * 4;
+    return (result);
 }
 
 // -- LAMBDA? EXPRESSIONS --------------------------------------------------------------------------

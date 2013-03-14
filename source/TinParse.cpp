@@ -58,9 +58,9 @@ static const char* gBinOperatorString[] = {
 
 eBinaryOpType GetBinaryOpType(const char* token, int32 length) {
 	for(eBinaryOpType i = BINOP_NULL; i < BINOP_COUNT; i = (eBinaryOpType)(i + 1)) {
-		int32 comparelength = int32(strlen(gBinOperatorString[i])) > length ?
-																 strlen(gBinOperatorString[i]) :
-																 length;
+		int32 comparelength = int32(strlen(gBinOperatorString[i])) > length
+                              ? (int32)strlen(gBinOperatorString[i])
+                              : length;
 		if(!Strncmp_(token, gBinOperatorString[i], comparelength)) {
 			return i;
 		}
@@ -82,9 +82,9 @@ const char* GetAssOperatorString(eAssignOpType assop) {
 
 eAssignOpType GetAssignOpType(const char* token, int32 length) {
 	for(eAssignOpType i = ASSOP_NULL; i < ASSOP_COUNT; i = (eAssignOpType)(i + 1)) {
-		int32 comparelength = int32(strlen(gAssOperatorString[i])) > length ?
-																 strlen(gAssOperatorString[i]) :
-																 length;
+		int32 comparelength = int32(strlen(gAssOperatorString[i])) > length
+                              ? (int32)strlen(gAssOperatorString[i])
+                              : length;
 		if(!Strncmp_(token, gAssOperatorString[i], comparelength)) {
 			return i;
 		}
@@ -107,7 +107,7 @@ const char* GetUnaryOperatorString(eUnaryOpType unaryop) {
 eUnaryOpType GetUnaryOpType(const char* token, int32 length) {
 	for(eUnaryOpType i = UNARY_NULL; i < UNARY_COUNT; i = (eUnaryOpType)(i + 1)) {
 		int32 comparelength = int32(strlen(gUnaryOperatorString[i])) > length
-                            ? strlen(gAssOperatorString[i])
+                            ? (int32)strlen(gAssOperatorString[i])
                             : length;
 		if(!Strncmp_(token, gUnaryOperatorString[i], comparelength)) {
 			return i;
@@ -126,9 +126,9 @@ const char* gReservedKeywords[KEYWORD_COUNT] = {
 
 eReservedKeyword GetReservedKeywordType(const char* token, int32 length) {
 	for(eReservedKeyword i = KEYWORD_NULL; i < KEYWORD_COUNT; i = (eReservedKeyword)(i + 1)) {
-		int32 comparelength = int32(strlen(gReservedKeywords[i])) > length ?
-																strlen(gReservedKeywords[i]) :
-																length;
+		int32 comparelength = int32(strlen(gReservedKeywords[i])) > length
+                              ? (int32)strlen(gReservedKeywords[i])
+                              : length;
 		if(!Strncmp_(token, gReservedKeywords[i], comparelength)) {
 			return i;
 		}
@@ -264,7 +264,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 
 	// -- see if we have the expected token
 	if(expectedtoken && expectedtoken[0] != '\0') {
-		int32 expectedlength = strlen(expectedtoken);
+		int32 expectedlength = (int32)strlen(expectedtoken);
 		if (! Strncmp_(tokenptr, expectedtoken, expectedlength)) {
 			length = expectedlength;
 			type = TOKEN_EXPECTED;
@@ -292,7 +292,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 			return NULL;
 
 		// -- return results
-		length = (uint32)(stringend) - (uint32)(tokenptr);
+		length = (int32)kPointerDiffUInt32(stringend, tokenptr);
 		type = TOKEN_STRING;
 		inbuf = stringend + 1;
 		return tokenptr;
@@ -323,7 +323,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 			++tokenendptr;
 
 		// -- return the result
-		length = (uint32)(tokenendptr) - (uint32)(tokenptr);
+		length = (int32)kPointerDiffUInt32(tokenendptr, tokenptr);
 
 		// -- see if the identifier is a keyword
 		bool8 foundidtype = false;
@@ -356,7 +356,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
     bool8 unaryopfound = false;
     int32 unaryoplength = 0;
     for(int32 i = 0; i < UNARY_COUNT; ++i) {
-		int32 operatorlength = strlen(gUnaryOperatorString[i]);
+		int32 operatorlength = (int32)strlen(gUnaryOperatorString[i]);
 		if(!Strncmp_(tokenptr, gUnaryOperatorString[i], operatorlength)) {
 			unaryoplength = operatorlength;
             unaryopfound = true;
@@ -375,12 +375,12 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 	// -- will be mistaken for '+' binary op
     // -- with one exception...  ensure if we find '=' it's not '=='
 	for(int32 i = 0; i < ASSOP_COUNT; ++i) {
-		int32 operatorlength = strlen(gAssOperatorString[i]);
+		int32 operatorlength = (int32)strlen(gAssOperatorString[i]);
 		if(!Strncmp_(tokenptr, gAssOperatorString[i], operatorlength)) {
 
             // -- handle the exception - if we find '=', ensure i's not '=='
             if(i == ASSOP_Assign) {
-        		int32 operatorlength = strlen(gBinOperatorString[BINOP_CompareEqual]);
+        		int32 operatorlength = (int32)strlen(gBinOperatorString[BINOP_CompareEqual]);
         		if(!Strncmp_(tokenptr, gBinOperatorString[BINOP_CompareEqual], operatorlength)) {
                     continue;
                 }
@@ -395,7 +395,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 
 	// -- see if we have a binary op
 	for(int32 i = 0; i < BINOP_COUNT; ++i) {
-		int32 operatorlength = strlen(gBinOperatorString[i]);
+		int32 operatorlength = (int32)strlen(gBinOperatorString[i]);
 		if(!Strncmp_(tokenptr, gBinOperatorString[i], operatorlength)) {
 			length = operatorlength;
 			type = TOKEN_BINOP;
@@ -433,7 +433,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 				++numericptr;
 
 			// -- initialize the return values for a float32
-			length = (uint32)(numericptr) - (uint32)(tokenptr);
+			length = (int32)kPointerDiffUInt32(numericptr, tokenptr);
 			type = TOKEN_FLOAT;
 			inbuf = numericptr;
 
@@ -446,7 +446,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 
 		// -- else an integer
 		else {
-			length = (uint32)(numericptr) - (uint32)(tokenptr);
+            length = (int32)kPointerDiffUInt32(numericptr, tokenptr);
 			type = TOKEN_INTEGER;
 			inbuf = numericptr;
 			return tokenptr;
@@ -511,7 +511,7 @@ const char* ReadFileAllocBuf(const char* filename) {
 	// -- allocate a buffer and read the file into it (will null terminate)
 	char* filebuf = (char*)TinAllocArray(ALLOC_FileBuf, char, filesize + 1);
 	fseek(filehandle, 0, SEEK_SET);
-	int32 bytesread = fread(filebuf, 1, filesize, filehandle);
+	int32 bytesread = (int32)fread(filebuf, 1, filesize, filehandle);
 
     // $$$TZA for some reason, my text file is taking more space on disk than what is actually read...
 	//if (bytesread != filesize) {
@@ -538,10 +538,6 @@ bool8 DumpFile(const char* filename) {
 	}
 
 	// now parse the file - print out each token we found
-	int32 linenumber = 0;
-	int32 tokenlength = 0;
-	eTokenType tokentype = TOKEN_NULL;
-	const char* bufptr = filebuf;
 	tReadToken token(filebuf, 0);
 	bool8 success = false;
 	do {
@@ -628,7 +624,7 @@ void DumpVarTable(CScriptContext* script_context, CObjectEntry* oe, const tVarTa
     void* objaddr = oe ? oe->GetAddr() : NULL;
 
 	TinPrint(script_context, "=== VarTable Begin ===\n");
-	for(uint32 i = 0; i < vartable->Size(); ++i) {
+	for(int32 i = 0; i < vartable->Size(); ++i) {
 		CVariableEntry* ve = vartable->FindItemByBucket(i);
 		while(ve) {
 			char valbuf[kMaxTokenLength];
@@ -661,7 +657,7 @@ void DumpFuncTable(CScriptContext* script_context, const tFuncTable* functable) 
 		return;
 
 	TinPrint(script_context, "=== FuncTable Begin ===\n");
-	for(uint32 i = 0; i < functable->Size(); ++i) {
+	for(int32 i = 0; i < functable->Size(); ++i) {
 		CFunctionEntry* fe = functable->FindItemByBucket(i);
 		while(fe) {
 			TinPrint(script_context, "%s()\n", UnHash(fe->GetHash()));
@@ -760,6 +756,7 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         CSelfVarDeclNode* valuenode = TinAlloc(ALLOC_TreeNode, CSelfVarDeclNode, codeblock, link,
                                                idtoken.linenumber, idtoken.tokenptr,
                                                idtoken.length, registeredtype);
+        Unused_(valuenode);
 
         // -- reset the nexttoken to be at the start of "self.*", in case we find an assign op
         nexttoken = selftoken;
@@ -802,6 +799,7 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock,
                                          arrayvarnode->leftchild, filebuf.linenumber,
                                          idtoken.tokenptr, idtoken.length, true, var->GetType());
+        Unused_(valuenode);
 
         // -- the right child is the hash value
         if(!TryParseArrayHash(codeblock, filebuf, arrayvarnode->rightchild))
@@ -1232,7 +1230,9 @@ bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
 	    if (reservedwordtype == KEYWORD_self) {
             // -- committed to self
             filebuf = firsttoken;
-		    CSelfNode* selfnode = TinAlloc(ALLOC_TreeNode, CSelfNode, codeblock, exprlink, filebuf.linenumber);
+		    CSelfNode* selfnode = TinAlloc(ALLOC_TreeNode, CSelfNode, codeblock, exprlink,
+                                           filebuf.linenumber);
+            Unused_(selfnode);
             return true;
         }
         else
@@ -1253,6 +1253,7 @@ bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
 		CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, exprlink, filebuf.linenumber,
                                          firsttoken.tokenptr, firsttoken.length, false,
                                          firstclassvartype);
+        Unused_(valuenode);
         return true;
     }
 
@@ -1977,6 +1978,7 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     CValueNode* nullreturn = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock,
                                       funcreturnnode->leftchild, filebuf.linenumber, "", 0, false,
                                       TYPE_int);
+    Unused_(nullreturn);
 
     // -- clear the active function definition
     CObjectEntry* dummy = NULL;
@@ -2086,6 +2088,7 @@ bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 		CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock,
                                          binopnode->leftchild, filebuf.linenumber, paramindex,
                                          TYPE__resolve);
+        Unused_(valuenode);
 
         bool8 result = TryParseStatement(codeblock, filebuf, binopnode->rightchild);
         if(!result) {
@@ -2140,6 +2143,7 @@ bool8 TryParseReturn(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNod
         CValueNode* nullreturn = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock,
                                           returnnode->leftchild, filebuf.linenumber, "", 0, false,
                                           TYPE_int);
+        Unused_(nullreturn);
     }
 
     // -- success
@@ -2162,6 +2166,7 @@ bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
     // -- CArrayHash node
     CValueNode* valnode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, link,
                                    filebuf.linenumber, "", 0, false, TYPE_int);
+    Unused_(valnode);
 
     // -- create a temp link, to look for the next array hash statement
     int32 hashexprcount = 0;
@@ -2433,11 +2438,13 @@ bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileT
                                                  link, filebuf.linenumber, classtoken.tokenptr,
                                                  classtoken.length, objnametoken.tokenptr,
                                                  objnametoken.length);
+        Unused_(newobjnode);
     }
     else {
         CCreateObjectNode* newobjnode = TinAlloc(ALLOC_TreeNode, CCreateObjectNode, codeblock,
                                                  link, filebuf.linenumber, classtoken.tokenptr,
                                                  classtoken.length, "", 0);
+        Unused_(newobjnode);
     }
 
     return true;
@@ -2667,7 +2674,7 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
 
     // -- write the version
     int32 version = kCompilerVersion;
-    int32 instrwritten = fwrite((void*)&version, sizeof(int32), 1, filehandle);
+    int32 instrwritten = (int32)fwrite((void*)&version, sizeof(int32), 1, filehandle);
     if(instrwritten != 1) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
                       "Error - unable to write file %s\n", binfilename);
@@ -2676,7 +2683,7 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
 
     // -- write the instrcount
     int32 instrcount = codeblock->GetInstructionCount();
-    instrwritten = fwrite((void*)&instrcount, sizeof(int32), 1, filehandle);
+    instrwritten = (int32)fwrite((void*)&instrcount, sizeof(int32), 1, filehandle);
     if(instrwritten != 1) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
                       "Error - unable to write file %s\n", binfilename);
@@ -2685,7 +2692,7 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
 
     // -- write the linenumber count
     int32 linenumbercount = codeblock->GetLineNumberCount();
-    instrwritten = fwrite((void*)&linenumbercount, sizeof(int32), 1, filehandle);
+    instrwritten = (int32)fwrite((void*)&linenumbercount, sizeof(int32), 1, filehandle);
     if(instrwritten != 1) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
                       "Error - unable to write file %s\n", binfilename);
@@ -2698,7 +2705,7 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
     while(remaining > 0) {
         int32 writecount = remaining > (BUFSIZ >> 2) ? (BUFSIZ >> 2) : remaining;
         remaining -= writecount;
-        int32 instrwritten = fwrite((void*)instrptr, sizeof(uint32), writecount, filehandle);
+        int32 instrwritten = (int32)fwrite((void*)instrptr, (int32)sizeof(uint32), writecount, filehandle);
         fflush(filehandle);
         if(instrwritten != writecount) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
@@ -2714,7 +2721,7 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
     while(remaining > 0) {
         int32 writecount = remaining > (BUFSIZ >> 2) ? (BUFSIZ >> 2) : remaining;
         remaining -= writecount;
-        int32 instrwritten = fwrite((void*)instrptr, sizeof(uint32), writecount, filehandle);
+        int32 instrwritten = (int32)fwrite((void*)instrptr, (int32)sizeof(uint32), writecount, filehandle);
         fflush(filehandle);
         if(instrwritten != writecount) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
@@ -2755,7 +2762,7 @@ CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename) 
 
     // -- read the version
     int32 version = -1;
-    int32 instrread = fread((int32*)&version, sizeof(int32), 1, filehandle);
+    int32 instrread = (int32)fread((int32*)&version, sizeof(int32), 1, filehandle);
     if(ferror(filehandle) || instrread != 1) {
         fclose(filehandle);
         ScriptAssert_(script_context, 0, "<internal>", -1,
@@ -2765,7 +2772,7 @@ CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename) 
 
     // -- read the instrcount
     int32 instrcount = -1;
-    instrread = fread((int32*)&instrcount, sizeof(int32), 1, filehandle);
+    instrread = (int32)fread((int32*)&instrcount, sizeof(int32), 1, filehandle);
     if(ferror(filehandle) || instrread != 1) {
         fclose(filehandle);
         ScriptAssert_(script_context, 0, "<internal>", -1,
@@ -2779,7 +2786,7 @@ CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename) 
 
     // -- read the linenumber count
     int32 linenumbercount = -1;
-    instrread = fread((int32*)&linenumbercount, sizeof(int32), 1, filehandle);
+    instrread = (int32)fread((int32*)&linenumbercount, sizeof(int32), 1, filehandle);
     if(ferror(filehandle) || instrread != 1) {
         fclose(filehandle);
         ScriptAssert_(script_context, 0, "<internal>", -1,
@@ -2793,7 +2800,7 @@ CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename) 
 
     // -- read the file into the codeblock
     uint32* readptr = codeblock->GetInstructionPtr();
-    instrread = fread(readptr, sizeof(uint32), instrcount, filehandle);
+    instrread = (int32)fread(readptr, sizeof(uint32), (int32)instrcount, filehandle);
     if(ferror(filehandle)) {
         fclose(filehandle);
         ScriptAssert_(script_context, 0, "<internal>", -1,
@@ -2924,7 +2931,7 @@ CVariableEntry* GetVariable(CScriptContext* script_context, tVarTable* globalVar
             ScriptAssert_(script_context, 0, "<internal>", -1,
                           "Error - HashTable Variable %s: unable to find entry: %d\n",
                           UnHash(ve->GetHash()), arrayvarhash);
-            return false;
+            return NULL;
         }
 
         // -- return the vte

@@ -182,9 +182,9 @@ class CCompileTreeNode
 		static CCompileTreeNode* CreateTreeRoot(CCodeBlock* codeblock);
 
 	protected:
-		ECompileNodeType type;
         CCodeBlock* codeblock;
-        int linenumber;
+		ECompileNodeType type;
+        int32 linenumber;
 
 	protected:
 		CCompileTreeNode(CCodeBlock* _codeblock = NULL) {
@@ -206,9 +206,9 @@ class CValueNode : public CCompileTreeNode
 		virtual void Dump(char*& output, int& length) const;
 
 	protected:
-		bool isvariable;
-        bool isparam;
-        int paramindex;
+		bool8 isvariable;
+        bool8 isparam;
+        int32 paramindex;
 		char value[kMaxTokenLength];
         eVarType valtype;
 
@@ -233,9 +233,9 @@ class CBinaryOpNode : public CCompileTreeNode
 
 	protected:
         eOpCode binaryopcode;
-        int binaryopprecedence;
+        int32 binaryopprecedence;
 		eVarType binopresult;
-		bool isassignop;
+		bool8 isassignop;
 
 	protected:
 		CBinaryOpNode() { }
@@ -354,7 +354,7 @@ class CFuncCallNode : public CCompileTreeNode
 	protected:
 		char funcname[kMaxNameLength];
 		char nsname[kMaxNameLength];
-        bool ismethod;
+        bool8 ismethod;
 
 	protected:
 		CFuncCallNode() { }
@@ -452,7 +452,7 @@ class CSchedParamNode : public CCompileTreeNode
 		virtual int Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const;
 
     protected :
-        int paramindex;
+        int32 paramindex;
 
 	protected:
 		CSchedParamNode() { }
@@ -561,7 +561,7 @@ class CCodeBlock {
         }
 
         uint32 CalcOffset(const uint32* instrptr) const {
-            return kBytesToWordCount((uint32)instrptr - (uint32)mInstrBlock);
+            return kBytesToWordCount(kPointerDiffUInt32(instrptr, mInstrBlock));
         }
 
         int CalcInstrCount(const CCompileTreeNode& root);
@@ -612,7 +612,7 @@ class CCodeBlock {
         }
 
         static void DestroyUnusedCodeBlocks(CHashTable<CCodeBlock>* code_block_list) {
-            for(uint32 i = 0; i < code_block_list->Size(); ++i) {
+            for(int32 i = 0; i < code_block_list->Size(); ++i) {
                 CCodeBlock* codeblock = code_block_list->FindItemByBucket(i);
                 while(codeblock) {
                     CCodeBlock* nextcodeblock = code_block_list->GetNextItemInBucket(i);

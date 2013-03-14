@@ -23,6 +23,7 @@
 // Generated classes for function registration
 // ------------------------------------------------------------------------------------------------
 
+#include "TinVariableEntry.h"
 
 // -------------------
 // Parameter count: 0
@@ -45,7 +46,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         Dispatch();
     }
 
@@ -65,7 +66,7 @@ public:
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -91,7 +92,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         Dispatch();
     }
 
@@ -107,7 +108,7 @@ public:
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -133,7 +134,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         Dispatch();
     }
 
@@ -153,7 +154,7 @@ public:
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -179,7 +180,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         Dispatch();
     }
 
@@ -195,7 +196,7 @@ public:
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -237,13 +238,14 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -280,13 +282,14 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -327,13 +330,14 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -370,13 +374,14 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -406,7 +411,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         Dispatch(convert_from_void_ptr<T1>::Convert(ve1->GetValueAddr(NULL)));
     }
@@ -428,7 +433,7 @@ public:
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -454,7 +459,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         Dispatch(convert_from_void_ptr<T1>::Convert(ve1->GetValueAddr(NULL)));
     }
@@ -472,7 +477,7 @@ public:
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -498,7 +503,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         Dispatch(convert_from_void_ptr<T1>::Convert(ve1->GetValueAddr(NULL)));
     }
@@ -520,7 +525,7 @@ public:
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -546,7 +551,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         Dispatch(convert_from_void_ptr<T1>::Convert(ve1->GetValueAddr(NULL)));
     }
@@ -564,7 +569,7 @@ public:
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -608,14 +613,15 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -654,14 +660,15 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -704,14 +711,15 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -750,14 +758,15 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -787,7 +796,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         Dispatch(convert_from_void_ptr<T1>::Convert(ve1->GetValueAddr(NULL)),
@@ -812,7 +821,7 @@ public:
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -838,7 +847,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         Dispatch(convert_from_void_ptr<T1>::Convert(ve1->GetValueAddr(NULL)),
@@ -859,7 +868,7 @@ public:
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -885,7 +894,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         Dispatch(convert_from_void_ptr<T1>::Convert(ve1->GetValueAddr(NULL)),
@@ -910,7 +919,7 @@ public:
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -936,7 +945,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         Dispatch(convert_from_void_ptr<T1>::Convert(ve1->GetValueAddr(NULL)),
@@ -957,7 +966,7 @@ public:
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -1003,15 +1012,16 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -1052,15 +1062,16 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -1105,15 +1116,16 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -1154,15 +1166,16 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
         GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()));
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -1192,7 +1205,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -1220,7 +1233,7 @@ public:
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -1246,7 +1259,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -1270,7 +1283,7 @@ public:
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -1296,7 +1309,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -1324,7 +1337,7 @@ public:
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -1350,7 +1363,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -1374,7 +1387,7 @@ public:
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -1422,7 +1435,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
@@ -1430,8 +1444,8 @@ public:
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -1474,7 +1488,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
@@ -1482,8 +1497,8 @@ public:
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -1530,7 +1545,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
@@ -1538,8 +1554,8 @@ public:
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -1582,7 +1598,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
@@ -1590,8 +1607,8 @@ public:
         GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()));
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -1621,7 +1638,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -1652,7 +1669,7 @@ public:
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -1678,7 +1695,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -1705,7 +1722,7 @@ public:
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -1731,7 +1748,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -1762,7 +1779,7 @@ public:
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -1788,7 +1805,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -1815,7 +1832,7 @@ public:
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -1865,7 +1882,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
@@ -1874,8 +1892,8 @@ public:
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -1920,7 +1938,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
@@ -1929,8 +1948,8 @@ public:
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -1979,7 +1998,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
@@ -1988,8 +2008,8 @@ public:
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -2034,7 +2054,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
@@ -2043,8 +2064,8 @@ public:
         GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()));
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -2074,7 +2095,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -2108,7 +2129,7 @@ public:
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -2134,7 +2155,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -2164,7 +2185,7 @@ public:
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -2190,7 +2211,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -2224,7 +2245,7 @@ public:
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -2250,7 +2271,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -2280,7 +2301,7 @@ public:
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -2332,7 +2353,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
@@ -2342,8 +2364,8 @@ public:
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -2390,7 +2412,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
@@ -2400,8 +2423,8 @@ public:
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -2452,7 +2475,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
@@ -2462,8 +2486,8 @@ public:
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -2510,7 +2534,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
@@ -2520,8 +2545,8 @@ public:
         GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()));
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -2551,7 +2576,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -2588,7 +2613,7 @@ public:
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -2614,7 +2639,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -2647,7 +2672,7 @@ public:
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -2673,7 +2698,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -2710,7 +2735,7 @@ public:
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -2736,7 +2761,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -2769,7 +2794,7 @@ public:
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -2823,7 +2848,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
@@ -2834,8 +2860,8 @@ public:
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -2884,7 +2910,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
@@ -2895,8 +2922,8 @@ public:
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -2949,7 +2976,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
@@ -2960,8 +2988,8 @@ public:
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -3010,7 +3038,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
@@ -3021,8 +3050,8 @@ public:
         GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()));
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -3052,7 +3081,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -3092,7 +3121,7 @@ public:
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -3118,7 +3147,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -3154,7 +3183,7 @@ public:
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -3180,7 +3209,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -3220,7 +3249,7 @@ public:
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -3246,7 +3275,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -3282,7 +3311,7 @@ public:
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -3338,7 +3367,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
@@ -3350,8 +3380,8 @@ public:
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -3402,7 +3432,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
@@ -3414,8 +3445,8 @@ public:
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -3470,7 +3501,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
@@ -3482,8 +3514,8 @@ public:
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -3534,7 +3566,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
@@ -3546,8 +3579,8 @@ public:
         GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()));
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -3577,7 +3610,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -3620,7 +3653,7 @@ public:
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
         GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -3646,7 +3679,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -3685,7 +3718,7 @@ public:
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
         GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -3711,7 +3744,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -3754,7 +3787,7 @@ public:
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
         GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -3780,7 +3813,7 @@ public:
     }
 
     // -- virtual DispatchFunction wrapper
-    virtual void DispatchFunction(void* objaddr) {
+    virtual void DispatchFunction(void*) {
         CVariableEntry* ve1 = GetContext()->GetParameter(1);
         CVariableEntry* ve2 = GetContext()->GetParameter(2);
         CVariableEntry* ve3 = GetContext()->GetParameter(3);
@@ -3819,7 +3852,7 @@ public:
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
         GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()));
 
-        unsigned int hash = fe->GetHash();
+        uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
         globalfunctable->AddItem(*fe, hash);
     }
@@ -3877,7 +3910,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
@@ -3890,8 +3924,8 @@ public:
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
         GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -3944,7 +3978,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
@@ -3957,8 +3992,8 @@ public:
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
         GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -4015,7 +4050,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()));
@@ -4028,8 +4064,8 @@ public:
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
         GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
@@ -4082,7 +4118,8 @@ public:
 
     // -- registration method
     virtual void Register(CScriptContext* script_context) {
-        CFunctionEntry* fe = new CFunctionEntry(script_context, Hash(C::GetClassName()), GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
         GetContext()->AddParameter("__return", Hash("__return"), TYPE_void);
@@ -4095,8 +4132,8 @@ public:
         GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()));
         GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()));
 
-        unsigned int hash = fe->GetHash();
-        tFuncTable* methodtable = C::classnamespace->GetFuncTable();
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
         methodtable->AddItem(*fe, hash);
     }
 
