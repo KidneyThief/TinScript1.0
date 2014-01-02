@@ -52,15 +52,16 @@ class CFunctionContext {
             return mContextOwner;
         }
 
-        bool AddParameter(const char* varname, uint32 varhash, eVarType type);
-        bool AddParameter(const char* varname, uint32 varhash, eVarType type, int paramindex);
+        bool8 AddParameter(const char* varname, uint32 varhash, eVarType type);
+        bool8 AddParameter(const char* varname, uint32 varhash, eVarType type, int32 paramindex);
         CVariableEntry* AddLocalVar(const char* varname, uint32 varhash,
                                     eVarType type);
-        int GetParameterCount();
+        int32 GetParameterCount();
         CVariableEntry* GetParameter(int index);
         CVariableEntry* GetLocalVar(uint32 varhash);
         tVarTable* GetLocalVarTable();
-        bool IsParameter(CVariableEntry* ve);
+        bool8 IsParameter(CVariableEntry* ve);
+        void ClearParameters();
         void InitStackVarOffsets();
 
     private:

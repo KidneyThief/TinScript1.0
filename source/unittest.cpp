@@ -37,7 +37,7 @@
 DECLARE_FILE(unittest_cpp);
 
 // -- constants -----------------------------------------------------------------------------------
-static const char* kUnitTestScriptName = "../scripts/unittest.cs";
+static const char* kUnitTestScriptName = "../scripts/unittest.ts";
 
 // -- GLOBAL VARIABLES ----------------------------------------------------------------------------
 int32 gCodeGlobalVariable = 17;
@@ -211,13 +211,16 @@ void BeginUnitTests(int32 teststart, int32 testend)
         testend = 9999;
     }
 
+    // -- unit tests are run on the main thread
+    TinScript::CScriptContext* script_context = TinScript::CScriptContext::GetMainThreadContext();
+
     // -- banner
     MTPrint("\n****************************\n");
     MTPrint("*** TinScript Unit Tests ***\n");
     MTPrint("****************************\n");
 
-    MTPrint("\nExecuting unittest.cs\n");
-	if(!TinScript::CScriptContext::GetMainThreadContext()->ExecScript(kUnitTestScriptName)) {
+    MTPrint("\nExecuting unittest.ts\n");
+	if(!script_context->ExecScript(kUnitTestScriptName)) {
 		MTPrint("Error - unable to parse file: %s\n", kUnitTestScriptName);
 		return;
 	}
@@ -230,7 +233,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
     if(testindex >= teststart && testindex <= testend) {
         MTPrint("\n%d.  ", testindex);
         MTPrint("Paren Expr: (((3 + 4) * 17) - (3 + 6)) %% (42 / 3) - next line prints: 12.667f\n");
-        TinScript::CScriptContext::GetMainThreadContext()->ExecCommand("TestParenthesis();");
+        script_context->ExecCommand("TestParenthesis();");
     }
 
     // --
@@ -238,7 +241,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
     if(testindex >= teststart && testindex <= testend) {
         MTPrint("\n%d.  ", testindex);
         MTPrint("Test 'if' statement - next line prints: 'Equal to 9'\n");
-        TinScript::CScriptContext::GetMainThreadContext()->ExecCommand("TestIfStatement();");
+        script_context->ExecCommand("TestIfStatement();");
     }
 
     // --
@@ -246,7 +249,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
     if(testindex >= teststart && testindex <= testend) {
         MTPrint("\n%d.  ", testindex);
         MTPrint("Test 'while' statement - next line prints the sequence: 5 to 1\n");
-        TinScript::CScriptContext::GetMainThreadContext()->ExecCommand("TestWhileStatement();");
+        script_context->ExecCommand("TestWhileStatement();");
     }
 
     // --
@@ -254,7 +257,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
     if(testindex >= teststart && testindex <= testend) {
         MTPrint("\n%d.  ", testindex);
         MTPrint("Test 'for' loop - next line prints the sequence 0 to 4\n");
-        TinScript::CScriptContext::GetMainThreadContext()->ExecCommand("TestForLoop();");
+        script_context->ExecCommand("TestForLoop();");
     }
 
     // --
@@ -263,7 +266,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
         MTPrint("\n%d.  ", testindex);
         gCodeGlobalVariable = 17;
         MTPrint("Script access to registered global - next line prints: %d\n", gCodeGlobalVariable);
-        TinScript::CScriptContext::GetMainThreadContext()->ExecCommand("TestScriptAccessToGlobal();");
+        script_context->ExecCommand("TestScriptAccessToGlobal();");
     }
 
     // --
@@ -271,7 +274,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
     if(testindex >= teststart && testindex <= testend) {
         MTPrint("\n%d.  ", testindex);
         MTPrint("Script access to modify registered global - next line prints: 43\n");
-        TinScript::CScriptContext::GetMainThreadContext()->ExecCommand("SetGlobalVarTo43();");
+        script_context->ExecCommand("SetGlobalVarTo43();");
         MTPrint("gCodeGlobalVariable: %d\n", gCodeGlobalVariable);
     }
 
@@ -281,7 +284,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
         MTPrint("\n%d.  ", testindex);
         MTPrint("Code access to script global - next line prints: 12\n");
         int32 testscriptglobal = 0;
-        if(!TinScript::GetGlobalVar("gScriptGlobalVar", testscriptglobal)) {
+        if(!TinScript::GetGlobalVar(script_context, "gScriptGlobalVar", testscriptglobal)) {
 		    MTPrint("Error - failed to find script global: gScriptGlobalVar\n");
 		    return;
         }
@@ -289,12 +292,37 @@ void BeginUnitTests(int32 teststart, int32 testend)
     }
 
     // --
+    /*
+    ++testindex;
+    if(testindex >= teststart && testindex <= testend) {
+        MTPrint("\n%d.  ", testindex);
+        MTPrint("C3Vector cross((v0 + v1), v2) - next two lines print: 3.5355 and (-2.0 0.0 -1.5)\n");
+        int32 dummy = 0;
+        if(!TinScript::ExecF(script_context, dummy, "TestC3Vector();")) {
+            MTPrint("Error - failed to find execute TestC3Vector()\n");
+            return;
+        }
+    }
+    */
+
+    // --
+    ++testindex;
+    if(testindex >= teststart && testindex <= testend) {
+        MTPrint("\n%d.  ", testindex);
+        MTPrint("Test Hashtable variables - next two lines print: goodbye and 17.5\n");
+        int32 dummy = 0;
+        if(!TinScript::ExecF(script_context, dummy, "TestHashtables();")) {
+            MTPrint("Error - failed to find execute TestHashtables()\n");
+            return;
+        }
+    }
+    // --
     ++testindex;
     if(testindex >= teststart && testindex <= testend) {
         MTPrint("\n\n***  GLOBAL FUNCTIONS:  ************\n");
         MTPrint("\n%d.  ", testindex);
         MTPrint("Script access to call a global function with a return value -\nnext line prints: 34\n");
-        TinScript::CScriptContext::GetMainThreadContext()->ExecCommand("CallMultIntByTwo(17);");
+        script_context->ExecCommand("CallMultIntByTwo(17);");
     }
 
     // --
@@ -303,7 +331,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
         MTPrint("\n%d.  ", testindex);
         MTPrint("Code access to call a script function with a return value -\nnext line prints: 4\n");
         int32 scriptreturn = 0;
-        if(!TinScript::ExecF(scriptreturn, "ScriptMod9(%d);", 49)) {
+        if(!TinScript::ExecF(script_context, scriptreturn, "ScriptMod9(%d);", 49)) {
 		    MTPrint("Error - failed to execute script function CallScriptMod9()\n");
 		    return;
         }
@@ -316,7 +344,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
         MTPrint("\n%d.  ", testindex);
         MTPrint("Nested function calls - next lines print: 32 and 13\n");
         int32 scriptreturn = 0;
-        if(!TinScript::ExecF(scriptreturn, "TestNestedFunctions(%d);", 4)) {
+        if(!TinScript::ExecF(script_context, scriptreturn, "TestNestedFunctions(%d);", 4)) {
 		    MTPrint("Error - failed to execute script function TestNestedFunctions()\n");
 		    return;
         }
@@ -328,7 +356,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
         MTPrint("\n%d.  ", testindex);
         MTPrint("Recursive function call - next lines prints 21\n");
         int32 scriptreturn = 0;
-        if(!TinScript::ExecF(scriptreturn, "Fibonacci(%d);", 7)) {
+        if(!TinScript::ExecF(script_context, scriptreturn, "Fibonacci(%d);", 7)) {
 		    MTPrint("Error - failed to execute script function Fibonacci()\n");
 		    return;
         }
@@ -342,7 +370,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
         MTPrint("\n%d.  ", testindex);
         MTPrint("Create an instance of a registered class from script -\n");
         MTPrint("next line prints:  Entering constructor CBase()\n");
-        if(!TinScript::CScriptContext::GetMainThreadContext()->ExecCommand("ScriptCreateObject();")) {
+        if(!script_context->ExecCommand("ScriptCreateObject();")) {
 		    MTPrint("Error - failed to execute ScriptCreateObject()\n");
 		    return;
         }
@@ -356,11 +384,11 @@ void BeginUnitTests(int32 teststart, int32 testend)
         MTPrint("Find the object from code by ID, cast and read the float32 member-\n");
         MTPrint("next line prints: 27.0\n");
         int32 testobjectid = 0;
-        if(!TinScript::GetGlobalVar("gScriptBaseObject", testobjectid)) {
+        if(!TinScript::GetGlobalVar(script_context, "gScriptBaseObject", testobjectid)) {
 		    MTPrint("Error - failed to find script global: gScriptBaseObject\n");
 		    return;
         }
-        testobj = static_cast<CBase*>(TinScript::CScriptContext::GetMainThreadContext()->FindObject(testobjectid));
+        testobj = static_cast<CBase*>(script_context->FindObject(testobjectid));
         if(!testobj) {
 		    MTPrint("Error - code failed to find object: %d\n", testobjectid);
 		    return;
@@ -374,7 +402,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
         MTPrint("\n%d.  ", testindex);
         MTPrint("Access the object member from script-\n");
         MTPrint("next two lines print: 35.0\n");
-        if(!TinScript::CScriptContext::GetMainThreadContext()->ExecCommand("ScriptModifyMember();")) {
+        if(!script_context->ExecCommand("ScriptModifyMember();")) {
 		    MTPrint("Error - failed to execute ScriptModifyMember()\n");
 		    return;
         }
@@ -387,7 +415,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
         MTPrint("\n%d.  ", testindex);
         MTPrint("Access the object method from script-\n");
         MTPrint("next two lines print: 91\n");
-        if(!TinScript::CScriptContext::GetMainThreadContext()->ExecCommand("ScriptModifyMethod();")) {
+        if(!script_context->ExecCommand("ScriptModifyMethod();")) {
 		    MTPrint("Error - failed to execute ScriptModifyMethod()\n");
 		    return;
         }
@@ -400,7 +428,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
         MTPrint("\n%d.  ", testindex);
         MTPrint("Call a scripted method from script\n");
         MTPrint("next line prints: -65.0f\n");
-        if(!TinScript::CScriptContext::GetMainThreadContext()->ExecCommand("ScriptCallTestBaseMethod();")) {
+        if(!script_context->ExecCommand("ScriptCallTestBaseMethod();")) {
 		    MTPrint("Error - failed to execute ScriptCallTestBaseMethod()\n");
 		    return;
         }
@@ -412,7 +440,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
         MTPrint("\n%d.  ", testindex);
         MTPrint("Create a derived CChild instance from script\n");
         MTPrint("next line identifies both CBase and CChild constructors being called\n");
-        if(!TinScript::CScriptContext::GetMainThreadContext()->ExecCommand("ScriptCreateChildObject();")) {
+        if(!script_context->ExecCommand("ScriptCreateChildObject();")) {
 		    MTPrint("Error - failed to execute ScriptCreateChildObject()\n");
 		    return;
         }
@@ -424,7 +452,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
         MTPrint("\n%d.  ", testindex);
         MTPrint("Call a derived method from script\n");
         MTPrint("next line prints: 24\n");
-        if(!TinScript::CScriptContext::GetMainThreadContext()->ExecCommand("ScriptCallChildMethod();")) {
+        if(!script_context->ExecCommand("ScriptCallChildMethod();")) {
 		    MTPrint("Error - failed to execute ScriptCallChildMethod()\n");
 		    return;
         }
@@ -437,7 +465,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
         MTPrint("Call the same method for both base and child objects\n");
         MTPrint("Notice the base object calls base method, the derived method calls the derived\n");
         MTPrint("next lines print: 18, followed by 36\n");
-        if(!TinScript::CScriptContext::GetMainThreadContext()->ExecCommand("ScriptCallBothObjectMethods();")) {
+        if(!script_context->ExecCommand("ScriptCallBothObjectMethods();")) {
 		    MTPrint("Error - failed to execute ScriptCallBothObjectMethods()\n");
 		    return;
         }
@@ -451,7 +479,7 @@ void BeginUnitTests(int32 teststart, int32 testend)
         MTPrint("Create a CChild instance, but named 'TestNS'\n");
         MTPrint("Notice the constructors for both CBase, then CChild are called,\n");
         MTPrint("followed by the Scripted TestNS::OnCreate()\n");
-        if(!TinScript::CScriptContext::GetMainThreadContext()->ExecCommand("ScriptCreateNamedObject();")) {
+        if(!script_context->ExecCommand("ScriptCreateNamedObject();")) {
 		    MTPrint("Error - failed to execute ScriptCreateNamedObject()\n");
 		    return;
         }

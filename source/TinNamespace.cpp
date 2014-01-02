@@ -45,7 +45,7 @@ static const char* kGlobalNamespace = "_global";
 // ------------------------------------------------------------------------------------------------
 
 CObjectEntry::CObjectEntry(CScriptContext* script_context, uint32 _objid, uint32 _namehash,
-                           CNamespace* _objnamespace, void* _objaddr) {
+                           CNamespace* _objnamespace, void* _objaddr, bool8 register_manual) {
     mContextOwner = script_context;
     mObjectID = _objid;
     mNameHash = _namehash;
@@ -53,6 +53,7 @@ CObjectEntry::CObjectEntry(CScriptContext* script_context, uint32 _objid, uint32
     mObjectAddr = _objaddr;
     mDynamicVariables = NULL;
     mGroupOwner = NULL;
+    mManualRegister = register_manual;
 }
 
 CObjectEntry::~CObjectEntry() {
@@ -91,6 +92,15 @@ CFunctionEntry* CObjectEntry::GetFunctionEntry(uint32 nshash, uint32 funchash) {
     return fe;
 }
 
+CNamespace* CObjectEntry::HasNamespace(uint32 nshash) {
+    if(nshash == 0)
+        return NULL;
+    CNamespace* objns = GetNamespace();
+    while(objns && objns->GetHash() != nshash)
+        objns = objns->GetNext();
+    return objns;
+}
+
 bool8 CObjectEntry::AddDynamicVariable(uint32 varhash, eVarType vartype) {
     // -- sanity check
     if(varhash == 0 || vartype < FIRST_VALID_TYPE)
@@ -121,6 +131,25 @@ bool8 CObjectEntry::AddDynamicVariable(uint32 varhash, eVarType vartype) {
 
     return (ve != NULL);
 }
+
+bool8 CObjectEntry::SetMemberVar(uint32 varhash, void* value) {
+    if(!value) {
+        return false;
+    }
+    // -- find the variable
+    CVariableEntry* ve = GetVariableEntry(varhash);
+    if(!ve) {
+        ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
+                      "Error - Unable to find variable %s for object %d\n",
+                      UnHash(varhash), GetID());
+        return (false);
+    }
+
+    // -- set the value
+    ve->SetValue(GetAddr(), value);
+    return (true);
+}
+
 
 // ------------------------------------------------------------------------------------------------
 // -- CVariableEntry
@@ -208,9 +237,27 @@ void CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns) {
                 tempns = tempns->GetNext();
         }
 
-        // -- not found in the hierarchy - we can insert if it doesn't have any children
-        // -- or if it's child is the same child as the child we're trying to link
-        if(parentns->GetNext() == NULL || parentns->GetNext() == childns->GetNext()) {
+        // -- not found in the hierarchy already - we need see then if the current parent
+        // -- is in the hierarchy of the new parent
+        bool8 found = false;
+        CNamespace* oldparent = childns->GetNext();
+        tempns = parentns;
+        while(tempns) {
+            if(tempns == oldparent) {
+                found = true;
+                break;
+            }
+            tempns = tempns->GetNext();
+        }
+        // -- if it was found, link the namespaces and exit
+        if(found) {
+            childns->SetNext(parentns);
+            return;
+        }
+
+        // -- not found in the hierarchy - we can insert the new parent into the hierarchy
+        // -- of the child, if the new parent doesn't have any children itself
+        if(parentns->GetNext() == NULL) {
             parentns->SetNext(childns->GetNext());
             childns->SetNext(parentns);
             return;
@@ -288,7 +335,7 @@ uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash) {
 
         // -- add this object to the dictionary of all objects created from script
         CObjectEntry* newobjectentry = TinAlloc(ALLOC_ObjEntry, CObjectEntry, this,
-                                                objectid, objnamehash, objnamens, newobj);
+                                                objectid, objnamehash, objnamens, newobj, false);
         GetObjectDictionary()->AddItem(*newobjectentry, objectid);
 
         // -- add the object to the dictionary by address
@@ -353,11 +400,16 @@ uint32 CScriptContext::RegisterObject(void* objaddr, const char* classname,
 
     // -- add this object to the dictionary of all objects created from script
     CObjectEntry* newobjectentry = TinAlloc(ALLOC_ObjEntry, CObjectEntry, this,
-                                            objectid, objnamehash, objnamens, objaddr);
+                                            objectid, objnamehash, objnamens, objaddr, true);
     GetObjectDictionary()->AddItem(*newobjectentry, objectid);
 
     // -- add the object to the dictionary by address
     GetAddressDictionary()->AddItem(*newobjectentry, kPointerToUInt32(objaddr));
+
+    // -- if the item is named, add it to the name dictionary
+    if(objnamehash != Hash("")) {
+        GetNameDictionary()->AddItem(*newobjectentry, objnamehash);
+    }
 
     // -- see if the "OnCreate" has been defined - it's not required to
     CFunctionEntry* createfunc = newobjectentry->GetFunctionEntry(0, Hash("OnCreate"));
@@ -372,7 +424,7 @@ uint32 CScriptContext::RegisterObject(void* objaddr, const char* classname,
     return objectid;
 }
 
-void CScriptContext::DestroyObject(uint32 objectid, bool8 unregister_only) {
+void CScriptContext::DestroyObject(uint32 objectid) {
     // -- find this object in the dictionary of all objects created from script
     CObjectEntry* oe = GetObjectDictionary()->FindItem(objectid);
     if(!oe) {
@@ -422,8 +474,8 @@ void CScriptContext::DestroyObject(uint32 objectid, bool8 unregister_only) {
     // -- cancel all pending schedules related to this object
     GetScheduler()->CancelObject(objectid);
 
-    // -- delete the actual object, unless we're only unregistering
-    if(!unregister_only) {
+    // -- if the object was not registered externally, delete the actual object
+    if(!oe->IsManuallyRegistered()) {
         (*destroyptr)(objaddr);
     }
 
@@ -458,9 +510,13 @@ uint32 CScriptContext::FindIDByAddress(void* addr) {
     return oe ? oe->GetID() : 0;
 }
 
-void* CScriptContext::FindObject(uint32 objectid) {
+void* CScriptContext::FindObject(uint32 objectid, const char* required_namespace) {
     CObjectEntry* oe = GetObjectDictionary()->FindItem(objectid);
-    return oe ? oe->GetAddr() : NULL;
+    if(oe && (!required_namespace || !required_namespace[0] ||
+              oe->HasNamespace(Hash(required_namespace)))) {
+        return (oe->GetAddr());
+    }
+    return NULL;
 }
 
 bool8 CScriptContext::HasMethod(void* addr, const char* method_name) {
@@ -491,38 +547,104 @@ bool8 CScriptContext::HasMethod(uint32 objectid, const char* method_name) {
     return (fe != NULL);
 }
 
-void CScriptContext::AddDynamicVariable(uint32 objectid, uint32 varhash,
-                                    eVarType vartype) {
+bool8 CScriptContext::AddDynamicVariable(uint32 objectid, uint32 varhash, eVarType vartype) {
     CObjectEntry* oe = GetObjectDictionary()->FindItem(objectid);
     if(!oe) {
         ScriptAssert_(this, 0, "<internal>", -1,
                       "Error - Unable to find object: %d\n", objectid);
-        return;
+        return (false);
     }
-    oe->AddDynamicVariable(varhash, vartype);
+    return (oe->AddDynamicVariable(varhash, vartype));
 }
 
-void CScriptContext::AddDynamicVariable(uint32 objectid, const char* varname,
-                                           const char* vartypename) {
+bool8 CScriptContext::AddDynamicVariable(uint32 objectid, const char* varname,
+    const char* vartypename) {
     if(!varname || !vartypename) {
         ScriptAssert_(this, 0, "<internal>", -1,
                       "Error - AddDynamicVariable with no var name/type\n");
-        return;
+        return (false);
     }
 
     uint32 varhash = Hash(varname);
     eVarType vartype = GetRegisteredType(vartypename, (int32)strlen(vartypename));
-    return AddDynamicVariable(objectid, varhash, vartype);
+    return (AddDynamicVariable(objectid, varhash, vartype));
+}
+
+bool8 CScriptContext::SetMemberVar(uint32 objectid, const char* varname, void* value) {
+    if(!varname || !value) {
+        ScriptAssert_(this, 0, "<internal>", -1,
+                      "Error - invalid call to SetMemberVar\n");
+        return (false);
+    }
+
+    CObjectEntry* oe = GetObjectDictionary()->FindItem(objectid);
+    if(!oe) {
+        ScriptAssert_(this, 0, "<internal>", -1,
+                      "Error - Unable to find object: %d\n", objectid);
+        return (false);
+    }
+
+    uint32 varhash = Hash(varname);
+    return oe->SetMemberVar(varhash, value);
+}
+
+
+void CScriptContext::PrintObject(CObjectEntry* oe, int32 indent) {
+    if(!oe)
+        return;
+    // -- find the actual class
+    CNamespace* classns = oe->GetNamespace();
+    while (classns && !classns->IsRegisteredClass())
+        classns = classns->GetNext();
+    if(!classns) {
+        ScriptAssert_(this, 0, "<internal>", -1,
+                      "Error - Registered object with no class: [%d] %s\n",
+                      oe->GetID(), oe->GetName());
+        return;
+    }
+
+    // -- print the indent
+    const char* indentbuf = "    ";
+    for(int32 i = 0; i < indent; ++i) {
+        TinPrint(this, indentbuf);
+    }
+
+    // -- print the object id and name
+    TinPrint(this, "[%d] %s:", oe->GetID(), oe->GetName());
+    bool8 first = true;
+    CNamespace* ns = oe->GetNamespace();
+    while(ns) {
+        // -- if this is registered class, highlight it
+        if(ns->IsRegisteredClass()) {
+            TinPrint(this, "%s[%s]", !first ? "-->" : " ", UnHash(ns->GetHash()));
+        }
+        else {
+            TinPrint(this, "%s%s", !first ? "-->" : " ", UnHash(ns->GetHash()));
+        }
+        first = false;
+        ns = ns->GetNext();
+    }
+    TinPrint(this, "\n");
 }
 
 void CScriptContext::ListObjects() {
-    for(int32 i = 0; i < kObjectTableSize; ++i) {
-        CObjectEntry* oe = GetObjectDictionary()->FindItemByBucket(i);
-        while(oe) {
-            TinPrint(this, "[%d] %s: %s\n", oe->GetID(), UnHash(oe->GetNamespace()->GetHash()),
-                     oe->GetName());
-            oe = GetObjectDictionary()->GetNextItemInBucket(i);
+    TinPrint(this, "\n");
+    CObjectEntry* oe = GetObjectDictionary()->First();
+    while(oe) {
+        // -- if the object has a parent group, don't bother printing it - it'll have already
+        // -- been printed by its parent group
+        if(oe->GetObjectGroup() == NULL) {
+            PrintObject(oe);
         }
+
+        // -- if the object itself is a group, list it's children
+        if(HasMethod(oe->GetID(), "ListObjects")) {
+            int32 dummy = 0;
+            ObjExecF(this, oe->GetID(), dummy, "ListObjects(1);");
+        }
+
+        // -- next object
+        oe = GetObjectDictionary()->Next();
     }
 }
 

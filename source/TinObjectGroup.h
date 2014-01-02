@@ -59,10 +59,11 @@ class CObjectSet {
             return (mContextOwner);
         }
 
-        bool8 Contains(uint32 objectid);
+        virtual bool8 Contains(uint32 objectid);
         virtual void AddObject(uint32 objectid);
         virtual void RemoveObject(uint32 objectid);
-        void ListObjects();
+        virtual void ListObjects(int32 indent = 0);
+        virtual void RemoveAll();
 
         uint32 First();
         uint32 Next();

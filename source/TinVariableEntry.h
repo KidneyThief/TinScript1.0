@@ -103,6 +103,9 @@ public:
         return mFuncEntry;
     }
 
+    // -- this is used to pass return values from scheduled functions
+    void ResolveValueType(eVarType new_type, void* value);
+
 private:
 
     CScriptContext* mContextOwner;

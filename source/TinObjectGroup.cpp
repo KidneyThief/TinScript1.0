@@ -98,9 +98,18 @@ void CMasterMembershipList::OnDelete(CObjectEntry* oe) {
     // -- see if this object belongs to any groups
     tMembershipList* member_list = mMasterMembershipList->FindItem(oe->GetID());
     if(member_list) {
-        while(member_list->Used() > 1) {
+        int32 cur_count = member_list->Used();
+        while(cur_count > 1) {
             CObjectSet* group = member_list->First();
             group->RemoveObject(objectid);
+
+            // -- ensure our count actually went down
+            int32 new_count = member_list->Used();
+            if(new_count != (cur_count - 1)) {
+                //Assert_(false, "Error - CMasterMembershipList::OnDelete() failed to remove object");
+                Assert_(false);
+            }
+            cur_count = new_count;
         }
 
         // -- delete the last membership entry separately since empty lists
@@ -185,12 +194,29 @@ void CObjectSet::RemoveObject(uint32 objectid) {
     }
 }
 
-void CObjectSet::ListObjects() {
+void CObjectSet::ListObjects(int32 indent) {
+    if(indent == 0) {
+        TinPrint(GetScriptContext(), "\n");
+    }
     CObjectEntry* oe = mObjectList->First();
     while(oe) {
-        TinPrint(GetScriptContext(), "[%d] %s: %s\n", oe->GetID(),
-                    UnHash(oe->GetNamespace()->GetHash()), oe->GetName());
+        GetScriptContext()->PrintObject(oe, indent);
+
+        // -- if the object is an ObjectSet, list it's objects
+        if(GetScriptContext()->HasMethod(oe->GetID(), "ListObjects")) {
+            int32 dummy = 0;
+            ObjExecF(GetScriptContext(), oe->GetID(), dummy, "ListObjects(%d);", indent + 1);
+        }
+
+        // -- next object
         oe = mObjectList->Next();
+    }
+}
+
+void CObjectSet::RemoveAll() {
+    while(mObjectList->Used() > 0) {
+        CObjectEntry* oe = mObjectList->First();
+        RemoveObject(oe->GetID());
     }
 }
 
@@ -289,7 +315,8 @@ IMPLEMENT_SCRIPT_CLASS_END()
 REGISTER_METHOD_P1(CObjectSet, Contains, Contains, bool8, uint32);
 REGISTER_METHOD_P1(CObjectSet, AddObject, AddObject, void, uint32);
 REGISTER_METHOD_P1(CObjectSet, RemoveObject, RemoveObject, void, uint32);
-REGISTER_METHOD_P0(CObjectSet, ListObjects, ListObjects, void);
+REGISTER_METHOD_P1(CObjectSet, ListObjects, ListObjects, void, int32);
+REGISTER_METHOD_P0(CObjectSet, RemoveAll, RemoveAll, void);
 
 REGISTER_METHOD_P0(CObjectSet, First, First, uint32);
 REGISTER_METHOD_P0(CObjectSet, Next, Next, uint32);

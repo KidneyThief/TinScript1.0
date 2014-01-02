@@ -76,7 +76,7 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
     // -- globals are constructed above, so this is a script var, requiring us to allocate
     else {
 		mScriptVar = true;
-		mAddr = (void*)TinAllocVarContent(_type);
+		mAddr = (void*)TinAllocArray(ALLOC_VarStorage, char, gRegisteredTypeSize[_type]);
 		memset(mAddr, 0, gRegisteredTypeSize[_type]);
     }
 }
@@ -119,6 +119,21 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value) {
     }
     else
         memcpy(varaddr, value, size);
+}
+
+// -- this is only used to copy the contents of an execstack, to return a value from a
+// -- scheduled function
+void CVariableEntry::ResolveValueType(eVarType new_type, void* value) {
+    if(mType != TYPE__resolve || !value) {
+        ScriptAssert_(GetScriptContext(), false, "<internal>", -1,
+            "Error - trying to call ResolveValueType() on var: %s\n",
+            UnHash(GetHash()));
+        return;
+    }
+
+    mType = new_type;
+    int32 size = gRegisteredTypeSize[mType];
+    memcpy(mAddr, value, size);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -233,6 +248,16 @@ bool8 CFunctionContext::IsParameter(CVariableEntry* ve) {
     }
 
     return false;
+}
+
+void CFunctionContext::ClearParameters() {
+    for(int32 i = 0; i < paramcount; ++i) {
+        CVariableEntry* ve = parameterlist[i];
+        const int32 max_size = MAX_TYPE_SIZE * (int32)sizeof(uint32);
+        char buf[max_size];
+        memset(buf, 0, max_size);
+        ve->SetValue(NULL, (void*)&buf);
+    }
 }
 
 // ------------------------------------------------------------------------------------------------

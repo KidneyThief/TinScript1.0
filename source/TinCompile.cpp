@@ -384,8 +384,12 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
             // -- or a hashtable, to declare an array entry...
 			if(pushresult == TYPE__var || pushresult == TYPE_hashtable) {
                 // -- if we want the hash table entry, or the variable to assign
-                if(vartype == TYPE_hashtable && pushresult != TYPE_hashtable)
+                if(vartype == TYPE_hashtable && pushresult != TYPE_hashtable) {
     				size += PushInstruction(countonly, instrptr, OP_PushArrayVar, DBG_instr);
+				    size += PushInstruction(countonly, instrptr, 0, DBG_hash);
+				    size += PushInstruction(countonly, instrptr, funchash, DBG_func);
+        			size += PushInstruction(countonly, instrptr, var->GetHash(), DBG_var);
+                }
                 // -- else we want the hashtable variable
                 else {
                     // -- if this isn't a func var, make sure we push ns 0 for a global variable
@@ -415,8 +419,12 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
 
 			// -- otherwise we push the hash, but the instruction is to get the value
 			else {
-                if(vartype == TYPE_hashtable)
+                if(vartype == TYPE_hashtable) {
     				size += PushInstruction(countonly, instrptr, OP_PushArrayValue, DBG_instr);
+				    size += PushInstruction(countonly, instrptr, 0, DBG_hash);
+				    size += PushInstruction(countonly, instrptr, funchash, DBG_func);
+        			size += PushInstruction(countonly, instrptr, var->GetHash(), DBG_var);
+                }
                 else {
                     // -- if this isn't a func var, make sure we push ns 0 for a global variable
                     if(var->GetFunctionEntry() == NULL) {
@@ -842,11 +850,8 @@ int32 CParenOpenNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 CFuncDeclNode::CFuncDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
                              const char* _funcname, int32 _length, const char* _funcns,
                              int32 _funcnslength) :
-                             CCompileTreeNode(_codeblock, _link, eFuncDecl, -1) {
+                             CCompileTreeNode(_codeblock, _link, eFuncDecl, _linenumber) {
     Unused_(_linenumber);
-
-    // -- note:  this is the one node, where a line number is not applicable, as function
-    // -- function declarations are not executable statements
     SafeStrcpy(funcname, _funcname, _length + 1);
     SafeStrcpy(funcnamespace, _funcns, _funcnslength + 1);
 
@@ -1213,9 +1218,8 @@ int32 CSelfVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 count
 
 // ------------------------------------------------------------------------------------------------
 CScheduleNode::CScheduleNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
-                             const char* _funcname, int32 _funclength, int32 _delaytime) :
-                             CCompileTreeNode(_codeblock, _link, eFuncCall, _linenumber) {
-	SafeStrcpy(funcname, _funcname, _funclength + 1);
+                             int32 _delaytime) :
+                             CCompileTreeNode(_codeblock, _link, eSched, _linenumber) {
     delaytime = _delaytime;
 };
 
@@ -1223,9 +1227,6 @@ int32 CScheduleNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
-
-    // -- get the function hash
-	uint32 funchash = Hash(funcname);
 
 	// -- ensure we have a left child
 	if(!leftchild) {
@@ -1239,17 +1240,50 @@ int32 CScheduleNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 		return 0;
 	}
 
+    // -- push the delaytime
+    size += PushInstruction(countonly, instrptr, OP_Push, DBG_instr);
+    size += PushInstruction(countonly, instrptr, TYPE_int, DBG_vartype);
+    size += PushInstruction(countonly, instrptr, delaytime, DBG_value);
+
     // -- evaluate the left child, to get the object ID
     size += leftchild->Eval(instrptr, TYPE_object, countonly);
 
+    // -- evaluate the right child, which first pushes the function hash,
+    // -- then evaluates all the parameter assignments
+    size += rightchild->Eval(instrptr, pushresult, countonly);
+
+	return size;
+}
+
+// ------------------------------------------------------------------------------------------------
+CSchedFuncNode::CSchedFuncNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
+                               int32 _linenumber, bool8 _immediate) :
+                               CCompileTreeNode(_codeblock, _link, eSched, _linenumber) {
+    mImmediate = _immediate;
+}
+
+int CSchedFuncNode::Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const {
+    DebugEvaluateNode(*this, countonly, instrptr);
+    int32 size = 0;
+
+    // -- ensure we have a left child
+    if(!leftchild) {
+        printf("Error - CScheduleNode with no left child\n");
+        return 0;
+    }
+
+    // -- ensure we have a right child
+    if(!rightchild) {
+        printf("Error - CScheduleNode with no right child\n");
+        return 0;
+    }
+
+    // -- evaluate the leftchild, which will push the function hash
+    size += leftchild->Eval(instrptr, TYPE_int, countonly);
+
     // -- push the instruction to begin the schedule call
     size += PushInstruction(countonly, instrptr, OP_ScheduleBegin, DBG_instr);
-
-    // -- push the hash of the function we're scheduling
-    size += PushInstruction(countonly, instrptr, funchash, DBG_hash);
-
-    // -- push the delaytime
-    size += PushInstruction(countonly, instrptr, delaytime, DBG_value);
+    size += PushInstruction(countonly, instrptr, mImmediate, DBG_value);
 
     // -- evaluate the right child, tree of all parameters for the scheduled function call
     size += rightchild->Eval(instrptr, TYPE_void, countonly);
@@ -1266,17 +1300,10 @@ int32 CScheduleNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 	return size;
 }
 
-void CScheduleNode::Dump(char*& output, int32& length) const
-{
-	sprintf_s(output, length, "type: %s, funcname: %s", gCompileNodeTypes[type], funcname);
-	int32 debuglength = (int32)strlen(output);
-	output += debuglength;
-	length -= debuglength;
-}
-
+// ------------------------------------------------------------------------------------------------
 CSchedParamNode::CSchedParamNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
                                  int32 _paramindex) :
-                                 CCompileTreeNode(_codeblock, _link, eFuncCall, _linenumber) {
+                                 CCompileTreeNode(_codeblock, _link, eSchedParam, _linenumber) {
     paramindex = _paramindex;
 }
 
@@ -1438,7 +1465,7 @@ bool8 CCodeBlock::CompileTree(const CCompileTreeNode& root) {
 
     uint32 verifysize = kPointerDiffUInt32(instrptr, mInstrBlock);
     Unused_(verifysize);
-	assert(mInstrCount == verifysize >> 2);
+	Assert_(mInstrCount == verifysize >> 2);
 
 	return true;
 }

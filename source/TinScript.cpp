@@ -184,6 +184,7 @@ CScriptContext::CScriptContext(const char* thread_name, TinPrintHandler printfun
     mBreakpointCallback = NULL;
     mCallstackCallback = NULL;
     mCodeblockLoadedCallback = NULL;
+    mWatchVarEntryCallback = NULL;
 
     mDebuggerBreakStep = false;
     mDebuggerLastBreak = -1;
@@ -595,15 +596,15 @@ bool8 GetBinaryFileName(const char* filename, char* binfilename, int32 maxnamele
     if(!filename)
         return false;
 
-    // -- a script file should end in ".cs"
+    // -- a script file should end in ".ts"
     const char* extptr = strrchr(filename, '.');
-    if(!extptr || Strncmp_(extptr, ".cs", 4) != 0)
+    if(!extptr || Strncmp_(extptr, ".ts", 4) != 0)
         return false;
 
     // -- copy the root name
     uint32 length = kPointerDiffUInt32(extptr, filename);
     SafeStrcpy(binfilename, filename, maxnamelength);
-    SafeStrcpy(&binfilename[length], ".cso", maxnamelength - length);
+    SafeStrcpy(&binfilename[length], ".tso", maxnamelength - length);
 
     return true;
 }
@@ -755,6 +756,10 @@ void CScriptContext::SetCodeblockLoadedCallback(CodeblockLoadedFunc codeblock_ca
     mCodeblockLoadedCallback = codeblock_callback;
 }
 
+void CScriptContext::SetWatchVarEntryCallback(DebuggerWatchVarFunc watch_var_callback) {
+    mWatchVarEntryCallback = watch_var_callback;
+}
+
 bool8 CScriptContext::NotifyBreakpointHit(uint32 codeblock_hash, int32& line_number) {
 
     // -- no debugger registered - return true - allows us to keep running
@@ -783,15 +788,23 @@ void CScriptContext::NotifyCodeblockLoaded(uint32 codeblock_hash) {
     }
 }
 
+void CScriptContext::NotifyWatchVarEntry(CDebuggerWatchVarEntry* watch_var_entry) {
+    if(!mWatchVarEntryCallback)
+        return;
+    mWatchVarEntryCallback(watch_var_entry);
+}
+
 void CScriptContext::RegisterDebugger(const char* thread_name,
                                       DebuggerBreakpointHit breakpoint_func,
                                       DebuggerCallstackFunc callstack_func,
-                                      CodeblockLoadedFunc codeblock_func) {
+                                      CodeblockLoadedFunc codeblock_func,
+                                      DebuggerWatchVarFunc watch_var_func) {
     CScriptContext* script_context = FindThreadContext(thread_name);
     if(script_context) {
         script_context->SetBreakpointCallback(breakpoint_func);
         script_context->SetCallstackCallback(callstack_func);
         script_context->SetCodeblockLoadedCallback(codeblock_func);
+        script_context->SetWatchVarEntryCallback(watch_var_func);
     }
 }
 

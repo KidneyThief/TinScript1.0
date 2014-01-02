@@ -105,7 +105,7 @@ typedef CHashTable<CFunctionEntry> tFuncTable;
 class CObjectEntry {
     public:
         CObjectEntry(CScriptContext* script_context, uint32 _objid, uint32 _namehash,
-                     CNamespace* _objnamespace, void* _objaddr);
+                     CNamespace* _objnamespace, void* _objaddr, bool8 register_manual);
         virtual ~CObjectEntry();
 
         CScriptContext* GetScriptContext() {
@@ -139,10 +139,19 @@ class CObjectEntry {
             mGroupOwner = group_owner;
         }
 
+        bool8 IsManuallyRegistered() {
+            return (mManualRegister);
+        }
+
         CVariableEntry* GetVariableEntry(uint32 varhash);
         CFunctionEntry* GetFunctionEntry(uint32 nshash, uint32 funchash);
+        CNamespace* HasNamespace(uint32 nshash);
 
-        bool AddDynamicVariable(uint32 varhash, eVarType vartype);
+        bool8 AddDynamicVariable(uint32 varhash, eVarType vartype);
+        bool8 SetMemberVar(uint32 varhash, void* value);
+        tVarTable* GetDynamicVarTable() {
+            return mDynamicVariables;
+        }
 
     private:
         CScriptContext* mContextOwner;
@@ -152,6 +161,7 @@ class CObjectEntry {
         CNamespace* mObjectNamespace;
         void* mObjectAddr;
         CObjectGroup* mGroupOwner;
+        bool8 mManualRegister;
         CHashTable<CVariableEntry>* mDynamicVariables;
 };
 
@@ -176,6 +186,11 @@ class CNamespace {
 
         uint32 GetHash() {
             return (mHash);
+        }
+
+        bool8 IsRegisteredClass() {
+            // -- only classes can be instantiated (obviously)
+            return (mCreateFuncptr != NULL);
         }
 
         CNamespace* GetNext() const {

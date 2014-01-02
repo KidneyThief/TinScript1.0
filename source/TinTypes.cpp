@@ -146,7 +146,7 @@ bool8 IntToString(void* value, char* buf, int32 bufsize) {
 bool8 StringToInt(void* addr, char* value) {
 	if(addr && value) {
 		int32* varaddr = (int32*)addr;
-		*varaddr = atoi(value);
+		*varaddr = Atoi(value);
 		return true;
 	}
 	return false;
@@ -332,6 +332,64 @@ bool8 SafeStrcpy(char* dest, const char* src, int32 max) {
 	}
 	*destptr = '\0';
 	return true;
+}
+
+int32 Atoi(const char* src, int32 length) {
+    int32 result = 0;
+    if(!src || (length == 0))
+        return 0;
+
+    // see if we're converting from hex
+    if(src[0] == '0' && (src[1] == 'x' || src[1] == 'X')) {
+        src += 2;
+        while(*src != '\0' && length != 0) {
+            result = result * 16;
+            if(*src >= '0' && *src <= '9')
+                result += (*src - '0');
+            else if(*src >= 'a' && *src <= 'f')
+                result += 10 + (*src - 'a');
+            else if(*src >= 'A' && *src <= 'F')
+                result += 10 + (*src - 'A');
+            else
+                return (result);
+
+            // -- next character
+            ++src;
+            --length;
+        }
+    }
+
+    // see if we're converting from binary
+    if(src[0] == '0' && (src[1] == 'b' || src[1] == 'B')) {
+        src += 2;
+        while(*src != '\0' && length != 0) {
+            result = result << 1;
+            if(*src == '1')
+                ++result;
+            else if(*src != '0')
+                return (result);
+
+            // -- next character
+            ++src;
+            --length;
+        }
+    }
+
+    else {
+        // -- if length was given as -1, we process the entire null-terminated string
+        while(*src != '\0' && length != 0) {
+            // -- validate the character
+            if(*src < '0' || *src > '9')
+                return (result);
+            result = (result * 10) + (int32)(*src - '0');
+
+            // -- next character
+            ++src;
+            --length;
+        }
+    }
+
+    return (result);
 }
 
 } // TinScript

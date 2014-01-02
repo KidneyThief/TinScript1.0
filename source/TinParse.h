@@ -48,7 +48,7 @@ typedef CHashTable<CVariableEntry> tVarTable;
 typedef CHashTable<CFunctionEntry> tFuncTable;
 
 //eOpCode GetBinOpInstructionType(eBinaryOpType binoptype);
-//int GetBinOpPrecedence(eBinaryOpType binoptype);
+//int32 GetBinOpPrecedence(eBinaryOpType binoptype);
 
 // ------------------------------------------------------------------------------------------------
 // -- tuple defining the token types
@@ -172,6 +172,7 @@ enum eUnaryOpType {
 	ReservedKeywordEntry(for)		\
 	ReservedKeywordEntry(return)	\
 	ReservedKeywordEntry(schedule)	\
+    ReservedKeywordEntry(execute)	\
 	ReservedKeywordEntry(create)   	\
 	ReservedKeywordEntry(destroy) 	\
 	ReservedKeywordEntry(self)   	\
@@ -196,7 +197,7 @@ struct tReadToken
 		linenumber = _in.linenumber;
 	}
 
-	tReadToken(const char* _inbufptr, int _linenumber) {
+	tReadToken(const char* _inbufptr, int32 _linenumber) {
 		inbufptr = _inbufptr;
 		tokenptr = NULL;
 		length = 0;
@@ -216,51 +217,52 @@ struct tReadToken
 
 // ------------------------------------------------------------------------------------------------
 const char* TokenPrint(tReadToken& token);
-const char* SkipWhiteSpace(const char* inbuf, int& linenumber);
-bool IsIdentifierChar(const char c, bool allownumerics);
+const char* SkipWhiteSpace(const char* inbuf, int32& linenumber);
+bool8 IsIdentifierChar(const char c, bool8 allownumerics);
 
-bool GetToken(tReadToken& token, bool expectunaryop = false);
-const char* GetToken(const char*& inbuf, int& length, eTokenType& type,	const char* expectedtoken,
-                     int& linenumber, bool expectunaryop);
+bool8 GetToken(tReadToken& token, bool8 expectunaryop = false);
+const char* GetToken(const char*& inbuf, int32& length, eTokenType& type,	const char* expectedtoken,
+                     int32& linenumber, bool8 expectunaryop);
 
 const char* ReadFileAllocBuf(const char* filename);
 
 // ------------------------------------------------------------------------------------------------
 CCompileTreeNode*& AppendToRoot(CCompileTreeNode& root);
-bool ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& root, tReadToken& filebuf,
-                         bool requiresbraceclose);
+bool8 ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& root, tReadToken& filebuf,
+                         bool8 requiresbraceclose);
 CCodeBlock* ParseFile(CScriptContext* script_context, const char* filename);
 CCodeBlock* ParseText(CScriptContext* script_context, const char* filename, const char* filebuf);
 
-bool SaveBinary(CCodeBlock* codeblock, const char* binfilename);
+bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename);
 CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename);
 
-bool TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
-bool TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
-bool TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
-bool TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
-bool TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
-bool TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
-bool TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
-bool TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link,
-                      bool ismethod);
-bool TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
-bool TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
-bool TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
-bool TryParseDestroyObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
+bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
+bool8 TryParseReturn(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
+bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
+bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
+bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
+bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
+bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
+bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
+bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link,
+                      bool8 ismethod);
+bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
+bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
+bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
+bool8 TryParseDestroyObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
 
 // ------------------------------------------------------------------------------------------------
 CVariableEntry* AddVariable(CScriptContext* script_context, tVarTable* curglobalvartable,
                             CFunctionEntry* curfuncdefinition, const char* varname,
-                            unsigned int varhash, eVarType vartype);
+                            uint32 varhash, eVarType vartype);
 CVariableEntry* GetVariable(CScriptContext* script_context, tVarTable* globalVarTable,
-                            unsigned int nshash, unsigned int funchash,
-                            unsigned int varhash, unsigned int arrayvarhash);
+                            uint32 nshash, uint32 funchash,
+                            uint32 varhash, uint32 arrayvarhash);
 
-CFunctionEntry* FuncDeclaration(CScriptContext* script_context, unsigned int namespacehash,
-                                const char* funcname, unsigned int funchash, EFunctionType type);
+CFunctionEntry* FuncDeclaration(CScriptContext* script_context, uint32 namespacehash,
+                                const char* funcname, uint32 funchash, EFunctionType type);
 CFunctionEntry* FuncDeclaration(CScriptContext* script_context, CNamespace* nsentry,
-                                const char* funcname, unsigned int funchash, EFunctionType type);
+                                const char* funcname, uint32 funchash, EFunctionType type);
 
 tExprParenDepthStack* GetGlobalParenStack();
 
@@ -268,12 +270,12 @@ tExprParenDepthStack* GetGlobalParenStack();
 // debugging methods
 const char* GetAssOperatorString(eAssignOpType assop);
 
-bool DumpFile(const char* filename);
+bool8 DumpFile(const char* filename);
 
-void DumpTree(const char* root, int indent);
+void DumpTree(const char* root, int32 indent);
 void DestroyTree(CCompileTreeNode* root);
 
-int CalcVarTableSize(tVarTable* vartable);
+int32 CalcVarTableSize(tVarTable* vartable);
 void DumpVarTable(CObjectEntry* oe);
 void DumpVarTable(CScriptContext* script_context, CObjectEntry* oe, const tVarTable* vartable);
 void DumpFuncTable(CObjectEntry* oe);

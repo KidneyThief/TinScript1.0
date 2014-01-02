@@ -37,6 +37,8 @@
 #define FORCE_COMPILE 1
 #define CASE_SENSITIVE 1
 #define DEBUG_TRACE 1
+#define DEBUG_COMPILE_SYMBOLS 0
+#define TIN_DEBUGGER 1
 
 #if CASE_SENSITIVE
     #define Strncmp_ strncmp
@@ -111,6 +113,7 @@ const int32 kMaxArgLength = 256;
 const int32 kScriptContextThreadSize = 7;
 
 const int32 kDebuggerCallstackSize = 32;
+const int32 kDebuggerWatchWindowSize = 128;
 const int32 kBreakpointTableSize = 17;
 
 const int32 kGlobalFuncTableSize = 97;
@@ -119,7 +122,10 @@ const int32 kGlobalVarTableSize = 97;
 const int32 kLocalFuncTableSize = 17;
 const int32 kLocalVarTableSize = 17;
 
-const int32 kFunctionCallStackSize = 32;
+const int32 kFunctionCallStackSize = 2048;
+
+const int32 kExecStackSize = 4096;
+const int32 kExecFuncCallDepth = 2048;
 
 const int32 kStringTableSize = 32 * 1024;
 const int32 kStringTableDictionarySize = 199;
@@ -167,6 +173,17 @@ class CRegisterGlobal {
 
 bool8 AssertHandled(const char* condition, const char* file, int32 linenumber,
                     const char* fmt, ...);
+
+// ------------------------------------------------------------------------------------------------
+class CDebuggerWatchVarEntry {
+    public:
+        char mName[kMaxNameLength];
+        char mValue[kMaxNameLength];
+        int32 mStackIndex;
+        bool8 mIsNamespace;
+        bool8 mIsMember;
+        eVarType mType;
+};
 
 // ------------------------------------------------------------------------------------------------
 class CScriptContext {
@@ -249,10 +266,10 @@ class CScriptContext {
         static uint32 GetNextObjectID();
         uint32 CreateObject(uint32 classhash, uint32 objnamehash);
         uint32 RegisterObject(void* objaddr, const char* classname, const char* objectname);
-        void DestroyObject(uint32 objectid, bool8 unregister_only = false);
+        void DestroyObject(uint32 objectid);
 
         bool8 IsObject(uint32 objectid);
-        void* FindObject(uint32 objectid);
+        void* FindObject(uint32 objectid, const char* required_namespace = NULL);
 
         CObjectEntry* FindObjectByAddress(void* addr);
         CObjectEntry* FindObjectByName(const char* objname);
@@ -262,10 +279,11 @@ class CScriptContext {
         bool8 HasMethod(void* addr, const char* method_name);
         bool8 HasMethod(uint32 objectid, const char* method_name);
 
-        void AddDynamicVariable(uint32 objectid, uint32 varhash,
-                                       eVarType vartype);
-        void AddDynamicVariable(uint32 objectid, const char* varname,
-                                       const char* vartypename);
+        bool8 AddDynamicVariable(uint32 objectid, uint32 varhash, eVarType vartype);
+        bool8 AddDynamicVariable(uint32 objectid, const char* varname, const char* vartypename);
+        bool8 SetMemberVar(uint32 objectid, const char* varname, void* value);
+
+        void PrintObject(CObjectEntry* oe, int32 indent = 0);
         void ListObjects();
 
         static CHashTable<CScriptContext>* GetScriptContextList() {
@@ -278,21 +296,25 @@ class CScriptContext {
                                               uint32* namespace_array, uint32* func_array,
                                               uint32* linenumber_array, int array_size);
         typedef void (*CodeblockLoadedFunc)(uint32 codeblock_hash);
+        typedef void (*DebuggerWatchVarFunc)(CDebuggerWatchVarEntry* watch_var_entry);
 
         void SetBreakpointCallback(DebuggerBreakpointHit breakpoint_callback);
         void SetCallstackCallback(DebuggerCallstackFunc callstack_callback);
         void SetCodeblockLoadedCallback(CodeblockLoadedFunc codeblock_callback);
+        void SetWatchVarEntryCallback(DebuggerWatchVarFunc watch_var_callback);
 
         bool NotifyBreakpointHit(uint32 codeblock_hash, int32& line_number);
         void NotifyCallstack(uint32* codeblock_array, uint32* objid_array,
                              uint32* namespace_array,uint32* func_array,
                              uint32* linenumber_array, int array_size);
         void NotifyCodeblockLoaded(uint32 codeblock_hash);
+        void NotifyWatchVarEntry(CDebuggerWatchVarEntry* watch_var_entry);
 
         static void RegisterDebugger(const char* thread_name,
                                      DebuggerBreakpointHit breakpoint_func = NULL,
                                      DebuggerCallstackFunc callstack_func = NULL,
-                                     CodeblockLoadedFunc codeblock_func = NULL);
+                                     CodeblockLoadedFunc codeblock_func = NULL,
+                                     DebuggerWatchVarFunc watch_var_func = NULL);
 
         static int32 AddBreakpoint(const char* thread_name, const char* filename,
                                    int32 line_number);
@@ -342,6 +364,7 @@ class CScriptContext {
         DebuggerBreakpointHit mBreakpointCallback;
         DebuggerCallstackFunc mCallstackCallback;
         CodeblockLoadedFunc mCodeblockLoadedCallback;
+        DebuggerWatchVarFunc mWatchVarEntryCallback;
 };
 
 }  // TinScript

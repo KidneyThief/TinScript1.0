@@ -127,7 +127,7 @@ void CScheduler::Dump() {
 }
 
 CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uint32 _objectid,
-                               uint32 _dispatchtime, const char* _command) {
+                               uint32 _dispatchtime, const char* _command, bool8 immediate) {
     // -- set the context
     mContextOwner = script_context;
 
@@ -135,6 +135,7 @@ CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uin
     mReqID = _reqid;
     mObjectID = _objectid;
     mDispatchTime = _dispatchtime;
+    mImmediateExec = immediate;
     SafeStrcpy(mCommandBuf, _command, kMaxTokenLength);
 
     // -- command string, null out the direct function call members
@@ -143,7 +144,7 @@ CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uin
 }
 
 CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uint32 _objectid,
-                               uint32 _dispatchtime, uint32 _funchash) {
+                               uint32 _dispatchtime, uint32 _funchash, bool8 immediate) {
     // -- set the context
     mContextOwner = script_context;
 
@@ -151,6 +152,7 @@ CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uin
     mReqID = _reqid;
     mObjectID = _objectid;
     mDispatchTime = _dispatchtime;
+    mImmediateExec = immediate;
     mCommandBuf[0] = '\0';
 
     // -- command string, null out the direct function call members
@@ -204,7 +206,7 @@ int32 CScheduler::Schedule(uint32 objectid, int32 delay, const char* commandstri
 }
 
 CScheduler::CCommand* CScheduler::ScheduleCreate(uint32 objectid, int32 delay,
-                                                 uint32 funchash) {
+                                                 uint32 funchash, bool8 immediate) {
     ++gScheduleID;
 
     // -- calculate the dispatch time - enforce a one-frame delay
@@ -212,7 +214,10 @@ CScheduler::CCommand* CScheduler::ScheduleCreate(uint32 objectid, int32 delay,
 
     // -- create the new commmand
     CCommand* newcommand = TinAlloc(ALLOC_SchedCmd, CCommand, GetScriptContext(), gScheduleID,
-                                    objectid, dispatchtime, funchash);
+                                    objectid, dispatchtime, funchash, immediate);
+
+    // -- add space to store a return value
+    newcommand->mFuncContext->AddParameter("_return", Hash("_return"), TYPE__resolve, 0);
 
     // -- see if it goes at the front of the list
     if(!mHead || dispatchtime <= mHead->mDispatchTime) {

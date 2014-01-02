@@ -58,6 +58,9 @@ class CFunctionCallStack;
 	CompileNodeTypeEntry(FuncCall)				\
 	CompileNodeTypeEntry(FuncReturn)			\
 	CompileNodeTypeEntry(ObjMethod) 			\
+    CompileNodeTypeEntry(Sched) 				\
+    CompileNodeTypeEntry(SchedParam)    		\
+    CompileNodeTypeEntry(SchedFunc)     		\
 	CompileNodeTypeEntry(ArrayHash) 			\
 	CompileNodeTypeEntry(ArrayVarDecl)			\
 	CompileNodeTypeEntry(SelfVarDecl)			\
@@ -140,7 +143,6 @@ const char* GetNodeTypeString(ECompileNodeType nodetype);
 	OperationEntry(FuncCall)			\
 	OperationEntry(FuncReturn)			\
 	OperationEntry(MethodCallArgs)		\
-	OperationEntry(NSMethodCallArgs)    \
 	OperationEntry(ArrayHash)			\
 	OperationEntry(ArrayVarDecl)		\
 	OperationEntry(SelfVarDecl)		    \
@@ -430,17 +432,31 @@ class CScheduleNode : public CCompileTreeNode
 {
 	public:
 		CScheduleNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int _linenumber,
-                      const char* _funcname, int _funclength, int _delaytime);
+                      int _delaytime);
 
 		virtual int Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const;
-		virtual void Dump(char*& output, int& length)const;
 
 	protected:
 		char funcname[kMaxNameLength];
-        int delaytime;
+        int32 delaytime;
 
 	protected:
 		CScheduleNode() { }
+};
+
+class CSchedFuncNode : public CCompileTreeNode
+{
+    public:
+        CSchedFuncNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int _linenumber,
+                       bool8 _immediate);
+
+        virtual int Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const;
+
+    protected:
+        bool8 mImmediate;
+
+    protected:
+        CSchedFuncNode() { }
 };
 
 class CSchedParamNode : public CCompileTreeNode
@@ -549,15 +565,19 @@ class CCodeBlock {
             // get the offset
             uint32 curoffset = CalcOffset(instrptr);
             uint32 lineindex = 0;
-            do {
+            uint32 linenumber = 0;
+            for(lineindex = 0; lineindex < mLineNumberCount; ++lineindex) {
                 uint32 offset = mLineNumbers[lineindex] >> 16;
                 uint32 line = mLineNumbers[lineindex] & 0xffff;
-                if(curoffset < offset && line != 0xffff)
-                    return (line);
-                ++lineindex;
-            } while (lineindex < mLineNumberCount);
+                if(line != 0xffff) {
+                    if(offset <= curoffset)
+                        linenumber = line;
+                    if(offset >= curoffset)
+                        break;
+                }
+            }
 
-            return (0);
+            return (linenumber);
         }
 
         uint32 CalcOffset(const uint32* instrptr) const {

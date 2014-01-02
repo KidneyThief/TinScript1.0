@@ -64,30 +64,36 @@ class CExecStack {
 		void* Pop(eVarType& contenttype) {
 			uint32 stacksize = kPointerDiffUInt32(mStackTop, mStack) / sizeof(uint32);
             Unused_(stacksize);
-            assert(stacksize > 0);
+            Assert_(stacksize > 0);
 			contenttype = (eVarType)(*(--mStackTop));
-			assert(contenttype >= 0 && contenttype < TYPE_COUNT);
+
+            // -- if what's on the stack isn't a valid content type, leave the stack alone, but
+            // -- return NULL - the calling operation should catch the NULL and assert
+            if(contenttype < 0 || contenttype >= TYPE_COUNT) {
+                ++mStackTop;
+                return (NULL);
+            }
 			uint32 contentsize = kBytesToWordCount(gRegisteredTypeSize[contenttype]);
 
 			// -- ensure we have enough data on the stack, both the content, and the type
-			assert(stacksize >= contentsize + 1);
+            Assert_(stacksize >= contentsize + 1);
 			mStackTop -= contentsize;
 			return (void*)mStackTop;
 		}
 
-        void Reserve(int wordcount) {
+        void Reserve(int32 wordcount) {
             mStackTop += wordcount;
         }
 
-        void UnReserve(int wordcount) {
+        void UnReserve(int32 wordcount) {
             mStackTop -= wordcount;
         }
 
-        int GetStackTop() {
+        int32 GetStackTop() {
             return (kPointerDiffUInt32(mStackTop, mStack) / sizeof(uint32));
         }
 
-        void* GetStackVarAddr(int varstacktop, int varoffset) {
+        void* GetStackVarAddr(int32 varstacktop, int32 varoffset) {
             uint32* varaddr = &mStack[varstacktop];
 
             // -- increment by (varoffset * MAX_TYPE_SIZE), so we're pointing
@@ -101,6 +107,22 @@ class CExecStack {
                 return NULL;
             }
             return varaddr;
+        }
+
+        void DebugDump(CScriptContext* script_context) {
+            uint32* stacktop_ptr = mStackTop;
+            while(stacktop_ptr > mStack) {
+
+                eVarType contenttype = (eVarType)(*(--stacktop_ptr));
+                assert(contenttype >= 0 && contenttype < TYPE_COUNT);
+                uint32 contentsize = kBytesToWordCount(gRegisteredTypeSize[contenttype]);
+
+                // -- ensure we have enough data on the stack, both the content, and the type
+                stacktop_ptr -= contentsize;
+
+                // -- Print out whatever it was we found
+                TinPrint(script_context, "STACK: %s\n", DebugPrintVar(stacktop_ptr, contenttype));
+            }
         }
 
 	private:
@@ -127,7 +149,7 @@ class CFunctionCallStack {
 				delete[] funcentrystack;
 		}
 
-		void Push(CFunctionEntry* functionentry, CObjectEntry* objentry, int varoffset)
+		void Push(CFunctionEntry* functionentry, CObjectEntry* objentry, int32 varoffset)
 		{
 			assert(functionentry != NULL);
             assert(stacktop < size);
@@ -144,7 +166,7 @@ class CFunctionCallStack {
             return funcentrystack[--stacktop].funcentry;
 		}
 
-   		CFunctionEntry* GetTop(CObjectEntry*& objentry, int& varoffset) {
+   		CFunctionEntry* GetTop(CObjectEntry*& objentry, int32& varoffset) {
             if(stacktop > 0) {
                 objentry = funcentrystack[stacktop - 1].objentry;
                 varoffset = funcentrystack[stacktop - 1].stackvaroffset;
@@ -159,13 +181,16 @@ class CFunctionCallStack {
 
         int32 DebuggerGetCallstack(uint32* codeblock_array, uint32* objid_array,
                                    uint32* namespace_array, uint32* func_array,
-                                   uint32* linenumber_array, int max_array_size);
+                                   uint32* linenumber_array, int32 max_array_size);
+
+        int32 DebuggerGetWatchVarEntries(CScriptContext* script_context, CExecStack& execstack,
+            CDebuggerWatchVarEntry* entry_array, int32 max_array_size);
 
         void BeginExecution(const uint32* instrptr);
         void BeginExecution();
 
-        CFunctionEntry* GetExecuting(CObjectEntry*& objentry, int& varoffset) {
-            int temp = stacktop - 1;
+        CFunctionEntry* GetExecuting(CObjectEntry*& objentry, int32& varoffset) {
+            int32 temp = stacktop - 1;
             while(temp >= 0) {
                 if(funcentrystack[temp].isexecuting) {
                     objentry = funcentrystack[temp].objentry;
@@ -178,7 +203,7 @@ class CFunctionCallStack {
         }
 
    		CFunctionEntry* GetTopMethod(CObjectEntry*& objentry) {
-            int depth = 0;
+            int32 depth = 0;
             while(stacktop - depth > 0) {
                 ++depth;
                 if(funcentrystack[stacktop - depth].objentry) {
@@ -194,7 +219,7 @@ class CFunctionCallStack {
 
         struct tFunctionCallEntry {
             tFunctionCallEntry(CFunctionEntry* _funcentry = NULL, CObjectEntry* _objentry = NULL,
-                               int _varoffset = -1) {
+                               int32 _varoffset = -1) {
                 funcentry = _funcentry;
                 objentry = _objentry;
                 stackvaroffset = _varoffset;
@@ -211,13 +236,15 @@ class CFunctionCallStack {
 
 	private:
         tFunctionCallEntry* funcentrystack;
-		uint32 size;
-		uint32 stacktop;
+		int32 size;
+		int32 stacktop;
 };
 
-bool ExecuteCodeBlock(CCodeBlock& codeblock);
-bool ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, uint32 funchash,
-                              CFunctionContext* parameters);
+bool8 ExecuteCodeBlock(CCodeBlock& codeblock);
+bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, uint32 funchash,
+                               CFunctionContext* parameters);
+bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
+                            CFunctionCallStack& funccallstack);
 
 }  // TinScript
 

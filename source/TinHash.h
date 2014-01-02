@@ -72,6 +72,7 @@ class CHashTable {
         used = 0;
         head = NULL;
         tail = NULL;
+        iter_was_removed = false;
 	}
 
 	virtual ~CHashTable() {
@@ -94,6 +95,7 @@ class CHashTable {
 		table[bucket] = hte;
 		bucketiter = NULL;
         iter = NULL;
+        iter_was_removed = false;
         ++used;
 
         // -- add to the double-linked list
@@ -123,14 +125,24 @@ class CHashTable {
 	}
 
 	void RemoveItem(uint32 _hash) {
-		bucketiter = NULL;
-        iter = NULL;
 		uint32 bucket = _hash % size;
 		CHashTableEntry** prevptr = &table[bucket];
 		CHashTableEntry* curentry = table[bucket];
 		while (curentry) {
 			if (curentry->hash == _hash) {
 				*prevptr = curentry->nextbucket;
+
+                // -- update the iterators
+                // $$$TZA This is reliable if'f the table is being iterated by a single
+                // -- loop - not attempting to share iterators.
+                if(curentry == bucketiter) {
+                    bucketiter = curentry->next;
+                    iter_was_removed = true;
+                }
+                if(curentry == iter) {
+                    iter = curentry->next;
+                    iter_was_removed = true;
+                }
 
                 // -- remove from the double-linked list
                 if(curentry->prev)
@@ -156,14 +168,25 @@ class CHashTable {
 	void RemoveItem(T* _item, uint32 _hash) {
         if(!_item)
             return;
-		bucketiter = NULL;
-        iter = NULL;
+
 		int32 bucket = _hash % size;
 		CHashTableEntry** prevptr = &table[bucket];
 		CHashTableEntry* curentry = table[bucket];
 		while (curentry) {
 			if (curentry->hash == _hash && curentry->item == _item) {
 				*prevptr = curentry->nextbucket;
+
+                // -- update the iterators
+                // $$$TZA This is reliable if'f the table is being iterated by a single
+                // -- loop - not attempting to share iterators.  Should convert to CTable<>
+                if(curentry == bucketiter) {
+                    bucketiter = curentry->next;
+                    iter_was_removed = true;
+                }
+                if(curentry == iter) {
+                    iter = curentry->next;
+                    iter_was_removed = true;
+                }
 
                 // -- remove from the double-linked list
                 if(curentry->prev)
@@ -188,6 +211,7 @@ class CHashTable {
 
     T* First() const {
         iter = head;
+        iter_was_removed = false;
         if(head)
             return (head->item);
         else
@@ -195,8 +219,10 @@ class CHashTable {
     }
 
     T* Next() const {
-        if(iter)
+        if(iter && !iter_was_removed) {
             iter = iter->next;
+        }
+        iter_was_removed = false;
         if(iter)
             return (iter->item);
         else
@@ -211,6 +237,7 @@ class CHashTable {
 		if(bucket >= size)
 			return NULL;
 		bucketiter = table[bucket];
+        iter_was_removed = false;
 		if(table[bucket])
 			return table[bucket]->item;
 		else
@@ -221,12 +248,16 @@ class CHashTable {
 		// -- ensure it's the same bucket
 		if(bucket >= size || !table[bucket]) {
 			bucketiter = NULL;
+            iter_was_removed = false;
 			return NULL;
 		}
-		if(!bucketiter)
+		if(!bucketiter) {
 			bucketiter = table[bucket];
-		else
+        }
+		else if (!iter_was_removed) {
 			bucketiter = bucketiter->nextbucket;
+        }
+        iter_was_removed = false;
 		return (bucketiter ? bucketiter->item : NULL);
 	}
 
@@ -234,6 +265,7 @@ class CHashTable {
 		if(bucket >= size)
 			return NULL;
 		bucketiter = table[bucket];
+        iter_was_removed = false;
 		if(table[bucket])
 			return table[bucket];
 		else
@@ -246,10 +278,12 @@ class CHashTable {
 			bucketiter = NULL;
 			return NULL;
 		}
-		if(!bucketiter)
+		if(!bucketiter) {
 			bucketiter = table[bucket];
-		else
+        }
+		else if(!iter_was_removed)
 			bucketiter = bucketiter->nextbucket;
+        iter_was_removed = false;
 		return bucketiter;
 	}
 
@@ -266,6 +300,11 @@ class CHashTable {
     }
 
     void RemoveAll() {
+        // -- reset any iterators
+        iter = NULL;
+        bucketiter = NULL;
+        iter_was_removed = false;
+
 		// -- delete all the entries
 		for(int32 i = 0; i < Size(); ++i) {
 			CHashTableEntry* entry = FindRawEntryByBucket(i);
@@ -281,6 +320,11 @@ class CHashTable {
     // -- This method doesn't just remove all entries from the
     // -- hash table, but it deletes the actual items stored
     void DestroyAll() {
+        // -- reset any iterators
+        iter = NULL;
+        bucketiter = NULL;
+        iter_was_removed = false;
+
         for(int32 i = 0; i < Size(); ++i) {
 			CHashTableEntry* entry = FindRawEntryByBucket(i);
 		    T* object = FindItemByBucket(i);
@@ -303,7 +347,9 @@ class CHashTable {
 		mutable CHashTableEntry* iter;
         CHashTableEntry* head;
         CHashTableEntry* tail;
-};
+
+        mutable bool8 iter_was_removed;
+ };
 
 }  // TinScript
 

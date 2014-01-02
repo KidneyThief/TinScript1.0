@@ -56,6 +56,8 @@ typedef float               float32;
 #define Unused_(var) __pragma(warning(suppress:4100)) var
 #define Offsetof_(s,m) (uint32)(unsigned long long)&(((s *)0)->m)
 
+#define Assert_(condition) assert(condition)
+
 // ------------------------------------------------------------------------------------------------
 // -- MEMORY
 // ------------------------------------------------------------------------------------------------
@@ -71,6 +73,7 @@ typedef float               float32;
     AllocTypeEntry(FuncCallStack)   \
     AllocTypeEntry(VarTable)        \
     AllocTypeEntry(FuncTable)       \
+    AllocTypeEntry(FuncEntry)       \
     AllocTypeEntry(FuncContext)     \
     AllocTypeEntry(VarEntry)        \
     AllocTypeEntry(VarStorage)      \

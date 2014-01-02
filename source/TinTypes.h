@@ -200,7 +200,7 @@ struct sHashVar {
 #define VarTypeTuple \
 	VarTypeEntry(NULL,		    0,		VoidToString,		StringToVoid,       uint8)          \
 	VarTypeEntry(void,		    0,		VoidToString,		StringToVoid,       uint8)	        \
-	VarTypeEntry(_resolve,	    0,		VoidToString,		StringToVoid,       uint8)	        \
+	VarTypeEntry(_resolve,	    16,		VoidToString,		StringToVoid,       uint8)	        \
 	VarTypeEntry(_stackvar,     8,		IntToString,		StringToInt,        uint8)	        \
 	VarTypeEntry(_var,          12,		IntToString,		StringToInt,        uint8)	        \
 	VarTypeEntry(_member,       8,		IntToString,		StringToInt,        sMember)    	\
@@ -279,6 +279,7 @@ eVarType GetRegisteredType(const char* token, int32 length);
 eVarType GetRegisteredType(uint32 id);
 
 bool8 SafeStrcpy(char* dest, const char* src, int32 max);
+int32 Atoi(const char* src, int32 length = -1);
 
 // ------------------------------------------------------------------------------------------------
 // externs

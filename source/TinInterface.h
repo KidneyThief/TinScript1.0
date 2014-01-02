@@ -33,12 +33,9 @@ namespace TinScript {
 
 // ------------------------------------------------------------------------------------------------
 // -- GetGlobalVar function to access scripted globals
-// $$$TZA From which context?
 template <typename T>
-bool8 GetGlobalVar(const char* varname, T& value) {
-    // $$$TZA From which context? Find the object in the MainThreadScriptContext
-    CScriptContext* script_context = CScriptContext::GetMainThreadContext();
-
+bool8 GetGlobalVar(CScriptContext* script_context, const char* varname, T& value) {
+    // -- sanity check
     if(!script_context->GetGlobalNamespace() || !varname ||!varname[0])
         return false;
 
@@ -72,7 +69,8 @@ bool8 GetGlobalVar(const char* varname, T& value) {
 // -- ObjExecF
 template <typename T>
 bool8 ObjExecF(CScriptContext* script_context, void* objaddr, T& returnval,
-              const char* methodformat, ...) {
+               const char* methodformat, ...) {
+    // -- sanity check
     if(!script_context || !objaddr)
         return (false);
     uint32 objectid = script_context->FindIDByAddress(objaddr);
@@ -103,7 +101,7 @@ bool8 ObjExecF(CScriptContext* script_context, void* objaddr, T& returnval,
 
     // -- if successful, return the result
     if(result)
-        return GetGlobalVar("__return", returnval);
+        return GetGlobalVar(script_context, "__return", returnval);
     else
         return false;
 }
@@ -112,9 +110,9 @@ bool8 ObjExecF(CScriptContext* script_context, void* objaddr, T& returnval,
 // -- ObjExecF
 template <typename T>
 bool8 ObjExecF(CScriptContext* script_context, uint32 objectid, T& returnval,
-              const char* methodformat, ...) {
+               const char* methodformat, ...) {
     // -- sanity check
-    if(objectid == 0 || !methodformat || !methodformat[0])
+    if(!script_context || objectid == 0 || !methodformat || !methodformat[0])
         return false;
 
     CObjectEntry* oe = script_context->FindObjectEntry(objectid);
@@ -144,21 +142,19 @@ bool8 ObjExecF(CScriptContext* script_context, uint32 objectid, T& returnval,
 
     // -- if successful, return the result
     if(result)
-        return GetGlobalVar("__return", returnval);
+        return GetGlobalVar(script_context, "__return", returnval);
     else
         return false;
 }
 
 template <typename T>
-bool ExecF(T& returnval, const char* stmtformat, ...) {
+bool ExecF(CScriptContext* script_context, T& returnval, const char* stmtformat, ...) {
     // -- sanity check
-    if(!stmtformat || !stmtformat[0])
+    if(!script_context || !stmtformat || !stmtformat[0])
         return false;
 
 	// -- ensure we have a variable to hold the return value
-    // $$$TZA more MainThread crap
-    AddVariable(::TinScript::CScriptContext::GetMainThreadContext(),
-                ::TinScript::CScriptContext::GetMainThreadContext()->GetGlobalNamespace()->GetVarTable(),
+    AddVariable(script_context, script_context->GetGlobalNamespace()->GetVarTable(),
                 NULL, "__return", Hash("__return"), TYPE_string);
 
     va_list args;
@@ -171,11 +167,11 @@ bool ExecF(T& returnval, const char* stmtformat, ...) {
     sprintf_s(execbuf, kMaxTokenLength - strlen(stmtbuf), "__return = %s", stmtbuf);
 
     // -- execute the command
-    bool result = ::TinScript::CScriptContext::GetMainThreadContext()->ExecCommand(execbuf);
+    bool result = script_context->ExecCommand(execbuf);
 
     // -- if successful, return the result
     if(result)
-        return GetGlobalVar("__return", returnval);
+        return GetGlobalVar(script_context, "__return", returnval);
     else
         return false;
 }

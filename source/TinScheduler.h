@@ -45,9 +45,10 @@ class CScheduler {
         class CCommand {
             public:
                 CCommand(CScriptContext* script_context, int _reqid, uint32 _objectid = 0,
-                         uint32 _dispatchtime = 0, const char* _command = NULL);
+                         uint32 _dispatchtime = 0, const char* _command = NULL,
+                         bool8 immediate = false);
                 CCommand(CScriptContext* script_context, int _reqid, uint32 _objectid,
-                         uint32 _dispatchtime, uint32 _funchash);
+                         uint32 _dispatchtime, uint32 _funchash, bool8 immediate = false);
 
                 virtual ~CCommand();
 
@@ -56,9 +57,10 @@ class CScheduler {
 
                 CScriptContext* mContextOwner;
 
-                int mReqID;
+                int32 mReqID;
                 uint32 mObjectID;
                 uint32 mDispatchTime;
+                bool8 mImmediateExec;
                 char mCommandBuf[kMaxTokenLength];
 
                 uint32 mFuncHash;
@@ -72,7 +74,7 @@ class CScheduler {
         void Cancel(uint32 objectid, int reqid);
         void Dump();
 
-        CCommand* ScheduleCreate(uint32 objectid, int delay, uint32 funchash);
+        CCommand* ScheduleCreate(uint32 objectid, int delay, uint32 funchash, bool8 immediate);
         CScheduler::CCommand* mCurrentSchedule;
 
     private:

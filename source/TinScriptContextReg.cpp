@@ -74,8 +74,31 @@ void CRegisterGlobal::RegisterGlobals(CScriptContext* script_context) {
 // -- Set of functions that all access the interals of the ScriptContext...
 // -- need to be regeistered separately, as they all take a CScriptContext* as the first param
 
+int32 CalcHash(const char* str0, const char* str1, const char* str2, const char* str3) {
+    uint32 hashval = Hash(str0);
+    hashval = HashAppend(hashval, str1);
+    hashval = HashAppend(hashval, str2);
+    hashval = HashAppend(hashval, str3);
+
+    return static_cast<int32>(hashval);
+}
+
+const char* CalcUnhash(int32 hashval) {
+    return UnHash(static_cast<int32>(hashval));
+}
+
 void ContextPrint(CScriptContext* script_context, const char* msg) {
     TinPrint(script_context, "%s\n", msg);
+}
+
+void ContextPrintObject(CScriptContext* script_context, uint32 objectid) {
+    CObjectEntry* oe = script_context->FindObjectEntry(objectid);
+    script_context->PrintObject(oe);
+}
+
+void ContextDebugBreak(CScriptContext* script_context, const char* msg) {
+    // -- force an assert
+    Assert_(false);
 }
 
 bool8 ContextCompile(CScriptContext* script_context, const char* filename) {
@@ -100,6 +123,12 @@ bool8 ContextIsObject(CScriptContext* script_context, uint32 objectid) {
 uint32 ContextFindObjectByName(CScriptContext* script_context, const char* objname) {
     TinScript::CObjectEntry* oe = script_context->FindObjectByName(objname);
     return oe ? oe->GetID() : 0;
+}
+
+bool8 ContextObjectIsDerivedFrom(CScriptContext* script_context, uint32 objectid,
+                                 const char* requred_namespace) {
+    void* objaddr = script_context->FindObject(objectid, requred_namespace);
+    return (objaddr != NULL);
 }
 
 void ContextAddDynamicVariable(CScriptContext* script_context, uint32 objectid,
@@ -190,11 +219,14 @@ uint32 ContextCreateObjectGroup(CScriptContext* script_context, const char* name
 // -- all CScriptContexts have these functions registered automatically
 void CScriptContext::RegisterContextFunctions() {
     CONTEXT_FUNCTION_P1(Print, ContextPrint, void, const char*);
+    CONTEXT_FUNCTION_P1(PrintObject, ContextPrintObject, void, uint32);
+    CONTEXT_FUNCTION_P1(DebugBreak, ContextDebugBreak, void, const char*);
     CONTEXT_FUNCTION_P1(Compile, ContextCompile, bool8, const char*);
     CONTEXT_FUNCTION_P1(Exec, ContextExecScript, bool8, const char*);
     CONTEXT_FUNCTION_P0(ListObjects, ContextListObjects, void);
     CONTEXT_FUNCTION_P1(IsObject, ContextIsObject, bool8, uint32);
     CONTEXT_FUNCTION_P1(FindObject, ContextFindObjectByName, uint32, const char*);
+    CONTEXT_FUNCTION_P2(HasNamespace, ContextObjectIsDerivedFrom, bool8, uint32, const char*);
     CONTEXT_FUNCTION_P3(AddDynamicVar, ContextAddDynamicVariable, void, uint32, const char*, const char*);
     CONTEXT_FUNCTION_P2(LinkNamespaces, ContextLinkNamespaces, void, const char*, const char*);
     CONTEXT_FUNCTION_P1(ListVariables, ContextListVariables, void, uint32);
@@ -206,6 +238,10 @@ void CScriptContext::RegisterContextFunctions() {
     CONTEXT_FUNCTION_P0(ListSchedules, ContextListSchedules, void);
     CONTEXT_FUNCTION_P1(ScheduleCancel, ContextScheduleCancel, void, int32);
     CONTEXT_FUNCTION_P1(ScheduleCancelObject, ContextScheduleCancelObject, void, uint32);
+
+    // -- while technically not a context function, need access to this function anyways
+    REGISTER_FUNCTION_P4(Hash, CalcHash, int32, const char*, const char*, const char*, const char*);
+    REGISTER_FUNCTION_P1(Unhash, CalcUnhash, const char*, int32);
 }
 
 } // TinScript
