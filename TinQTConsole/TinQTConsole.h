@@ -29,6 +29,7 @@
 #include <qpushbutton.h>
 #include <qlayout.h>
 #include <qlabel.h>
+#include "qlistwidget.h"
 
 class CConsoleInput;
 class CConsoleOutput;
@@ -37,6 +38,7 @@ class CDebugToolBar;
 class QGridLayout;
 class CDebugBreakpointsWin;
 class CDebugCallstackWin;
+class CDebugWatchWin;
 
 class CConsoleWindow {
     public:
@@ -63,6 +65,7 @@ class CConsoleWindow {
         CDebugSourceWin* GetDebugSourceWin() { return (mDebugSourceWin); }
         CDebugBreakpointsWin* GetDebugBreakpointsWin() { return (mBreakpointsWin); }
         CDebugCallstackWin* GetDebugCallstackWin() { return (mCallstackWin); }
+        CDebugWatchWin* GetDebugWatchWin() { return (mWatchWin); }
 
         // -- Qt components
         QApplication* mApp;
@@ -74,6 +77,7 @@ class CConsoleWindow {
         CDebugSourceWin* mDebugSourceWin;
         CDebugBreakpointsWin* mBreakpointsWin;
         CDebugCallstackWin* mCallstackWin;
+        CDebugWatchWin* mWatchWin;
 
         QHBoxLayout* mToolbarLayout;
         QLabel* mFileLabel;

@@ -105,37 +105,29 @@ CDebugSourceWin::~CDebugSourceWin() {
     }
 }
 
-bool CDebugSourceWin::OpenSourceFile(const char* filename) {
+bool CDebugSourceWin::OpenSourceFile(const char* filename, bool reload) {
     // -- sanity check
     if(!filename || !filename[0])
         return (false);
 
     // -- see if we actually need to reload this file
     uint32 filehash = TinScript::Hash(filename);
-    if(filehash == mCurrentCodeblockHash)
+    if(filehash == mCurrentCodeblockHash && !reload)
         return (true);
-
-    // -- set the file line edit
-    CConsoleWindow::GetInstance()->GetFileLineEdit()->setText(filename);
-
-    // -- reset the current hash
-    mCurrentCodeblockHash = 0;
-    mCurrentLineNumber = -1;
-
-    // -- clear any old text
-    clear();
-    mSourceText.clear();
-    // $$$TZA does this actually delete the CScriptLine instances added to mSourceText?
-    /*
-    while(mSourceText.size() > 0) {
-        CSourceLine* line_item = mSourceText.at(0);
-        mSourceText.removeAt(0);
-        delete line_item;
-    }
-    */
 
     char* filebuf = ReadFileAllocBuf(filename);
     if(filebuf) {
+        // -- set the file line edit
+        CConsoleWindow::GetInstance()->GetFileLineEdit()->setText(filename);
+
+        // -- reset the current hash
+        mCurrentCodeblockHash = 0;
+        mCurrentLineNumber = -1;
+
+        // -- clear any old text
+        clear();
+        mSourceText.clear();
+
         // -- set the hash
         mCurrentCodeblockHash = filehash;
 
@@ -160,6 +152,11 @@ bool CDebugSourceWin::OpenSourceFile(const char* filename) {
 
         // -- delete the buffer
         delete [] filebuf;
+    }
+
+    // -- unable to open file
+    else {
+        return (false);
     }
 
     // -- notify the break points window, so we can transmit all breakpoints for this file
@@ -214,7 +211,7 @@ void CDebugSourceWin::SetCurrentPC(uint32 codeblock_hash, int32 line_number) {
             }
 
             // -- now set the new current line
-            if(line_number >= 0) {
+            if(line_number >= 0 && line_number < mSourceText.size()) {
                 mCurrentLineNumber = line_number;
                 CSourceLine* source_line = mSourceText.at(mCurrentLineNumber);
                 QString source_text = source_line->text();
@@ -261,6 +258,17 @@ void CDebugSourceWin::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number,
     source_text[0] = add && enable ? 'B' : add ? 'b' : ' ';
     actual_source_line->setText(source_text);
     actual_source_line->mBreakpointSet = add;
+}
+
+void CDebugSourceWin::NotifyCodeblockLoaded(uint32 codeblock_hash) {
+    // -- do nothing if we've already got a file open,
+    // -- unless we're reloading the current file
+    if(mCurrentCodeblockHash != 0 && mCurrentCodeblockHash != codeblock_hash)
+        return;
+
+    // -- get the file name, and open the file
+    const char* filename = TinScript::UnHash(codeblock_hash);
+    OpenSourceFile(filename, true);
 }
 
 // ------------------------------------------------------------------------------------------------

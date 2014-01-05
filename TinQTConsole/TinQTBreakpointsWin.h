@@ -105,6 +105,7 @@ class CDebugCallstackWin : public QListWidget {
         void NotifyCallstack(uint32* codeblock_array, uint32* objid_array, uint32* namespace_array,
                              uint32* func_array, uint32* linenumber_array, int array_size);
         void ClearCallstack();
+        int GetSelectedStackIndex();
 
     public slots:
         void OnDoubleClicked(QListWidgetItem*);

@@ -43,6 +43,14 @@ void TestParenthesis() {
     Print(result);
 }
 
+hashtable gHashTable;
+string gHashTable["hello"] = "goodbye";
+float gHashTable["goodbye"] = 17.5f;
+void TestHashtables() {
+    Print(gHashTable["hello"]);
+    Print(gHashTable[gHashTable["hello"]]);
+}
+
 // -- GLOBAL FUNCTIONS ----------------------------------------------------------------------------
 void CallMultIntByTwo(int number) {
     int multresult = MultIntByTwo(number);
@@ -74,6 +82,48 @@ int Fibonacci(int num) {
         int result = prev + prevprev;
         return result;
     }
+}
+int FibIterative(int num) {
+    if(num < 2) {
+        return num;
+    }
+    int cur = 1;
+    int prev = 1;
+    
+    // -- the first two numbers have already been taken care of
+    num = num - 2;
+    while (num > 0) {
+        int temp = cur;
+        cur = cur + prev;
+        prev = temp;
+        num = num - 1;
+    }
+    return (cur);
+}
+
+// -- CVector3f functions--------------------------------------------------------------------------
+void TestCVector3f()
+{
+    object v0 = create CVector3f();
+    v0.Set(1.0f, 2.0f, 3.0f);
+    Print(v0.Length());
+    
+    object v1 = create CVector3f();
+    v1.Set(4.0f, 5.0f, 6.0f);
+    
+    object cross_result = create CVector3f();
+    if (Cross(cross_result, v0, v1))
+    {
+        Print("The cross product is: (", cross_result.x, ", ", cross_result.y, ", ", cross_result.z, ")");
+    }
+    
+    float dot = Dot(v0, v1);
+    Print("The dot product is: ", dot);
+    
+    // -- cleanup
+    destroy v0;
+    destroy v1;
+    destroy cross_result;
 }
 
 // -- OBJECTS FUNCTIONS ---------------------------------------------------------------------------
@@ -160,8 +210,7 @@ void ScriptNS::TestThread() {
     Print(" ");
     Print(self.intvalue);
     if(self.intvalue > 0) {
-        //self.schedrequest = Schedule(self, 1000, "TestThread();");
-        self.schedrequest = schedule(self, 1000, TestThread);
+        self.schedrequest = schedule(self, 1000, Hash("TestThread"));
     }
     else {
         Print(" ");
@@ -172,7 +221,7 @@ void ScriptNS::TestThread() {
 void ThreadTestCount(int num) {
     Print(num);
     if(num > 0)
-        schedule(0, 1000, ThreadTestCount, num - 1);
+        schedule(0, 1000, Hash("ThreadTestCount"), num - 1);
 }
 
 void BeginThreadTest() {
@@ -182,27 +231,22 @@ void BeginThreadTest() {
 
 // -- DEBUGGER Test Functions ----------------------------------------------------------------------
 int MultBy3(int value) {
+    int test_watch_var = 17;
     int result = value * 3;
     return (result);
 }
 
 int MultBy6(int value) {
+    int test_watch_var2 = 29;
     int result = MultBy3(value) * 2;
     return (result);
 }
 
 int MultBy24(int value) {
+    int test_watch_var3 = 5;
+    object test_obj = gScriptNamedObject;
     int result = MultBy6(value) * 4;
     return (result);
-}
-
-// -- LAMBDA? EXPRESSIONS --------------------------------------------------------------------------
-void BeginLambdaTest(int value) {
-    void decrement(int dec) {
-        Print(dec);
-        BeginLambdaTest(dec - 1);
-    }
-    Schedule(0, 1000, decrement(value));
 }
 
 // ------------------------------------------------------------------------------------------------

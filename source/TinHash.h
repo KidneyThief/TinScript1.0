@@ -36,7 +36,7 @@ namespace TinScript {
 
 // ------------------------------------------------------------------------------------------------
 // implemented in TinScript.cpp
-uint32 Hash(const char *s, int32 length = -1);
+uint32 Hash(const char *s, int32 length = -1, bool add_to_table = true);
 uint32 HashAppend(uint32 h, const char *string, int32 length = -1);
 const char* UnHash(uint32 hash);
 
@@ -209,28 +209,63 @@ class CHashTable {
 		}
 	}
 
-    T* First() const {
+    T* First(uint32* out_hash = NULL) const {
         iter = head;
         iter_was_removed = false;
         if(head)
+        {
+            // -- return the hash value, if requested
+            if (out_hash)
+                *out_hash = head->hash;
             return (head->item);
+        }
         else
+        {
+            if (out_hash)
+                *out_hash = 0;
             return (NULL);
+        }
     }
 
-    T* Next() const {
-        if(iter && !iter_was_removed) {
+    T* Next(uint32* out_hash = NULL) const
+    {
+        if(iter && !iter_was_removed)
+        {
             iter = iter->next;
         }
         iter_was_removed = false;
-        if(iter)
+        if (iter)
+        {
+            // -- return the hash value, if requested
+            if (out_hash)
+                *out_hash = head->hash;
             return (iter->item);
+        }
         else
-            return NULL;
+        {
+            if (out_hash)
+                *out_hash = 0;
+            return (NULL);
+        }
     }
 
-    T* Last() const {
-        return (tail);
+    T* Last(uint32* out_hash = NULL) const
+    {
+        iter = tail;
+        iter_was_removed = false;
+        if(tail)
+        {
+            // -- return the hash value, if requested
+            if (out_hash)
+                *out_hash = tail->hash;
+            return (tail->item);
+        }
+        else
+        {
+            if (out_hash)
+                *out_hash = 0;
+            return (NULL);
+        }
     }
 
 	T* FindItemByBucket(int32 bucket) const {

@@ -33,6 +33,7 @@
 #include "TinQTConsole.h"
 #include "TinQTSourceWin.h"
 #include "TinQTBreakpointsWin.h"
+#include "TinQTWatchWin.h"
 
 // ------------------------------------------------------------------------------------------------
 CBreakpointCheck::CBreakpointCheck(CBreakpointEntry* breakpoint) : QCheckBox() {
@@ -224,12 +225,42 @@ void CDebugCallstackWin::NotifyCallstack(uint32* codeblock_array, uint32* objid_
         addItem(list_item);
         mCallstack.append(list_item);
     }
+
+    // -- if our array is non-empty set the selected to be the top of the stack
+    if(mCallstack.size() > 0)
+        setCurrentItem(mCallstack.at(0));
 }
 
 void CDebugCallstackWin::OnDoubleClicked(QListWidgetItem* item) {
     CCallstackEntry* stack_entry = static_cast<CCallstackEntry*>(item);
     CConsoleWindow::GetInstance()->GetDebugSourceWin()->
         SetSourceView(stack_entry->mCodeblockHash, stack_entry->mLineNumber);
+
+    // -- find out which stack index this entry is, and notify the watchvar window
+    for(int i = 0; i < mCallstack.size(); ++i) {
+        if(mCallstack.at(i) == stack_entry) {
+            CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyCallstackIndex(i);
+            break;
+        }
+    }
+}
+
+int CDebugCallstackWin::GetSelectedStackIndex() {
+    if(mCallstack.size() <= 0)
+        return -1;
+
+    QListWidgetItem* cur_item = currentItem();
+    int stack_index = 0;
+    while(stack_index < mCallstack.size() && mCallstack.at(stack_index) != cur_item)
+        ++stack_index;
+
+    // -- found
+    if(stack_index < mCallstack.size())
+        return stack_index;
+
+    // -- failed
+    else
+        return -1;
 }
 
 // ------------------------------------------------------------------------------------------------

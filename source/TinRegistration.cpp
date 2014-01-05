@@ -103,7 +103,22 @@ void CVariableEntry::SetValue(void* objaddr, void* value) {
 
     // -- if we're providing an objaddr, this variable is actually a member
     void* varaddr = GetAddr(objaddr);
+
+    // -- if this variable is a string, we need to decrement the current value string table entry
+    if (mType == TYPE_string)
+    {
+        GetScriptContext()->GetStringTable()->RefCountDecrement(*(uint32*)varaddr);
+    }
+
+    // -- copy the new value
 	memcpy(varaddr, value, size);
+
+    // -- and again, if the variable is a string, we need to increment the ref count for the
+    // -- new assignment
+    if (mType == TYPE_string)
+    {
+        GetScriptContext()->GetStringTable()->RefCountIncrement(*(uint32*)varaddr);
+    }
 }
 
 // -- added to accomodate converting StringTableEntry hash values back into

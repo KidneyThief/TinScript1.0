@@ -80,11 +80,13 @@
     <ClCompile Include="..\source\TinExecute.cpp" />
     <ClCompile Include="..\source\TinNamespace.cpp" />
     <ClCompile Include="..\source\TinObjectGroup.cpp" />
+    <ClCompile Include="..\source\TinOpExecFunctions.cpp" />
     <ClCompile Include="..\source\TinParse.cpp" />
     <ClCompile Include="..\source\TinRegistration.cpp" />
     <ClCompile Include="..\source\TinScheduler.cpp" />
     <ClCompile Include="..\source\TinScript.cpp" />
     <ClCompile Include="..\source\TinScriptContextReg.cpp" />
+    <ClCompile Include="..\source\TinStringTable.cpp" />
     <ClCompile Include="..\source\TinTypes.cpp" />
     <ClCompile Include="..\source\unittest.cpp">
       <InlineFunctionExpansion Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Default</InlineFunctionExpansion>

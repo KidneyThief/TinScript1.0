@@ -30,87 +30,47 @@
 
 namespace TinScript {
 
-// CStringTable is a singleton, used to create a dictionary of hashed strings
-class CStringTable {
+// ====================================================================================================================
+// CStringTable
+// Used to create a dictionary of hashed strings, refcounted to allow unused strings to be deleted
+// ====================================================================================================================
+class CStringTable
+{
     public:
-        CStringTable(CScriptContext* owner, uint32 _size) {
-            mContextOwner = owner;
+        // -- each string table entry is a ref counted const char*, so when a string is no longer
+        // -- being used, it can be deleted from the dictionary buffer
+        // -- without garbage collection, we simply remove unreferenced strings from the end
+        // -- of the linked list
+        struct tStringEntry
+        {
+            tStringEntry(const char* _string)
+            {
+                mRefCount = 0;
+                mString = _string;
+            }
 
-            assert(_size > 0);
-            mSize = _size;
-            mBuffer = TinAllocArray(ALLOC_StringTable, char, mSize);
-            mBufptr = mBuffer;
+            int32 mRefCount;
+            const char* mString;
+        };
 
-            mStringDictionary = TinAlloc(ALLOC_StringTable, CHashTable<const char>,
-                                        kStringTableDictionarySize);
-        }
+        CStringTable(CScriptContext* owner, uint32 _size);
+        virtual ~CStringTable();
 
-        virtual ~CStringTable() {
-            TinFree(mStringDictionary);
-            TinFree(mBuffer);
-        }
-
-        CScriptContext* GetScriptContext() {
+        CScriptContext* GetScriptContext()
+        {
             return (mContextOwner);
         }
 
-        const char* AddString(const char* s, int length = -1, uint32 hash = 0) {
-            // -- sanity check
-            if(!s)
-                return "";
+        const char* AddString(const char* s, int length = -1, uint32 hash = 0, bool inc_refcount = false);
+        const char* FindString(uint32 hash);
 
-            if(hash == 0) {
-                hash = Hash(s, length);
-            }
+        void RefCountIncrement(uint32 hash);
+        void RefCountDecrement(uint32 hash);
 
-            // -- see if the string is already in the dictionary
-            const char* exists = FindString(hash);
-            if(!exists)
-            {
-                if(length < 0)
-                    length = (int32)strlen(s);
+        void RemoveUnreferencedStrings();
 
-                // -- space left
-                int32 remaining = int32(mSize - (kPointerToUInt32(mBufptr) -
-                                                 kPointerToUInt32(mBuffer)));
-                if(remaining < length + 1) {
-                    ScriptAssert_(mContextOwner, 0,
-                                  "<internal>", -1, "Error - StringTable of size %d is full!\n",
-                                  mSize);
-                    return NULL;
-                }
-                const char* stringptr = mBufptr;
-                SafeStrcpy(mBufptr, s, length + 1);
-                mBufptr += length + 1;
-
-                // -- add the entry to the dictionary
-                mStringDictionary->AddItem(*stringptr, hash);
-
-                return stringptr;
-            }
-
-            // -- else check for a collision
-            else
-            {
-                if(length < 0)
-                    length = (int32)strlen(s);
-                if(strncmp(exists, s, length) != 0) {
-                    ScriptAssert_(mContextOwner, 0, "<internal>", -1,
-                                  "Error - Hash collision: '%s', '%s'\n", exists, s);
-                }
-                return exists;
-            }
-        }
-        const char* FindString(uint32 hash) {
-            // -- sanity check
-            if(hash == 0)
-                return "";
-
-            const char* stringptr = mStringDictionary->FindItem(hash);
-            return stringptr;
-        }
-
-        const CHashTable<const char>* GetStringDictionary() {
+        const CHashTable<tStringEntry>* GetStringDictionary()
+        {
             return mStringDictionary;
         }
 
@@ -121,7 +81,7 @@ class CStringTable {
         char* mBuffer;
         char* mBufptr;
 
-        CHashTable<const char>* mStringDictionary;
+        CHashTable<tStringEntry>* mStringDictionary;
 };
 
 } // TinScript

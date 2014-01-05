@@ -48,10 +48,6 @@ bool8 GetBinOpValues(CScriptContext* script_context, CExecStack& execstack,
 bool8 ObjectNumericalBinOp(CScriptContext* script_context, eOpCode op, eVarType val0type,
                            void* val0addr, eVarType val1type, void* val1addr, int32& result);
 
-bool8 C3VectorNumericalBinOp(CScriptContext* script_context, eOpCode op, eVarType val0type,
-                             void* val0addr, eVarType val1type, void* val1addr,
-                             float32& result, C3Vector& c3result);
-
 bool8 IntegerNumericalBinOp(CScriptContext* script_context, eOpCode op, eVarType val0type,
                             void* val0, eVarType val1type, void* val1, int32& int_result);
 
@@ -60,7 +56,7 @@ bool8 PerformIntegerBinOp(CScriptContext* script_context, CExecStack& execstack,
 
 bool8 PerformNumericalBinOp(CScriptContext* script_context, CExecStack& execstack,
                             CFunctionCallStack& funccallstack, eOpCode op, int32& int_result,
-                            float32& float_result, C3Vector& c3result);
+                            float32& float_result);
 
 bool8 PerformIntegerBitwiseOp(CScriptContext* script_context, CExecStack& execstack,
                               CFunctionCallStack& funccallstack, eOpCode op, int32& result);

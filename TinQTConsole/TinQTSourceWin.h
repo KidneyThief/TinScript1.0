@@ -48,10 +48,11 @@ class CDebugSourceWin : public QListWidget {
         CDebugSourceWin(CConsoleWindow* owner);
         virtual ~CDebugSourceWin();
 
-        bool OpenSourceFile(const char* filename);
+        bool OpenSourceFile(const char* filename, bool reload = false);
         bool SetSourceView(uint32 codeblock_hash, int32 line_number);
         void SetCurrentPC(uint32 codeblock_hash, int32 line_number);
         void ToggleBreakpoint(uint32 codeblock_hash, int32 line_number, bool add, bool enable);
+        void NotifyCodeblockLoaded(uint32 codeblock_hash);
 
     public slots:
         void OnDoubleClicked(QListWidgetItem*);

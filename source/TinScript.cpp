@@ -359,7 +359,7 @@ void CScriptContext::Update(uint32 curtime) {
 }
 
 // ------------------------------------------------------------------------------------------------
-uint32 Hash(const char *string, int32 length) {
+uint32 Hash(const char *string, int32 length, bool add_to_table) {
 	if(!string || !string[0])
 		return 0;
     const char* s = string;
@@ -381,9 +381,10 @@ uint32 Hash(const char *string, int32 length) {
     // $$$TZA this should only happen in a DEBUG build
     // $$$TZA This is also not thread safe - only the main thread should be allowed to populate the
     // -- the string dictionary
-    if(CScriptContext::GetMainThreadContext() &&
-        CScriptContext::GetMainThreadContext()->GetStringTable()) {
-        CScriptContext::GetMainThreadContext()->GetStringTable()->AddString(string, length, h);
+    if (CScriptContext::GetMainThreadContext() &&
+        CScriptContext::GetMainThreadContext()->GetStringTable())
+    {
+        CScriptContext::GetMainThreadContext()->GetStringTable()->AddString(string, length, h, add_to_table);
     }
 
 	return h;
@@ -421,9 +422,9 @@ void SaveStringTable(CScriptContext* script_context) {
     if(!script_context)
         return;
 
-    const CHashTable<const char>* stringtable =
+    const CHashTable<CStringTable::tStringEntry>* string_table =
         script_context->GetStringTable()->GetStringDictionary();
-    if(!stringtable)
+    if(!string_table)
         return;
 
   	// -- open the file
@@ -441,11 +442,20 @@ void SaveStringTable(CScriptContext* script_context) {
 		return;
     }
 
-    for(int32 i = 0; i < stringtable->Size(); ++i) {
-	    CHashTable<const char>::CHashTableEntry* ste = stringtable->FindRawEntryByBucket(i);
+    for(int32 i = 0; i < string_table->Size(); ++i) {
+	    CHashTable<CStringTable::tStringEntry>::CHashTableEntry* ste = string_table->FindRawEntryByBucket(i);
 	    while (ste) {
+
+            // -- only write out ref-counted strings (the remaining haven't been cleaned up)
+            if (ste->item->mRefCount <= 0)
+            {
+                // -- next entry
+       	        ste = string_table->GetNextRawEntryInBucket(i);
+                continue;
+            }
+
             uint32 stringhash = ste->hash;
-            const char* string = ste->item;
+            const char* string = ste->item->mString;
             int32 length = (int32)strlen(string);
             char tempbuf[kMaxTokenLength];
 
@@ -488,7 +498,7 @@ void SaveStringTable(CScriptContext* script_context) {
             }
 
             // -- next entry
-       	    ste = stringtable->GetNextRawEntryInBucket(i);
+       	    ste = string_table->GetNextRawEntryInBucket(i);
 	    }
     }
 

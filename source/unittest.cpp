@@ -23,7 +23,6 @@
 // unittest.cpp
 // ------------------------------------------------------------------------------------------------
 
-
 #include "stdafx.h"
 
 // -- lib includes
@@ -292,18 +291,17 @@ void BeginUnitTests(int32 teststart, int32 testend)
     }
 
     // --
-    /*
     ++testindex;
     if(testindex >= teststart && testindex <= testend) {
         MTPrint("\n%d.  ", testindex);
-        MTPrint("C3Vector cross((v0 + v1), v2) - next two lines print: 3.5355 and (-2.0 0.0 -1.5)\n");
+        MTPrint("CVector3f length, cross, dot product tests\n");
+        MTPrint("Next lines print: 3.7417, (-3, 6, -3), 32.0\n");
         int32 dummy = 0;
-        if(!TinScript::ExecF(script_context, dummy, "TestC3Vector();")) {
-            MTPrint("Error - failed to find execute TestC3Vector()\n");
+        if(!TinScript::ExecF(script_context, dummy, "TestCVector3f();")) {
+            MTPrint("Error - failed to find execute TestCVector3f()\n");
             return;
         }
     }
-    */
 
     // --
     ++testindex;
@@ -491,14 +489,6 @@ void BeginUnitTests(int32 teststart, int32 testend)
 }
 
 REGISTER_FUNCTION_P2(BeginUnitTests, BeginUnitTests, void, int32, int32);
-
-// ------------------------------------------------------------------------------------------------
-// $$$TZA temporary C3Vector implementation
-float32 C3Length(C3Vector v) {
-    return (v.Length());
-}
-
-REGISTER_FUNCTION_P1(C3Length, C3Length, float32, C3Vector);
 
 // ------------------------------------------------------------------------------------------------
 // eof

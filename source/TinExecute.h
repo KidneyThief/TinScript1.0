@@ -59,6 +59,13 @@ class CExecStack {
 
 			// -- push the type of the content as well, so we know what to pull
 			*mStackTop++ = (uint32)contenttype;
+
+            // -- pushing and popping strings onto the execstack need to be refcounted
+            if (contenttype == TYPE_string)
+            {
+                uint32 string_hash = *(uint32*)content;
+                mContextOwner->GetStringTable()->RefCountIncrement(string_hash);
+            }
 		}
 
 		void* Pop(eVarType& contenttype) {
@@ -78,6 +85,14 @@ class CExecStack {
 			// -- ensure we have enough data on the stack, both the content, and the type
             Assert_(stacksize >= contentsize + 1);
 			mStackTop -= contentsize;
+
+            // -- pushing and popping strings onto the execstack need to be refcounted
+            if (contenttype == TYPE_string)
+            {
+                uint32 string_hash = *(uint32*)mStackTop;
+                mContextOwner->GetStringTable()->RefCountDecrement(string_hash);
+            }
+
 			return (void*)mStackTop;
 		}
 

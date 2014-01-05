@@ -33,11 +33,6 @@
 #include "TinScript.h"
 #include "TinStringTable.h"
 
-// ------------------------------------------------------------------------------------------------
-// $$$TZA temporary C3Vector implementation
-const C3Vector C3Vector::zero(0.0f, 0.0f, 0.0f);
-const C3Vector C3Vector::realmax(1e8f, 1e8f, 1e8f);
-
 namespace TinScript {
 
 // ------------------------------------------------------------------------------------------------
@@ -128,7 +123,7 @@ bool8 StringToSTE(void* addr, char* value) {
     // -- an STE is simply an address, copy the 4x bytes verbatim
 	if(addr && value) {
 		uint32* varaddr = (uint32*)addr;
-		*varaddr = Hash(value);
+		*varaddr = Hash(value, -1, false);
 		return true;
 	}
 	return false;
@@ -197,26 +192,6 @@ bool8 StringToFloat(void* addr, char* value) {
 }
 
 // ------------------------------------------------------------------------------------------------
-bool8 C3VectorToString(void* value, char* buf, int32 bufsize) {
-	if(value && buf && bufsize > 0) {
-        C3Vector* c3vector = (C3Vector*)value;
-		sprintf_s(buf, bufsize, "%.4f %.4f %.4f", c3vector->x, c3vector->y, c3vector->z);
-		return true;
-	}
-	return false;
-}
-
-bool8 StringToC3Vector(void* addr, char* value) {
-	if(addr && value) {
-		C3Vector* varaddr = (C3Vector*)addr;
-        if(sscanf_s(value, "%f %f %f", &varaddr->x, &varaddr->y, &varaddr->z) == 3) {
-		    return true;
-        }
-	}
-	return false;
-}
-
-// ------------------------------------------------------------------------------------------------
 // -- non-string conversions - mostly to avoid converting fromtype -> string -> totype
 void* TypeConvert(eVarType fromtype, void* fromaddr, eVarType totype) {
 
@@ -229,12 +204,6 @@ void* TypeConvert(eVarType fromtype, void* fromaddr, eVarType totype) {
     // -- sanity check
     if(fromtype == totype || !fromaddr)
         return fromaddr;
-
-    // -- C3Vector
-    if((fromtype == TYPE_c3vector && totype != TYPE_string) ||
-       (totype == TYPE_c3vector && fromtype != TYPE_string)) {
-        return ((void*)"");
-    }
 
     switch(fromtype) {
         case TYPE_int:

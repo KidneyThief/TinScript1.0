@@ -255,10 +255,6 @@ bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
         // -- execute the function via codeblock/offset
         bool8 success = funccb->Execute(funcoffset, execstack, funccallstack);
 
-        // -- reset debug break members
-        //funccb->GetScriptContext()->mDebuggerBreakStep = false;
-        //funccb->GetScriptContext()->mDebuggerLastBreak = -1;
-
         if(!success) {
             ScriptAssert_(fe->GetScriptContext(), 0, "<internal>", -1,
                           "Error - error executing function: %s()\n",
@@ -285,6 +281,11 @@ bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
             execstack.Push(&empty, TYPE_int);
         }
 
+        // -- clear all parameters for the function - this will ensure all
+        // -- strings are decremented, keeping the string table clear of unassigned values
+        fe->GetContext()->ClearParameters();
+        fe->GetScriptContext()->GetStringTable()->RemoveUnreferencedStrings();
+        
         // -- since we called a 'C' function, there's no OP_FuncReturn - pop the stack
         funccallstack.Pop(oe);
     }

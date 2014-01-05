@@ -467,6 +467,12 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
 				int32 resultsize = kBytesToWordCount(gRegisteredTypeSize[pushtype]);
     		    size += PushInstructionRaw(countonly, instrptr, (void*)valuebuf, resultsize,
 										   DBG_value);
+
+                // -- if the value type is a string, we need to ensure it's added to the dictionary
+                if (pushtype == TYPE_string)
+                {
+                    codeblock->GetScriptContext()->GetStringTable()->RefCountIncrement(*(uint32*)valuebuf);
+                }
     		}
 			else {
 				printf("Error - unable to convert value %s to type %s\n",
@@ -652,7 +658,7 @@ int32 CUnaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly
 
     // -- (some) unary operators only operate on specific types
     // $$$TZA We need a way to apply unary operators to user-defined registered types
-    // -- e.g.  do we bother evaluating  ++C3Vector?
+    // -- e.g.  do we bother evaluating  ++CVector3f?
     eVarType resulttype = pushresult;
     switch(unaryopcode) {
         case OP_UnaryPreInc:

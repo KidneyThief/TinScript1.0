@@ -49,12 +49,12 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\source;E:\_DEV\Qt\5.0.1\msvc2010\include\QtWidgets;E:\_DEV\Qt\5.0.1\msvc2010\include\QtGui;E:\_DEV\Qt\5.0.1\msvc2010\include\QtCore;E:\_DEV\Qt\5.0.1\msvc2010\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\source;..\..\Qt\5.0.1\msvc2010\include\QtWidgets;..\..\Qt\5.0.1\msvc2010\include\QtGui;..\..\Qt\5.0.1\msvc2010\include\QtCore;..\..\Qt\5.0.1\msvc2010\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>..\..\Qt\5.0.1\msvc2010\lib\Qt5Widgets.lib;..\..\Qt\5.0.1\msvc2010\lib\Qt5Core.lib;..\..\Qt\5.0.1\msvc2010\lib\Qt5Gui.lib;$(IntDir)tinscript.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\..\Qt\5.0.1\msvc2010\lib\Qt5Widgets.lib;..\..\Qt\5.0.1\msvc2010\lib\Qt5Core.lib;..\..\Qt\5.0.1\msvc2010\lib\Qt5Gui.lib;$(IntDir)tinscript.lib;$(IntDir)external.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>TinQTMoc.bat</Command>
@@ -68,12 +68,14 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\Qt\5.0.1\msvc2010\include;..\..\Qt\5.0.1\msvc2010\include\QtGui;..\..\Qt\5.0.1\msvc2010\include\QtCore;..\..\Qt\5.0.1\msvc2010\include\QtWidgets;..\source;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>..\..\Qt\5.0.1\msvc2010\lib\Qt5Widgets.lib;..\..\Qt\5.0.1\msvc2010\lib\Qt5Core.lib;..\..\Qt\5.0.1\msvc2010\lib\Qt5Gui.lib;$(IntDir)tinscript.lib;$(IntDir)external.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -91,6 +93,7 @@
     <ClCompile Include="TinQTBreakpointsWin.cpp" />
     <ClCompile Include="TinQTConsole.cpp" />
     <ClCompile Include="TinQTSourceWin.cpp" />
+    <ClCompile Include="TinQTWatchWin.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

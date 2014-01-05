@@ -49,6 +49,7 @@
 #include "TinQTConsole.h"
 #include "TinQTSourceWin.h"
 #include "TinQTBreakpointsWin.h"
+#include "TinQTWatchWin.h"
 
 // ------------------------------------------------------------------------------------------------
 // -- override the macro from integration.h
@@ -106,24 +107,40 @@ CConsoleWindow::CConsoleWindow() {
     mToolbarLayout->addWidget(mButtonPause);
     mToolbarLayout->addWidget(mSpacer, 1);
 
+    // -- create the source window
     mDebugSourceWin = new CDebugSourceWin(this);
-
-    // -- create the breakpoints window
-    mBreakpointsWin = new CDebugBreakpointsWin(this);
 
     // -- create the callstack window
     mCallstackWin = new CDebugCallstackWin(this);
 
+    // -- create the breakpoints window
+    mBreakpointsWin = new CDebugBreakpointsWin(this);
+
+    // -- create the watch window
+    mWatchWin = new CDebugWatchWin(this);
+
     // -- column 0
     mGridLayout = new QGridLayout();
     mGridLayout->addLayout(mToolbarLayout,  0, 0, 1, Qt::AlignLeft);
-    mGridLayout->addWidget(mDebugSourceWin, 1, 0, 1, Qt::AlignLeft);
-    mGridLayout->addWidget(mConsoleOutput,  2, 0, 1, Qt::AlignLeft);
-    mGridLayout->addWidget(mConsoleInput,   3, 0, 1, Qt::AlignLeft);
+    mGridLayout->addWidget(mDebugSourceWin, 1, 0, 2, Qt::AlignLeft);
+    mGridLayout->addWidget(mConsoleOutput,  3, 0, 1, Qt::AlignLeft);
+    mGridLayout->addWidget(mConsoleInput,   4, 0, 1, Qt::AlignLeft);
 
     // -- column 1
     mGridLayout->addWidget(mCallstackWin,   1, 1, 1, Qt::AlignLeft);
     mGridLayout->addWidget(mBreakpointsWin, 2, 1, 1, Qt::AlignLeft);
+
+    mGridLayout->addWidget(mWatchWin,       3, 1, 1, Qt::AlignLeft);
+
+    // -- temp test
+    /*
+    mWatchWin->BeginVariable("TestObject", TinScript::TYPE_object, "ID:  5");
+    mWatchWin->AddVariable("Foo", TinScript::TYPE_float, "3.0f");
+    mWatchWin->AddVariable("Bar", TinScript::TYPE_int, "17");
+    mWatchWin->AddNamespace("BaseObject");
+    mWatchWin->AddVariable("Name", TinScript::TYPE_string, "Whatever");
+    mWatchWin->AddVariable("Class", TinScript::TYPE_string, "Heffe");
+    */
 
     // -- connect the widgets
     QObject::connect(mConsoleInput, SIGNAL(returnPressed()), mConsoleInput, SLOT(OnReturnPressed()));
@@ -286,8 +303,9 @@ void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg) {
 	myPalette.setColor(QPalette::Button, Qt::transparent);	
 	mButtonRun->setPalette(myPalette);
 
-    // -- clear the callstack
+    // -- clear the callstack and the watch window
     GetDebugCallstackWin()->ClearCallstack();
+    GetDebugWatchWin()->ClearWatchWin();
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -321,10 +339,16 @@ void NotifyCallstack(uint32* codeblock_array, uint32* objid_array, uint32* names
     CConsoleWindow::GetInstance()->GetDebugCallstackWin()->
         NotifyCallstack(codeblock_array, objid_array, namespace_array,
                         func_array, linenumber_array, array_size);
+    CConsoleWindow::GetInstance()->GetDebugWatchWin()->ClearWatchWin();
 }
 
 void NotifyCodeblockLoaded(uint32 codeblock_hash) {
+    CConsoleWindow::GetInstance()->GetDebugSourceWin()->NotifyCodeblockLoaded(codeblock_hash);
     CConsoleWindow::GetInstance()->GetDebugBreakpointsWin()->NotifyCodeblockLoaded(codeblock_hash);
+}
+
+void NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry) {
+    CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyWatchVarEntry(watch_var_entry);
 }
         
 // ------------------------------------------------------------------------------------------------
@@ -526,13 +550,14 @@ int _tmain(int argc, _TCHAR* argv[])
 {
     // -- required to ensure registered functions from unittest.cpp are linked.
     REGISTER_FILE(unittest_cpp);
+    REGISTER_FILE(mathutil_cpp);
 
     // -- initialize
     gScriptContext = TinScript::CScriptContext::Create("", ConsolePrint, AssertHandler);
 
     // -- register the debugger breakpoint function
     gScriptContext->RegisterDebugger("", DebuggerBreakpointHit, NotifyCallstack,
-                                     NotifyCodeblockLoaded);
+                                     NotifyCodeblockLoaded, NotifyWatchVarEntry);
 
     new CConsoleWindow();
     int result = CConsoleWindow::GetInstance()->Exec();
@@ -567,12 +592,6 @@ REGISTER_FUNCTION_P0(Pause, Pause, void);
 REGISTER_FUNCTION_P0(Unpause, Unpause, void);
 
 REGISTER_FUNCTION_P0(GetSimTime, GetSimTime, float32);
-
-void Print(const char* string) {
-    ConsolePrint(string);
-}
-
-REGISTER_FUNCTION_P1(Print, Print, void, const char*);
 
 // ------------------------------------------------------------------------------------------------
 #include "TinQTConsoleMoc.cpp"

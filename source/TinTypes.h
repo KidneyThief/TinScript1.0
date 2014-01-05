@@ -22,64 +22,7 @@
 #ifndef __TINTYPES_H
 #define __TINTYPES_H
 
-#include "math.h"
-
 #include "integration.h"
-
-// ------------------------------------------------------------------------------------------------
-// $$$TZA temporary C3Vector implementation
-class C3Vector {
-public:
-    C3Vector(float32 _x = 0.0f, float32 _y = 0.0f, float32 _z = 0.0f) {
-        x = _x; y = _y; z = _z;
-    }
-
-    C3Vector& operator=(const C3Vector& rhs) {
-        x = rhs.x; y = rhs.y; z = rhs.z;
-        return *this;
-    }
-
-    C3Vector& operator+(const C3Vector& rhs) {
-        x += rhs.x; y += rhs.y; z += rhs.z;
-        return *this;
-    }
-
-    C3Vector& operator-(const C3Vector& rhs) {
-        x -= rhs.x; y -= rhs.y; z -= rhs.z;
-        return *this;
-    }
-
-    C3Vector& operator*(const float32 s) {
-        x *= s; y *= s; z *= s;
-        return *this;
-    }
-
-    C3Vector& operator/(const float32 s) {
-        x /= s; y /= s; z /= s;
-        return *this;
-    }
-
-    bool8 operator==(const C3Vector& rhs) {
-        return (x == rhs.x && y == rhs.y && z == rhs.z);
-    }
-
-    bool8 operator!=(const C3Vector& rhs) {
-        return (x != rhs.x || y != rhs.y || z != rhs.z);
-    }
-
-    float32 Length() {
-        float32 length = sqrt(x*x + y*y + z*z);
-        return (length);
-    }
-
-    static const C3Vector zero;
-    static const C3Vector realmax;
-
-    float32 x;
-    float32 y;
-    float32 z;
-};
-// ------------------------------------------------------------------------------------------------
 
 namespace TinScript {
 
@@ -175,8 +118,6 @@ bool8 BoolToString(void* value, char* buf, int32 bufsize);
 bool8 StringToBool(void* addr, char* value);
 bool8 FloatToString(void* value, char* buf, int32 bufsize);
 bool8 StringToFloat(void* addr, char* value);
-bool8 C3VectorToString(void* value, char* buf, int32 bufsize);
-bool8 StringToC3Vector(void* addr, char* value);
 
 // -- for all non-first class types, declare a struct so GetTypeID<type> will be unique
 struct sMember {
@@ -211,7 +152,6 @@ struct sHashVar {
 	VarTypeEntry(int,		    4,		IntToString,		StringToInt,        int32)		    \
 	VarTypeEntry(bool,		    1,		BoolToString,		StringToBool,       bool8)		    \
 	VarTypeEntry(float,		    4,		FloatToString,		StringToFloat,      float32)		\
-	VarTypeEntry(c3vector,	    12,		C3VectorToString,   StringToC3Vector,   C3Vector)		\
 
 // -- 4x words actually, 16x bytes, the size of a HashVar
 #define MAX_TYPE_SIZE 4
