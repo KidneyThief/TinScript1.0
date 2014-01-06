@@ -130,6 +130,14 @@ bool8 GetStackValue(CScriptContext* script_context, CExecStack& execstack,
         }
     }
 
+    // -- if a POD member was pushed...
+    else if (valtype == TYPE__podmember)
+    {
+        // -- the type and address of the variable/value has already been pushed
+        valtype = (eVarType)((uint32*)valaddr)[0];
+        valaddr = (void*)((uint32*)valaddr)[1];
+    }
+
     // -- if the valtype wasn't either a var or a member, they remain unchanged
     return true;
 }
@@ -467,12 +475,13 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
     }
 
 	// -- pop the (hash) name of the var
-    bool8 isstackvar = false;
     CVariableEntry* ve0 = NULL;
     CObjectEntry* oe0 = NULL;
 	eVarType varhashtype;
 	void* var = execstack.Pop(varhashtype);
-    isstackvar = (varhashtype == TYPE__stackvar);
+    bool8 is_stack_var = (varhashtype == TYPE__stackvar);
+    bool8 is_pod_member = (varhashtype == TYPE__podmember);
+    bool8 use_var_addr = (is_stack_var || is_pod_member);
     if(!GetStackValue(script_context, execstack, funccallstack, var, varhashtype, ve0, oe0)) {
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - Failed to pop assignment variable\n");
@@ -480,7 +489,7 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
     }
 
     // -- ensure we're assigning to a variable, an object member, or a local stack variable
-    if(!ve0 && !isstackvar) {
+    if(!ve0 && !use_var_addr) {
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - Attempting to assign to a non-variable\n");
         return (false);
@@ -489,12 +498,16 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
     // -- if we're doing a straight up assignment, don't convert to float32
     if(op == OP_Assign )
     {
-        if(isstackvar) {
+        // -- if we've been given the actual address of the var, copy directly to it
+        if (use_var_addr) {
             val1addr = TypeConvert(val1type, val1addr, varhashtype);
-            memcpy(var, val1addr, MAX_TYPE_SIZE * sizeof(uint32));
-            DebugTrace(op, "StackVar: %s", DebugPrintVar(val1addr, varhashtype));
+            memcpy(var, val1addr, gRegisteredTypeSize[varhashtype]);
+            DebugTrace(op, is_stack_var ? "StackVar: %s" : "PODMember: %s", DebugPrintVar(var, varhashtype));
         }
-        else {
+
+        // -- else set the value through the variable entry
+        else
+        {
             val1addr = TypeConvert(val1type, val1addr, ve0->GetType());
     	    ve0->SetValue(oe0 ? oe0->GetAddr() : NULL, val1addr);
             DebugTrace(op, "Var %s: %s", UnHash(ve0->GetHash()),
@@ -503,8 +516,8 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
         return true;
     }
 
-    void* ve0addr = isstackvar ? TypeConvert(varhashtype, var, TYPE_float)
-                               : TypeConvert(ve0->GetType(), ve0->GetAddr(oe0), TYPE_float);
+    void* ve0addr = use_var_addr ? TypeConvert(varhashtype, var, TYPE_float)
+                                 : TypeConvert(ve0->GetType(), ve0->GetAddr(oe0), TYPE_float);
     val1addr = TypeConvert(val1type, val1addr, TYPE_float);
     float32 vefloat = *(float32*)ve0addr;
     float32 val1float = *(float32*)val1addr;
@@ -547,7 +560,7 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
     }
 
     // -- convert back to our variable type
-    if(isstackvar) {
+    if(use_var_addr) {
         void* convertptr = TypeConvert(TYPE_float, &result, varhashtype);
         if(!convertptr) {
             ScriptAssert_(script_context, 0, "<internal>", -1,
@@ -556,8 +569,12 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
                           GetRegisteredTypeName(varhashtype));
             return false;
         }
-        memcpy(var, convertptr, MAX_TYPE_SIZE);
-        DebugTrace(op, "StackVar: %s", DebugPrintVar(var, varhashtype));
+
+        // -- if we've been given the actual address of the var, copy directly to it
+        if (use_var_addr) {
+            memcpy(var, convertptr, gRegisteredTypeSize[varhashtype]);
+            DebugTrace(op, is_stack_var ? "StackVar: %s" : "PODMember: %s", DebugPrintVar(val1addr, varhashtype));
+        }
     }
     else {
         void* convertptr = TypeConvert(TYPE_float, &result, ve0->GetType());
@@ -596,12 +613,13 @@ bool8 PerformBitAssignOp(CScriptContext* script_context, CExecStack& execstack,
     }
 
 	// -- pop the (hash) name of the var
-    bool8 isstackvar = false;
     CVariableEntry* ve0 = NULL;
     CObjectEntry* oe0 = NULL;
 	eVarType varhashtype;
 	void* var = execstack.Pop(varhashtype);
-    isstackvar = (varhashtype == TYPE__stackvar);
+    bool8 is_stack_var = (varhashtype == TYPE__stackvar);
+    bool8 is_pod_member = (varhashtype == TYPE__podmember);
+    bool8 use_var_addr = (is_stack_var || is_pod_member);
     if(!GetStackValue(script_context, execstack, funccallstack, var, varhashtype, ve0, oe0)) {
         ScriptAssert_(script_context, false, "<internal>", -1,
                       "Error - Failed to pop assignment variable\n");
@@ -609,14 +627,14 @@ bool8 PerformBitAssignOp(CScriptContext* script_context, CExecStack& execstack,
     }
 
     // -- ensure we're assigning to a variable, an object member, or a local stack variable
-    if(!ve0 && !isstackvar) {
+    if(!ve0 && !use_var_addr) {
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - Attempting to assign to a non-variable\n");
         return false;
     }
 
-    void* ve0addr = isstackvar ? TypeConvert(varhashtype, var, TYPE_int)
-                               : TypeConvert(ve0->GetType(), ve0->GetAddr(oe0), TYPE_int);
+    void* ve0addr = use_var_addr ? TypeConvert(varhashtype, var, TYPE_int)
+                                 : TypeConvert(ve0->GetType(), ve0->GetAddr(oe0), TYPE_int);
     val1addr = TypeConvert(val1type, val1addr, TYPE_int);
     int32 veint = *(int32*)ve0addr;
     int32 val1int = *(int32*)val1addr;
@@ -649,7 +667,7 @@ bool8 PerformBitAssignOp(CScriptContext* script_context, CExecStack& execstack,
     }
 
     // -- convert back to our variable type
-    if(isstackvar) {
+    if(use_var_addr) {
         void* convertptr = TypeConvert(TYPE_int, &result, varhashtype);
         if(!convertptr) {
             ScriptAssert_(script_context, 0, "<internal>", -1,
@@ -658,8 +676,9 @@ bool8 PerformBitAssignOp(CScriptContext* script_context, CExecStack& execstack,
                           GetRegisteredTypeName(varhashtype));
             return false;
         }
-        memcpy(var, convertptr, MAX_TYPE_SIZE);
-        DebugTrace(op, "StackVar: %s", DebugPrintVar(var, varhashtype));
+
+        memcpy(var, convertptr, gRegisteredTypeSize[varhashtype]);
+        DebugTrace(op, is_stack_var ? "StackVar: %s" : "PODMember: %s", DebugPrintVar(var, varhashtype));
     }
     else {
         void* convertptr = TypeConvert(TYPE_int, &result, ve0->GetType());
@@ -1171,6 +1190,69 @@ bool8 OpExecPushMemberVal(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
 
     // -- push the value of the member
     execstack.Push(val, valtype);
+    return (true);
+}
+
+bool8 OpExecPushPODMember(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
+                          CFunctionCallStack& funccallstack) {
+    // -- next instruction is the POD member name
+    uint32 varhash = *instrptr++;
+
+    // -- what will previously have been pushed on the stack, is a variable, member, or stack var
+    // -- that is of a registered POD type
+    CVariableEntry* ve0 = NULL;
+    CObjectEntry* oe0 = NULL;
+	eVarType vartype;
+	void* varaddr = execstack.Pop(vartype);
+    if(!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, varaddr, vartype, ve0, oe0)) {
+        ScriptAssert_(cb->GetScriptContext(), 0, "<internal>", -1,
+                      "Error - Failed to pop assignment variable\n");
+        return (false);
+    }
+
+    // -- the var and vartype will be set to the actual type and physical address of the
+    // -- POD variable we're about to dereference
+    eVarType pod_member_type;
+    void* pod_member_addr = NULL;
+    if (!GetRegisteredPODMember(vartype, varaddr, varhash, pod_member_type, pod_member_addr))
+    {
+        // -- push the value of the POD member
+        execstack.Push(pod_member_addr, pod_member_type);
+        return (true);
+    }
+
+    // -- the new type we're going to push is a TYPE__podmember
+    // -- which is of the format:  TYPE__podmember vartype, varaddr
+    uint32 varbuf[2];
+    varbuf[0] = pod_member_type;
+    varbuf[1] = (uint32)pod_member_addr;
+    execstack.Push((void*)varbuf, TYPE__podmember);
+
+    return (true);
+}
+
+bool8 OpExecPushPODMemberVal(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
+                          CFunctionCallStack& funccallstack) {
+    // -- next instruction is the POD member name
+    uint32 varhash = *instrptr++;
+
+    // -- what will previously have been pushed on the stack, is a variable, member, or stack var
+    // -- that is of a registered POD type
+    eVarType contenttype;
+    void* contentptr = execstack.Pop(contenttype);
+
+    // -- see if we popped a value of a registered POD type
+    eVarType pod_member_type;
+    void* pod_member_addr = NULL;
+    if (GetRegisteredPODMember(contenttype, contentptr, varhash, pod_member_type, pod_member_addr))
+    {
+        // -- push the value of the POD member
+        execstack.Push(pod_member_addr, pod_member_type);
+        return (true);
+    }
+
+    // -- push the value of the POD member
+    execstack.Push(pod_member_addr, pod_member_type);
     return (true);
 }
 
@@ -1919,6 +2001,14 @@ bool8 OpExecCreateObject(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     uint32 classhash = *instrptr++;
     uint32 objnamehash = *instrptr++;
     uint32 objid = cb->GetScriptContext()->CreateObject(classhash, objnamehash);
+
+    // -- if we failed to create the object, assert
+    if (objid == 0)
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - Failed to create object of class:  %s\n", UnHash(classhash));
+        return false;
+    }
 
     // -- push the objid onto the stack, and update the instrptr
     execstack.Push(&objid, TYPE_object);

@@ -23,6 +23,7 @@
 #define __TINTYPES_H
 
 #include "integration.h"
+#include "TinHash.h"
 
 namespace TinScript {
 
@@ -102,10 +103,27 @@ struct convert_to_void_ptr<const T*> {
 };
 
 // ------------------------------------------------------------------------------------------------
-// implementation for integrating the registered types
+// typedefs for integrating the registered types
 
 typedef bool8 (*TypeToString)(void* value, char* buf, int32 bufsize);
 typedef bool8 (*StringToType)(void* addr, char* value);
+
+// ------------------------------------------------------------------------------------------------
+// -- for POD types, we need a hash table to contain the member hash, offset, and type
+enum eVarType;
+struct tPODTypeMember
+{
+    tPODTypeMember(eVarType _type, uint32 _offset)
+    {
+        type = _type;
+        offset = _offset;
+    }
+
+    eVarType type;
+    uint32 offset;
+};
+
+typedef CHashTable<tPODTypeMember> tPODTypeTable;
 
 // ------------------------------------------------------------------------------------------------
 bool8 VoidToString(void* value, char* buf, int32 bufsize);
@@ -119,7 +137,15 @@ bool8 StringToBool(void* addr, char* value);
 bool8 FloatToString(void* value, char* buf, int32 bufsize);
 bool8 StringToFloat(void* addr, char* value);
 
+// -- external types
+bool8 Vector3fToString(void* value, char* buf, int32 bufsize);
+bool8 StringToVector3f(void* addr, char* value);
+
 // -- for all non-first class types, declare a struct so GetTypeID<type> will be unique
+struct sPODMember {
+    typedef uint32 type;
+};
+
 struct sMember {
     typedef uint32 type;
 };
@@ -139,25 +165,27 @@ struct sHashVar {
 // -- and the last column mapping requires each "registered type" to be unique.
 #define FIRST_VALID_TYPE TYPE_object
 #define VarTypeTuple \
-	VarTypeEntry(NULL,		    0,		VoidToString,		StringToVoid,       uint8)          \
-	VarTypeEntry(void,		    0,		VoidToString,		StringToVoid,       uint8)	        \
-	VarTypeEntry(_resolve,	    16,		VoidToString,		StringToVoid,       uint8)	        \
-	VarTypeEntry(_stackvar,     8,		IntToString,		StringToInt,        uint8)	        \
-	VarTypeEntry(_var,          12,		IntToString,		StringToInt,        uint8)	        \
-	VarTypeEntry(_member,       8,		IntToString,		StringToInt,        sMember)    	\
-	VarTypeEntry(_hashvar,      16,		IntToString,		StringToInt,        sHashVar)    	\
-    VarTypeEntry(hashtable,     4,      IntToString,        StringToInt,        sHashTable)     \
-	VarTypeEntry(object,        4,		IntToString,		StringToInt,        uint32)         \
-    VarTypeEntry(string,        4,      STEToString,        StringToSTE,        const char*)    \
-	VarTypeEntry(int,		    4,		IntToString,		StringToInt,        int32)		    \
-	VarTypeEntry(bool,		    1,		BoolToString,		StringToBool,       bool8)		    \
-	VarTypeEntry(float,		    4,		FloatToString,		StringToFloat,      float32)		\
+	VarTypeEntry(NULL,		    0,		VoidToString,		StringToVoid,       NULL,               uint8)          \
+	VarTypeEntry(void,		    0,		VoidToString,		StringToVoid,       NULL,               uint8)	        \
+	VarTypeEntry(_resolve,	    16,		VoidToString,		StringToVoid,       NULL,               uint8)	        \
+	VarTypeEntry(_stackvar,     8,		IntToString,		StringToInt,        NULL,               uint8)	        \
+	VarTypeEntry(_var,          12,		IntToString,		StringToInt,        NULL,               uint8)	        \
+	VarTypeEntry(_member,       8,		IntToString,		StringToInt,        NULL,               sMember)    	\
+	VarTypeEntry(_podmember,    8,		IntToString,		StringToInt,        NULL,               sPODMember)    	\
+	VarTypeEntry(_hashvar,      16,		IntToString,		StringToInt,        NULL,               sHashVar)    	\
+    VarTypeEntry(hashtable,     4,      IntToString,        StringToInt,        NULL,               sHashTable)     \
+	VarTypeEntry(object,        4,		IntToString,		StringToInt,        NULL,               uint32)         \
+    VarTypeEntry(string,        4,      STEToString,        StringToSTE,        NULL,               const char*)    \
+	VarTypeEntry(int,		    4,		IntToString,		StringToInt,        NULL,               int32)		    \
+	VarTypeEntry(bool,		    1,		BoolToString,		StringToBool,       NULL,               bool8)		    \
+	VarTypeEntry(float,		    4,		FloatToString,		StringToFloat,      NULL,               float32)		\
+	VarTypeEntry(vector3f,	   12,		Vector3fToString,   StringToVector3f,   gVector3fTable,     CVector3f)		\
 
 // -- 4x words actually, 16x bytes, the size of a HashVar
 #define MAX_TYPE_SIZE 4
 
 enum eVarType {
-	#define VarTypeEntry(a, b, c, d, e) TYPE_##a,
+	#define VarTypeEntry(a, b, c, d, e, f) TYPE_##a,
 	VarTypeTuple
 	#undef VarTypeEntry
 
@@ -195,6 +223,11 @@ uint32 GetTypeID<float32>() {
 */
 
 // ------------------------------------------------------------------------------------------------
+// interface
+void InitializeTypes();
+void ShutdownTypes();
+
+// ------------------------------------------------------------------------------------------------
 void* TypeConvert(eVarType fromtype, void* fromaddr, eVarType totype);
 const char* DebugPrintVar(void* addr, eVarType vartype);
 
@@ -218,12 +251,14 @@ const char* GetRegisteredTypeName(eVarType vartype);
 eVarType GetRegisteredType(const char* token, int32 length);
 eVarType GetRegisteredType(uint32 id);
 
+bool8 GetRegisteredPODMember(eVarType type_id, void* var_addr, uint32 member_hash, eVarType& out_member_type,
+                             void*& out_member_addr);
+
 bool8 SafeStrcpy(char* dest, const char* src, int32 max);
 int32 Atoi(const char* src, int32 length = -1);
 
 // ------------------------------------------------------------------------------------------------
 // externs
-
 extern const char* gRegisteredTypeNames[TYPE_COUNT];
 extern int32 gRegisteredTypeSize[TYPE_COUNT];
 extern TypeToString gRegisteredTypeToString[TYPE_COUNT];

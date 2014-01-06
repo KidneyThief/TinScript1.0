@@ -18,7 +18,7 @@ I haven't even begun to document this library, but the fastest way to explore it
 *  The spam of about 20 unit tests should stream by.  Open up files:
   *  source/TinScript.h  - at the bottom, are the function prototypes for using tinscript
   *  source/unittest.cpp - for an example of just about every aspect of the integration
-  *  scripts/unittest.cs - for the script side of the unit test examples.
+  *  scripts/unittest.ts - for the script side of the unit test examples.
 
 Enjoy,
 

@@ -29,16 +29,23 @@
 #include "string.h"
 #include "stdlib.h"
 
+#include "mathutil.h"
+
+#include "TinHash.h"
 #include "TinTypes.h"
 #include "TinScript.h"
 #include "TinStringTable.h"
 
 namespace TinScript {
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
+// -- external type POD table
+tPODTypeTable* gVector3fTable = NULL;
+
+// --------------------------------------------------------------------------------------------------------------------
 // types
 const char* gRegisteredTypeNames[TYPE_COUNT] = {
-	#define VarTypeEntry(a, b, c, d, e) #a,
+	#define VarTypeEntry(a, b, c, d, e, f) #a,
 	VarTypeTuple
 	#undef VarTypeEntry
 };
@@ -62,28 +69,35 @@ eVarType GetRegisteredType(const char* token, int32 length) {
 }
 
 int32 gRegisteredTypeSize[TYPE_COUNT] = {
-	#define VarTypeEntry(a, b, c, d, e) b,
+	#define VarTypeEntry(a, b, c, d, e, f) b,
 	VarTypeTuple
 	#undef VarTypeEntry
 };
 
 TypeToString gRegisteredTypeToString[TYPE_COUNT] = {
-	#define VarTypeEntry(a, b, c, d, e) c,
+	#define VarTypeEntry(a, b, c, d, e, f) c,
 	VarTypeTuple
 	#undef VarTypeEntry
 };
 
 StringToType gRegisteredStringToType[TYPE_COUNT] = {
-	#define VarTypeEntry(a, b, c, d, e) d,
+	#define VarTypeEntry(a, b, c, d, e, f) d,
 	VarTypeTuple
 	#undef VarTypeEntry
 };
 
+tPODTypeTable* gRegisteredPODTypeTable[TYPE_COUNT] = {
+	#define VarTypeEntry(a, b, c, d, e, f) e,
+	VarTypeTuple
+	#undef VarTypeEntry
+};
+
+// --------------------------------------------------------------------------------------------------------------------
 eVarType GetRegisteredType(uint32 id) {
     // -- if this array is declared in the global scope, GetTypeID<>() initializes
     // -- the entire array to 0s...
     static uint32 gRegisteredTypeID[TYPE_COUNT] = {
-	    #define VarTypeEntry(a, b, c, d, e) GetTypeID<e>(),
+	    #define VarTypeEntry(a, b, c, d, e, f) GetTypeID<f>(),
 	    VarTypeTuple
 	    #undef VarTypeEntry
     };
@@ -96,7 +110,7 @@ eVarType GetRegisteredType(uint32 id) {
 	return TYPE_NULL;
 }
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 bool8 VoidToString(void*, char* buf, int32 bufsize) {
 	if (buf && bufsize > 0) {
 		*buf = '\0';
@@ -109,7 +123,7 @@ bool8 StringToVoid(void*, char*) {
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 bool8 STEToString(void* value, char* buf, int32 bufsize) {
 	if(value && buf && bufsize > 0) {
         sprintf_s(buf, bufsize, "%s",
@@ -129,7 +143,7 @@ bool8 StringToSTE(void* addr, char* value) {
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 bool8 IntToString(void* value, char* buf, int32 bufsize) {
 	if(value && buf && bufsize > 0) {
 		sprintf_s(buf, bufsize, "%d", *(int32*)(value));
@@ -147,7 +161,7 @@ bool8 StringToInt(void* addr, char* value) {
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 bool8 BoolToString(void* value, char* buf, int32 bufsize) {
 	if(value && buf && bufsize > 0) {
 		sprintf_s(buf, bufsize, "%s", *(bool8*)(value) ? "true" : "false");
@@ -189,6 +203,97 @@ bool8 StringToFloat(void* addr, char* value) {
 		return true;
 	}
 	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+bool8 GetRegisteredPODMember(eVarType type_id, void* var_addr, uint32 member_hash, eVarType& out_member_type,
+                             void*& out_member_addr)
+{
+    // -- ensure this type has a hashtable of it's pod members
+    if (gRegisteredPODTypeTable[type_id] == NULL || !var_addr)
+        return (false);
+
+    // -- see if the hash table contains a specific entry for the member
+    tPODTypeMember* member = gRegisteredPODTypeTable[type_id]->FindItem(member_hash);
+    if(!member)
+        return (false);
+
+    // -- get the member type and address
+    out_member_type = member->type;
+    out_member_addr = (void*)(((char*)var_addr) + member->offset);
+
+    // -- success
+    return (true);
+}
+
+// ------------------------------------------------------------------------------------------------
+// External type - CVector3f is a POD type (aggregate, but no user-defined constructors)
+bool8 Vector3fToString(void* value, char* buf, int32 bufsize) {
+	if(value && buf && bufsize > 0) {
+        CVector3f* c3vector = (CVector3f*)value;
+		sprintf_s(buf, bufsize, "%.4f %.4f %.4f", c3vector->x, c3vector->y, c3vector->z);
+		return true;
+	}
+	return false;
+}
+
+bool8 StringToVector3f(void* addr, char* value) {
+	if(addr && value) {
+		CVector3f* varaddr = (CVector3f*)addr;
+
+        // -- handle an empty string
+        if (!value || !value[0])
+        {
+            *varaddr = CVector3f(0.0f, 0.0f, 0.0f);
+            return (true);
+        }
+
+        else if(sscanf_s(value, "%f %f %f", &varaddr->x, &varaddr->y, &varaddr->z) == 3) {
+		    return (true);
+        }
+
+        else if(sscanf_s(value, "%f, %f, %f", &varaddr->x, &varaddr->y, &varaddr->z) == 3) {
+		    return (true);
+        }
+	}
+	return false;
+}
+
+// ====================================================================================================================
+// InitializeTypes():  Any initialization for types
+// ====================================================================================================================
+void InitializeTypes()
+{
+    // -- create the vector3f member lookup table (size 3 for 3x members)
+    if (gVector3fTable == NULL)
+    {
+        gVector3fTable = TinAlloc(ALLOC_HashTable, CHashTable<tPODTypeMember>, 3);
+        tPODTypeMember* member_x = new tPODTypeMember(TYPE_float, 0);
+        tPODTypeMember* member_y = new tPODTypeMember(TYPE_float, 4);
+        tPODTypeMember* member_z = new tPODTypeMember(TYPE_float, 8);
+        gVector3fTable->AddItem(*member_x, Hash("x"));
+        gVector3fTable->AddItem(*member_y, Hash("y"));
+        gVector3fTable->AddItem(*member_z, Hash("z"));
+    }
+
+    // -- ensure the POD tables are hooked up
+    #define VarTypeEntry(a, b, c, d, e, f) gRegisteredPODTypeTable[TYPE_##a] = e;
+	VarTypeTuple
+	#undef VarTypeEntry
+}
+
+// ====================================================================================================================
+// InitializeTypes():  Any initialization for types
+// ====================================================================================================================
+void ShutdownTypes()
+{
+    // -- memory cleanup for the vector3f lookup table
+    if (gVector3fTable != NULL)
+    {
+        gVector3fTable->DestroyAll();
+        TinFree(gVector3fTable);
+        gVector3fTable = NULL;
+    }
 }
 
 // ------------------------------------------------------------------------------------------------

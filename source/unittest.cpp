@@ -28,6 +28,8 @@
 // -- lib includes
 #include "stdio.h"
 
+#include "mathutil.h"
+
 // -- includes required by any system wanting access to TinScript
 #include "TinScript.h"
 #include "TinRegistration.h"
@@ -297,9 +299,56 @@ void BeginUnitTests(int32 teststart, int32 testend)
         MTPrint("CVector3f length, cross, dot product tests\n");
         MTPrint("Next lines print: 3.7417, (-3, 6, -3), 32.0\n");
         int32 dummy = 0;
-        if(!TinScript::ExecF(script_context, dummy, "TestCVector3f();")) {
-            MTPrint("Error - failed to find execute TestCVector3f()\n");
+        if(!TinScript::ExecF(script_context, dummy, "TestObjCVector3f();")) {
+            MTPrint("Error - failed to find execute TestObjCVector3f()\n");
             return;
+        }
+    }
+
+    // --
+    ++testindex;
+    if(testindex >= teststart && testindex <= testend) {
+        MTPrint("\n%d.  ", testindex);
+        MTPrint("Same CVector3f test as above, but using the registered type\n");
+        MTPrint("Next lines print: 3.7417, (-3, 6, -3), 32.0\n");
+        int32 dummy = 0;
+        if(!TinScript::ExecF(script_context, dummy, "TestTypeCVector3f();")) {
+            MTPrint("Error - failed to find execute TestObjCVector3f()\n");
+            return;
+        }
+    }
+
+    // --
+    ++testindex;
+    if(testindex >= teststart && testindex <= testend) {
+        MTPrint("\n%d.  ", testindex);
+        MTPrint("Test a script method that returns a CVector3f\n");
+        MTPrint("Next line prints: (4.0f, 0.0f, 6.0f)\n");
+        CVector3f v_result;
+        if(!TinScript::ExecF(script_context, v_result, "TestReturnV3f('4 5 6');")) {
+            MTPrint("Error - failed to find execute TestReturnV3f()\n");
+            return;
+        }
+        else
+        {
+            MTPrint("Result:  (%.2f, %.2f, %.2f)\n", v_result.x, v_result.y, v_result.z);
+        }
+    }
+
+    // --
+    ++testindex;
+    if(testindex >= teststart && testindex <= testend) {
+        MTPrint("\n%d.  ", testindex);
+        MTPrint("Test access to a scripted POD member of a registered type\n");
+        MTPrint("Next lines prints: 5.0\n");
+        float32 y_value;
+        if(!TinScript::ExecF(script_context, y_value, "TestReturnPODMember('4 5 6');")) {
+            MTPrint("Error - failed to find execute TestReturnPODMember()\n");
+            return;
+        }
+        else
+        {
+            MTPrint("Result: %.2f\n", y_value);
         }
     }
 

@@ -26,6 +26,9 @@
 #ifndef __TININTERFACE_H
 #define __TININTERFACE_H
 
+// -- the templated call on line 62 is correct for TYPE_string, but generates a warning for all other 'T' types
+#pragma warning(disable:4244)
+
 #include "TinVariableEntry.h"
 #include "TinParse.h"
 

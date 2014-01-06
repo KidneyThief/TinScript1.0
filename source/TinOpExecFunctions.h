@@ -61,9 +61,6 @@ bool8 PerformNumericalBinOp(CScriptContext* script_context, CExecStack& execstac
 bool8 PerformIntegerBitwiseOp(CScriptContext* script_context, CExecStack& execstack,
                               CFunctionCallStack& funccallstack, eOpCode op, int32& result);
 
-bool8 C3VectorAssignOp(CScriptContext* script_context, eOpCode op, bool8 isstackvar, void* varaddr,
-                       CVariableEntry* ve0, CObjectEntry* oe0, eVarType val1type, void* val1addr);
-
 bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
                       CFunctionCallStack& funccallstack, eOpCode op);
 

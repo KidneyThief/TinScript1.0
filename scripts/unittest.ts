@@ -102,7 +102,7 @@ int FibIterative(int num) {
 }
 
 // -- CVector3f functions--------------------------------------------------------------------------
-void TestCVector3f()
+void TestObjCVector3f()
 {
     object v0 = create CVector3f();
     v0.Set(1.0f, 2.0f, 3.0f);
@@ -112,18 +112,45 @@ void TestCVector3f()
     v1.Set(4.0f, 5.0f, 6.0f);
     
     object cross_result = create CVector3f();
-    if (Cross(cross_result, v0, v1))
+    if (ObjCross(cross_result, v0, v1))
     {
         Print("The cross product is: (", cross_result.x, ", ", cross_result.y, ", ", cross_result.z, ")");
     }
     
-    float dot = Dot(v0, v1);
+    float dot = ObjDot(v0, v1);
     Print("The dot product is: ", dot);
     
     // -- cleanup
     destroy v0;
     destroy v1;
     destroy cross_result;
+}
+
+void TestTypeCVector3f()
+{
+    vector3f v0 = "1 2 3";
+    Print(V3fLength(v0));
+    
+    vector3f v1 = "4 5 6";
+    
+    vector3f cross_result = V3fCross(v0, v1);
+    Print("The cross product is: (", cross_result:x, ", ", cross_result:y, ", ", cross_result:z, ")");
+    
+    float dot = V3fDot(v0, v1);
+    Print("The dot product is: ", dot);
+}
+
+vector3f TestReturnV3f(vector3f in_v)
+{
+    vector3f local_v = in_v;
+    local_v:y = 0.0f;
+    return (local_v);
+}
+
+float TestReturnPODMember(vector3f in_v)
+{
+    float y_value = in_v:y;
+    return (y_value);
 }
 
 // -- OBJECTS FUNCTIONS ---------------------------------------------------------------------------

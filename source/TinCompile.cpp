@@ -293,7 +293,10 @@ int32 CCompileTreeNode::Eval(uint32*& instrptr, eVarType, bool8 countonly) const
 	// -- NOP nodes have no children, but loop through and evaluate the chain of siblings
 	const CCompileTreeNode* rootptr = next;
 	while (rootptr) {
-		size += rootptr->Eval(instrptr, TYPE_void, countonly);
+        int32 tree_size = rootptr->Eval(instrptr, TYPE_void, countonly);
+        if (tree_size < 0)
+            return -1;
+		size += tree_size;
 
         // -- we're done if the rootptr is a NOP, as it would have already evaluated
         // -- the rest of the linked list
@@ -360,7 +363,7 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
 			if(!var) {
                 ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
                               "Error - undefined variable: %s\n", value);
-				return 0;
+				return (-1);
 			}
 			eVarType vartype = var->GetType();
 
@@ -372,16 +375,20 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
                                   linenumber,
                                   "Error - hashtable variable %s missing a rightchild\n",
                                   UnHash(var->GetHash()));
-				    return 0;
+				    return (-1);
                 }
 
                 // -- the right child will be an ArrayHashNode (tree), to resolve to a hash value
                 // -- used to index into the hashtable
-                size += rightchild->Eval(instrptr, TYPE_int, countonly);
+                int32 tree_size = rightchild->Eval(instrptr, TYPE_int, countonly);
+                if (tree_size < 0)
+                    return (-1);
+                size += tree_size;
             }
 
 			// -- if we're supposed to be pushing a var (e.g. for an assign...)
             // -- or a hashtable, to declare an array entry...
+            // -- or a pod member, to dereference a registered POD variable
 			if(pushresult == TYPE__var || pushresult == TYPE_hashtable) {
                 // -- if we want the hash table entry, or the variable to assign
                 if(vartype == TYPE_hashtable && pushresult != TYPE_hashtable) {
@@ -410,7 +417,7 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
                                           codeblock->GetFileName(), linenumber,
                                           "Error - invalid stack offset for local var: %s\n",
                                           UnHash(var->GetHash()));
-                            return 0;
+                            return (-1);
                         }
         				size += PushInstruction(countonly, instrptr, stackoffset, DBG_var);
                     }
@@ -444,7 +451,7 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
                                           codeblock->GetFileName(), linenumber,
                                           "Error - invalid stack offset for local var: %s\n",
                                           UnHash(var->GetHash()));
-                            return 0;
+                            return (-1);
                         }
 				        size += PushInstruction(countonly, instrptr, stackoffset, DBG_var);
                     }
@@ -475,8 +482,10 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
                 }
     		}
 			else {
-				printf("Error - unable to convert value %s to type %s\n",
-										value, gRegisteredTypeNames[pushtype]);
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
+                              "Error - unable to convert value %s to type %s\n", value,
+                              gRegisteredTypeNames[pushtype]);
+                return (-1);
 			}
 		}
 
@@ -533,11 +542,14 @@ int32 CObjMemberNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 	// -- ensure we have a left child
 	if(!leftchild) {
 		printf("Error - CObjMemberNode with no left child\n");
-		return 0;
+		return (-1);
 	}
 
   	// -- evaluate the left child, pushing the a result of TYPE_object
-	size += leftchild->Eval(instrptr, TYPE_object, countonly);
+    int32 tree_size = leftchild->Eval(instrptr, TYPE_object, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
 	// -- if the value is being used, push it on the stack
 	if(pushresult > TYPE_void) {
@@ -576,6 +588,67 @@ void CObjMemberNode::Dump(char*& output, int32& length) const
 }
 
 // ------------------------------------------------------------------------------------------------
+CPODMemberNode::CPODMemberNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
+                               const char* _membername, int32 _memberlength) :
+                               CCompileTreeNode(_codeblock, _link, ePODMember, _linenumber) {
+	SafeStrcpy(podmembername, _membername, _memberlength + 1);
+}
+
+int32 CPODMemberNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
+	
+	DebugEvaluateNode(*this, countonly, instrptr);
+	int32 size = 0;
+
+	// -- ensure we have a left child
+	if(!leftchild) {
+		printf("Error - CPODMemberNode with no left child\n");
+		return (-1);
+	}
+
+  	// -- evaluate the left child - the pushresult for the leftchild should be the same
+    // -- either we're referencing the POD member of a value, or a variable
+    int32 tree_size = leftchild->Eval(instrptr, pushresult, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
+
+	// -- if the value is being used, push it on the stack
+	if(pushresult > TYPE_void) {
+
+        // -- get the hash of the member
+		uint32 memberhash = Hash(podmembername);
+
+		// -- if we're supposed to be pushing a var (for an assign...), we actually push
+        // -- a member (still a variable, but the lookup is different)
+		if(pushresult == TYPE__var) {
+			size += PushInstruction(countonly, instrptr, OP_PushPODMember, DBG_instr);
+			size += PushInstruction(countonly, instrptr, memberhash, DBG_var);
+		}
+
+		// -- otherwise we push the hash, but the instruction is to get the value
+		else {
+			size += PushInstruction(countonly, instrptr, OP_PushPODMemberVal, DBG_instr);
+			size += PushInstruction(countonly, instrptr, memberhash, DBG_var);
+		}
+	}
+
+    // -- otherwise, we're referencing a member without actually doing anything - pop the stack
+    else {
+        size += PushInstruction(countonly, instrptr, OP_Pop, DBG_instr);
+    }
+
+	return size;
+}
+
+void CPODMemberNode::Dump(char*& output, int32& length) const
+{
+	sprintf_s(output, length, "type: %s, %s", gCompileNodeTypes[type], podmembername);
+	int32 debuglength = (int32)strlen(output);
+	output += debuglength;
+	length -= debuglength;
+}
+
+// ------------------------------------------------------------------------------------------------
 CBinaryOpNode::CBinaryOpNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
                              eBinaryOpType _binaryoptype, bool8 _isassignop, eVarType _resulttype) :
                              CCompileTreeNode(_codeblock, _link, eBinaryOp, _linenumber) {
@@ -605,13 +678,13 @@ int32 CBinaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 	// -- ensure we have a left child
 	if(!leftchild) {
 		printf("Error - CBinaryOpNode with no left child\n");
-		return 0;
+		return (-1);
 	}
 
 	// -- ensure we have a left child
 	if(!rightchild) {
 		printf("Error - CBinaryOpNode with no right child\n");
-		return 0;
+		return (-1);
 	}
 
 	// -- note:  if the binopresult is TYPE_NULL, simply inherit the result from the parent node
@@ -619,10 +692,16 @@ int32 CBinaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 
 	// -- evaluate the left child, pushing the result of the type required
 	// -- except in the case of an assignment operator - the left child is the variable
-	size += leftchild->Eval(instrptr, isassignop ? TYPE__var : childresulttype, countonly);
+    int32 tree_size = leftchild->Eval(instrptr, isassignop ? TYPE__var : childresulttype, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
 	// -- evaluate the right child, pushing the result
-	size += rightchild->Eval(instrptr, childresulttype, countonly);
+    tree_size = rightchild->Eval(instrptr, childresulttype, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
 	// -- push the specific operation to be performed
 	size += PushInstruction(countonly, instrptr, binaryopcode, DBG_instr);
@@ -653,7 +732,7 @@ int32 CUnaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly
 	// -- ensure we have a left child
 	if(!leftchild) {
 		printf("Error - CUnaryOpNode with no left child\n");
-		return 0;
+		return (-1);
 	}
 
     // -- (some) unary operators only operate on specific types
@@ -684,7 +763,10 @@ int32 CUnaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly
 
 	// -- evaluate the left child, pushing the result of the type required
 	// -- except in the case of an assignment operator - the left child is the variable
-	size += leftchild->Eval(instrptr, resulttype, countonly);
+    int32 tree_size = leftchild->Eval(instrptr, resulttype, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
 	// -- push the specific operation to be performed
 	size += PushInstruction(countonly, instrptr, unaryopcode, DBG_instr);
@@ -707,20 +789,26 @@ int32 CIfStatementNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 count
 	// -- ensure we have a left child
 	if(!leftchild) {
 		printf("Error - CIfStatementNode with no left child\n");
-		return 0;
+		return (-1);
 	}
 
 	// -- ensure we have a right child
 	if(!rightchild) {
 		printf("Error - CIfStatementNode with no right child\n");
-		return 0;
+		return (-1);
 	}
 
 	// -- evaluate the left child, which is the condition
-	size += leftchild->Eval(instrptr, TYPE_bool, countonly);
+    int32 tree_size = leftchild->Eval(instrptr, TYPE_bool, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
 	// -- evaluate the right child, which is the branch node
-	size += rightchild->Eval(instrptr, TYPE_void, countonly);
+    tree_size = rightchild->Eval(instrptr, TYPE_void, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
 	return size;
 }
@@ -750,7 +838,11 @@ int32 CCondBranchNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counto
 	// -- if we have a left child, this is the 'true' tree
 	if(leftchild) {
 		int32 cursize = size;
-		size += leftchild->Eval(instrptr, TYPE_void, countonly);
+
+        int32 tree_size = leftchild->Eval(instrptr, TYPE_void, countonly);
+        if (tree_size < 0)
+            return (-1);
+        size += tree_size;
 
 		// -- the size of the leftchild is how many instructions to jump, should the
 		// -- branch condition be false - but add two, since the end of the 'true'
@@ -773,7 +865,11 @@ int32 CCondBranchNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counto
 
 		// now evaluate the right child, tracking it's size
 		int32 cursize = size;
-		size += rightchild->Eval(instrptr, TYPE_void, countonly);
+
+        int32 tree_size = rightchild->Eval(instrptr, TYPE_void, countonly);
+        if (tree_size < 0)
+            return (-1);
+        size += tree_size;
 
 		// fill in the jumpcount
         if(!countonly) {
@@ -799,18 +895,21 @@ int32 CWhileLoopNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 	// -- ensure we have a left child
 	if(!leftchild) {
 		printf("Error - CWhileLoopNode with no left child\n");
-		return 0;
+		return (-1);
 	}
 
 	// -- ensure we have a left child
 	if(!rightchild) {
 		printf("Error - CWhileLoopNode with no right child\n");
-		return 0;
+		return (-1);
 	}
 
 	// the instruction at the start of the leftchild is where we begin each loop
 	// -- evaluate the left child, which is the condition
-	size += leftchild->Eval(instrptr, TYPE_bool, countonly);
+    int32 tree_size = leftchild->Eval(instrptr, TYPE_bool, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
 	// -- add a BranchFalse here, to skip the body of the while loop
 	size += PushInstruction(countonly, instrptr, OP_BranchFalse, DBG_instr);
@@ -819,8 +918,12 @@ int32 CWhileLoopNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 	size += PushInstructionRaw(countonly, instrptr, (void*)&empty, 1, DBG_NULL,
 							   "placeholder for branch");
 	int32 cursize = size;
+
 	// -- evaluate the right child, which is the body of the while loop
-	size += rightchild->Eval(instrptr, TYPE_void, countonly);
+    tree_size = rightchild->Eval(instrptr, TYPE_void, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
 	// -- after the body of the while loop has been executed, we want to jump back
 	// -- to the top and evaluate the condition again
@@ -884,7 +987,7 @@ int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
         if(!nsentry) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
                           "Error - Failed to find/create Namespace: %s\n", funcnamespace);
-            return 0;
+            return (-1);
         }
         functable = nsentry->GetFuncTable();
     }
@@ -896,7 +999,7 @@ int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 	if(!fe) {
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
                       "Error - undefined function: %s\n", funcname);
-		return 0;
+		return (-1);
 	}
 
     // -- set the current function definition
@@ -945,7 +1048,10 @@ int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 
     // -- compile the function body
     assert(leftchild != NULL);
-    size += leftchild->Eval(instrptr, returntype, countonly);
+    int32 tree_size = leftchild->Eval(instrptr, returntype, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
     // -- fill in the jumpcount
     if(!countonly) {
@@ -1070,13 +1176,17 @@ int32 CFuncReturnNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counto
                       linenumber,
                       "Error - CFuncReturnNode::Eval() - invalid return from function %s()\n",
                       functionentry->GetName());
-        return 0;
+        return (-1);
     }
 
+    int32 tree_size = 0;
     if(returntype->GetType() <= TYPE_void)
-        size += leftchild->Eval(instrptr, TYPE_int, countonly);
+        tree_size = leftchild->Eval(instrptr, TYPE_int, countonly);
     else
-        size += leftchild->Eval(instrptr, returntype->GetType(), countonly);
+        tree_size = leftchild->Eval(instrptr, returntype->GetType(), countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
     // -- finally, issue the function return instruction
 	size += PushInstruction(countonly, instrptr, OP_FuncReturn, DBG_instr);
@@ -1099,14 +1209,20 @@ int32 CObjMethodNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 	// -- ensure we have a left child
 	if(!leftchild) {
 		printf("Error - CObjMemberNode with no left child\n");
-		return 0;
+		return (-1);
 	}
 
   	// -- evaluate the left child, pushing the a result of TYPE_object
-	size += leftchild->Eval(instrptr, TYPE_object, countonly);
+    int32 tree_size = leftchild->Eval(instrptr, TYPE_object, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
     // -- evaluate the right child, which contains the function call node
-    size += rightchild->Eval(instrptr, pushresult, countonly);
+    tree_size = rightchild->Eval(instrptr, pushresult, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
 	return size;
 }
@@ -1135,21 +1251,27 @@ int32 CArrayHashNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
         ScriptAssert_(codeblock->GetScriptContext(), leftchild != NULL, codeblock->GetFileName(),
                       linenumber,
                       "Error - CArrayHashNode::Eval() - missing leftchild\n");
-        return 0;
+        return (-1);
     }
 
     if(!rightchild) {
         ScriptAssert_(codeblock->GetScriptContext(), rightchild != NULL, codeblock->GetFileName(),
                       linenumber,
                       "Error - CArrayHashNode::Eval() - missing rightchild\n");
-        return 0;
+        return (-1);
     }
 
    	// -- evaluate the left child, which pushes the "current hash", TYPE_int
-	size += leftchild->Eval(instrptr, TYPE_int, countonly);
+    int32 tree_size = leftchild->Eval(instrptr, TYPE_int, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
    	// -- evaluate the right child, which pushes the next string to be hashed and appended
-	size += rightchild->Eval(instrptr, TYPE_string, countonly);
+    tree_size = rightchild->Eval(instrptr, TYPE_string, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
     // -- push an OP_ArrayHash, pops the top two stack items, the first is a "hash in progress",
     // -- and the second is a string to continue to add to the hash value
@@ -1177,21 +1299,27 @@ int32 CArrayVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 coun
         ScriptAssert_(codeblock->GetScriptContext(), leftchild != NULL, codeblock->GetFileName(),
                       linenumber,
                       "Error - CArrayHashNode::Eval() - missing leftchild\n");
-        return 0;
+        return (-1);
     }
 
     if(!rightchild) {
         ScriptAssert_(codeblock->GetScriptContext(), rightchild != NULL, codeblock->GetFileName(),
                       linenumber,
                       "Error - CArrayHashNode::Eval() - missing rightchild\n");
-        return 0;
+        return (-1);
     }
 
    	// -- left child will have pushed the hashtable variable
-	size += leftchild->Eval(instrptr, TYPE_hashtable, countonly);
+    int32 tree_size = leftchild->Eval(instrptr, TYPE_hashtable, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
    	// -- right child will contain the hash value for the entry we're declaring
-	size += rightchild->Eval(instrptr, TYPE_int, countonly);
+    tree_size = rightchild->Eval(instrptr, TYPE_int, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
 	size += PushInstruction(countonly, instrptr, OP_ArrayVarDecl, DBG_instr);
 	size += PushInstruction(countonly, instrptr, type, DBG_vartype);
@@ -1237,13 +1365,13 @@ int32 CScheduleNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 	// -- ensure we have a left child
 	if(!leftchild) {
 		printf("Error - CScheduleNode with no left child\n");
-		return 0;
+		return (-1);
 	}
 
 	// -- ensure we have a right child
 	if(!rightchild) {
 		printf("Error - CScheduleNode with no right child\n");
-		return 0;
+		return (-1);
 	}
 
     // -- push the delaytime
@@ -1252,11 +1380,17 @@ int32 CScheduleNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
     size += PushInstruction(countonly, instrptr, delaytime, DBG_value);
 
     // -- evaluate the left child, to get the object ID
-    size += leftchild->Eval(instrptr, TYPE_object, countonly);
+    int32 tree_size = leftchild->Eval(instrptr, TYPE_object, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
     // -- evaluate the right child, which first pushes the function hash,
     // -- then evaluates all the parameter assignments
-    size += rightchild->Eval(instrptr, pushresult, countonly);
+    tree_size = rightchild->Eval(instrptr, pushresult, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
 	return size;
 }
@@ -1275,24 +1409,30 @@ int CSchedFuncNode::Eval(uint32*& instrptr, eVarType pushresult, bool countonly)
     // -- ensure we have a left child
     if(!leftchild) {
         printf("Error - CScheduleNode with no left child\n");
-        return 0;
+        return (-1);
     }
 
     // -- ensure we have a right child
     if(!rightchild) {
         printf("Error - CScheduleNode with no right child\n");
-        return 0;
+        return (-1);
     }
 
     // -- evaluate the leftchild, which will push the function hash
-    size += leftchild->Eval(instrptr, TYPE_int, countonly);
+    int32 tree_size = leftchild->Eval(instrptr, TYPE_int, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
     // -- push the instruction to begin the schedule call
     size += PushInstruction(countonly, instrptr, OP_ScheduleBegin, DBG_instr);
     size += PushInstruction(countonly, instrptr, mImmediate, DBG_value);
 
     // -- evaluate the right child, tree of all parameters for the scheduled function call
-    size += rightchild->Eval(instrptr, TYPE_void, countonly);
+    tree_size = rightchild->Eval(instrptr, TYPE_void, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
     // -- finalize the schedule call, which will push the schedule ID on the stack
     size += PushInstruction(countonly, instrptr, OP_ScheduleEnd, DBG_instr);
@@ -1322,11 +1462,14 @@ int32 CSchedParamNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counto
 	// -- ensure we have a left child
 	if(!leftchild) {
 		printf("Error - CScheduleNode with no left child\n");
-		return 0;
+		return (-1);
 	}
 
     // -- evaluate the left child, resolving to the value of the parameter
-    size += leftchild->Eval(instrptr, TYPE__resolve, countonly);
+    int32 tree_size = leftchild->Eval(instrptr, TYPE__resolve, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
     // -- push the instruction to assign the parameter
     size += PushInstruction(countonly, instrptr, OP_ScheduleParam, DBG_instr);
@@ -1382,7 +1525,10 @@ int32 CDestroyObjectNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 cou
 	int32 size = 0;
 
   	// -- evaluate the left child, pushing the a result of TYPE_object
-	size += leftchild->Eval(instrptr, TYPE_object, countonly);
+    int32 tree_size = leftchild->Eval(instrptr, TYPE_object, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
     // -- create the object by classname, objectname
 	size += PushInstruction(countonly, instrptr, OP_DestroyObject, DBG_instr);
@@ -1443,10 +1589,24 @@ int32 CCodeBlock::CalcInstrCount(const CCompileTreeNode& root) {
     int32 mInstrCount = 0;
 
     // -- add the size needed to store this block's global variables
-    mInstrCount += CompileVarTable(smCurrentGlobalVarTable, instrptr, true);
+    int32 var_table_instr_count = CompileVarTable(smCurrentGlobalVarTable, instrptr, true);
+    if (var_table_instr_count < 0)
+    {
+        ScriptAssert_(GetScriptContext(), 0, GetFileName(), -1,
+                      "Error - Unable to calculate the var table size for file: %s\n", GetFileName());
+        return (-1);
+    }
+    mInstrCount += var_table_instr_count;
 
     // -- run through the tree, calculating the size needed to contain the compiled code
-	mInstrCount += root.Eval(instrptr, TYPE_void, true);
+    int32 instruction_count = root.Eval(instrptr, TYPE_void, true);
+    if (instruction_count < 0)
+    {
+        ScriptAssert_(GetScriptContext(), 0, GetFileName(), -1,
+                      "Error - Unable to compile file: %s\n", GetFileName());
+        return (-1);
+    }
+	mInstrCount += instruction_count;
 
     // -- add one to account for the OP_EOF added to the end of every code block
     ++mInstrCount;
@@ -1470,8 +1630,12 @@ bool8 CCodeBlock::CompileTree(const CCompileTreeNode& root) {
 	PushInstruction(false, instrptr, OP_EOF, DBG_instr);
 
     uint32 verifysize = kPointerDiffUInt32(instrptr, mInstrBlock);
-    Unused_(verifysize);
-	Assert_(mInstrCount == verifysize >> 2);
+    if (mInstrCount != verifysize >> 2)
+    {
+        ScriptAssert_(GetScriptContext(), mInstrCount == verifysize >> 2, GetFileName(), -1,
+                      "Error - Unable to compile: %s\n", GetFileName());
+        return (false);
+    }
 
 	return true;
 }

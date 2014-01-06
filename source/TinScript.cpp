@@ -125,6 +125,9 @@ CScriptContext::CScriptContext(const char* thread_name, TinPrintHandler printfun
     mStringTable = TinAlloc(ALLOC_StringTable, CStringTable, this, kStringTableSize);
     LoadStringTable(this);
 
+    // -- ensure our types have all been initialized
+    InitializeTypes();
+
     // -- set the hash
     mHash = Hash(thread_name);
 
@@ -323,6 +326,9 @@ CScriptContext::~CScriptContext() {
     if(gScriptContextList->Used() == 0) {
         TinFree(gScriptContextList);
         gScriptContextList = NULL;
+
+        // -- also shutdown types, once there are no more script contexts
+        ShutdownTypes();
     }
 }
 

@@ -20,8 +20,8 @@
 // ------------------------------------------------------------------------------------------------
 
 // ------------------------------------------------------------------------------------------------
-// TinScript.cpp : Defines the entry point for the console application.
-//
+// TinParse.cpp : Parses text and creates the tree of nodes, to be compiled
+// ------------------------------------------------------------------------------------------------
 
 #include "stdafx.h"
 #include "stdlib.h"
@@ -238,8 +238,9 @@ const char* gTokenTypeStrings[] = {
 	#undef TokenTypeEntry
 };
 
-static const int32 kNumSymbols = 9;
-const char symbols[kNumSymbols + 1] = "(),;.{}[]";
+// -- note:  the order must match the defined TokenTypeTuple in TinParse.h, starting at '('
+static const int32 kNumSymbols = 10;
+const char symbols[kNumSymbols + 1] = "(),;.:{}[]";
 
 bool8 GetToken(tReadToken& token, bool8 unaryop) {
     if(!SkipWhiteSpace(token))
@@ -666,18 +667,16 @@ void DumpVarTable(CScriptContext* script_context, CObjectEntry* oe, const tVarTa
 
     void* objaddr = oe ? oe->GetAddr() : NULL;
 
-	TinPrint(script_context, "=== VarTable Begin ===\n");
 	for(int32 i = 0; i < vartable->Size(); ++i) {
 		CVariableEntry* ve = vartable->FindItemByBucket(i);
 		while(ve) {
 			char valbuf[kMaxTokenLength];
 			gRegisteredTypeToString[ve->GetType()](ve->GetValueAddr(objaddr), valbuf, kMaxTokenLength);
-			TinPrint(script_context, "[%s] %s: %s\n", gRegisteredTypeNames[ve->GetType()],
+			TinPrint(script_context, "    [%s] %s: %s\n", gRegisteredTypeNames[ve->GetType()],
                      ve->GetName(), valbuf);
 			ve = vartable->GetNextItemInBucket(i);
 		}
 	}
-	TinPrint(script_context, "=== VarTable End ===\n");
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -984,6 +983,7 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 	// -- an expression followed by a semicolon
 	// -- an expression followed by a binary operator, followed by an expression
 	// -- an expression followed by a dereference operator, followed by a member/method
+    // -- a variable of a POD type, followed by a podmember ':' operator, followed by a POD member
 
 	tReadToken firsttoken(filebuf);
 	if(!GetToken(firsttoken))
@@ -1139,6 +1139,44 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
             templink = &binopnode->rightchild;
 
             // -- successfully read the rhs, get the next token
+            nexttoken = readexpr;
+            if(!GetToken(nexttoken)) {
+			    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              readexpr.linenumber, "Error - expecting ';'\n");
+			    return false;
+            }
+        }
+
+        // -- if we're referencing the member of a POD type
+        else if (nexttoken.type == TOKEN_COLON) {
+
+            // -- we're committed
+            readexpr = nexttoken;
+
+            // -- cache the tree that resolves to a variable of a registered POD type
+            // -- note:  this could still be a function call - e.g.  "GetPosition():x"
+            CCompileTreeNode* templeftchild = *templink;
+
+            // -- ensure we've got an identifier for the member name next
+            tReadToken membertoken(readexpr);
+            if(!GetToken(membertoken) || membertoken.type != TOKEN_IDENTIFIER) {
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber, "Error - Expecting a POD member name\n");
+                return false;
+            }
+
+            // -- we're committed to a POD variable dereference at this point
+            readexpr = membertoken;
+
+            // -- create the member node
+		    CPODMemberNode* objmember = TinAlloc(ALLOC_TreeNode, CPODMemberNode, codeblock,
+                                                    *templink, readexpr.linenumber,
+                                                    membertoken.tokenptr, membertoken.length);
+
+            // -- the left child is the branch that resolves to an object
+            objmember->leftchild = templeftchild;
+
+            // -- successfully read the POD member dereferrence, get the next token
             nexttoken = readexpr;
             if(!GetToken(nexttoken)) {
 			    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
@@ -2755,14 +2793,27 @@ if(GetDebugCodeBlock()) {
 
     // we successfully created the tree, now calculate the size needed by running through the tree
     int32 size = codeblock->CalcInstrCount(*root);
+    if (size < 0)
+    {
+		ScriptAssert_(script_context, 0, codeblock->GetFileName(), -1,
+                      "Error - failed to compile file: %s", codeblock->GetFileName());
+
+        // -- failed
+        codeblock->SetFinishedParsing();
+        DestroyTree(root);
+        return (NULL);
+    }
+
     codeblock->AllocateInstructionBlock(size, codeblock->GetLineNumberCount());
 
     // -- run through the tree again, this time actually compiling it
     if(!codeblock->CompileTree(*root)) {
 		ScriptAssert_(script_context, 0, codeblock->GetFileName(), -1,
-                      "Error - failed to CompileTree()\n");
+                      "Error - failed to compile tree for file: %s", codeblock->GetFileName());
+        // -- failed
         codeblock->SetFinishedParsing();
-        codeblock = NULL;
+        DestroyTree(root);
+        return (NULL);
     }
 
     // -- update the string table

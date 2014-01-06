@@ -47,6 +47,7 @@ class CFunctionCallStack;
 	CompileNodeTypeEntry(Value)					\
 	CompileNodeTypeEntry(Self)       			\
 	CompileNodeTypeEntry(ObjMember) 			\
+	CompileNodeTypeEntry(PODMember) 			\
 	CompileNodeTypeEntry(Assignment)			\
 	CompileNodeTypeEntry(BinaryOp)				\
 	CompileNodeTypeEntry(UnaryOp)				\
@@ -98,6 +99,8 @@ const char* GetNodeTypeString(ECompileNodeType nodetype);
 	OperationEntry(PushArrayValue)     	\
 	OperationEntry(PushMember)			\
 	OperationEntry(PushMemberVal)		\
+	OperationEntry(PushPODMember)       \
+	OperationEntry(PushPODMemberVal)    \
 	OperationEntry(PushSelf)    		\
 	OperationEntry(Pop)					\
 	OperationEntry(Add)					\
@@ -281,6 +284,22 @@ class CObjMemberNode : public CCompileTreeNode
 
 	protected:
 		CObjMemberNode() { }
+};
+
+class CPODMemberNode : public CCompileTreeNode
+{
+	public:
+		CPODMemberNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int _linenumber,
+                       const char* _membername, int _memberlength);
+
+		virtual int Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const;
+		virtual void Dump(char*& output, int& length) const;
+
+	protected:
+		char podmembername[kMaxTokenLength];
+
+	protected:
+		CPODMemberNode() { }
 };
 
 class CIfStatementNode : public CCompileTreeNode
