@@ -58,12 +58,22 @@ CRegisterGlobal::CRegisterGlobal(const char* _name, TinScript::eVarType _type, v
 
 void CRegisterGlobal::RegisterGlobals(CScriptContext* script_context) {
     CRegisterGlobal* global = CRegisterGlobal::head;
-    while(global) {
-        // -- create the var entry, add it to the global namespace
-        CVariableEntry* ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, script_context, global->name,
-                                                                      global->type, global->addr);
-	    uint32 hash = ve->GetHash();
-	    script_context->GetGlobalNamespace()->GetVarTable()->AddItem(*ve, hash);
+    while(global)
+    {
+        // -- ensure our global type is valid
+        if (global->type < FIRST_VALID_TYPE)
+        {
+            ScriptAssert_(script_context, false, "<internal>", -1,
+                          "Error - registered global %s has an invalid type\n", global->name);
+        }
+        else
+        {
+            // -- create the var entry, add it to the global namespace
+            CVariableEntry* ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, script_context, global->name,
+                                                                          global->type, global->addr);
+	        uint32 hash = ve->GetHash();
+	        script_context->GetGlobalNamespace()->GetVarTable()->AddItem(*ve, hash);
+        }
 
         // -- next registration object
         global = global->next;

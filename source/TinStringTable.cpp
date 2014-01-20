@@ -120,6 +120,11 @@ const char* CStringTable::AddString(const char* s, int length, uint32 hash, bool
             ScriptAssert_(mContextOwner, 0, "<internal>", -1,
                             "Error - Hash collision: '%s', '%s'\n", exists, s);
         }
+
+        // -- if this item is meant to persist, increment the ref count
+        if (inc_refcount)
+            RefCountIncrement(hash);
+
         return exists;
     }
 }

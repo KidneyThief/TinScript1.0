@@ -498,7 +498,7 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
         bool8 success = GetOpExecFunction(curoperation)(this, curoperation, instrptr, execstack, funccallstack);
         if(! success) {
             ScriptAssert_(GetScriptContext(), false, GetFileName(), CalcLineNumber(instrptr - 1),
-                          "Error - aborting execution\n");
+                          "Error - Unable to execute OP:  %s\n", GetOperationString(curoperation));
             return (false);
         }
 
@@ -507,7 +507,6 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
         if(curoperation == OP_FuncReturn || curoperation == OP_EOF) {
             return (true);
         }
-
 	}
 
 	// -- ran out of instructions, without a legitimate OP_EOF

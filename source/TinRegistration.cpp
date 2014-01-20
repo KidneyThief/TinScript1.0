@@ -30,7 +30,7 @@
 namespace TinScript {
 
 // ------------------------------------------------------------------------------------------------
-// variable table
+// variable entry
 
 CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name, eVarType _type,
                                void* _addr) {
@@ -42,6 +42,7 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
     mAddr = _addr;
     mIsDynamic = false;
     mScriptVar = false;
+    mStringValueHash = 0;
     mStackOffset = -1;
     mFuncEntry = NULL;
 }
@@ -55,6 +56,7 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
     mOffset = 0;
     mIsDynamic = _isdynamic;
     mScriptVar = false;
+    mStringValueHash = 0;
     mStackOffset = -1;
     mFuncEntry = NULL;
 
@@ -82,6 +84,13 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
 }
 
 CVariableEntry::~CVariableEntry() {
+    // -- if the value is a string, update the string table
+    if (mType == TYPE_string)
+    {
+        // -- keep the string table up to date
+        GetScriptContext()->GetStringTable()->RefCountDecrement(mStringValueHash);
+    }
+
 	if(mScriptVar) {
         if(mType != TYPE_hashtable) {
 		    TinFreeArray((char*)mAddr);
@@ -97,7 +106,9 @@ CVariableEntry::~CVariableEntry() {
 	}
 }
 
-void CVariableEntry::SetValue(void* objaddr, void* value) {
+// -- if the value type is a TYPE_string, then the void* value contains a hash value
+void CVariableEntry::SetValue(void* objaddr, void* value)
+{
 	assert(value);
 	int32 size = gRegisteredTypeSize[mType];
 
@@ -107,30 +118,56 @@ void CVariableEntry::SetValue(void* objaddr, void* value) {
     // -- if this variable is a string, we need to decrement the current value string table entry
     if (mType == TYPE_string)
     {
-        GetScriptContext()->GetStringTable()->RefCountDecrement(*(uint32*)varaddr);
+        // -- keep the string table up to date
+        GetScriptContext()->GetStringTable()->RefCountDecrement(mStringValueHash);
+
+        // -- script variables store strings as hash values, but registered code variables
+        // -- of type const char* need to actually point to a valid stirng
+        mStringValueHash = *(uint32*)value;
+        if (mScriptVar)
+            memcpy(varaddr, &mStringValueHash, size);
+        else
+        {
+            const char* string_value = GetScriptContext()->GetStringTable()->FindString(mStringValueHash);
+
+            // - the mAddr member of a registered global string, is the address of the actual const char*
+            *(const char**)(mAddr) = string_value;
+        }
+
+        GetScriptContext()->GetStringTable()->RefCountIncrement(mStringValueHash);
     }
-
-    // -- copy the new value
-	memcpy(varaddr, value, size);
-
-    // -- and again, if the variable is a string, we need to increment the ref count for the
-    // -- new assignment
-    if (mType == TYPE_string)
+    else
     {
-        GetScriptContext()->GetStringTable()->RefCountIncrement(*(uint32*)varaddr);
+        // -- copy the new value
+	    memcpy(varaddr, value, size);
     }
 }
 
-// -- added to accomodate converting StringTableEntry hash values back into
-// -- const char*, before calling dispatch
-void CVariableEntry::SetValueAddr(void* objaddr, void* value) {
+// -- for this method, if the value type is a TYPE_string, then the void* value
+// -- contains an actual const char* string...
+void CVariableEntry::SetValueAddr(void* objaddr, void* value)
+{
     assert(value);
 	int32 size = gRegisteredTypeSize[mType];
 
     void* varaddr = GetAddr(objaddr);
-    if(mType == TYPE_string) {
-        uint32 hash = Hash((const char*)value);
-        memcpy(varaddr, &hash, size);
+    if(mType == TYPE_string)
+    {
+        // -- keep the string table up to date
+        GetScriptContext()->GetStringTable()->RefCountDecrement(mStringValueHash);
+
+        // -- hash the new value (which includes a ref count)
+        mStringValueHash = Hash((const char*)value, -1, true);
+
+        // -- script variables store strings as hash values, but registered const char*
+        // -- code variables need to actually point to a valid stirng
+        if (mScriptVar)
+            memcpy(varaddr, &mStringValueHash, size);
+        else
+        {
+            // - the mAddr member of a registered global string, is the address of the actual const char*
+            *(const char**)(mAddr) = GetScriptContext()->GetStringTable()->FindString(mStringValueHash);
+        }
     }
     else
         memcpy(varaddr, value, size);

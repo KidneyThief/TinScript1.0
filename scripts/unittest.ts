@@ -39,8 +39,8 @@ void SetGlobalVarTo43() {
 }
 
 void TestParenthesis() {
-    float result = (((3 + 4) * 17) - (3 + 6)) % (42 / 3);
-    Print(result);
+    float result = (((3 + 4) * 17) - (3.0f + 6)) % (42 / 3);
+    gUnitTestScriptResult = StringCat(result);
 }
 
 hashtable gHashTable;

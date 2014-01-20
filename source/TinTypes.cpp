@@ -32,15 +32,12 @@
 #include "mathutil.h"
 
 #include "TinHash.h"
+#include "TinCompile.h"
 #include "TinTypes.h"
 #include "TinScript.h"
 #include "TinStringTable.h"
 
 namespace TinScript {
-
-// --------------------------------------------------------------------------------------------------------------------
-// -- external type POD table
-tPODTypeTable* gVector3fTable = NULL;
 
 // --------------------------------------------------------------------------------------------------------------------
 // types
@@ -86,18 +83,27 @@ StringToType gRegisteredStringToType[TYPE_COUNT] = {
 	#undef VarTypeEntry
 };
 
-tPODTypeTable* gRegisteredPODTypeTable[TYPE_COUNT] = {
-	#define VarTypeEntry(a, b, c, d, e, f) e,
+TypeConfiguration gRegisteredTypeConfig[TYPE_COUNT] = {
+	#define VarTypeEntry(a, b, c, d, e, f) f,
 	VarTypeTuple
 	#undef VarTypeEntry
 };
+
+// -- this table must be manually populated, as POD tables require memory allocations
+tPODTypeTable* gRegisteredPODTypeTable[TYPE_COUNT];
+
+// -- this table must be manually populated
+TypeOpOverride gRegisteredTypeOpTable[OP_COUNT][TYPE_COUNT];
+
+// -- this table must be manually populated
+TypeConvertFunction gRegisteredTypeConvertTable[TYPE_COUNT][TYPE_COUNT];
 
 // --------------------------------------------------------------------------------------------------------------------
 eVarType GetRegisteredType(uint32 id) {
     // -- if this array is declared in the global scope, GetTypeID<>() initializes
     // -- the entire array to 0s...
     static uint32 gRegisteredTypeID[TYPE_COUNT] = {
-	    #define VarTypeEntry(a, b, c, d, e, f) GetTypeID<f>(),
+	    #define VarTypeEntry(a, b, c, d, e, f) GetTypeID<e>(),
 	    VarTypeTuple
 	    #undef VarTypeEntry
     };
@@ -205,7 +211,9 @@ bool8 StringToFloat(void* addr, char* value) {
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// GetRegisteredPODMember():  Given a type, returns the address of the POD member of that type
+// ====================================================================================================================
 bool8 GetRegisteredPODMember(eVarType type_id, void* var_addr, uint32 member_hash, eVarType& out_member_type,
                              void*& out_member_addr)
 {
@@ -226,37 +234,12 @@ bool8 GetRegisteredPODMember(eVarType type_id, void* var_addr, uint32 member_has
     return (true);
 }
 
-// ------------------------------------------------------------------------------------------------
-// External type - CVector3f is a POD type (aggregate, but no user-defined constructors)
-bool8 Vector3fToString(void* value, char* buf, int32 bufsize) {
-	if(value && buf && bufsize > 0) {
-        CVector3f* c3vector = (CVector3f*)value;
-		sprintf_s(buf, bufsize, "%.4f %.4f %.4f", c3vector->x, c3vector->y, c3vector->z);
-		return true;
-	}
-	return false;
-}
-
-bool8 StringToVector3f(void* addr, char* value) {
-	if(addr && value) {
-		CVector3f* varaddr = (CVector3f*)addr;
-
-        // -- handle an empty string
-        if (!value || !value[0])
-        {
-            *varaddr = CVector3f(0.0f, 0.0f, 0.0f);
-            return (true);
-        }
-
-        else if(sscanf_s(value, "%f %f %f", &varaddr->x, &varaddr->y, &varaddr->z) == 3) {
-		    return (true);
-        }
-
-        else if(sscanf_s(value, "%f, %f, %f", &varaddr->x, &varaddr->y, &varaddr->z) == 3) {
-		    return (true);
-        }
-	}
-	return false;
+// ====================================================================================================================
+// GetTypeOpOverride():  Given an operation and a type, see if there's an override function to perform the op
+// ====================================================================================================================
+TypeOpOverride GetTypeOpOverride(eOpCode op, eVarType var0_type)
+{
+    return (gRegisteredTypeOpTable[op][var0_type]);
 }
 
 // ====================================================================================================================
@@ -264,22 +247,30 @@ bool8 StringToVector3f(void* addr, char* value) {
 // ====================================================================================================================
 void InitializeTypes()
 {
-    // -- create the vector3f member lookup table (size 3 for 3x members)
-    if (gVector3fTable == NULL)
+    // -- initialize the manually populated tables
+	for (eVarType i = TYPE_void; i < TYPE_COUNT; i = eVarType(i + 1))
     {
-        gVector3fTable = TinAlloc(ALLOC_HashTable, CHashTable<tPODTypeMember>, 3);
-        tPODTypeMember* member_x = new tPODTypeMember(TYPE_float, 0);
-        tPODTypeMember* member_y = new tPODTypeMember(TYPE_float, 4);
-        tPODTypeMember* member_z = new tPODTypeMember(TYPE_float, 8);
-        gVector3fTable->AddItem(*member_x, Hash("x"));
-        gVector3fTable->AddItem(*member_y, Hash("y"));
-        gVector3fTable->AddItem(*member_z, Hash("z"));
+        gRegisteredPODTypeTable[i] = NULL;
+
+        // -- initialize the op override table
+    	for (eOpCode op = OP_NULL; op < OP_COUNT; op = eOpCode(op + 1))
+        {
+            gRegisteredTypeOpTable[op][i] = NULL;
+        }
+
+        // -- initialize the type convert function table
+    	for (eVarType j = TYPE_void; j < TYPE_COUNT; j = eVarType(j + 1))
+        {
+            gRegisteredTypeConvertTable[i][j] = NULL;
+        }
     }
 
-    // -- ensure the POD tables are hooked up
-    #define VarTypeEntry(a, b, c, d, e, f) gRegisteredPODTypeTable[TYPE_##a] = e;
-	VarTypeTuple
-	#undef VarTypeEntry
+    // -- call the config function for each type (if one is given), with a "true" init flag
+	for (eVarType i = TYPE_void; i < TYPE_COUNT; i = eVarType(i + 1))
+    {
+        if (gRegisteredTypeConfig[i])
+            gRegisteredTypeConfig[i](i, true);
+    }
 }
 
 // ====================================================================================================================
@@ -287,91 +278,131 @@ void InitializeTypes()
 // ====================================================================================================================
 void ShutdownTypes()
 {
-    // -- memory cleanup for the vector3f lookup table
-    if (gVector3fTable != NULL)
+    // -- call the config function for each type (if one is given), with a "false" shutdown flag
+	for(eVarType i = TYPE_void; i < TYPE_COUNT; i = eVarType(i + 1))
     {
-        gVector3fTable->DestroyAll();
-        TinFree(gVector3fTable);
-        gVector3fTable = NULL;
+        if (gRegisteredTypeConfig[i])
+            gRegisteredTypeConfig[i](i, false);
+    }
+
+    // -- clear the manaully populated tables
+	for(eVarType i = TYPE_void; i < TYPE_COUNT; i = eVarType(i + 1))
+    {
+        gRegisteredPODTypeTable[i] = NULL;
     }
 }
 
-// ------------------------------------------------------------------------------------------------
-// -- non-string conversions - mostly to avoid converting fromtype -> string -> totype
-void* TypeConvert(eVarType fromtype, void* fromaddr, eVarType totype) {
+// ====================================================================================================================
+// RegisterPODTypeTable(): Register the hashtable of the POD members of a custom type
+// ====================================================================================================================
+void RegisterPODTypeTable(eVarType var_type, tPODTypeTable* pod_table)
+{
+    gRegisteredPODTypeTable[var_type] = pod_table;
+}
+
+// ====================================================================================================================
+// RegisterTypeOpOverride():  Register the method used to perform a numerical operation between specified types
+// ====================================================================================================================
+void RegisterTypeOpOverride(eOpCode op, eVarType var_type, TypeOpOverride op_override)
+{
+    gRegisteredTypeOpTable[op][var_type] = op_override;
+}
+
+// ====================================================================================================================
+// RegisterTypeOpOverride():  Register the method used to convert to a given type
+// ====================================================================================================================
+void RegisterTypeConvert(eVarType to_type, eVarType from_type, TypeConvertFunction type_convert)
+{
+    gRegisteredTypeConvertTable[to_type][from_type] = type_convert;
+}
+
+// ====================================================================================================================
+// TypeConvert():  Convert between types, returns a void* to a result of the requested type
+// ====================================================================================================================
+void* TypeConvert(eVarType fromtype, void* fromaddr, eVarType totype)
+{
+    // -- sanity check
+    if (! fromaddr)
+        return (NULL);
 
     // -- writing here, since this conversion should only be called from CCodeBlock::Execute()
-    // -- used mostly for binary ops, but allowing for 8x simultaneous conversion
+    // -- used mostly for binary ops, but allowing for multiple simultaneous conversion
+    // $$$TZA NOT THREAD SAFE!!!
+    const int32 max_static_buffers = 64;
     static int32 bufferindex = 0;
-    static char buffers[8][kMaxTokenLength];
-    char* bufferptr = buffers[(++bufferindex) % 8];
+    static char buffers[max_static_buffers][kMaxTokenLength];
+    char* bufferptr = buffers[(++bufferindex) % max_static_buffers];
 
-    // -- sanity check
+    // -- if the type remains the same, no conversion is necessary
     if(fromtype == totype || !fromaddr)
         return fromaddr;
 
-    switch(fromtype) {
-        case TYPE_int:
-            switch(totype) {
-                case TYPE_bool:
-                    *(bool8*)(bufferptr) = (*(int32*)(fromaddr) != 0);
-                    return (void*)(bufferptr);
-                case TYPE_float:
-                    *(float32*)(bufferptr) = (float32)*(int32*)(fromaddr);
-                    return (void*)(bufferptr);
-                default:
-                    break;
-            }
-        break;
-        case TYPE_bool:
-            switch(totype) {
-                case TYPE_int:
-                    *(int32*)(bufferptr) = *(bool8*)fromaddr ? 1 : 0;
-                    return (void*)(bufferptr);
-                case TYPE_float:
-                    *(float32*)(bufferptr) = *(bool8*)fromaddr ? 1.0f : 0.0f;
-                    return (void*)(bufferptr);
-                default:
-                    break;
-            }
-        break;
-        case TYPE_float:
-            switch(totype) {
-                case TYPE_bool:
-                    *(bool8*)(bufferptr) = (*(float32*)(fromaddr) != 0.0f);
-                    return (void*)(bufferptr);
-                case TYPE_int:
-                    *(int32*)(bufferptr) = (int32)*(float32*)(fromaddr);
-                    return (void*)(bufferptr);
-                default:
-                    break;
-            }
-        break;
+    // -- if the "to type" is a string, use the registered string conversion function
+    if (totype == TYPE_string)
+    {
+	    bool8 success = gRegisteredTypeToString[fromtype](fromaddr, bufferptr, kMaxTokenLength);
+        if (!success)
+        {
+            ScriptAssert_(CScriptContext::GetMainThreadContext(), false, "<internal>", -1,
+                          "Error - failed to convert to string from type %s\n", GetRegisteredTypeName(fromtype));
+            return ((void*)"");
+        }
 
-        default:
-            break;
+        // -- Type_string actually stores an STE value, so we must convert the char* bufferptr to an STE
+        char* stebuf = buffers[(++bufferindex) % max_static_buffers];
+	    success = gRegisteredStringToType[TYPE_string]((void*)stebuf, (char*)bufferptr);
+        if (!success)
+        {
+            ScriptAssert_(CScriptContext::GetMainThreadContext(), false, "<internal>", -1,
+                          "Error - Bad StringTableEntry value\n");
+            return ((void*)"");
+        }
+
+        // -- return the converted value
+        return ((void*)stebuf);
     }
 
-    // -- if we haven't handled the conversion above, do it the slow way
-    // $$$TZA This is nasty - any conversion that hasn't been implemented
-    // -- above, goes into string, then back out into the destination type
-    // $$$TZA This also pollutes the string table... every time you call Print()...!
-    char* convertbuf = buffers[(++bufferindex) % 8];
-    char* destbuf = buffers[(++bufferindex) % 8];
-    // convert to string, then back into a value of the correct type
-	bool8 result = gRegisteredTypeToString[fromtype](fromaddr, convertbuf, kMaxTokenLength);
-    if(!result) {
-        ScriptAssert_(CScriptContext::GetMainThreadContext(), false, "<internal", -1,
-                      "Error - failed to convert to string from type %s\n", GetRegisteredTypeName(fromtype));
-        return ((void*)"");
+    // -- else if we're converting from a string...
+    else if (fromtype == TYPE_string)
+    {
+        // -- note:  string variables are actually STE's, and need to be converted to char*
+        // -- before converting to another type
+        char* stringbuf = buffers[(++bufferindex) % max_static_buffers];
+	    bool8 success = gRegisteredTypeToString[TYPE_string](fromaddr, stringbuf, kMaxTokenLength);
+        if (!success)
+        {
+            ScriptAssert_(CScriptContext::GetMainThreadContext(), false, "<internal>", -1,
+                          "Error - Bad StringTableEntry value\n");
+            return ((void*)"");
+        }
+
+        // -- now convert from the actual char* to the requested type
+	    success = gRegisteredStringToType[totype]((void*)bufferptr, (char*)stringbuf);
+        if (!success)
+        {
+            ScriptAssert_(CScriptContext::GetMainThreadContext(), false, "<internal>", -1,
+                "Error - failed to convert string to type %s\n", GetRegisteredTypeName(totype));
+            return ((void*)"");
+        }
+
+        // -- return the converted value
+        return (bufferptr);
     }
-	result = gRegisteredStringToType[totype]((void*)destbuf, convertbuf);
-    if(!result) {
-        ScriptAssert_(CScriptContext::GetMainThreadContext(), false, "<internal", -1,
-            "Error - failed to convert string to type %s\n", convertbuf, GetRegisteredTypeName(totype));
-        return ((void*)"");
+
+    // -- see if we have a registered conversion function
+    else if (gRegisteredTypeConvertTable[totype][fromtype])
+    {
+        // -- note:  bufferptr is a static buffer within this function, and is obviously
+        // -- larger than the memsize of any of the registered types
+        void* result = gRegisteredTypeConvertTable[totype][fromtype](fromtype, fromaddr, bufferptr);
+        if (result)
+        {
+            return (result);
+        }
     }
-    return (void*)destbuf;
+
+    // -- no conversion found
+    return (NULL);
 }
 
 const char* DebugPrintVar(void* addr, eVarType vartype) {
@@ -464,6 +495,524 @@ int32 Atoi(const char* src, int32 length) {
     }
 
     return (result);
+}
+// --------------------------------------------------------------------------------------------------------------------
+// -- Type conversion functions
+void* FloatConvert(eVarType from_type, void* from_val, void* to_buffer)
+{
+    // -- sanity check
+    if (!from_val || !to_buffer)
+        return (NULL);
+
+    switch (from_type)
+    {
+        case TYPE_int:
+            *(float32*)(to_buffer) = (float32)*(int32*)(from_val);
+             return (void*)(to_buffer);
+
+        case TYPE_bool:
+            *(float32*)(to_buffer) = *(bool8*)from_val ? 1.0f : 0.0f;
+            return (void*)(to_buffer);
+    }
+
+    // -- no registered conversion
+    return (NULL);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// -- Type conversion functions
+void* IntegerConvert(eVarType from_type, void* from_val, void* to_buffer)
+{
+    // -- sanity check
+    if (!from_val || !to_buffer)
+        return (NULL);
+
+    switch (from_type)
+    {
+        case TYPE_bool:
+            *(int32*)(to_buffer) = *(bool8*)from_val ? 1 : 0;
+            return (void*)(to_buffer);
+
+        case TYPE_float:
+            *(int32*)(to_buffer) = (int32)*(float32*)(from_val);
+            return (void*)(to_buffer);
+
+        // -- since objects are actually uint32 IDs, no conversion to int is necessary
+        case TYPE_object:
+            return (from_val);
+    }
+
+    // -- no registered conversion
+    return (NULL);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// -- Type conversion functions
+void* BoolConvert(eVarType from_type, void* from_val, void* to_buffer)
+{
+    // -- sanity check
+    if (!from_val || !to_buffer)
+        return (NULL);
+
+    switch (from_type)
+    {
+        case TYPE_int:
+            *(bool8*)(to_buffer) = (*(int32*)(from_val) != 0);
+            return (void*)(to_buffer);
+
+        case TYPE_float:
+            *(bool8*)(to_buffer) = (*(float32*)(from_val) != 0.0f);
+            return (void*)(to_buffer);
+    }
+
+    // -- no registered conversion
+    return (NULL);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// -- Type conversion functions
+void* ObjectConvert(eVarType from_type, void* from_val, void* to_buffer)
+{
+    // -- sanity check
+    if (!from_val || !to_buffer)
+        return (NULL);
+
+
+    // -- since objects are actually uint32 IDs, no conversion from int is necessary
+    // -- it's also the only viable numeric type
+    if (from_type == TYPE_int)
+        return (from_val);
+
+    // -- no registered conversion
+    return (NULL);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// -- Forward declarations for operation overrides
+bool8 ObjectBinaryOp(CScriptContext* script_context, eOpCode op, eVarType& result_type, void* result_addr,
+                     eVarType val0_type, void* val0, eVarType val1_type, void* val1);
+bool8 StringBinaryOp(CScriptContext* script_context, eOpCode op, eVarType& result_type, void* result_addr,
+                     eVarType val0_type, void* val0, eVarType val1_type, void* val1);
+bool8 FloatBinaryOp(CScriptContext* script_context, eOpCode op, eVarType& result_type, void* result_addr,
+                    eVarType val0_type, void* val0, eVarType val1_type, void* val1);
+bool8 IntegerBinaryOp(CScriptContext* script_context, eOpCode op, eVarType& result_type, void* result_addr,
+                      eVarType val0_type, void* val0, eVarType val1_type, void* val1);
+
+// --------------------------------------------------------------------------------------------------------------------
+// ObjectBinaryOp():  Registered to perform all operations involving objectc only values
+// --------------------------------------------------------------------------------------------------------------------
+bool8 ObjectBinaryOp(CScriptContext* script_context, eOpCode op, eVarType& result_type, void* result_addr,
+                      eVarType val0_type, void* val0, eVarType val1_type, void* val1)
+{
+    // -- sanity check
+    if (!result_addr || !val0 || !val1)
+        return (false);
+
+    // -- ensure the types are converted to Type_object
+    void* val0addr = TypeConvert(val0_type, val0, TYPE_object);
+    void* val1addr = TypeConvert(val1_type, val1, TYPE_object);
+    if (!val0addr || !val1addr)
+        return (false);
+
+    uint32 v0 = *(uint32*)val0addr;
+    uint32 v1 = *(uint32*)val1addr;
+    int32* result = (int32*)result_addr;
+    result_type = TYPE_int;
+
+    // -- perform the operation
+    switch (op)
+    {
+        case OP_CompareEqual:
+        case OP_CompareNotEqual:
+            *result = (v0 == v1) ? 0 : 1;
+            return (true);
+
+        case OP_BooleanAnd:
+        {
+            CObjectEntry* oe0 = script_context->FindObjectEntry(v0);
+            CObjectEntry* oe1 = script_context->FindObjectEntry(v1);
+            *result = (oe0 != NULL && oe1 != NULL) ? 0 : 1;
+            return (true);
+        }
+        case OP_BooleanOr:
+        {
+            CObjectEntry* oe0 = script_context->FindObjectEntry(v0);
+            CObjectEntry* oe1 = script_context->FindObjectEntry(v1);
+            *result = (oe0 != NULL || oe1 != NULL) ? 0 : 1;
+            return (true);
+        }
+    }
+
+    // -- fail
+    return (false);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// StringBinaryOp():  Registered to perform all numerical operations using a string that represents a float or an int
+// --------------------------------------------------------------------------------------------------------------------
+bool8 StringBinaryOp(CScriptContext* script_context, eOpCode op, eVarType& result_type, void* result_addr,
+                     eVarType val0_type, void* val0, eVarType val1_type, void* val1)
+{
+    // -- sanity check
+    if (!script_context || !result_addr || !val0 || !val1)
+        return (false);
+
+    // -- if we cannot convert the string to a float non-zero value, convert it as an integer
+    bool val0_float = true;
+    void* val0addr = TypeConvert(val0_type, val0, TYPE_float);
+    if (!val0addr || *(float32*)(val0addr) == 0.0f)
+    {
+        val0addr = TypeConvert(val0_type, val0, TYPE_int);
+        val0_float = false;
+    }
+
+    bool val1_float = true;
+    void* val1addr = TypeConvert(val1_type, val1, TYPE_float);
+    if (!val1addr || *(float32*)(val1addr) == 0.0f)
+    {
+        val1addr = TypeConvert(val1_type, val1, TYPE_int);
+        val1_float = false;
+    }
+
+    // -- ensure we at least got two numerical types
+    if (!val0addr || !val1addr)
+        return (false);
+
+    // -- if either is a float, perform a float operation
+    if (val0_float || val1_float)
+    {
+        return (FloatBinaryOp(script_context, op, result_type, result_addr,
+                              val0_float ? TYPE_float : TYPE_int, val0addr,
+                              val1_float ? TYPE_float : TYPE_int, val1addr));
+    }
+
+    // -- else perform an integer op
+    else
+    {
+        return (IntegerBinaryOp(script_context, op, result_type, result_addr, TYPE_int, val0addr, TYPE_int, val1addr));
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// FloatBinaryOp():  Registered to perform all numerical operations involving a float, except vector3f scaling
+// --------------------------------------------------------------------------------------------------------------------
+bool8 FloatBinaryOp(CScriptContext* script_context, eOpCode op, eVarType& result_type, void* result_addr,
+                    eVarType val0_type, void* val0, eVarType val1_type, void* val1)
+{
+    // -- sanity check
+    if (!script_context || !result_addr || !val0 || !val1)
+        return (false);
+
+    // -- ensure the types are converted to vector3f
+    void* val0addr = TypeConvert(val0_type, val0, TYPE_float);
+    void* val1addr = TypeConvert(val1_type, val1, TYPE_float);
+    if (!val0addr || !val1addr)
+        return (false);
+
+    float32* v0 = (float32*)val0addr;
+    float32* v1 = (float32*)val1addr;
+    float32* result = (float32*)result_addr;
+    result_type = TYPE_float;
+
+    // -- perform the operation
+    switch (op)
+    {
+        case OP_Add:
+            *result = *v0 + *v1;
+            return (true);
+
+        case OP_Sub:
+            *result = *v0 - *v1;
+            return (true);
+
+        case OP_Mult:
+            *result = *v0 * *v1;
+            return (true);
+
+        case OP_Div:
+            if (*v1 == 0.0f)
+            {
+                ScriptAssert_(script_context, false, "<internal>", -1, "Error - OP_Mod division by 0.0f\n");
+                *result = 0.0f;
+                return (false);
+            }
+            *result = *v0 / *v1;
+            return (true);
+
+        case OP_Mod:
+            if (*v1 == 0.0f)
+            {
+                ScriptAssert_(script_context, false, "<internal>", -1, "Error - OP_Mod division by 0.0f\n");
+                *result = 0.0f;
+                return (false);
+            }
+
+            *result = *v0 - (float32)((int32)(*v0 / *v1) * *v1);
+            return (true);
+
+        // -- comparison operations (push a -1, 0, 1) for less than, equal, greater than
+        case OP_CompareEqual:
+        case OP_CompareNotEqual:
+        case OP_CompareLess:
+        case OP_CompareLessEqual:
+        case OP_CompareGreater:
+        case OP_CompareGreaterEqual:
+            *result = (*v0 - *v1) < 0.0f ? -1.0f : (*v0 - *v1) == 0.0f ? 0.0f : 1.0f;
+            return (true);
+
+        case OP_BooleanAnd:
+            *result = (*v0 != 0.0f && *v1 != 0.0f) ? 1.0f : 0.0f;
+            break;
+
+        case OP_BooleanOr:
+            *result = (*v0 != 0 || *v1 != 0) ? 1.0f : 0.0f;
+            break;
+
+        default:
+            return false;
+    }
+
+    // -- fail
+    return (false);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// IntegerBinaryOp():  Registered to perform all numerical operations involving integer only values
+// --------------------------------------------------------------------------------------------------------------------
+bool8 IntegerBinaryOp(CScriptContext* script_context, eOpCode op, eVarType& result_type, void* result_addr,
+                      eVarType val0_type, void* val0, eVarType val1_type, void* val1)
+{
+    // -- sanity check
+    if (!result_addr || !val0 || !val1)
+        return (false);
+
+    // -- ensure the types are converted to vector3f
+    void* val0addr = TypeConvert(val0_type, val0, TYPE_int);
+    void* val1addr = TypeConvert(val1_type, val1, TYPE_int);
+    if (!val0addr || !val1addr)
+        return (false);
+
+    int32* v0 = (int32*)val0addr;
+    int32* v1 = (int32*)val1addr;
+    int32* result = (int32*)result_addr;
+    result_type = TYPE_int;
+
+    // -- perform the operation
+    switch (op)
+    {
+        case OP_Add:
+            *result = *v0 + *v1;
+            return (true);
+
+        case OP_Sub:
+            *result = *v0 - *v1;
+            return (true);
+
+        case OP_Mult:
+            *result = *v0 * *v1;
+            return (true);
+
+        case OP_Div:
+            if (*v1 == 0)
+            {
+                ScriptAssert_(script_context, false, "<internal>", -1, "Error - OP_Mod division by 0\n");
+                *result = 0;
+                return (false);
+            }
+            *result = *v0 / *v1;
+            return (true);
+
+        case OP_Mod:
+            if (*v1 == 0)
+            {
+                ScriptAssert_(script_context, false, "<internal>", -1, "Error - OP_Mod division by 0\n");
+                *result = 0.0f;
+                return (false);
+            }
+
+            *result = *v0 - ((*v0 / *v1) * *v1);
+            return (true);
+
+        // -- comparison operations (push a -1, 0, 1) for less than, equal, greater than
+        case OP_CompareEqual:
+        case OP_CompareNotEqual:
+        case OP_CompareLess:
+        case OP_CompareLessEqual:
+        case OP_CompareGreater:
+        case OP_CompareGreaterEqual:
+            *result = *v0 - *v1;
+            return (true);
+
+        case OP_BooleanAnd:
+            *result = (*v0 != 0 && *v1 != 0) ? 1 : 0;
+            break;
+
+        case OP_BooleanOr:
+            *result = (*v0 != 0 || *v1 != 0) ? 1 : 0;
+            break;
+
+        // -- Bit operations
+        case OP_BitLeftShift:
+            *result = *v0 << *v1;
+            return (true);
+
+        case OP_BitRightShift:
+            *result = *v0 >> *v1;
+            return (true);
+
+        case OP_BitAnd:
+            *result = *v0 & *v1;
+            return (true);
+
+        case OP_BitOr:
+            *result = *v0 | *v1;
+            return (true);
+
+        case OP_BitXor:
+            *result = *v0 ^ *v1;
+            return (true);
+
+        default:
+            return false;
+    }
+
+    // -- fail
+    return (false);
+}
+
+// ====================================================================================================================
+// ObjectConfig():  Called from InitializeTypes() to register object operations and conversions
+// ====================================================================================================================
+bool8 ObjectConfig(eVarType var_type, bool8 onInit)
+{
+    // -- see if this is the initialization or the shutdown
+    if (onInit)
+    {
+        // -- For now, there are no implicit conversions to type object
+        // -- they would require calling IsObject(), which requires access to
+        // -- the script context
+        //RegisterTypeConvert(TYPE_object, TYPE_int, ObjectConvert);
+        //RegisterTypeConvert(TYPE_object, TYPE_bool, ObjectConvert);
+
+        // -- comparison operations
+        RegisterTypeOpOverride(OP_CompareEqual, TYPE_object, ObjectBinaryOp);
+        RegisterTypeOpOverride(OP_CompareNotEqual, TYPE_object, ObjectBinaryOp);
+        RegisterTypeOpOverride(OP_BooleanAnd, TYPE_object, ObjectBinaryOp);
+        RegisterTypeOpOverride(OP_BooleanOr, TYPE_object, ObjectBinaryOp);
+    }
+
+    // -- success
+    return (true);
+}
+
+// ====================================================================================================================
+// StringConfig():  Called from InitializeTypes() to populate the override table to perform numerical ops
+// where one or both arguments are represented as strings
+// ====================================================================================================================
+bool8 StringConfig(eVarType var_type, bool8 onInit)
+{
+    // -- see if this is the initialization or the shutdown
+    if (onInit)
+    {
+        // -- register the operation overrides
+        RegisterTypeOpOverride(OP_Add, TYPE_string, StringBinaryOp);
+        RegisterTypeOpOverride(OP_Sub, TYPE_string, StringBinaryOp);
+        RegisterTypeOpOverride(OP_Mult, TYPE_string, StringBinaryOp);
+        RegisterTypeOpOverride(OP_Div, TYPE_string, StringBinaryOp);
+        RegisterTypeOpOverride(OP_Mod, TYPE_string, StringBinaryOp);
+    }
+
+    // -- success
+    return (true);
+}
+
+// ====================================================================================================================
+// FloatConfig():  Called from InitializeTypes() to register float operations and conversions
+// ====================================================================================================================
+bool8 FloatConfig(eVarType var_type, bool8 onInit)
+{
+    // -- see if this is the initialization or the shutdown
+    if (onInit)
+    {
+        // -- register the operation overrides
+        RegisterTypeOpOverride(OP_Add, TYPE_float, FloatBinaryOp);
+        RegisterTypeOpOverride(OP_Sub, TYPE_float, FloatBinaryOp);
+        RegisterTypeOpOverride(OP_Mult, TYPE_float, FloatBinaryOp);
+        RegisterTypeOpOverride(OP_Div, TYPE_float, FloatBinaryOp);
+        RegisterTypeOpOverride(OP_Mod, TYPE_float, FloatBinaryOp);
+
+        // -- comparison operations
+        RegisterTypeOpOverride(OP_CompareEqual, TYPE_float, FloatBinaryOp);
+        RegisterTypeOpOverride(OP_CompareNotEqual, TYPE_float, FloatBinaryOp);
+        RegisterTypeOpOverride(OP_CompareLess, TYPE_float, FloatBinaryOp);
+        RegisterTypeOpOverride(OP_CompareLessEqual, TYPE_float, FloatBinaryOp);
+        RegisterTypeOpOverride(OP_CompareGreater, TYPE_float, FloatBinaryOp);
+        RegisterTypeOpOverride(OP_CompareGreaterEqual, TYPE_float, FloatBinaryOp);
+
+        // -- register the conversion methods
+        RegisterTypeConvert(TYPE_float, TYPE_int, FloatConvert);
+        RegisterTypeConvert(TYPE_float, TYPE_bool, FloatConvert);
+    }
+
+    // -- success
+    return (true);
+}
+
+// ====================================================================================================================
+// IntegerConfig():  Called from InitializeTypes() to register integer operations and conversions
+// ====================================================================================================================
+bool8 IntegerConfig(eVarType var_type, bool8 onInit)
+{
+    // -- see if this is the initialization or the shutdown
+    if (onInit)
+    {
+        // -- register the operation overrides
+        RegisterTypeOpOverride(OP_Add, TYPE_int, IntegerBinaryOp);
+        RegisterTypeOpOverride(OP_Sub, TYPE_int, IntegerBinaryOp);
+        RegisterTypeOpOverride(OP_Mult, TYPE_int, IntegerBinaryOp);
+        RegisterTypeOpOverride(OP_Div, TYPE_int, IntegerBinaryOp);
+        RegisterTypeOpOverride(OP_Mod, TYPE_int, IntegerBinaryOp);
+
+        // -- comparison operations
+        RegisterTypeOpOverride(OP_CompareEqual, TYPE_int, IntegerBinaryOp);
+        RegisterTypeOpOverride(OP_CompareNotEqual, TYPE_int, IntegerBinaryOp);
+        RegisterTypeOpOverride(OP_CompareLess, TYPE_int, IntegerBinaryOp);
+        RegisterTypeOpOverride(OP_CompareLessEqual, TYPE_int, IntegerBinaryOp);
+        RegisterTypeOpOverride(OP_CompareGreater, TYPE_int, IntegerBinaryOp);
+        RegisterTypeOpOverride(OP_CompareGreaterEqual, TYPE_int, IntegerBinaryOp);
+
+        // -- bit operations
+        RegisterTypeOpOverride(OP_BitLeftShift, TYPE_int, IntegerBinaryOp);
+        RegisterTypeOpOverride(OP_BitRightShift, TYPE_int, IntegerBinaryOp);
+        RegisterTypeOpOverride(OP_BitAnd, TYPE_int, IntegerBinaryOp);
+        RegisterTypeOpOverride(OP_BitOr, TYPE_int, IntegerBinaryOp);
+        RegisterTypeOpOverride(OP_BitXor, TYPE_int, IntegerBinaryOp);
+
+        // -- register the conversion methods
+        RegisterTypeConvert(TYPE_int, TYPE_float, IntegerConvert);
+        RegisterTypeConvert(TYPE_int, TYPE_bool, IntegerConvert);
+        RegisterTypeConvert(TYPE_int, TYPE_object, IntegerConvert);
+    }
+
+    // -- success
+    return (true);
+}
+
+// ====================================================================================================================
+// BoolConfig():  Called from InitializeTypes() to register bool operations and conversions
+// ====================================================================================================================
+bool8 BoolConfig(eVarType var_type, bool8 onInit)
+{
+    // -- see if this is the initialization or the shutdown
+    if (onInit)
+    {
+        // -- register the conversion methods
+        RegisterTypeConvert(TYPE_bool, TYPE_float, BoolConvert);
+        RegisterTypeConvert(TYPE_bool, TYPE_int, BoolConvert);
+    }
+
+    // -- success
+    return (true);
 }
 
 } // TinScript

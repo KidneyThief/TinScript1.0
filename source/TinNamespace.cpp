@@ -588,7 +588,6 @@ bool8 CScriptContext::SetMemberVar(uint32 objectid, const char* varname, void* v
     return oe->SetMemberVar(varhash, value);
 }
 
-
 void CScriptContext::PrintObject(CObjectEntry* oe, int32 indent) {
     if(!oe)
         return;

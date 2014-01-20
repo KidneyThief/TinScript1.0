@@ -64,8 +64,8 @@ public:
         mStackOffset = _stackoffset;
     }
 
-    // -- added to accomodate converting StringTableEntry hash values back into
-    // -- const char*, before calling dispatch
+    // -- this method is called by registered methods (dispatch templated implementation),
+    // -- and as it is used to cross into cpp, it returns a const char* for strings
     void* GetValueAddr(void* objaddr) const {
         void* valueaddr = NULL;
         // -- if we're providing an object address, this var is a member
@@ -76,17 +76,46 @@ public:
         else
             valueaddr = mAddr;
         if(mType == TYPE_string)
-            return (void*)mContextOwner->GetStringTable()->FindString(*(uint32*)valueaddr);
+            return (void*)mContextOwner->GetStringTable()->FindString(mStringValueHash);
         else
             return valueaddr;
     }
 
-    void* GetAddr(void* objaddr) const {
+    // -- this method is used only on the script side.  The address it returns must *never*
+    // -- be written to - instead, the SetValue() method for variables is used.
+    // -- for strings, this returns the address of the hash value found in the string dictionary
+    void* GetAddr(void* objaddr) const
+    {
+        // -- find the value address
+        void* valueaddr = NULL;
+
         // -- if we're providing an object address, this var is a member
         if(objaddr && !mIsDynamic)
-            return (void*)((char*)objaddr + mOffset);
+            valueaddr = (void*)((char*)objaddr + mOffset);
         else
-            return mAddr;
+            valueaddr = mAddr;
+
+        // -- if the value is not a string, then simply return it
+        if (mType != TYPE_string)
+            return (valueaddr);
+        else
+        {
+            // -- if the variable is not a global registered const char*, then it
+            // -- lives in the string table and is already a hash value
+            if (mScriptVar)
+                return (valueaddr);
+
+            // -- and here's where things get sticky - global registered strings contain
+            // -- const char* values, *however*, as they're global, they could be modified
+            // -- in code... so we need to re-hash the string every time we access it
+            else
+            {
+                const char* global_string_value = *(const char**)(valueaddr);
+                mContextOwner->GetStringTable()->RefCountDecrement(mStringValueHash);
+                mStringValueHash = Hash(global_string_value, -1, true);
+                return (void*)(&mStringValueHash);
+            }
+        }
     }
 
     uint32 GetOffset() const {
@@ -118,6 +147,7 @@ private:
     int32 mStackOffset;
     bool8 mIsDynamic;
     bool8 mScriptVar;
+    mutable uint32 mStringValueHash;
     CFunctionEntry* mFuncEntry;
 };
 

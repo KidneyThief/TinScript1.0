@@ -165,299 +165,55 @@ bool8 GetBinOpValues(CScriptContext* script_context, CExecStack& execstack,
 	return true;
 }
 
-bool8 ObjectNumericalBinOp(CScriptContext* script_context, eOpCode op, eVarType val0type,
-                           void* val0addr, eVarType val1type, void* val1addr, int32& result) {
-    // -- both types must be TYPE_object
-    if(val0type != TYPE_object || val1type != TYPE_object) {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - BinOp of non-object types");
-        return (false);
+// -- this is to consolidate all the operations that pop two values from the stack
+// -- and combine them, and pushing the result onto the stack
+bool8 PerformBinaryOpPush(CScriptContext* script_context, CExecStack& execstack,
+                            CFunctionCallStack& funccallstack, eOpCode op) {
+
+	// -- Get both args from the stacks
+	eVarType val0type;
+	void* val0 = NULL;
+	eVarType val1type;
+	void* val1 = NULL;
+	if(!GetBinOpValues(script_context, execstack, funccallstack, val0, val0type, val1, val1type)) {
+		printf("Error - failed GetBinopValues() for operation: %s\n",
+				GetOperationString(op));
+		return false;
+	}
+
+    // -- see if there's an override for the given types
+    // -- NOTE:  We test in type order - float preceeds int, etc...
+    eVarType priority_type = val0type < val1type ? val0type : val1type;
+    eVarType secondary_type = val0type < val1type ? val1type : val0type;
+    TypeOpOverride priority_op_func = GetTypeOpOverride(op, priority_type);
+    TypeOpOverride secondary_op_func = GetTypeOpOverride(op, secondary_type);
+
+    // -- if we found an operation, see if it can be performed successfully
+    char result[MAX_TYPE_SIZE * sizeof(uint32)];
+    eVarType result_type;
+
+    bool success = (priority_op_func && priority_op_func(script_context, op, result_type, (void*)result,
+                                                         val0type, val0, val1type, val1));
+
+    // -- if the priority version didn't pan out, try the secondary type version
+    if (!success)
+    {
+        success = (secondary_op_func && secondary_op_func(script_context, op, result_type, (void*)result,
+                                                          val0type, val0, val1type, val1));
     }
 
-    uint32 object_id_0 = *(uint32*)val0addr;
-    uint32 object_id_1 = *(uint32*)val1addr;
+    // -- hopefully one of them worked
+    if (success)
+    {
+        // -- push the result onto the stack
+        execstack.Push((void*)result, result_type);
+        DebugTrace(op, "%s", DebugPrintVar(result, result_type));
 
-    switch(op) {
-        // -- comparisons are normally a subtraction, then compare the result to 0.0f
-        case OP_CompareEqual:
-        case OP_CompareNotEqual:
-            result = object_id_0 == object_id_1 ? 0 : 1;
-            return (true);
-
-        // -- to have reached this point, we already know both objects exist
-        case OP_BooleanAnd:
-        {
-            CObjectEntry* oe0 = script_context->FindObjectEntry(object_id_0);
-            CObjectEntry* oe1 = script_context->FindObjectEntry(object_id_1);
-            result = (oe0 != NULL && oe1 != NULL) ? 0 : 1;
-            return (true);
-        }
-        case OP_BooleanOr:
-        {
-            CObjectEntry* oe0 = script_context->FindObjectEntry(object_id_0);
-            CObjectEntry* oe1 = script_context->FindObjectEntry(object_id_1);
-            result = (oe0 != NULL || oe1 != NULL) ? 0 : 1;
-            return (true);
-        }
-        default:
-            ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - unable to perform op: %s\n",
-                          GetOperationString(op));
+        return (true);
     }
 
-    // -- unhandled
+    // -- failed
     return (false);
-}
-
-// ------------------------------------------------------------------------------------------------
-bool8 IntegerNumericalBinOp(CScriptContext* script_context, eOpCode op, eVarType val0type,
-                            void* val0, eVarType val1type, void* val1, int32& int_result) {
-    void* val0addr = TypeConvert(val0type, val0, TYPE_int);
-    void* val1addr = TypeConvert(val1type, val1, TYPE_int);
-    int32 val0int = *(int32*)val0addr;
-    int32 val1int = *(int32*)val1addr;
-
-    // -- now perform the op
-    switch(op) {
-        case OP_Add:
-            int_result = val0int + val1int;
-            break;
-        case OP_Sub:
-            int_result = val0int - val1int;
-            break;
-        case OP_Mult:
-            int_result = val0int * val1int;
-            break;
-        case OP_Div:
-            ScriptAssert_(script_context, val1int != 0, "<internal>", -1,
-                          "Error - Divide by 0\n");
-            int_result = val0int / val1int;
-            break;
-        case OP_Mod:
-        {
-            ScriptAssert_(script_context, val1int != 0, "<internal>", -1,
-                          "Error - Mod Divide by 0\n");
-            val1int = val1int < 0 ? -val1int : val1int;
-            while(val0int < 0)
-                val0int += val1int;
-            int_result = val0int % val1int;
-            break;
-        }
-
-        case OP_CompareEqual:
-        case OP_CompareNotEqual:
-        case OP_CompareLess:
-        case OP_CompareLessEqual:
-        case OP_CompareGreater:
-        case OP_CompareGreaterEqual:
-            int_result = val0int - val1int;
-            break;
-
-        case OP_BooleanAnd:
-            int_result = (val0int != 0 && val1int != 0) ? 1 : 0;
-            break;
-
-        case OP_BooleanOr:
-            int_result = (val0int != 0 || val1int != 0) ? 1 : 0;
-            break;
-
-        default:
-            return false;
-    }
-
-    // -- success 
-    return true;
-}
-
-// ------------------------------------------------------------------------------------------------
-bool8 PerformIntegerBinOp(CScriptContext* script_context, CExecStack& execstack,
-                            CFunctionCallStack& funccallstack, eOpCode op, int32& int_result) {
-    // -- when we're doing a comparison operation, or if none of the args are float32
-	// -- Get both args from the stacks
-	eVarType val0type;
-	void* val0 = NULL;
-	eVarType val1type;
-	void* val1 = NULL;
-	if(!GetBinOpValues(script_context, execstack, funccallstack, val0, val0type, val1, val1type)) {
-		printf("Error - failed GetBinopValues() for operation: %s\n",
-				GetOperationString(op));
-		return false;
-	}
-
-    // -- initialize the results
-	// -- there are only two valid types to compare, floats, and ints
-	// -- any other form of "add" must be done through a function call
-	// $$$TZA expand the TypeToString tables to include operations
-    if((val0type != TYPE_int && val0type != TYPE_bool) ||
-        (val1type != TYPE_int && val1type != TYPE_bool)) {
-            ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - trying to compare non-integer types\n");
-		return false;
-    }
-
-    return (IntegerNumericalBinOp(script_context, op, val0type, val0, val1type, val1, int_result));
-}
-
-// -- this is to consolidate all the math operations that pop two values from the stack
-// -- and combine them... the operation is still responsible for handling pushing the result
-bool8 PerformNumericalBinOp(CScriptContext* script_context, CExecStack& execstack,
-                            CFunctionCallStack& funccallstack, eOpCode op, int32& int_result,
-							float32& float_result) {
-
-	// -- Get both args from the stacks
-	eVarType val0type;
-	void* val0 = NULL;
-	eVarType val1type;
-	void* val1 = NULL;
-	if(!GetBinOpValues(script_context, execstack, funccallstack, val0, val0type, val1, val1type)) {
-		printf("Error - failed GetBinopValues() for operation: %s\n",
-				GetOperationString(op));
-		return false;
-	}
-
-    // -- initialize the results
-    int_result = 0x7fffffff;
-    float_result = 1e8f;
-
-    // -- if either argument is an object
-    if(val0type == TYPE_object || val1type == TYPE_object) {
-        bool8 result = ObjectNumericalBinOp(script_context, op, val0type, val0, val1type, val1, int_result);
-        // -- copy the int_result into the float_result, for ops like boolean, comparison, etc...
-        float_result = static_cast<float32>(int_result);
-        return (result);
-    }
-
-    // -- if both args are int and/or bool, use integer operations
-    if ((val0type == TYPE_int || val0type == TYPE_bool) &&
-        (val1type == TYPE_int || val1type == TYPE_bool)) {
-        bool8 result = IntegerNumericalBinOp(script_context, op, val0type, val0, val1type, val1,
-                                             int_result);
-        // -- copy the int_result into the float_result, for ops like boolean, comparison, etc...
-        float_result = static_cast<float32>(int_result);
-        return (result);
-    }
- 
-	// -- there are only two valid types to compare, floats, and ints
-	// -- any other form of "add" must be done through a function call
-	// $$$TZA expand the TypeToString tables to include operations
-    if((val0type != TYPE_int && val0type != TYPE_float && val0type != TYPE_bool) ||
-        (val1type != TYPE_int && val1type != TYPE_float && val1type != TYPE_bool)) {
-            ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - trying to compare non-numeric types\n");
-		return false;
-    }
-    void* val0addr = TypeConvert(val0type, val0, TYPE_float);
-    void* val1addr = TypeConvert(val1type, val1, TYPE_float);
-    float32 val0float = *(float32*)val0addr;
-    float32 val1float = *(float32*)val1addr;
-
-    // -- now perform the op
-    switch(op) {
-        case OP_Add:
-            float_result = val0float + val1float;
-            break;
-        case OP_Sub:
-            float_result = val0float - val1float;
-            break;
-        case OP_Mult:
-            float_result = val0float * val1float;
-            break;
-        case OP_Div:
-            ScriptAssert_(script_context, val1float != 0.0f, "<internal>", -1,
-                          "Error - Divide by 0\n");
-            float_result = val0float / val1float;
-            break;
-        case OP_Mod:
-        {
-            ScriptAssert_(script_context, val1float != 0.0f, "<internal>", -1,
-                          "Error - Mod Divide by 0\n");
-            int32 val0int = (int32)val0float;
-            int32 val1int = val1float < 0.0f ? -(int32)val1float : (int32)val1float;
-            while(val0int < 0)
-                val0int += val1int;
-            float_result = (float32)(val0int % val1int);
-            break;
-        }
-
-        case OP_CompareEqual:
-        case OP_CompareNotEqual:
-        case OP_CompareLess:
-        case OP_CompareLessEqual:
-        case OP_CompareGreater:
-        case OP_CompareGreaterEqual:
-            float_result = val0float - val1float;
-            break;
-
-        case OP_BooleanAnd:
-            float_result = (val0float != 0.0f && val1float != 0.0f) ? 1.0f : 0.0f;
-            break;
-
-        case OP_BooleanOr:
-            float_result = (val0float != 0.0f || val1float != 0.0f) ? 1.0f : 0.0f;
-            break;
-
-        default:
-            return false;
-    }
-
-    // -- success 
-    return true;
-}
-
-// ------------------------------------------------------------------------------------------------
-// -- this is to consolidate all the math operations that pop two values from the stack
-// -- and compbine them... the operation is still responsible for handling pushing the result
-bool8 PerformIntegerBitwiseOp(CScriptContext* script_context, CExecStack& execstack,
-                              CFunctionCallStack& funccallstack, eOpCode op, int32& result) {
-
-	// -- Get both args from the stacks
-	eVarType val0type;
-	void* val0 = NULL;
-	eVarType val1type;
-	void* val1 = NULL;
-	if(!GetBinOpValues(script_context, execstack, funccallstack, val0, val0type, val1, val1type)) {
-		printf("Error - failed GetBinopValues() for operation: %s\n",
-				GetOperationString(op));
-		return false;
-	}
- 
-	// -- there are only two valid types to compare, floats, andints
-	// -- any other form of "add" must be done through a function call
-	// $$$TZA expand the TypeToString tables to include operations
-    if((val0type != TYPE_int && val0type != TYPE_float) ||
-       (val1type != TYPE_int && val1type != TYPE_float)) {
-            ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - trying to compare non-int32 types\n");
-		return false;
-    }
-    void* val0addr = TypeConvert(val0type, val0, TYPE_int);
-    void* val1addr = TypeConvert(val1type, val1, TYPE_int);
-    int32 val0int = *(int32*)val0addr;
-    int32 val1int = *(int32*)val1addr;
-
-    // -- now perform the op
-    switch(op) {
-    case OP_BitLeftShift:
-            result = val0int << val1int;
-            break;
-    case OP_BitRightShift:
-            result = val0int >> val1int;
-            break;
-    case OP_BitAnd:
-            result = val0int & val1int;
-            break;
-        case OP_BitOr:
-            result = val0int | val1int;
-            break;
-        case OP_BitXor:
-            result = val0int ^ val1int;
-            break;
-
-        default:
-            return false;
-    }
-
-    // -- success 
-    return true;
 }
 
 bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
@@ -501,6 +257,13 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
         // -- if we've been given the actual address of the var, copy directly to it
         if (use_var_addr) {
             val1addr = TypeConvert(val1type, val1addr, varhashtype);
+            if (!val1addr)
+            {
+                ScriptAssert_(script_context, 0, "<internal>", -1,
+                              "Error - fail to conver from type %s to type %s\n",
+                              GetRegisteredTypeName(val1type), GetRegisteredTypeName(ve0->GetType()));
+                return (false);
+            }
             memcpy(var, val1addr, gRegisteredTypeSize[varhashtype]);
             DebugTrace(op, is_stack_var ? "StackVar: %s" : "PODMember: %s", DebugPrintVar(var, varhashtype));
         }
@@ -509,6 +272,14 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
         else
         {
             val1addr = TypeConvert(val1type, val1addr, ve0->GetType());
+            if (!val1addr)
+            {
+                ScriptAssert_(script_context, 0, "<internal>", -1,
+                              "Error - fail to conver from type %s to type %s\n",
+                              GetRegisteredTypeName(val1type), GetRegisteredTypeName(ve0->GetType()));
+                return (false);
+            }
+
     	    ve0->SetValue(oe0 ? oe0->GetAddr() : NULL, val1addr);
             DebugTrace(op, "Var %s: %s", UnHash(ve0->GetHash()),
                        DebugPrintVar(val1addr, ve0->GetType()));
@@ -1146,8 +917,10 @@ bool8 OpExecPushMember(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     member[0] = varhash;
     member[1] = *(uint32*)contentptr;
 
-    // -- next instruction is the variable hash followed by the function context hash
+    // -- push the member onto the stack
     execstack.Push((void*)member, TYPE__member);
+    DebugTrace(op, "Obj Mem %s: %s", UnHash(varhash), DebugPrintVar(contentptr, contenttype));
+	
     return (true);
 }
 
@@ -1190,6 +963,8 @@ bool8 OpExecPushMemberVal(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
 
     // -- push the value of the member
     execstack.Push(val, valtype);
+    DebugTrace(op, "Obj Mem %s: %s", UnHash(varhash), DebugPrintVar(val, valtype));
+	
     return (true);
 }
 
@@ -1204,9 +979,10 @@ bool8 OpExecPushPODMember(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     CObjectEntry* oe0 = NULL;
 	eVarType vartype;
 	void* varaddr = execstack.Pop(vartype);
-    if(!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, varaddr, vartype, ve0, oe0)) {
-        ScriptAssert_(cb->GetScriptContext(), 0, "<internal>", -1,
-                      "Error - Failed to pop assignment variable\n");
+    if (!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, varaddr, vartype, ve0, oe0))
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                        "Error - Failed to pop a variable of a registered POD type\n");
         return (false);
     }
 
@@ -1216,9 +992,9 @@ bool8 OpExecPushPODMember(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     void* pod_member_addr = NULL;
     if (!GetRegisteredPODMember(vartype, varaddr, varhash, pod_member_type, pod_member_addr))
     {
-        // -- push the value of the POD member
-        execstack.Push(pod_member_addr, pod_member_type);
-        return (true);
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                        "Error - Failed to pop a variable of a registered POD type\n");
+        return (false);
     }
 
     // -- the new type we're going to push is a TYPE__podmember
@@ -1227,6 +1003,7 @@ bool8 OpExecPushPODMember(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     varbuf[0] = pod_member_type;
     varbuf[1] = (uint32)pod_member_addr;
     execstack.Push((void*)varbuf, TYPE__podmember);
+    DebugTrace(op, "POD Mem %s: %s", UnHash(varhash), DebugPrintVar(pod_member_addr, pod_member_type));
 
     return (true);
 }
@@ -1244,15 +1021,17 @@ bool8 OpExecPushPODMemberVal(CCodeBlock* cb, eOpCode op, const uint32*& instrptr
     // -- see if we popped a value of a registered POD type
     eVarType pod_member_type;
     void* pod_member_addr = NULL;
-    if (GetRegisteredPODMember(contenttype, contentptr, varhash, pod_member_type, pod_member_addr))
+    if (!GetRegisteredPODMember(contenttype, contentptr, varhash, pod_member_type, pod_member_addr))
     {
-        // -- push the value of the POD member
-        execstack.Push(pod_member_addr, pod_member_type);
-        return (true);
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - Failed to pop a variable of a registered POD type\n");
+        return (false);
     }
 
     // -- push the value of the POD member
     execstack.Push(pod_member_addr, pod_member_type);
+    DebugTrace(op, "POD Mem %s: %s", UnHash(varhash), DebugPrintVar(pod_member_addr, pod_member_type));
+
     return (true);
 }
 
@@ -1281,90 +1060,96 @@ bool8 OpExecPop(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack&
 }
 
 // ------------------------------------------------------------------------------------------------
-// -- Function to execute basic math ops
-bool8 OpExecNumericalOp(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                        CFunctionCallStack& funccallstack) {
-    int32 int_result = 0x7fffffff;
-    float32 float_result = 1e8f;
-    if(!PerformNumericalBinOp(cb->GetScriptContext(), execstack, funccallstack,
-                              op, int_result, float_result)) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - unable to perform op: %s\n",
-                      GetOperationString(op));
-        return false;
-    }
-
-    // -- if we have an integer result, push that, otherwise push a float result
-    if(int_result != 0x7fffffff) {
-        execstack.Push((void*)&int_result, TYPE_int);
-        DebugTrace(op, "%d", int_result);
-    }
-    else {
-        execstack.Push((void*)&float_result, TYPE_float);
-        DebugTrace(op, "%.2f", float_result);
-    }
-    return (true);
-}
-
+// -- Math ops
 bool8 OpExecAdd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                 CFunctionCallStack& funccallstack) {
-    return (OpExecNumericalOp(cb, op, instrptr, execstack, funccallstack));
+    return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
 bool8 OpExecSub(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                 CFunctionCallStack& funccallstack) {
-    return (OpExecNumericalOp(cb, op, instrptr, execstack, funccallstack));
+    return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
 bool8 OpExecMult(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                 CFunctionCallStack& funccallstack) {
-    return (OpExecNumericalOp(cb, op, instrptr, execstack, funccallstack));
+    return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
 bool8 OpExecDiv(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                 CFunctionCallStack& funccallstack) {
-    return (OpExecNumericalOp(cb, op, instrptr, execstack, funccallstack));
+    return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
 bool8 OpExecMod(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                 CFunctionCallStack& funccallstack) {
-    return (OpExecNumericalOp(cb, op, instrptr, execstack, funccallstack));
+    return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
 // ------------------------------------------------------------------------------------------------
-// -- Function to execute boolean ops
-bool8 OpExecBooleanOp(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
-    int32 int_result = 0x7fffffff;
-    float32 float_result = 1e8f;
-    if(!PerformNumericalBinOp(cb->GetScriptContext(), execstack, funccallstack,
-                              op, int_result, float_result)) {
-        return false;
+// PerformCompareOp():  perform comparisons, returning success and a float result
+// ------------------------------------------------------------------------------------------------
+bool8 PerformCompareOp(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
+                         CFunctionCallStack& funccallstack, float& float_result)
+{
+    if (!PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op))
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        return (false);
     }
-    bool8 boolresult = (float_result != 0.0f);
-    execstack.Push((void*)&boolresult, TYPE_bool);
+
+    // -- pull the result off the stack - it should have a numerical value
+    eVarType resultType;
+    void* resultPtr = execstack.Pop(resultType);
+    float32* convertAddr = (float32*)TypeConvert(resultType, resultPtr, TYPE_float);
+    if (! convertAddr)
+        return (false);
+
+    // -- success
+    float_result = *convertAddr;
     return (true);
 }
 
 bool8 OpExecBooleanAnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
-    return (OpExecBooleanOp(cb, op, instrptr, execstack, funccallstack));
+                      CFunctionCallStack& funccallstack)
+{
+    float32 float_result = 0.0f;
+    if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
+    {
+        return (false);
+    }
+
+    bool8 boolresult = (float_result != 0.0f);
+    execstack.Push((void*)&boolresult, TYPE_bool);
+    DebugTrace(op, "%s", boolresult ? "true" : "false");
+    return (true);
 }
 
 bool8 OpExecBooleanOr(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
-    return (OpExecBooleanOp(cb, op, instrptr, execstack, funccallstack));
+                      CFunctionCallStack& funccallstack)
+{
+    float32 float_result = 0.0f;
+    if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
+    {
+        return (false);
+    }
+
+    bool8 boolresult = (float_result != 0.0f);
+    execstack.Push((void*)&boolresult, TYPE_bool);
+    DebugTrace(op, "%s", boolresult ? "true" : "false");
+    return (true);
 }
 
-// ------------------------------------------------------------------------------------------------
 bool8 OpExecCompareEqual(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                         CFunctionCallStack& funccallstack) {
-    int32 int_result = 0x7fffffff;
-    float32 float_result = 1e8f;
-    if(!PerformNumericalBinOp(cb->GetScriptContext(), execstack, funccallstack,
-                              op, int_result, float_result)) {
-        return false;
+                         CFunctionCallStack& funccallstack)
+{
+    float32 float_result = 0.0f;
+    if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
+    {
+        return (false);
     }
+
     bool8 boolresult = (float_result == 0.0f);
     execstack.Push((void*)&boolresult, TYPE_bool);
     DebugTrace(op, "%s", boolresult ? "true" : "false");
@@ -1372,13 +1157,14 @@ bool8 OpExecCompareEqual(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
 }
 
 bool8 OpExecCompareNotEqual(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                         CFunctionCallStack& funccallstack) {
-    int32 int_result = 0x7fffffff;
-    float32 float_result = 1e8f;
-    if(!PerformNumericalBinOp(cb->GetScriptContext(), execstack, funccallstack,
-                              op, int_result, float_result)) {
-        return false;
+                         CFunctionCallStack& funccallstack)
+{
+    float32 float_result = 0.0f;
+    if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
+    {
+        return (false);
     }
+
     bool8 boolresult = (float_result != 0.0f);
     execstack.Push((void*)&boolresult, TYPE_bool);
     DebugTrace(op, "%s", boolresult ? "true" : "false");
@@ -1386,13 +1172,14 @@ bool8 OpExecCompareNotEqual(CCodeBlock* cb, eOpCode op, const uint32*& instrptr,
 }
 
 bool8 OpExecCompareLess(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                         CFunctionCallStack& funccallstack) {
-    int32 int_result = 0x7fffffff;
-    float32 float_result = 1e8f;
-    if(!PerformNumericalBinOp(cb->GetScriptContext(), execstack, funccallstack,
-                              op, int_result, float_result)) {
-        return false;
+                         CFunctionCallStack& funccallstack)
+{
+    float32 float_result = 0.0f;
+    if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
+    {
+        return (false);
     }
+
     bool8 boolresult = (float_result < 0.0f);
     execstack.Push((void*)&boolresult, TYPE_bool);
     DebugTrace(op, "%s", boolresult ? "true" : "false");
@@ -1400,13 +1187,14 @@ bool8 OpExecCompareLess(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
 }
 
 bool8 OpExecCompareLessEqual(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                             CFunctionCallStack& funccallstack) {
-    int32 int_result = 0x7fffffff;
-    float32 float_result = 1e8f;
-    if(!PerformNumericalBinOp(cb->GetScriptContext(), execstack, funccallstack,
-                              op, int_result, float_result)) {
-        return false;
+                             CFunctionCallStack& funccallstack)
+{
+    float32 float_result = 0.0f;
+    if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
+    {
+        return (false);
     }
+
     bool8 boolresult = (float_result <= 0.0f);
     execstack.Push((void*)&boolresult, TYPE_bool);
     DebugTrace(op, "%s", boolresult ? "true" : "false");
@@ -1414,13 +1202,14 @@ bool8 OpExecCompareLessEqual(CCodeBlock* cb, eOpCode op, const uint32*& instrptr
 }
 
 bool8 OpExecCompareGreater(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                         CFunctionCallStack& funccallstack) {
-    int32 int_result = 0x7fffffff;
-    float32 float_result = 1e8f;
-    if(!PerformNumericalBinOp(cb->GetScriptContext(), execstack, funccallstack,
-                              op, int_result, float_result)) {
-        return false;
+                         CFunctionCallStack& funccallstack)
+{
+    float32 float_result = 0.0f;
+    if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
+    {
+        return (false);
     }
+
     bool8 boolresult = (float_result > 0.0f);
     execstack.Push((void*)&boolresult, TYPE_bool);
     DebugTrace(op, "%s", boolresult ? "true" : "false");
@@ -1428,13 +1217,14 @@ bool8 OpExecCompareGreater(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
 }
 
 bool8 OpExecCompareGreaterEqual(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                             CFunctionCallStack& funccallstack) {
-    int32 int_result = 0x7fffffff;
-    float32 float_result = 1e8f;
-    if(!PerformNumericalBinOp(cb->GetScriptContext(), execstack, funccallstack,
-                              op, int_result, float_result)) {
-        return false;
+                             CFunctionCallStack& funccallstack)
+{
+    float32 float_result = 0.0f;
+    if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
+    {
+        return (false);
     }
+
     bool8 boolresult = (float_result >= 0.0f);
     execstack.Push((void*)&boolresult, TYPE_bool);
     DebugTrace(op, "%s", boolresult ? "true" : "false");
@@ -1442,43 +1232,30 @@ bool8 OpExecCompareGreaterEqual(CCodeBlock* cb, eOpCode op, const uint32*& instr
 }
 
 // ------------------------------------------------------------------------------------------------
-// -- function to execute bitwise ops
-bool8 OpExecBitwiseOp(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
-    int32 result = 0;
-    if(!PerformIntegerBitwiseOp(cb->GetScriptContext(), execstack, funccallstack, op, result)) {
-            ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                "Error - Operation failed: %s\n", GetOperationString(op));
-            return false;
-    }
-    execstack.Push((void*)&result, TYPE_int);
-    DebugTrace(op, "%d", result);
-    return (true);
-}
-
+// -- Bit operations
 bool8 OpExecBitLeftShift(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                       CFunctionCallStack& funccallstack) {
-    return (OpExecBitwiseOp(cb, op, instrptr, execstack, funccallstack));
+    return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
 bool8 OpExecBitRightShift(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                       CFunctionCallStack& funccallstack) {
-    return (OpExecBitwiseOp(cb, op, instrptr, execstack, funccallstack));
+    return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
 bool8 OpExecBitAnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                       CFunctionCallStack& funccallstack) {
-    return (OpExecBitwiseOp(cb, op, instrptr, execstack, funccallstack));
+    return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
 bool8 OpExecBitOr(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                       CFunctionCallStack& funccallstack) {
-    return (OpExecBitwiseOp(cb, op, instrptr, execstack, funccallstack));
+    return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
 bool8 OpExecBitXor(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                       CFunctionCallStack& funccallstack) {
-    return (OpExecBitwiseOp(cb, op, instrptr, execstack, funccallstack));
+    return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1497,14 +1274,20 @@ bool8 OpExecBranchTrue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     // -- top of the stack had better be a bool8
     eVarType valtype;
     void* valueraw = execstack.Pop(valtype);
-    assert(valtype == TYPE_bool);
+    bool8* convertAddr = (bool8*)TypeConvert(valtype, valueraw, TYPE_bool);
+    if (! convertAddr)
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - expecting a bool\n");
+        return (false);
+    }
 
     // -- branch
-    bool8 value = *(bool8*)valueraw;
-    if(value) {
+    if (*convertAddr)
+    {
         instrptr += jumpcount;
     }
-    DebugTrace(op, "%s", value ? "true" : "false");
+    DebugTrace(op, "%s", *convertAddr ? "true" : "false");
 
     return (true);
 }
@@ -1516,14 +1299,20 @@ bool8 OpExecBranchFalse(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     // -- top of the stack had better be a bool8
     eVarType valtype;
     void* valueraw = execstack.Pop(valtype);
-    assert(valtype == TYPE_bool);
+    bool8* convertAddr = (bool8*)TypeConvert(valtype, valueraw, TYPE_bool);
+    if (! convertAddr)
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - expecting a bool\n");
+        return (false);
+    }
 
     // -- branch
-    bool8 value = *(bool8*)valueraw;
-    if(!value) {
+    if (!*convertAddr)
+    {
         instrptr += jumpcount;
     }
-    DebugTrace(op, "%s", !value ? "true" : "false");
+    DebugTrace(op, "%s", !*convertAddr ? "true" : "false");
     return (true);
 }
 
@@ -1759,7 +1548,7 @@ bool8 OpExecFuncReturn(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     DebugTrace(op, "func: %s, val: %s", UnHash(fe->GetHash()),
                DebugPrintVar(stacktopcontent, contenttype));
 
-    // Note:  THIS ACTUALLY BREAKS THE EXECUTION LOOP
+    // -- note:  when this function returns, the VM while loop will exit
     return (true);
 }
 

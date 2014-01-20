@@ -4,7 +4,10 @@ TinScript1.0
 A lightweight scripting language, using a C-lite syntax (no pointers, references, or other
 memory complications), designed to be integrated into a C++ project to facilitate runtime development.
 
-I haven't even begun to document this library, but the fastest way to explore it is:
+I've begun work on documenting TinScript using the wiki provided by GitHub.
+https://github.com/KidneyThief/TinScript1.0/wiki
+
+The fastest way to explore it is:
 
 *  Download the entire depot
 *  Open up the solution:  tinconsole/tinconsole.sln

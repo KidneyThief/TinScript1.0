@@ -103,14 +103,17 @@ struct convert_to_void_ptr<const T*> {
 };
 
 // ------------------------------------------------------------------------------------------------
-// typedefs for integrating the registered types
-
+// -- typedefs for integrating the registered types
+enum eVarType;
 typedef bool8 (*TypeToString)(void* value, char* buf, int32 bufsize);
 typedef bool8 (*StringToType)(void* addr, char* value);
 
+// -- an extra configuration function provided for non-standard types
+// -- (e.g.  vector3f requires more initialization than a bool or float)
+typedef bool8 (*TypeConfiguration)(eVarType, bool);
+
 // ------------------------------------------------------------------------------------------------
 // -- for POD types, we need a hash table to contain the member hash, offset, and type
-enum eVarType;
 struct tPODTypeMember
 {
     tPODTypeMember(eVarType _type, uint32 _offset)
@@ -125,7 +128,8 @@ struct tPODTypeMember
 
 typedef CHashTable<tPODTypeMember> tPODTypeTable;
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
+// -- String conversion prototypes for standard types
 bool8 VoidToString(void* value, char* buf, int32 bufsize);
 bool8 StringToVoid(void* addr, char* value);
 bool8 STEToString(void* value, char* buf, int32 bufsize);
@@ -137,10 +141,28 @@ bool8 StringToBool(void* addr, char* value);
 bool8 FloatToString(void* value, char* buf, int32 bufsize);
 bool8 StringToFloat(void* addr, char* value);
 
-// -- external types
+// --------------------------------------------------------------------------------------------------------------------
+// -- Configuration functions for standard types
+bool8 ObjectConfig(eVarType var_type, bool8 onInit);
+bool8 StringConfig(eVarType var_type, bool8 onInit);
+bool8 FloatConfig(eVarType var_type, bool8 onInit);
+bool8 IntegerConfig(eVarType var_type, bool8 onInit);
+bool8 BoolConfig(eVarType var_type, bool8 onInit);
+
+// -- external type configuration
 bool8 Vector3fToString(void* value, char* buf, int32 bufsize);
 bool8 StringToVector3f(void* addr, char* value);
+bool8 Vector3fConfig(eVarType var_type, bool8 onInit);
 
+// ====================================================================================================================
+// -- operation and conversion type functions
+enum eOpCode;
+typedef bool8 (*TypeOpOverride)(CScriptContext* script_context, eOpCode op, eVarType& result_type, void* result_addr,
+                                eVarType v0_type, void* val0, eVarType val1_type, void* val1);
+
+typedef void* (*TypeConvertFunction)(eVarType from_type, void* from_val, void* to_buffer);
+
+// ------------------------------------------------------------------------------------------------
 // -- for all non-first class types, declare a struct so GetTypeID<type> will be unique
 struct sPODMember {
     typedef uint32 type;
@@ -158,28 +180,33 @@ struct sHashVar {
     typedef uint32 type;
 };
 
-// -- use a tuple to define the token types, and their debug names
-// -- note:  everything from _member and below is essentially a reserved token, and cannot
-// -- be used as an active part of the language.
-// -- Everything from TYPE_type and on is a valid part of the language syntax,
-// -- and the last column mapping requires each "registered type" to be unique.
+// -- use a tuple to define the token types:
+// -- type, byte size, type-to-string, string-to-type, registered C++ equivalent, custom config function
+// -- FIRST_VALID_TYPE is defined to identify the first type valid for use with a registered C++ method
+// -- e.g.  CVector3f GetPosition(uint32 object_id)...  whereas no C++ function can return a  Type__stackvar...
+// -- the custom config function is used to, say, create and register a POD member hashtable
+
+// -- the ORDER in which the types are registered is valid, when looking up operation overrides
+// -- for example if one of the values is a float, and one is an int, the float version of the operation
+// -- will be chosen.  E.g. (3.5f * 10) is 35 using a float op, whereas (3.5f * 10) is 30 in integer math
+
 #define FIRST_VALID_TYPE TYPE_object
 #define VarTypeTuple \
-	VarTypeEntry(NULL,		    0,		VoidToString,		StringToVoid,       NULL,               uint8)          \
-	VarTypeEntry(void,		    0,		VoidToString,		StringToVoid,       NULL,               uint8)	        \
-	VarTypeEntry(_resolve,	    16,		VoidToString,		StringToVoid,       NULL,               uint8)	        \
-	VarTypeEntry(_stackvar,     8,		IntToString,		StringToInt,        NULL,               uint8)	        \
-	VarTypeEntry(_var,          12,		IntToString,		StringToInt,        NULL,               uint8)	        \
-	VarTypeEntry(_member,       8,		IntToString,		StringToInt,        NULL,               sMember)    	\
-	VarTypeEntry(_podmember,    8,		IntToString,		StringToInt,        NULL,               sPODMember)    	\
-	VarTypeEntry(_hashvar,      16,		IntToString,		StringToInt,        NULL,               sHashVar)    	\
-    VarTypeEntry(hashtable,     4,      IntToString,        StringToInt,        NULL,               sHashTable)     \
-	VarTypeEntry(object,        4,		IntToString,		StringToInt,        NULL,               uint32)         \
-    VarTypeEntry(string,        4,      STEToString,        StringToSTE,        NULL,               const char*)    \
-	VarTypeEntry(int,		    4,		IntToString,		StringToInt,        NULL,               int32)		    \
-	VarTypeEntry(bool,		    1,		BoolToString,		StringToBool,       NULL,               bool8)		    \
-	VarTypeEntry(float,		    4,		FloatToString,		StringToFloat,      NULL,               float32)		\
-	VarTypeEntry(vector3f,	   12,		Vector3fToString,   StringToVector3f,   gVector3fTable,     CVector3f)		\
+	VarTypeEntry(NULL,		    0,		VoidToString,		StringToVoid,       uint8,          NULL)               \
+	VarTypeEntry(void,		    0,		VoidToString,		StringToVoid,       uint8,          NULL)   	        \
+	VarTypeEntry(_resolve,	    16,		VoidToString,		StringToVoid,       uint8,          NULL)   	        \
+	VarTypeEntry(_stackvar,     8,		IntToString,		StringToInt,        uint8,          NULL)   	        \
+	VarTypeEntry(_var,          12,		IntToString,		StringToInt,        uint8,          NULL)   	        \
+	VarTypeEntry(_member,       8,		IntToString,		StringToInt,        sMember,        NULL)           	\
+	VarTypeEntry(_podmember,    8,		IntToString,		StringToInt,        sPODMember,     NULL)           	\
+	VarTypeEntry(_hashvar,      16,		IntToString,		StringToInt,        sHashVar,       NULL)           	\
+    VarTypeEntry(hashtable,     4,      IntToString,        StringToInt,        sHashTable,     NULL)               \
+	VarTypeEntry(object,        4,		IntToString,		StringToInt,        uint32,         ObjectConfig)       \
+    VarTypeEntry(string,        4,      STEToString,        StringToSTE,        const char*,    StringConfig)       \
+	VarTypeEntry(float,		    4,		FloatToString,		StringToFloat,      float32,        FloatConfig)        \
+	VarTypeEntry(int,		    4,		IntToString,		StringToInt,        int32,          IntegerConfig)      \
+	VarTypeEntry(bool,		    1,		BoolToString,		StringToBool,       bool8,          BoolConfig)         \
+	VarTypeEntry(vector3f,	   12,		Vector3fToString,   StringToVector3f,   CVector3f,      Vector3fConfig)		\
 
 // -- 4x words actually, 16x bytes, the size of a HashVar
 #define MAX_TYPE_SIZE 4
@@ -193,39 +220,18 @@ enum eVarType {
 };
 
 // ------------------------------------------------------------------------------------------------
-// -- for some reason, typedef'ing natural types (e.g. unsigned int to uint32)
-// -- broke the population of gRegisteredTypeID, which uses GetTypeID();
-/*
-template<>
-uint32 GetTypeID<uint32>() {
-    return TYPE_object;
-}
-
-template<>
-uint32 GetTypeID<const char*>() {
-    return TYPE_string;
-}
-
-template<>
-uint32 GetTypeID<int32>() {
-    return TYPE_int;
-}
-
-template<>
-uint32 GetTypeID<bool8>() {
-    return TYPE_bool;
-}
-
-template<>
-uint32 GetTypeID<float32>() {
-    return TYPE_float;
-}
-*/
-
-// ------------------------------------------------------------------------------------------------
 // interface
 void InitializeTypes();
 void ShutdownTypes();
+
+// -- manual registration of a POD table
+void RegisterPODTypeTable(eVarType var_type, tPODTypeTable* pod_table);
+
+// -- manual registration of an operation override for a registered types
+void RegisterTypeOpOverride(eOpCode op, eVarType var_type, TypeOpOverride op_override);
+
+// -- manual registration of the conversion to a type
+void RegisterTypeConvert(eOpCode op, eVarType var_type, TypeOpOverride op_override);
 
 // ------------------------------------------------------------------------------------------------
 void* TypeConvert(eVarType fromtype, void* fromaddr, eVarType totype);
@@ -253,6 +259,8 @@ eVarType GetRegisteredType(uint32 id);
 
 bool8 GetRegisteredPODMember(eVarType type_id, void* var_addr, uint32 member_hash, eVarType& out_member_type,
                              void*& out_member_addr);
+
+TypeOpOverride GetTypeOpOverride(eOpCode op, eVarType var_type);
 
 bool8 SafeStrcpy(char* dest, const char* src, int32 max);
 int32 Atoi(const char* src, int32 length = -1);

@@ -31,6 +31,7 @@
 #include "mathutil.h"
 
 // -- includes required by any system wanting access to TinScript
+#include "TinHash.h"
 #include "TinScript.h"
 #include "TinRegistration.h"
 
@@ -203,14 +204,248 @@ IMPLEMENT_SCRIPT_CLASS_END()
 
 REGISTER_FUNCTION_P0(UpdateWeaponList, CWeapon::UpdateWeaponList, void);
 
-// ------------------------------------------------------------------------------------------------
-void BeginUnitTests(int32 teststart, int32 testend)
+// --------------------------------------------------------------------------------------------------------------------
+// Unit test structure
+// --------------------------------------------------------------------------------------------------------------------
+class CUnitTest
+{
+    public:
+        CUnitTest(const char* name, const char* description, const char* script_command, const char* script_result,
+                  const char* code_result)
+        {
+            // -- copy the unit test parameters
+            TinScript::SafeStrcpy(mName, name, TinScript::kMaxTokenLength);
+            TinScript::SafeStrcpy(mDescription, description, TinScript::kMaxTokenLength);
+            TinScript::SafeStrcpy(mScriptCommand, script_command, TinScript::kMaxTokenLength);
+            TinScript::SafeStrcpy(mScriptResult, script_result, TinScript::kMaxTokenLength);
+            TinScript::SafeStrcpy(mCodeResult, code_result, TinScript::kMaxTokenLength);
+        }
+
+        // -- members
+        char mName[kMaxArgLength];
+        char mDescription[kMaxArgLength];
+        char mScriptCommand[kMaxArgLength];
+        char mScriptResult[kMaxArgLength];
+        char mCodeResult[kMaxArgLength];
+
+        static const char* gScriptResult;
+        static const char* gCodeResult;
+
+        static TinScript::CHashTable<CUnitTest>* gUnitTests;
+};
+
+// --------------------------------------------------------------------------------------------------------------------
+// declare static members of CUnitTest, including registrations
+TinScript::CHashTable<CUnitTest>* CUnitTest::gUnitTests = NULL;
+const char* CUnitTest::gScriptResult = "";
+const char* CUnitTest::gCodeResult = "";
+
+REGISTER_GLOBAL_VAR(gUnitTestScriptResult, CUnitTest::gScriptResult);
+
+bool8 AddUnitTest(const char* name, const char* description, const char* script_command, const char* script_result,
+                 const char* code_result)
+{
+    // -- unit tests are run on the main thread
+    TinScript::CScriptContext* script_context = TinScript::CScriptContext::GetMainThreadContext();
+
+    // -- sanity check
+    if (!script_context || !CUnitTest::gUnitTests)
+        return (false);
+
+    // -- validate the input
+    bool8 valid = name && strlen(name) < kMaxArgLength;
+    valid = valid && description && strlen(description) < kMaxArgLength;
+    valid = valid && script_command && strlen(script_command) < kMaxArgLength;
+    valid = valid && script_result && strlen(script_result) < kMaxArgLength;
+    valid = valid && code_result && strlen(code_result) < kMaxArgLength;
+
+    // -- hash the name, and ensure a unit test with that name hasn't already been created
+    uint32 hash = TinScript::Hash(name);
+    valid = valid && hash != 0 && CUnitTest::gUnitTests->FindItem(hash) == NULL;
+
+    ScriptAssert_(script_context, valid, "<internal>", -1,
+                  "Error - Invalid unit test: %s\n", name ? name : "<unnamed>");
+    if (!valid)
+        return (false);
+
+    // -- create and add the test to the hash table
+    CUnitTest* new_test = TinAlloc(ALLOC_Debugger, CUnitTest, name, description, script_command, script_result,
+                                   code_result);
+    CUnitTest::gUnitTests->AddItem(*new_test, hash);
+
+    // -- success
+    return (true);
+}
+
+void ClearResults()
+{
+    // -- unit tests are run on the main thread
+    TinScript::CScriptContext* script_context = TinScript::CScriptContext::GetMainThreadContext();
+
+    // -- sanity check
+    if (!script_context || !CUnitTest::gUnitTests)
+        return;
+
+    // -- keep the string table clean
+    // $$$TZA Replace this with an actual string class that supports const char* conversions, but
+    // -- ensures the value is *always* stored in the string table
+    TinScript::SetGlobalVar(script_context, "gUnitTestScriptResult", "");
+
+    //script_context->GetStringTable()->RefCountDecrement(TinScript::Hash(CUnitTest::gScriptResult));
+    script_context->GetStringTable()->RefCountDecrement(TinScript::Hash(CUnitTest::gCodeResult));
+    //CUnitTest::gScriptResult = "";
+    CUnitTest::gCodeResult = "";
+}
+
+uint32 PerformUnitTests(bool8 results_only, const char* specific_test)
+{
+    // -- unit tests are run on the main thread
+    TinScript::CScriptContext* script_context = TinScript::CScriptContext::GetMainThreadContext();
+
+    // -- sanity check
+    if (!script_context || !CUnitTest::gUnitTests)
+        return (0);
+
+    // -- get the hash value, if we're using a specific test
+    uint32 specific_test_hash = TinScript::Hash(specific_test);
+
+    // -- loop through and perform the unit tests
+    uint32 error_test_hash = 0;
+    uint32 current_test_hash = 0;
+    const CUnitTest* current_test = CUnitTest::gUnitTests->First(&current_test_hash);
+    while (current_test)
+    {
+        // -- if we're performing a specific test, ensure this is the correct one
+        if (specific_test_hash != 0 && current_test_hash != specific_test_hash)
+        {
+            // -- next test
+            current_test = CUnitTest::gUnitTests->Next(&current_test_hash);
+            continue;
+        }
+
+        // -- clear the script and code results
+        ClearResults();
+
+        // -- Print the name and description
+        results_only ? 0 : MTPrint("\nUnit test: %s\nDesc: %s\nScript result: %s\nCode result: %s\n",
+                                   current_test->mName, current_test->mDescription,
+                                   current_test->mScriptResult[0] ? current_test->mScriptResult : "\"\"",
+                                   current_test->mCodeResult[0] ? current_test->mCodeResult : "\"\"");
+
+        // -- Execute the command
+        script_context->ExecCommand(current_test->mScriptCommand);
+
+        // -- compare the results
+        bool8 current_result = true;
+        if (strcmp(CUnitTest::gScriptResult, current_test->mScriptResult) != 0)
+        {
+            ScriptAssert_(script_context, false, "<unit test>", -1,
+                          "Error() - Unit test '%s' failed the script result\n", current_test->mName);
+            current_result = false;
+        }
+        if (strcmp(CUnitTest::gCodeResult, current_test->mCodeResult) != 0)
+        {
+            ScriptAssert_(script_context, false, "<unit test>", -1,
+                          "Error() - Unit test '%s' failed the code result\n", current_test->mName);
+            current_result = false;
+        }
+
+        // -- handle the result of this test
+        if (!current_result)
+        {
+            // -- store the hash
+            if (error_test_hash == 0)
+                error_test_hash = current_test_hash;
+        }
+        else
+        {
+            results_only ? 0 : MTPrint("*** Passed\n");
+        }
+
+        // -- next test
+        current_test = CUnitTest::gUnitTests->Next(&current_test_hash);
+    }
+
+    // -- results
+    return (error_test_hash);
+}
+
+bool8 CreateUnitTests()
+{
+    // -- initialize the result
+    bool8 success = true;
+
+    // -- ensure our unit test dictionary exits
+    if (! CUnitTest::gUnitTests)
+    {
+        CUnitTest::gUnitTests = TinAlloc(ALLOC_Debugger, TinScript::CHashTable<CUnitTest>, kGlobalFuncTableSize);
+
+        success = success && AddUnitTest("Parenthesis", "Expr: (((3 + 4) * 17) - (3 + 6)) % (42 / 3)", "TestParenthesis();",
+                                         "12.6667", "");
+
+        // -- float unit tests
+        success = success && AddUnitTest("float_add", "3.0f + 4.0f", "gUnitTestScriptResult = StringCat(3.0f + 4.0f);",
+                                         "7.0000", "");
+        success = success && AddUnitTest("float_sub", "3.0f - 4.0f", "gUnitTestScriptResult = StringCat(3.0f - 4.0f);",
+                                         "-1.0000", "");
+        success = success && AddUnitTest("float_mult", "-3.0f * 4.0f", "gUnitTestScriptResult = StringCat(-3.0f * 4.0f);",
+                                         "-12.0000", "");
+        success = success && AddUnitTest("float_div", "3.0f / 4.0f", "gUnitTestScriptResult = StringCat(3.0f / 4.0f);",
+                                         "0.7500", "");
+        success = success && AddUnitTest("float_mod", "13.5f % 4.1f", "gUnitTestScriptResult = StringCat(13.5f % 4.1f);",
+                                         "1.2000", "");
+
+    }
+
+    // -- return success
+    return (success);
+}
+
+void BeginUnitTests(bool8 results_only = false, const char* specific_test = NULL)
+{
+    // -- first create the unit tests
+    if (!CreateUnitTests())
+        return;
+
+        // -- unit tests are run on the main thread
+    TinScript::CScriptContext* script_context = TinScript::CScriptContext::GetMainThreadContext();
+
+    // -- sanity check
+    if (!script_context || !CUnitTest::gUnitTests)
+        return;
+
+    // -- Execute the unit test script
+    results_only ? 0 : MTPrint("\n*** TinScript Unit Tests ***\n");
+
+    results_only ? 0 : MTPrint("\nExecuting unittest.ts\n");
+	if (!script_context->ExecScript(kUnitTestScriptName))
+    {
+		MTPrint("Error - unable to parse file: %s\n", kUnitTestScriptName);
+		return;
+	}
+
+    // -- execute
+    uint32 fail_test_hash = PerformUnitTests(results_only, specific_test);
+
+    // -- display the results
+    MTPrint("\n*** End Unit Tests ***\n");
+    if (fail_test_hash == 0)
+    {
+		MTPrint("Unit tests completed successfully\n");
+    }
+    else
+    {
+        const CUnitTest* current_test = CUnitTest::gUnitTests->FindItem(fail_test_hash);
+		MTPrint("Unit test failed: %s\n", current_test && current_test->mName ? current_test->mName : "<unnamed>");
+    }
+}
+
+/*
+void BeginUnitTests(const char* specific_test_name = NULL)
 {
     // -- initialize if we have no test range
-    if(teststart == 0 && testend == 0) {
-        teststart = 0;
+    if (testend == 0)
         testend = 9999;
-    }
 
     // -- unit tests are run on the main thread
     TinScript::CScriptContext* script_context = TinScript::CScriptContext::GetMainThreadContext();
@@ -536,8 +771,9 @@ void BeginUnitTests(int32 teststart, int32 testend)
     MTPrint("*** Unit Tests Complete ****\n");
     MTPrint("****************************\n");
 }
+*/
 
-REGISTER_FUNCTION_P2(BeginUnitTests, BeginUnitTests, void, int32, int32);
+REGISTER_FUNCTION_P2(BeginUnitTests, BeginUnitTests, void, bool8, const char*);
 
 // ------------------------------------------------------------------------------------------------
 // eof

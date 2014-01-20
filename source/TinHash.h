@@ -238,7 +238,7 @@ class CHashTable {
         {
             // -- return the hash value, if requested
             if (out_hash)
-                *out_hash = head->hash;
+                *out_hash = iter->hash;
             return (iter->item);
         }
         else

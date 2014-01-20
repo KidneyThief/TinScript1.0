@@ -69,6 +69,34 @@ bool8 GetGlobalVar(CScriptContext* script_context, const char* varname, T& value
 }
 
 // ------------------------------------------------------------------------------------------------
+// -- SetGlobalVar function to access scripted globals, ensuring type validation
+// -- and specifically keeping the string table clean
+template <typename T>
+bool8 SetGlobalVar(CScriptContext* script_context, const char* varname, T value) {
+    // -- sanity check
+    if(!script_context->GetGlobalNamespace() || !varname ||!varname[0])
+        return false;
+
+    CVariableEntry*
+        ve = script_context->GetGlobalNamespace()->GetVarTable()->FindItem(Hash(varname));
+    if(!ve)
+        return false;
+
+    // -- see if we can recognize an appropriate type
+    eVarType input_type = GetRegisteredType(GetTypeID<T>());
+    if(input_type == TYPE_NULL)
+        return false;
+
+    void* convertvalue = TypeConvert(ve->GetType(), convert_to_void_ptr<T>::Convert(value), input_type);
+    if(!convertvalue)
+        return false;
+
+    // -- set the value
+    ve->SetValueAddr(NULL, convertvalue);
+    return true;
+}
+
+// ------------------------------------------------------------------------------------------------
 // -- ObjExecF
 template <typename T>
 bool8 ObjExecF(CScriptContext* script_context, void* objaddr, T& returnval,
