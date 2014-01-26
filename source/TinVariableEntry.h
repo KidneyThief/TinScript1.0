@@ -135,6 +135,19 @@ public:
     // -- this is used to pass return values from scheduled functions
     void ResolveValueType(eVarType new_type, void* value);
 
+    // -- if true, and this is the parameter of a registered function,
+    // -- then instead of passing a uint32 to code, we'll
+    // -- look up the object, verify it exists, verify it's namespace type matches
+    // -- and convert to a pointer directly
+    void SetDispatchConvertFromObject(uint32 convert_to_type_id)
+    {
+        mDispatchConvertFromObject = convert_to_type_id;
+    }
+    uint32 GetDispatchConvertFromObject()
+    {
+        return (mDispatchConvertFromObject);
+    }
+
 private:
 
     CScriptContext* mContextOwner;
@@ -148,8 +161,62 @@ private:
     bool8 mIsDynamic;
     bool8 mScriptVar;
     mutable uint32 mStringValueHash;
+    uint32 mDispatchConvertFromObject;
     CFunctionEntry* mFuncEntry;
 };
+
+// ------------------------------------------------------------------------------------------------
+// A special case, where a registered parameter is an actual class pointer, not a uint32
+// -- we'll look up the object, and if it exists, ensure it's namespace hierarchy
+// -- contains the pointer type we're converting to... then we'll do the conversion
+template <typename T>
+T ConvertVariableForDispatch(CVariableEntry* ve)
+{
+    T return_value;
+    uint32 conversion_type_id = ve->GetDispatchConvertFromObject();
+    if (conversion_type_id != 0)
+    {
+        uint32 obj_id = convert_from_void_ptr<uint32>::Convert(ve->GetValueAddr(NULL));
+        CObjectEntry* oe = GetContext()->FindObjectEntry(obj_id);
+        if (oe)
+        {
+            // -- validate that the object is actually derived from the parameter expected
+            bool ns_type_found = false;
+            CNamespace* ns_entry = oe->GetNamespace();
+            while (ns_entry)
+            {
+                if (ns_entry->GetTypeID() == conversion_type_id)
+                {
+                    ns_type_found = true;
+                    break;
+                }
+                else
+                {
+                    ns_entry = ns_entry->GetNext();
+                }
+            }
+
+            if (!ns_type_found)
+            {
+                ScriptAssert_(::TinScript::GetContext(), false, "<internal>", -1,
+                              "Error - object %d cannot be passed - invalid type\n", oe->GetID());
+            }
+
+            return_value = convert_from_void_ptr<T>::Convert(oe->GetAddr());
+            return (return_value);
+        }
+
+        // -- invalid or not found - return NULL
+        return_value = convert_from_void_ptr<T>::Convert((void*)NULL);
+    }
+    else
+    {
+        return_value = convert_from_void_ptr<T>::Convert(ve->GetValueAddr(NULL));
+    }
+
+    // -- return the value
+    return (return_value);
+}
 
 } // TinScript
 

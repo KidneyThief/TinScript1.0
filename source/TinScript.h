@@ -48,7 +48,6 @@
 
 // ------------------------------------------------------------------------------------------------
 // Registration macros
-// $$$TZA FindIDByAddress currently assumes the MainThreadContext... need to ... figure this out
 #define DECLARE_SCRIPT_CLASS(classname, parentclass)                                              \
     static const char* GetParentName() { return #parentclass; }                                   \
     static const char* GetClassName() { return #classname; }                                      \
@@ -66,7 +65,7 @@
     static void Register(::TinScript::CScriptContext* script_context, ::TinScript::CNamespace* _classnamespace);    \
 
 #define IMPLEMENT_SCRIPT_CLASS_BEGIN(classname, parentname)                                             \
-    ::TinScript::CNamespaceReg reg_##classname(#classname, #parentname, (void*)classname::Create,       \
+    ::TinScript::CNamespaceReg reg_##classname(#classname, #parentname, ::TinScript::GetTypeID<classname*>(), (void*)classname::Create,       \
                                              (void*)classname::Destroy, (void*)classname::Register);    \
     IMPLEMENT_DEFAULT_METHODS(classname);                                                               \
     void classname::Register(::TinScript::CScriptContext* script_context, ::TinScript::CNamespace* classnamespace)  \
@@ -102,8 +101,6 @@
 
 // ------------------------------------------------------------------------------------------------
 // constants
-
-#define kMainThreadName "MainThread"
 
 const int32 kCompilerVersion = 1;
 
@@ -190,28 +187,20 @@ class CScriptContext {
 
     public:
         // -- static constructor/destructor, to create without having to directly use allocators
-        static CScriptContext* Create(const char* thread_name = NULL,
-                                      TinPrintHandler printhandler = NULL,
-                                      TinAssertHandler asserthandler = NULL);
-        static void Destroy(CScriptContext* script_context);
-        static CScriptContext* FindThreadContext(const char* thread_name);
-        static CScriptContext* GetMainThreadContext();
+        static CScriptContext* Create(TinPrintHandler printhandler = NULL, TinAssertHandler asserthandler = NULL,
+                                      bool is_main_thread = true);
+        static void Destroy();
 
-        CScriptContext(const char* thread_name = NULL, TinPrintHandler printhandler = NULL,
-                       TinAssertHandler asserthandler = NULL);
         void InitializeDictionaries();
 
-        virtual ~CScriptContext();
         void ShutdownDictionaries();
 
         void Update(uint32 curtime);
 
-        void RegisterContextFunctions();
-
-        static CCodeBlock* CompileScript(CScriptContext* script_context, const char* filename);
+        CCodeBlock* CompileScript(const char* filename);
         bool8 ExecScript(const char* filename);
 
-        CCodeBlock* CompileCommand(const char* filename);
+        CCodeBlock* CompileCommand(const char* statement);
         bool8 ExecCommand(const char* statement);
 
         TinPrintHandler GetPrintHandler() { return (mTinPrintHandler); }
@@ -263,7 +252,7 @@ class CScriptContext {
         void LinkNamespaces(const char* parentnsname, const char* childnsname);
         void LinkNamespaces(CNamespace* parentns, CNamespace* childns);
 
-        static uint32 GetNextObjectID();
+        uint32 GetNextObjectID();
         uint32 CreateObject(uint32 classhash, uint32 objnamehash);
         uint32 RegisterObject(void* objaddr, const char* classname, const char* objectname);
         void DestroyObject(uint32 objectid);
@@ -286,10 +275,6 @@ class CScriptContext {
         void PrintObject(CObjectEntry* oe, int32 indent = 0);
         void ListObjects();
 
-        static CHashTable<CScriptContext>* GetScriptContextList() {
-            return (gScriptContextList);
-        }
-
         // -- debugger interface
         typedef bool8 (*DebuggerBreakpointHit)(uint32 codeblock_hash, int32& line_number);
         typedef void (*DebuggerCallstackFunc)(uint32* codeblock_array, uint32* objid_array,
@@ -310,28 +295,32 @@ class CScriptContext {
         void NotifyCodeblockLoaded(uint32 codeblock_hash);
         void NotifyWatchVarEntry(CDebuggerWatchVarEntry* watch_var_entry);
 
-        static void RegisterDebugger(const char* thread_name,
-                                     DebuggerBreakpointHit breakpoint_func = NULL,
+        static void RegisterDebugger(DebuggerBreakpointHit breakpoint_func = NULL,
                                      DebuggerCallstackFunc callstack_func = NULL,
                                      CodeblockLoadedFunc codeblock_func = NULL,
                                      DebuggerWatchVarFunc watch_var_func = NULL);
 
-        static int32 AddBreakpoint(const char* thread_name, const char* filename,
-                                   int32 line_number);
-        static int32 RemoveBreakpoint(const char* thread_name, const char* filename,
-                                      int32 line_number);
-        static void RemoveAllBreakpoints(const char* thread_name, const char* filename);
+        static int32 AddBreakpoint(const char* filename, int32 line_number);
+        static int32 RemoveBreakpoint(const char* filename, int32 line_number);
+        static void RemoveAllBreakpoints(const char* filename);
 
         // -- set the bool to indicate we're not stepping through each line in a debugger
         bool8 mDebuggerBreakStep;
         int32 mDebuggerLastBreak;
 
     private:
-        static CScriptContext* gMainThreadContext;
-        static CHashTable<CScriptContext>* gScriptContextList;
+        // -- use the static Create() method
+        CScriptContext(TinPrintHandler printhandler = NULL, TinAssertHandler asserthandler = NULL,
+                       bool is_main_thread = true);
 
-        // -- hash so we can find this context by name
-        uint32 mHash;
+        // -- use the static Destroy() method
+        // -- not virtual - this is a final class
+        ~CScriptContext();
+
+        // -- in case we need to differentiate - likely only the main thread
+        // -- will be permitted to write out the string dictionary
+        bool mIsMainThread;
+        uint32 mObjectIDGenerator;
 
         // -- assert/print handlers
         TinPrintHandler mTinPrintHandler;

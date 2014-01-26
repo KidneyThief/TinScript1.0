@@ -1039,6 +1039,21 @@ int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
     if(!countonly) {
         // -- fill in the missing offset
         uint32 offset = codeblock->CalcOffset(instrptr);
+
+        // -- note, there's a possibility we're stomping a registered code function here
+        if (fe->GetType() != eFuncTypeScript)
+        {
+            ScriptAssert_(codeblock->GetScriptContext(), false, codeblock->GetFileName(), linenumber,
+                          "Error - there is already a code dregistered function %s()\n"
+                          "Removing %s() - re-Exec() to redefine\n", fe->GetName(), fe->GetName());
+
+            // -- delete the function entirely - re-executing the script will redefine
+            // -- it with the (presumably) updated signature
+            functable->RemoveItem(funchash);
+            TinFree(fe);
+
+            return (-1);
+        }
         fe->SetCodeBlockOffset(codeblock, offset);
         *funcoffset = offset;
     }

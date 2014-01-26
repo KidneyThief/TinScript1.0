@@ -100,8 +100,6 @@ void RefreshConsoleInput(const char* new_input_string = NULL)
     printf(gConsoleInputBuf);
 }
 
-TinScript::CScriptContext* gScriptContext = NULL;
-
 // -- returns false if we should break
 bool8 AssertHandler(TinScript::CScriptContext* script_context, const char* condition,
                     const char* file, int32 linenumber, const char* fmt, ...) {
@@ -153,7 +151,7 @@ bool8 AssertHandler(TinScript::CScriptContext* script_context, const char* condi
 int32 _tmain(int32 argc, _TCHAR* argv[])
 {
     // -- initialize
-    gScriptContext = TinScript::CScriptContext::Create(NULL, printf, AssertHandler);
+    TinScript::CreateContext(printf, AssertHandler, true);
 
     // -- required to ensure registered functions from unittest.cpp are linked.
     REGISTER_FILE(unittest_cpp);
@@ -202,7 +200,7 @@ int32 _tmain(int32 argc, _TCHAR* argv[])
 	}
 
 	// -- parse the file
-	if (infilename && infilename[0] && !gScriptContext->ExecScript(infilename))
+	if (infilename && infilename[0] && !TinScript::ExecScript(infilename))
     {
 		printf("Error - unable to parse file: %s\n", infilename);
 		return 1;
@@ -228,7 +226,7 @@ int32 _tmain(int32 argc, _TCHAR* argv[])
         }
 
         // -- keep the system running...
-        gScriptContext->Update(gCurrentTime);
+        TinScript::UpdateContext(gCurrentTime);
         
         // -- see if we hit a key
         if (_kbhit()) {
@@ -327,7 +325,7 @@ int32 _tmain(int32 argc, _TCHAR* argv[])
                 historyindex = -1;
 
                 // -- execute the contents of the input buffer
-                gScriptContext->ExecCommand(gConsoleInputBuf);
+                TinScript::ExecCommand(gConsoleInputBuf);
 
                 // -- clear the input, and set the input ptr
                 RefreshConsoleInput("");
@@ -346,7 +344,7 @@ int32 _tmain(int32 argc, _TCHAR* argv[])
         }
     }
 
-    TinScript::CScriptContext::Destroy(gScriptContext);
+    TinScript::DestroyContext();
 
 	return 0;
 }

@@ -39,7 +39,7 @@ const int32 kMaxTypeSize = 16;
 
 template <typename T>
 uint32 GetTypeID() {
-    static T t;
+    static T* t = NULL;
     void* ptr = (void*)&t;
     return kPointerToUInt32(ptr);
 }
@@ -160,7 +160,8 @@ enum eOpCode;
 typedef bool8 (*TypeOpOverride)(CScriptContext* script_context, eOpCode op, eVarType& result_type, void* result_addr,
                                 eVarType v0_type, void* val0, eVarType val1_type, void* val1);
 
-typedef void* (*TypeConvertFunction)(eVarType from_type, void* from_val, void* to_buffer);
+typedef void* (*TypeConvertFunction)(CScriptContext* script_context, eVarType from_type, void* from_val,
+                                     void* to_buffer);
 
 // ------------------------------------------------------------------------------------------------
 // -- for all non-first class types, declare a struct so GetTypeID<type> will be unique
@@ -231,10 +232,10 @@ void RegisterPODTypeTable(eVarType var_type, tPODTypeTable* pod_table);
 void RegisterTypeOpOverride(eOpCode op, eVarType var_type, TypeOpOverride op_override);
 
 // -- manual registration of the conversion to a type
-void RegisterTypeConvert(eOpCode op, eVarType var_type, TypeOpOverride op_override);
+void RegisterTypeConvert(eVarType to_type, eVarType from_type, TypeConvertFunction type_convert);
 
 // ------------------------------------------------------------------------------------------------
-void* TypeConvert(eVarType fromtype, void* fromaddr, eVarType totype);
+void* TypeConvert(CScriptContext* script_context, eVarType fromtype, void* fromaddr, eVarType totype);
 const char* DebugPrintVar(void* addr, eVarType vartype);
 
 // ------------------------------------------------------------------------------------------------
@@ -264,6 +265,11 @@ TypeOpOverride GetTypeOpOverride(eOpCode op, eVarType var_type);
 
 bool8 SafeStrcpy(char* dest, const char* src, int32 max);
 int32 Atoi(const char* src, int32 length = -1);
+
+// ------------------------------------------------------------------------------------------------
+// -- any registered type that implements a conver to bool can use this method to perform BooleanAnd and BooleanOr
+bool8 BooleanBinaryOp(CScriptContext* script_context, eOpCode op, eVarType& result_type, void* result_addr,
+                      eVarType val0_type, void* val0, eVarType val1_type, void* val1);
 
 // ------------------------------------------------------------------------------------------------
 // externs

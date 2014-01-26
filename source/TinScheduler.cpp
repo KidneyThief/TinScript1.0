@@ -74,7 +74,7 @@ void CScheduler::Update(uint32 curtime) {
         else {
             if(curcommand->mObjectID > 0) {
                 int32 dummy = 0;
-                ObjExecF(GetScriptContext(), curcommand->mObjectID, dummy, curcommand->mCommandBuf);
+                ObjExecF(curcommand->mObjectID, dummy, curcommand->mCommandBuf);
             }
             else {
                 // $$$TZA is there anything we can do with the result?

@@ -252,8 +252,8 @@ const char* StringCat(const char* str0, const char* str1, const char* str2, cons
         sprintf_s(buf, "%s%s%s%s%s%s%s%s", str0, str1, str2, str3, str4, str5, str6, str7);
 
     // -- add the result to the string table
-    TinScript::CScriptContext* main_thread = ::TinScript::CScriptContext::GetMainThreadContext();
-    const char* result = main_thread->GetStringTable()->AddString(buf);
+    TinScript::CScriptContext* script_context = ::TinScript::GetContext();
+    const char* result = script_context->GetStringTable()->AddString(buf);
 
     // -- return the result
     return (result);
@@ -272,10 +272,10 @@ const char* Print(const char* str0, const char* str1, const char* str2, const ch
     if (!str_concat)
         return ("");
 
-    TinScript::CScriptContext* main_thread = ::TinScript::CScriptContext::GetMainThreadContext();
+    TinScript::CScriptContext* script_context = ::TinScript::GetContext();
 
     // -- automatically add a '\n'
-    TinPrint(main_thread, "%s\n", str_concat);
+    TinPrint(script_context, "%s\n", str_concat);
 
     // -- return the concatenated string
     return (str_concat);

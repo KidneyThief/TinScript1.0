@@ -44,6 +44,7 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
     mScriptVar = false;
     mStringValueHash = 0;
     mStackOffset = -1;
+    mDispatchConvertFromObject = 0;
     mFuncEntry = NULL;
 }
 
@@ -58,6 +59,7 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
     mScriptVar = false;
     mStringValueHash = 0;
     mStackOffset = -1;
+    mDispatchConvertFromObject = 0;
     mFuncEntry = NULL;
 
     // -- hashtables are tables of variable entries...
@@ -218,7 +220,7 @@ CFunctionContext::~CFunctionContext() {
 }
 
 bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type,
-                                    int32 paramindex) {
+                                    int32 paramindex, uint32 actual_type_id) {
     assert(varname != NULL);
 
     // add the entry to the parameter list as well
@@ -239,6 +241,14 @@ bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarTy
         return false;
     }
 
+    // -- parameters that are registered as TYPE_object, but are actually
+    // -- pointers to registered classes, can be automatically
+    // -- converted
+    if (type == TYPE_object && actual_type_id != 0 && actual_type_id != GetTypeID<uint32>())
+    {
+        ve->SetDispatchConvertFromObject(actual_type_id);
+    }
+
     // -- bump the count if we need to
     if(paramindex >= paramcount)
         paramcount = paramindex + 1;
@@ -247,11 +257,11 @@ bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarTy
     return true;
 }
 
-bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type) {
+bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type, uint32 actual_type_id) {
     assert(varname != NULL);
 
     // -- adding automatically increments the paramcount if needed
-    AddParameter(varname, varhash, type, paramcount);
+    AddParameter(varname, varhash, type, paramcount, actual_type_id);
     return true;
 }
 
@@ -386,9 +396,8 @@ void* CFunctionEntry::GetAddr() const {
 	return mAddr;
 }
 
-void CFunctionEntry::SetCodeBlockOffset(CCodeBlock* _codeblock, uint32 _offset) {
-    assert(mType == eFuncTypeScript);
-
+void CFunctionEntry::SetCodeBlockOffset(CCodeBlock* _codeblock, uint32 _offset)
+{
     // -- if we're switching codeblocks (recompiling...) change owners
     if(mCodeblock && mCodeblock != _codeblock) {
         mCodeblock->RemoveFunction(this);

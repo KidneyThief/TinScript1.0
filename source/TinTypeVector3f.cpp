@@ -86,8 +86,8 @@ bool8 Vector3fOpOverrides(CScriptContext* script_context, eOpCode op, eVarType& 
         return (false);
 
     // -- ensure the types are converted to vector3f
-    void* val0addr = TypeConvert(val0_type, val0, TYPE_vector3f);
-    void* val1addr = TypeConvert(val1_type, val1, TYPE_vector3f);
+    void* val0addr = TypeConvert(script_context, val0_type, val0, TYPE_vector3f);
+    void* val1addr = TypeConvert(script_context, val1_type, val1, TYPE_vector3f);
     if (!val0addr || !val1addr)
         return (false);
 
@@ -133,12 +133,12 @@ bool8 Vector3fScale(CScriptContext* script_context, eOpCode op, eVarType& result
         return (false);
 
     // -- division is a scalar, but the order is relevent
-    CVector3f* v = (CVector3f*)TypeConvert(val0_type, val0, TYPE_vector3f);
-    float32* scalar = (float32*)TypeConvert(val1_type, val1, TYPE_float);
+    CVector3f* v = (CVector3f*)TypeConvert(script_context, val0_type, val0, TYPE_vector3f);
+    float32* scalar = (float32*)TypeConvert(script_context, val1_type, val1, TYPE_float);
     if (!v && op != OP_Div)
     {
-        v = (CVector3f*)TypeConvert(val1_type, val1, TYPE_vector3f);
-        scalar = (float32*)TypeConvert(val0_type, val0, TYPE_float);
+        v = (CVector3f*)TypeConvert(script_context, val1_type, val1, TYPE_vector3f);
+        scalar = (float32*)TypeConvert(script_context, val0_type, val0, TYPE_float);
     }
 
     // -- ensure we found valid types
@@ -163,6 +163,26 @@ bool8 Vector3fScale(CScriptContext* script_context, eOpCode op, eVarType& result
 
     // -- fail
     return (false);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// -- Type conversion functions
+void* Vector3fToBoolConvert(CScriptContext* script_context, eVarType from_type, void* from_val, void* to_buffer)
+{
+    // -- sanity check
+    if (!from_val || !to_buffer)
+        return (NULL);
+
+    // -- only one conversion viable here - a non-zero vector3f is true, false otherwise
+    if (from_type == TYPE_vector3f)
+    {
+        CVector3f* v3 = (CVector3f*)from_val;
+        *(bool*)to_buffer = (*v3 == CVector3f::zero) ? 0 : 1;
+        return (void*)(to_buffer);
+    }
+
+    // -- no registered conversion
+    return (NULL);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -194,9 +214,16 @@ bool8 Vector3fConfig(eVarType var_type, bool8 onInit)
         RegisterTypeOpOverride(OP_CompareEqual, TYPE_vector3f, Vector3fOpOverrides);
         RegisterTypeOpOverride(OP_CompareNotEqual, TYPE_vector3f, Vector3fOpOverrides);
 
+        // -- boolean operations - let type bool handle them
+        RegisterTypeOpOverride(OP_BooleanAnd, TYPE_vector3f, BooleanBinaryOp);
+        RegisterTypeOpOverride(OP_BooleanOr, TYPE_vector3f, BooleanBinaryOp);
+
         // -- scalar operations use both a vector3f and a float
         RegisterTypeOpOverride(OP_Mult, TYPE_vector3f, Vector3fScale);
         RegisterTypeOpOverride(OP_Div, TYPE_vector3f, Vector3fScale);
+
+        // -- register the conversion from Vector3f to bool - note the first arg is Type_bool
+        RegisterTypeConvert(TYPE_bool, TYPE_vector3f, Vector3fToBoolConvert);
     }
 
     // -- shutdown

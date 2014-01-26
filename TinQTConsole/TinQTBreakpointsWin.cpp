@@ -143,7 +143,7 @@ void CDebugBreakpointsWin::NotifyCodeblockLoaded(uint32 codeblock_hash) {
 
             // -- notify the script context to add a breakpoint (and adjust the line number if needed)
             if(breakpoint_enabled) {
-                actual_line = GetScriptContext()->AddBreakpoint("", filename, breakpoint->mLineNumber);
+                actual_line = TinScript::GetContext()->AddBreakpoint(filename, breakpoint->mLineNumber);
                 if(actual_line < 0)
                     actual_line = breakpoint->mLineNumber;
             }

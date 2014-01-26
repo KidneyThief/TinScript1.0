@@ -166,7 +166,7 @@ void CObjectSet::AddObject(uint32 objectid) {
         // -- automatically call "OnAdd" for the group
         if(GetScriptContext()->HasMethod(this, "OnAdd")) {
             int32 dummy = 0;
-            ObjExecF(GetScriptContext(), this, dummy, "OnAdd(%d);", objectid);
+            ObjExecF(this, dummy, "OnAdd(%d);", objectid);
         }
     }
 }
@@ -189,7 +189,7 @@ void CObjectSet::RemoveObject(uint32 objectid) {
         // -- automatically call "OnAdd" for the group
         if(GetScriptContext()->HasMethod(this, "OnRemove")) {
             int32 dummy = 0;
-            ObjExecF(GetScriptContext(), this, dummy, "OnRemove(%d);", objectid);
+            ObjExecF(this, dummy, "OnRemove(%d);", objectid);
         }
     }
 }
@@ -205,7 +205,7 @@ void CObjectSet::ListObjects(int32 indent) {
         // -- if the object is an ObjectSet, list it's objects
         if(GetScriptContext()->HasMethod(oe->GetID(), "ListObjects")) {
             int32 dummy = 0;
-            ObjExecF(GetScriptContext(), oe->GetID(), dummy, "ListObjects(%d);", indent + 1);
+            ObjExecF(oe->GetID(), dummy, "ListObjects(%d);", indent + 1);
         }
 
         // -- next object

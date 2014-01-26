@@ -56,11 +56,6 @@
 #undef TinPrint
 #define TinPrint Print
 
-static TinScript::CScriptContext* gScriptContext = NULL;
-TinScript::CScriptContext* GetScriptContext() {
-    return (gScriptContext);
-}
-
 // ------------------------------------------------------------------------------------------------
 CConsoleWindow* CConsoleWindow::gConsoleWindow = NULL;
 CConsoleWindow::CConsoleWindow() {
@@ -268,8 +263,8 @@ int32 CConsoleWindow::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number,
 
     // -- three components need to be informed:  the script context
     int32 actual_line = add && enable ?
-                        GetScriptContext()->AddBreakpoint("", filename, line_number) :
-                        GetScriptContext()->RemoveBreakpoint("", filename, line_number);
+                        TinScript::GetContext()->AddBreakpoint(filename, line_number) :
+                        TinScript::GetContext()->RemoveBreakpoint(filename, line_number);
 
     // -- if the codeblock hasn't yet been compiled (loaded), use the original line_number
     if(actual_line < 0)
@@ -395,7 +390,7 @@ void CConsoleInput::OnReturnPressed() {
     }
     mHistoryIndex = -1;
 
-    gScriptContext->ExecCommand(input_text);
+    TinScript::ExecCommand(input_text);
     setText("");
 }
 
@@ -505,7 +500,7 @@ void CConsoleOutput::Update() {
     // -- if we're not paused, update TinScript
     if(!mOwner->IsPaused()) {
         mCurrentTime += kUpdateTime;
-        gScriptContext->Update(mCurrentTime);
+        TinScript::UpdateContext(mCurrentTime);
     }
 
     // -- see if we're supposed to quit
@@ -552,18 +547,18 @@ int _tmain(int argc, _TCHAR* argv[])
     REGISTER_FILE(unittest_cpp);
     REGISTER_FILE(mathutil_cpp);
 
-    // -- initialize
-    gScriptContext = TinScript::CScriptContext::Create("", ConsolePrint, AssertHandler);
+    // -- initialize (true for MainThread context)
+    TinScript::CreateContext(ConsolePrint, AssertHandler, true);
 
     // -- register the debugger breakpoint function
-    gScriptContext->RegisterDebugger("", DebuggerBreakpointHit, NotifyCallstack,
+    TinScript::GetContext()->RegisterDebugger(DebuggerBreakpointHit, NotifyCallstack,
                                      NotifyCodeblockLoaded, NotifyWatchVarEntry);
 
     new CConsoleWindow();
     int result = CConsoleWindow::GetInstance()->Exec();
 
     // -- shutdown
-    TinScript::CScriptContext::Destroy(gScriptContext);
+    TinScript::DestroyContext();
 
     return result;
 }

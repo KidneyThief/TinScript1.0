@@ -40,51 +40,49 @@
     static void classname##ListMethods(classname* obj);                                             \
 
 #define IMPLEMENT_DEFAULT_METHODS(classname)                                                        \
-    static uint32 classname##GetObjectID(::TinScript::CScriptContext* script_context,               \
-                                         classname* obj) {                                          \
-        return script_context->FindIDByAddress((void*)obj);                                         \
+    static uint32 classname##GetObjectID(classname* obj) {                                          \
+        return ::TinScript::GetContext()->FindIDByAddress((void*)obj);                              \
     }                                                                                               \
-    static ::TinScript::CRegContextMethodP0<classname, uint32>                                      \
+    static ::TinScript::CRegMethodP0<classname, uint32>                                             \
         _reg_##classname##GetObjectID                                                               \
         ("GetObjectID", classname##GetObjectID);                                                    \
                                                                                                     \
-    static const char* classname##GetObjectName(::TinScript::CScriptContext* script_context,        \
-                                                classname* obj) {                                   \
+    static const char* classname##GetObjectName(classname* obj) {                                   \
         ::TinScript::CObjectEntry* oe =                                                             \
-            script_context->FindObjectByAddress((void*)obj);                                        \
+            ::TinScript::GetContext()->FindObjectByAddress((void*)obj);                             \
         return oe ? oe->GetName() : "";                                                             \
     }                                                                                               \
-    static ::TinScript::CRegContextMethodP0<classname, const char*>                                 \
+    static ::TinScript::CRegMethodP0<classname, const char*>                                        \
         _reg_##classname##GetObjectName                                                             \
         ("GetObjectName", classname##GetObjectName);                                                \
                                                                                                     \
-    static uint32 classname##GetGroupID(::TinScript::CScriptContext* script_context,                \
-                                         classname* obj) {                                          \
+    static uint32 classname##GetGroupID(classname* obj) {                                           \
+        ::TinScript::CScriptContext* script_context = ::TinScript::GetContext();                    \
         ::TinScript::CObjectEntry* oe =                                                             \
             script_context->FindObjectByAddress((void*)obj);                                        \
         ::TinScript::CObjectEntry* group_oe =                                                       \
             oe ? script_context->FindObjectByAddress((void*)oe->GetObjectGroup()) : NULL;           \
         return (group_oe ? group_oe->GetID() : 0);                                                  \
     }                                                                                               \
-    static ::TinScript::CRegContextMethodP0<classname, uint32>                                      \
+    static ::TinScript::CRegMethodP0<classname, uint32>                                             \
         _reg_##classname##GetGroupID                                                                \
         ("GetGroupID", classname##GetGroupID);                                                      \
                                                                                                     \
-    static void classname##ListMembers(::TinScript::CScriptContext* script_context, classname* obj) { \
+    static void classname##ListMembers(classname* obj) {                                            \
         ::TinScript::CObjectEntry* oe =                                                             \
-            script_context->FindObjectByAddress((void*)obj);                                        \
+            ::TinScript::GetContext()->FindObjectByAddress((void*)obj);                             \
         ::TinScript::DumpVarTable(oe);                                                              \
     }                                                                                               \
-    static TinScript::CRegContextMethodP0<classname, void>                                          \
+    static TinScript::CRegMethodP0<classname, void>                                                 \
         _reg_##classname##ListMembers                                                               \
         ("ListMembers", classname##ListMembers);                                                    \
                                                                                                     \
-    static void classname##ListMethods(::TinScript::CScriptContext* script_context, classname* obj) { \
+    static void classname##ListMethods(classname* obj) {                                            \
         ::TinScript::CObjectEntry* oe =                                                             \
-            script_context->FindObjectByAddress((void*)obj);                                        \
+            ::TinScript::GetContext()->FindObjectByAddress((void*)obj);                             \
         ::TinScript::DumpFuncTable(oe);                                                             \
     }                                                                                               \
-    static ::TinScript::CRegContextMethodP0<classname, void>                                        \
+    static ::TinScript::CRegMethodP0<classname, void>                                               \
         _reg_##classname##ListMethods                                                               \
         ("ListMethods", classname##ListMethods);                                                    \
 
@@ -172,7 +170,7 @@ class CNamespace {
         typedef void (*DestroyInstance)(void* addr);
         typedef void (*Register)(CScriptContext* script_context, CNamespace* reg);
 
-        CNamespace(CScriptContext* script_context, const char* name,
+        CNamespace(CScriptContext* script_context, const char* name, uint32 _typeID = 0,
                    CreateInstance _createinstance = NULL, DestroyInstance _destroyinstance = NULL);
         virtual ~CNamespace();
 
@@ -186,6 +184,10 @@ class CNamespace {
 
         uint32 GetHash() {
             return (mHash);
+        }
+
+        uint32 GetTypeID() {
+            return (mTypeID);
         }
 
         bool8 IsRegisteredClass() {
@@ -233,6 +235,7 @@ class CNamespace {
 
         const char* mName;
         uint32 mHash;
+        uint32 mTypeID;
         CNamespace* mNext;
 
         CreateInstance mCreateFuncptr;
@@ -244,11 +247,12 @@ class CNamespace {
 
 class CNamespaceReg {
     public:
-        CNamespaceReg(const char* _name, const char* _parentname,
+        CNamespaceReg(const char* _name, const char* _parentname, uint32 _typeID,
                       void* _createfuncptr, void* _destroyfuncptr,
                       void* _regfuncptr) {
             mName = _name;
             mHash = Hash(mName);
+            mTypeID = _typeID;
             mParentName = _parentname;
             mParentHash = Hash(mParentName);
             mCreateFuncptr = (CNamespace::CreateInstance)_createfuncptr;
@@ -265,6 +269,10 @@ class CNamespaceReg {
 
         const char* GetName() const {
             return mName;
+        }
+
+        uint32 GetTypeID() const {
+            return mTypeID;
         }
 
         const char* GetParentName() const {
@@ -306,6 +314,7 @@ class CNamespaceReg {
     private:
         const char* mName;
         uint32 mHash;
+        uint32 mTypeID;
         const char* mParentName;
         uint32 mParentHash;
         bool8 mRegistered;

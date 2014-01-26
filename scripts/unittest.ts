@@ -6,8 +6,16 @@
 // -- VARIABLES, FLOW -----------------------------------------------------------------------------
 int gScriptGlobalVar = 12;
 
-void TestScriptAccessToGlobal() {
-    Print(gCodeGlobalVar);
+void UnitTest_RegisteredIntAccess()
+{
+    // -- This registered int was set in code - retrieving here
+    gUnitTestScriptResult = StringCat(gUnitTestRegisteredInt);
+}
+
+void UnitTest_RegisteredIntModify()
+{
+    // -- This registered int was set in code - modifying the value
+    gUnitTestRegisteredInt = 23;
 }
 
 void TestIfStatement() {
@@ -34,9 +42,9 @@ void TestForLoop() {
         Print(testvar);
 }
 
-void SetGlobalVarTo43() {
-    gCodeGlobalVar = 43;
-}
+//void SetGlobalVarTo43() {
+//    gCodeGlobalVar = 43;
+//}
 
 void TestParenthesis() {
     float result = (((3 + 4) * 17) - (3.0f + 6)) % (42 / 3);
@@ -255,6 +263,16 @@ void BeginThreadTest() {
     gScriptNamedObject.intvalue = 30;
     gScriptNamedObject.TestThread();
 }
+
+// -- MultiThread test -----------------------------------------------------------------------------
+// -- declaring a global script variable - this must be unique to each thead
+string gMultiThreadVariable = "<uninitialized>";
+void MultiThreadTestFunction(string value)
+{
+    gMultiThreadVariable = value;
+	ListObjects();
+}
+
 
 // -- DEBUGGER Test Functions ----------------------------------------------------------------------
 int MultBy3(int value) {

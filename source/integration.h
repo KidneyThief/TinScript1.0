@@ -49,9 +49,16 @@ typedef unsigned long long  uint64;
 typedef float               float32;
 
 #define kBytesToWordCount(a) ((a) + 3) / 4;
-#define kPointerToUInt32(a) ((uint32)(*(uint64*)(&a)))
 #define kPointerToUInt64(a) (*(uint64*)(&a))
+
+// -- pointer conversion macros to assist with compiler complaints
+#ifdef WIN32
+#define kPointerToUInt32(a) ((uint32)(*(uint32*)(&a)))
+#define kPointerDiffUInt32(a, b) ((uint32)((*(uint32*)(&a)) - (*(uint32*)(&b))))
+#else
+#define kPointerToUInt32(a) ((uint32)(*(uint64*)(&a)))
 #define kPointerDiffUInt32(a, b) ((uint32)((*(uint64*)(&a)) - (*(uint64*)(&b))))
+#endif
 
 #define Unused_(var) __pragma(warning(suppress:4100)) var
 #define Offsetof_(s,m) (uint32)(unsigned long long)&(((s *)0)->m)
@@ -131,6 +138,7 @@ typedef bool8 (*TinAssertHandler)(TinScript::CScriptContext* script_context, con
 // -- Pass a function of the following prototype when creating the CScriptContext
 typedef int (*TinPrintHandler)(const char* fmt, ...);
 #define TinPrint(scriptcontext, fmt, ...)                           \
+    if (scriptcontext != NULL)                                      \
     {                                                               \
         scriptcontext->GetPrintHandler()(fmt, ##__VA_ARGS__);       \
     }

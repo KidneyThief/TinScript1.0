@@ -52,8 +52,8 @@ class CFunctionContext {
             return mContextOwner;
         }
 
-        bool8 AddParameter(const char* varname, uint32 varhash, eVarType type);
-        bool8 AddParameter(const char* varname, uint32 varhash, eVarType type, int32 paramindex);
+        bool8 AddParameter(const char* varname, uint32 varhash, eVarType type, uint32 convert_type_from_object = 0);
+        bool8 AddParameter(const char* varname, uint32 varhash, eVarType type, int32 paramindex, uint32 convert_type_from_object = 0);
         CVariableEntry* AddLocalVar(const char* varname, uint32 varhash,
                                     eVarType type);
         int32 GetParameterCount();

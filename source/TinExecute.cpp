@@ -358,9 +358,9 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
         int32 nullvalue = 0;
         void* srcaddr = NULL;
         if(src)
-            srcaddr = TypeConvert(src->GetType(), src->GetAddr(NULL), dst->GetType());
+            srcaddr = TypeConvert(script_context, src->GetType(), src->GetAddr(NULL), dst->GetType());
         else
-            srcaddr = TypeConvert(TYPE_int, &nullvalue, dst->GetType());
+            srcaddr = TypeConvert(script_context, TYPE_int, &nullvalue, dst->GetType());
 
         // -- set the value - note stack parameters are always local variables, never members
         dst->SetValue(NULL, srcaddr);
@@ -371,7 +371,7 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
     for(int32 i = srcparamcount; i < dstparamcount; ++i) {
         CVariableEntry* dst = fe->GetContext()->GetParameter(i);
         int32 nullvalue = 0;
-        void* srcaddr = TypeConvert(TYPE_int, &nullvalue, dst->GetType());
+        void* srcaddr = TypeConvert(script_context, TYPE_int, &nullvalue, dst->GetType());
         dst->SetValue(NULL, srcaddr);
     }
 

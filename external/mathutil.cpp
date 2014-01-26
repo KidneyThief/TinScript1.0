@@ -123,15 +123,12 @@ REGISTER_METHOD_P0(CVector3f, Normalize, Normalize, float32);
 
 // --------------------------------------------------------------------------------------------------------------------
 // -- registered functions
-bool8 TS_Cross(TinScript::CScriptContext* script_context, uint32 obj_result, uint32 obj_v0, uint32 obj_v1)
+bool8 TS_Cross(CVector3f* result, CVector3f* v0, CVector3f* v1)
 {
-    CVector3f* result = static_cast<CVector3f*>(script_context->FindObject(obj_result));
-    CVector3f* v0 = static_cast<CVector3f*>(script_context->FindObject(obj_v0));
-    CVector3f* v1 = static_cast<CVector3f*>(script_context->FindObject(obj_v1));
     if (!result || !v0 || !v1)
     {
-        ScriptAssert_(script_context, result && v0 && v1, "<internal>", -1,
-                      "Error - Cross():  Unable to find the result/v0/v1 objects");
+        ScriptAssert_(::TinScript::GetContext(), result && v0 && v1, "<internal>", -1,
+                      "Error - Cross():  Unable to find the result/v0/v1 objects\n");
         return (false);
     }
 
@@ -144,15 +141,13 @@ bool8 TS_Cross(TinScript::CScriptContext* script_context, uint32 obj_result, uin
 
 // --------------------------------------------------------------------------------------------------------------------
 // -- registered functions
-float32 TS_Dot(TinScript::CScriptContext* script_context, uint32 obj_v0, uint32 obj_v1)
+float32 TS_Dot(CVector3f* v0, CVector3f* v1)
 {
-    CVector3f* v0 = static_cast<CVector3f*>(script_context->FindObject(obj_v0));
-    CVector3f* v1 = static_cast<CVector3f*>(script_context->FindObject(obj_v1));
     if (!v0 || !v1)
     {
-        ScriptAssert_(script_context, v0 && v1, "<internal>", -1,
-                      "Error - Dot():  Unable to find the v0/v1 objects");
-        return (false);
+        ScriptAssert_(::TinScript::GetContext(), v0 && v1, "<internal>", -1,
+                      "Error - Dot():  Unable to find the v0/v1 objects\n");
+        return (0.0f);
     }
 
     // -- return the dot product
@@ -162,26 +157,24 @@ float32 TS_Dot(TinScript::CScriptContext* script_context, uint32 obj_v0, uint32 
 
 // --------------------------------------------------------------------------------------------------------------------
 // -- registered functions
-float32 TS_Normalized(TinScript::CScriptContext* script_context, uint32 obj_result, uint32 obj_v0)
+float32 TS_Normalized(CVector3f* result, CVector3f* v0)
 {
-    CVector3f* result = static_cast<CVector3f*>(script_context->FindObject(obj_result));
-    CVector3f* v0 = static_cast<CVector3f*>(script_context->FindObject(obj_v0));
     if (!result || !v0)
     {
-        ScriptAssert_(script_context, result && v0, "<internal>", -1,
-                      "Error - Normalized():  Unable to find the result/v0 objects");
-        return (false);
+        ScriptAssert_(::TinScript::GetContext(), result && v0, "<internal>", -1,
+                      "Error - Normalized():  Unable to find the result/v0 objects\n");
+        return (0.0f);
     }
 
     // -- return the dot product
     *result = *v0;
     float32 length = result->Normalize();
-    return (length > 0.0f);
+    return (length);
 }
 
-CONTEXT_FUNCTION_P3(ObjCross, TS_Cross, bool8, uint32, uint32, uint32);
-CONTEXT_FUNCTION_P2(ObjDot, TS_Dot, float32, uint32, uint32);
-CONTEXT_FUNCTION_P2(ObjNormalized, TS_Normalized, float32, uint32, uint32);
+REGISTER_FUNCTION_P3(ObjCross, TS_Cross, bool8, CVector3f*, CVector3f*, CVector3f*);
+REGISTER_FUNCTION_P2(ObjDot, TS_Dot, float32, CVector3f*, CVector3f*);
+REGISTER_FUNCTION_P2(ObjNormalized, TS_Normalized, float32, CVector3f*, CVector3f*);
 
 // --------------------------------------------------------------------------------------------------------------------
 // -- Re-registered using the registered type, no longer requiring a script context

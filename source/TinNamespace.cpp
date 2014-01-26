@@ -176,7 +176,7 @@ CNamespace* CScriptContext::FindOrCreateNamespace(const char* _nsname, bool8 cre
     uint32 nshash = Hash(nsname);
     CNamespace* namespaceentry = mNamespaceDictionary->FindItem(nshash);
     if(!namespaceentry && create) {
-        namespaceentry = TinAlloc(ALLOC_Namespace, CNamespace, this, nsname, NULL);
+        namespaceentry = TinAlloc(ALLOC_Namespace, CNamespace, this, nsname, 0, NULL);
 
         // -- add the namespace to the dictionary
         mNamespaceDictionary->AddItem(*namespaceentry, nshash);
@@ -274,8 +274,7 @@ void CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns) {
 uint32 CScriptContext::GetNextObjectID() {
     // -- every object created gets a unique ID, so we can find it in the object dictionary
     // -- providing a way to register code-instantiated objects
-    static uint32 objectid = 0;
-    return ++objectid;
+    return ++mObjectIDGenerator;
 }
 
 uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash) {
@@ -353,7 +352,7 @@ uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash) {
             // -- call the script "OnCreate" for the object
             if(HasMethod(newobj, "OnCreate")) {
                 int32 dummy = 0;
-                ObjExecF(this, objectid, dummy, "OnCreate();");
+                ObjExecF(objectid, dummy, "OnCreate();");
             }
         }
 
@@ -417,7 +416,7 @@ uint32 CScriptContext::RegisterObject(void* objaddr, const char* classname,
         // -- call the script "OnCreate" for the object
         if(HasMethod(objectid, "OnCreate")) {
             int32 dummy = 0;
-            ObjExecF(this, objectid, dummy, "OnCreate();");
+            ObjExecF(objectid, dummy, "OnCreate();");
         }
     }
 
@@ -459,7 +458,7 @@ void CScriptContext::DestroyObject(uint32 objectid) {
         // -- call the script "OnInit" for the object
         if(HasMethod(oe->GetID(), "OnCreate")) {
             int32 dummy = 0;
-            ObjExecF(this, objectid, dummy, "OnDestroy();");
+            ObjExecF(objectid, dummy, "OnDestroy();");
         }
     }
 
@@ -639,7 +638,7 @@ void CScriptContext::ListObjects() {
         // -- if the object itself is a group, list it's children
         if(HasMethod(oe->GetID(), "ListObjects")) {
             int32 dummy = 0;
-            ObjExecF(this, oe->GetID(), dummy, "ListObjects(1);");
+            ObjExecF(oe->GetID(), dummy, "ListObjects(1);");
         }
 
         // -- next object
@@ -648,13 +647,14 @@ void CScriptContext::ListObjects() {
 }
 
 // ------------------------------------------------------------------------------------------------
-CNamespace::CNamespace(CScriptContext* script_context, const char* _name,
+CNamespace::CNamespace(CScriptContext* script_context, const char* _name, uint32 _typeID,
                        CreateInstance _createinstance, DestroyInstance _destroyinstance) {
     mContextOwner = script_context;
     // -- ensure the name lives in the string table
     mName = _name && _name[0] ? script_context->GetStringTable()->AddString(_name)
                              : script_context->GetStringTable()->AddString(kGlobalNamespace);
     mHash = Hash(mName);
+    mTypeID = _typeID;
     mNext = NULL;
     mCreateFuncptr = _createinstance;
     mDestroyFuncptr = _destroyinstance;

@@ -512,7 +512,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 	// -- error
     // $$$TZA Probably should restrict parsing of files to only the MainThread...  any thread
     // -- can execute
-    ScriptAssert_(CScriptContext::GetMainThreadContext(), 0, "<internal>", linenumber,
+    ScriptAssert_(TinScript::GetContext(), 0, "<internal>", linenumber,
                   "Error - unable to parse: %s\n", tokenptr);
 	length = 0;
 	type = TOKEN_ERROR;

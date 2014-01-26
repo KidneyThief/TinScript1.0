@@ -256,7 +256,7 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
     {
         // -- if we've been given the actual address of the var, copy directly to it
         if (use_var_addr) {
-            val1addr = TypeConvert(val1type, val1addr, varhashtype);
+            val1addr = TypeConvert(script_context, val1type, val1addr, varhashtype);
             if (!val1addr)
             {
                 ScriptAssert_(script_context, 0, "<internal>", -1,
@@ -271,11 +271,11 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
         // -- else set the value through the variable entry
         else
         {
-            val1addr = TypeConvert(val1type, val1addr, ve0->GetType());
+            val1addr = TypeConvert(script_context, val1type, val1addr, ve0->GetType());
             if (!val1addr)
             {
                 ScriptAssert_(script_context, 0, "<internal>", -1,
-                              "Error - fail to conver from type %s to type %s\n",
+                              "Error - fail to convert from type %s to type %s\n",
                               GetRegisteredTypeName(val1type), GetRegisteredTypeName(ve0->GetType()));
                 return (false);
             }
@@ -287,9 +287,9 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
         return true;
     }
 
-    void* ve0addr = use_var_addr ? TypeConvert(varhashtype, var, TYPE_float)
-                                 : TypeConvert(ve0->GetType(), ve0->GetAddr(oe0), TYPE_float);
-    val1addr = TypeConvert(val1type, val1addr, TYPE_float);
+    void* ve0addr = use_var_addr ? TypeConvert(script_context, varhashtype, var, TYPE_float)
+                                 : TypeConvert(script_context, ve0->GetType(), ve0->GetAddr(oe0), TYPE_float);
+    val1addr = TypeConvert(script_context, val1type, val1addr, TYPE_float);
     float32 vefloat = *(float32*)ve0addr;
     float32 val1float = *(float32*)val1addr;
 
@@ -332,7 +332,7 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
 
     // -- convert back to our variable type
     if(use_var_addr) {
-        void* convertptr = TypeConvert(TYPE_float, &result, varhashtype);
+        void* convertptr = TypeConvert(script_context, TYPE_float, &result, varhashtype);
         if(!convertptr) {
             ScriptAssert_(script_context, 0, "<internal>", -1,
                           "Error - Unable to convert from type %s to %s\n",
@@ -348,7 +348,7 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
         }
     }
     else {
-        void* convertptr = TypeConvert(TYPE_float, &result, ve0->GetType());
+        void* convertptr = TypeConvert(script_context, TYPE_float, &result, ve0->GetType());
         if(!convertptr) {
             ScriptAssert_(script_context, 0, "<internal>", -1,
                           "Error - Unable to convert from type %s to %s\n",
@@ -404,9 +404,9 @@ bool8 PerformBitAssignOp(CScriptContext* script_context, CExecStack& execstack,
         return false;
     }
 
-    void* ve0addr = use_var_addr ? TypeConvert(varhashtype, var, TYPE_int)
-                                 : TypeConvert(ve0->GetType(), ve0->GetAddr(oe0), TYPE_int);
-    val1addr = TypeConvert(val1type, val1addr, TYPE_int);
+    void* ve0addr = use_var_addr ? TypeConvert(script_context, varhashtype, var, TYPE_int)
+                                 : TypeConvert(script_context, ve0->GetType(), ve0->GetAddr(oe0), TYPE_int);
+    val1addr = TypeConvert(script_context, val1type, val1addr, TYPE_int);
     int32 veint = *(int32*)ve0addr;
     int32 val1int = *(int32*)val1addr;
 
@@ -439,7 +439,7 @@ bool8 PerformBitAssignOp(CScriptContext* script_context, CExecStack& execstack,
 
     // -- convert back to our variable type
     if(use_var_addr) {
-        void* convertptr = TypeConvert(TYPE_int, &result, varhashtype);
+        void* convertptr = TypeConvert(script_context, TYPE_int, &result, varhashtype);
         if(!convertptr) {
             ScriptAssert_(script_context, 0, "<internal>", -1,
                           "Error - Unable to convert from type %s to %s\n",
@@ -452,7 +452,7 @@ bool8 PerformBitAssignOp(CScriptContext* script_context, CExecStack& execstack,
         DebugTrace(op, is_stack_var ? "StackVar: %s" : "PODMember: %s", DebugPrintVar(var, varhashtype));
     }
     else {
-        void* convertptr = TypeConvert(TYPE_int, &result, ve0->GetType());
+        void* convertptr = TypeConvert(script_context, TYPE_int, &result, ve0->GetType());
         if(!convertptr) {
             ScriptAssert_(script_context, 0, "<internal>", -1,
                           "Error - Unable to convert from type %s to %s\n",
@@ -1102,7 +1102,7 @@ bool8 PerformCompareOp(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     // -- pull the result off the stack - it should have a numerical value
     eVarType resultType;
     void* resultPtr = execstack.Pop(resultType);
-    float32* convertAddr = (float32*)TypeConvert(resultType, resultPtr, TYPE_float);
+    float32* convertAddr = (float32*)TypeConvert(cb->GetScriptContext(), resultType, resultPtr, TYPE_float);
     if (! convertAddr)
         return (false);
 
@@ -1274,7 +1274,7 @@ bool8 OpExecBranchTrue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     // -- top of the stack had better be a bool8
     eVarType valtype;
     void* valueraw = execstack.Pop(valtype);
-    bool8* convertAddr = (bool8*)TypeConvert(valtype, valueraw, TYPE_bool);
+    bool8* convertAddr = (bool8*)TypeConvert(cb->GetScriptContext(), valtype, valueraw, TYPE_bool);
     if (! convertAddr)
     {
         ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
@@ -1299,7 +1299,7 @@ bool8 OpExecBranchFalse(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     // -- top of the stack had better be a bool8
     eVarType valtype;
     void* valueraw = execstack.Pop(valtype);
-    bool8* convertAddr = (bool8*)TypeConvert(valtype, valueraw, TYPE_bool);
+    bool8* convertAddr = (bool8*)TypeConvert(cb->GetScriptContext(), valtype, valueraw, TYPE_bool);
     if (! convertAddr)
     {
         ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
@@ -1565,7 +1565,7 @@ bool8 OpExecArrayHash(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
         return false;
     }
     // -- ensure it actually is a string
-    void* val1addr = TypeConvert(val1type, val1, TYPE_string);
+    void* val1addr = TypeConvert(cb->GetScriptContext(), val1type, val1, TYPE_string);
 
     // -- get the current hash
     eVarType contenttype;
