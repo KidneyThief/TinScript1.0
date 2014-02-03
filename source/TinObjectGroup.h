@@ -52,7 +52,7 @@ class CObjectSet {
     public:
         DECLARE_SCRIPT_CLASS(CObjectSet, VOID);
 
-        CObjectSet(CScriptContext* script_context = NULL, int32 _size = 0);
+        CObjectSet();
         virtual ~CObjectSet();
 
         CScriptContext* GetScriptContext() {
@@ -82,7 +82,7 @@ class CObjectGroup : public CObjectSet {
     public:
         DECLARE_SCRIPT_CLASS(CObjectGroup, CObjectSet);
 
-        CObjectGroup(CScriptContext* script_context = NULL, int32 _size = 0);
+        CObjectGroup();
         virtual ~CObjectGroup();
 
         virtual void AddObject(uint32 objectid);

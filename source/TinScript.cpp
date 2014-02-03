@@ -237,6 +237,9 @@ CScriptContext::CScriptContext(TinPrintHandler printfunction, TinAssertHandler a
     // -- initialize the code block hash table
     mCodeBlockList = TinAlloc(ALLOC_HashTable, CHashTable<CCodeBlock>, kGlobalFuncTableSize);
 
+    // -- initialize the scratch buffer index
+    mScratchBufferIndex = 0;
+
     // -- register the debugger interface separately
     mBreakpointCallback = NULL;
     mCallstackCallback = NULL;
@@ -805,6 +808,57 @@ bool8 CScriptContext::ExecCommand(const char* statement) {
 
     // -- failed
     return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+void CScriptContext::SetFunctionReturnValue(void* value, eVarType valueType)
+{
+    // -- if the current value is a string, we do need to update the refcount
+    if (mFunctionReturnValType == TYPE_string)
+    {
+        uint32 string_hash = *(uint32*)mFunctionReturnValue;
+        GetStringTable()->RefCountDecrement(string_hash);
+    }
+
+    // -- sanity check
+    if (!value || valueType < FIRST_VALID_TYPE)
+    {
+        mFunctionReturnValType = TYPE_NULL;
+    }
+    else
+    {
+        mFunctionReturnValType = valueType;
+        memcpy(mFunctionReturnValue, value, kMaxTypeSize);
+
+        // -- update the string table for strings
+        if (mFunctionReturnValType == TYPE_string)
+        {
+            uint32 string_hash = *(uint32*)mFunctionReturnValue;
+            GetStringTable()->RefCountIncrement(string_hash);
+        }
+    }
+}
+
+bool8 CScriptContext::GetFunctionReturnValue(void*& value, eVarType& valueType)
+{
+    if (mFunctionReturnValType >= FIRST_VALID_TYPE)
+    {
+        value = mFunctionReturnValue;
+        valueType = mFunctionReturnValType;
+        return (true);
+    }
+    else
+    {
+        value = NULL;
+        valueType = TYPE_NULL;
+        return (false);
+    }
+}
+
+char* CScriptContext::GetScratchBuffer()
+{
+    char* scratch_buffer = mScratchBuffers[(++mScratchBufferIndex) % kMaxScratchBuffers];
+    return (scratch_buffer);
 }
 
 // ------------------------------------------------------------------------------------------------

@@ -19,96 +19,53 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
-#ifndef __MATHUTIL_H
-#define __MATHUTIL_H
+// ------------------------------------------------------------------------------------------------
+// cmdshell.h
+// ------------------------------------------------------------------------------------------------
 
-// -- lib includes
-#include "math.h"
-
-// -- includes required by any system wanting access to TinScript
+// -- TinScript includes
 #include "TinScript.h"
 #include "TinRegistration.h"
 
 // ====================================================================================================================
-// class CVector3f
-// Simple implementation of a 3D float class
+// Default Assert Handler
 // ====================================================================================================================
-class CVector3f {
+bool8 CmdShellAssertHandler(TinScript::CScriptContext* script_context, const char* condition,
+                            const char* file, int32 linenumber, const char* fmt, ...);
 
+// ====================================================================================================================
+// class CCmdShell:  simple input out command shell
+// ====================================================================================================================
+class CCmdShell
+{
 public:
+    // -- constructor / destructor
+    CCmdShell();
+    virtual ~CCmdShell() { }
 
-    DECLARE_SCRIPT_CLASS(CVector3f, VOID);
+    // -- clears out stale text, and refreshes the prompt
+    void RefreshConsoleInput(bool8 display_prompt = false, const char* new_input_string = NULL);
 
-    CVector3f(float32 _x = 0.0f, float32 _y = 0.0f, float32 _z = 0.0f)
-    {
-        x = _x; y = _y; z = _z;
-    }
+    // -- update should be called every frame - returns the const char* of the current command
+    const char* Update();
 
-    CVector3f& operator=(const CVector3f& rhs)
-    {
-        x = rhs.x; y = rhs.y; z = rhs.z;
-        return *this;
-    }
+private:
+    // -- constants
+    static const int32 kMaxHistory = 64;
 
-    CVector3f& operator+(const CVector3f& rhs)
-    {
-        x += rhs.x; y += rhs.y; z += rhs.z;
-        return *this;
-    }
+    // -- history members
+    bool8 mHistoryFull;
+    int32 mHistoryIndex;
+    int32 mHistoryLastIndex;
+    char mHistory[TinScript::kMaxTokenLength][kMaxHistory];
 
-    CVector3f& operator-(const CVector3f& rhs)
-    {
-        x -= rhs.x; y -= rhs.y; z -= rhs.z;
-        return *this;
-    }
+    // -- input members
+    char mConsoleInputBuf[TinScript::kMaxTokenLength];
+    char* mInputPtr;
 
-    CVector3f& operator*(const float32 s)
-    {
-        x *= s; y *= s; z *= s;
-        return *this;
-    }
-
-    CVector3f& operator/(const float32 s)
-    {
-        x /= s; y /= s; z /= s;
-        return *this;
-    }
-
-    bool8 operator==(const CVector3f& rhs)
-    {
-        return (x == rhs.x && y == rhs.y && z == rhs.z);
-    }
-
-    bool8 operator!=(const CVector3f& rhs)
-    {
-        return (x != rhs.x || y != rhs.y || z != rhs.z);
-    }
-
-    // -- registered methods
-    void Set(float32 _x, float32 _y, float32 _z);
-    float32 Length();
-    float32 Normalize();
-
-    static CVector3f Cross(CVector3f v0, CVector3f v1);
-    static float32 Dot(CVector3f v0, CVector3f v1);
-    static float32 Length(CVector3f v0);
-    static CVector3f Normalized(CVector3f v0);
-
-    static const CVector3f zero;
-    static const CVector3f realmax;
-
-    float32 x;
-    float32 y;
-    float32 z;
+    // -- command entry buffer
+    char mCommandBuf[TinScript::kMaxTokenLength];
 };
-
-// ====================================================================================================================
-// Random Numbera
-// ====================================================================================================================
-float32 Random();
-float32 RandomRange(float32 low, float32 high);
-
-#endif // __MATHUTIL_H
 
 // ====================================================================================================================
 // EOF

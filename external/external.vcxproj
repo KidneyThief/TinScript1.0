@@ -56,9 +56,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\_PERFORCE\_dev\TinScript\external\mathutil.cpp" />
+    <ClCompile Include="cmdshell.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\_PERFORCE\_dev\TinScript\external\mathutil.h" />
+    <ClInclude Include="cmdshell.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

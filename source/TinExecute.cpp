@@ -286,7 +286,7 @@ bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
         fe->GetContext()->ClearParameters();
         fe->GetScriptContext()->GetStringTable()->RemoveUnreferencedStrings();
         
-        // -- since we called a 'C' function, there's no OP_FuncReturn - pop the stack
+        // -- since we called a 'C' function, there's no OP_FuncReturn - pop the function call stack
         funccallstack.Pop(oe);
     }
 
@@ -342,6 +342,10 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
 	CExecStack execstack(script_context, kExecStackSize);
     CFunctionCallStack funccallstack(kExecFuncCallDepth);
 
+    // -- nullvalue used to clear parameter values
+    char nullvalue[MAX_TYPE_SIZE];
+    memset(nullvalue, 0, MAX_TYPE_SIZE);
+
     // -- initialize the parameters of our fe with the function context
     int32 srcparamcount = parameters->GetParameterCount();
     for(int32 i = 0; i < srcparamcount; ++i) {
@@ -355,12 +359,11 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
         }
 
         // -- ensure the type of the parameter value is converted to the type required
-        int32 nullvalue = 0;
         void* srcaddr = NULL;
-        if(src)
+        if(src && dst->GetType() >= FIRST_VALID_TYPE)
             srcaddr = TypeConvert(script_context, src->GetType(), src->GetAddr(NULL), dst->GetType());
         else
-            srcaddr = TypeConvert(script_context, TYPE_int, &nullvalue, dst->GetType());
+            srcaddr = nullvalue;
 
         // -- set the value - note stack parameters are always local variables, never members
         dst->SetValue(NULL, srcaddr);
@@ -370,9 +373,7 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
     int32 dstparamcount = fe->GetContext()->GetParameterCount();
     for(int32 i = srcparamcount; i < dstparamcount; ++i) {
         CVariableEntry* dst = fe->GetContext()->GetParameter(i);
-        int32 nullvalue = 0;
-        void* srcaddr = TypeConvert(script_context, TYPE_int, &nullvalue, dst->GetType());
-        dst->SetValue(NULL, srcaddr);
+        dst->SetValue(NULL, nullvalue);
     }
 
     // -- push the function entry onto the call stack (same as if OP_FuncCallArgs had been used)
@@ -434,6 +435,9 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
         printf("\n*** EXECUTING: %s\n\n", mFileName && mFileName[0] ? mFileName : "<stdin>");
     }
 #endif
+
+    // -- initialize the function return value
+    GetScriptContext()->SetFunctionReturnValue(NULL, TYPE_NULL);
 
     const uint32* instrptr = GetInstructionPtr();
     instrptr += offset;

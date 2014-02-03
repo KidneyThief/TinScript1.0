@@ -218,24 +218,6 @@ void ContextScheduleCancelObject(uint32 objectid)
     script_context->GetScheduler()->CancelObject(objectid);
 }
 
-uint32 ContextCreateObjectSet(const char* name)
-{
-    CScriptContext* script_context = TinScript::GetContext();
-    CObjectSet* object_set = TinAlloc(ALLOC_ObjectGroup, CObjectSet, script_context,
-                                      kObjectGroupTableSize);
-    uint32 object_id = script_context->RegisterObject(object_set, "CObjectSet", name);
-    return (object_id);
-}
-
-uint32 ContextCreateObjectGroup(const char* name)
-{
-    CScriptContext* script_context = TinScript::GetContext();
-    CObjectSet* object_set = TinAlloc(ALLOC_ObjectGroup, CObjectGroup, script_context,
-        kObjectGroupTableSize);
-    uint32 object_id = script_context->RegisterObject(object_set, "CObjectGroup", name);
-    return (object_id);
-}
-
 // -- these methods all wrap some call to a member of ScriptContext
 // -- we want to execute the context created by the thread, in which this function is being called
 REGISTER_FUNCTION_P1(PrintObject, ContextPrintObject, void, uint32);
@@ -249,8 +231,6 @@ REGISTER_FUNCTION_P2(LinkNamespaces, ContextLinkNamespaces, void, const char*, c
 REGISTER_FUNCTION_P1(ListVariables, ContextListVariables, void, uint32);
 REGISTER_FUNCTION_P1(ListFunctions, ContextListFunctions, void, uint32);
 REGISTER_FUNCTION_P1(GetObjectNamespace, ContextGetObjectNamespace, const char*, uint32);
-REGISTER_FUNCTION_P1(CreateObjectSet, ContextCreateObjectSet, uint32, const char*);
-REGISTER_FUNCTION_P1(CreateObjectGroup, ContextCreateObjectGroup, uint32, const char*);
 
 REGISTER_FUNCTION_P0(ListSchedules, ContextListSchedules, void);
 REGISTER_FUNCTION_P1(ScheduleCancel, ContextScheduleCancel, void, int32);

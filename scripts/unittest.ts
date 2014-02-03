@@ -4,7 +4,7 @@
 // ------------------------------------------------------------------------------------------------
 
 // -- VARIABLES, FLOW -----------------------------------------------------------------------------
-int gScriptGlobalVar = 12;
+int gUnitTestScriptInt = 12;
 
 void UnitTest_RegisteredIntAccess()
 {
@@ -18,74 +18,172 @@ void UnitTest_RegisteredIntModify()
     gUnitTestRegisteredInt = 23;
 }
 
-void TestIfStatement() {
-    int testvar = 9;
-    if(testvar > 9)
-        Print("Greater than 9");
-    else if(testvar < 9)
-        Print("Less than 9");
-    else
-        Print("Equal to 9");
+void UnitTest_CodeAccess()
+{
+    gUnitTestScriptInt = 49;
 }
 
-void TestWhileStatement() {
+void UnitTest_CodeModify()
+{
+    gUnitTestScriptResult = StringCat(gUnitTestScriptInt);
+}
+
+void UnitTest_IfStatement(int testvar)
+{
+    if(testvar > 9)
+        gUnitTestScriptResult = StringCat(testvar, " is greater than 9");
+    else if(testvar < 9)
+        gUnitTestScriptResult = StringCat(testvar, " is less than 9");
+    else
+        gUnitTestScriptResult = StringCat(testvar, " is equal to 9");
+}
+
+void UnitTest_WhileStatement()
+{
     int testvar = 5;
     while(testvar > 0) {
-        Print(testvar);
+        gUnitTestScriptResult = StringCat(gUnitTestScriptResult, " ", testvar);
         testvar = testvar - 1;
     }
 }
 
-void TestForLoop() {
+void UnitTest_ForLoop()
+{
     int testvar;
-    for(testvar = 0; testvar < 5; testvar = testvar + 1)
-        Print(testvar);
+    for(testvar = 0; testvar < 5; testvar += 1)
+    {
+        gUnitTestScriptResult = StringCat(gUnitTestScriptResult, " ", testvar);
+    }
 }
 
-//void SetGlobalVarTo43() {
-//    gCodeGlobalVar = 43;
-//}
-
-void TestParenthesis() {
+void TestParenthesis()
+{
     float result = (((3 + 4) * 17) - (3.0f + 6)) % (42 / 3);
     gUnitTestScriptResult = StringCat(result);
 }
 
 hashtable gHashTable;
 string gHashTable["hello"] = "goodbye";
-float gHashTable["goodbye"] = 17.5f;
-void TestHashtables() {
-    Print(gHashTable["hello"]);
-    Print(gHashTable[gHashTable["hello"]]);
+string gHashTable["goodbye"] = "hello";
+float gHashTable["hello", "goodbye"] = 3.1416f;
+void UnitTest_AssociativeArray()
+{
+    gUnitTestScriptResult = StringCat(gHashTable["hello"]);
+    gUnitTestScriptResult = StringCat(gUnitTestScriptResult, " ", gHashTable["goodbye"]);
+    gUnitTestScriptResult = StringCat(gUnitTestScriptResult, " ", gHashTable[gHashTable["goodbye"]]);
+    gUnitTestScriptResult = StringCat(gUnitTestScriptResult, " ", gHashTable[gHashTable["goodbye"], gHashTable["hello"]]);
 }
 
-// -- GLOBAL FUNCTIONS ----------------------------------------------------------------------------
-void CallMultIntByTwo(int number) {
-    int multresult = MultIntByTwo(number);
-    Print(multresult);
+// -- Registered function return types --------------------------------------------------------------------------------
+void UnitTest_ReturnTypeInt(int number)
+{
+    int result = UnitTest_MultiplyBy2(number);
+    gUnitTestScriptResult = StringCat(result);
 }
 
-int ScriptMod9(int number) {
-    return (number % 9);
+void UnitTest_ReturnTypeFloat(float number)
+{
+    float result = UnitTest_DivideBy3(number);
+    gUnitTestScriptResult = StringCat(result);
 }
 
-int AddThree(int num) {
-    return (num + 3);
+void UnitTest_ReturnTypeBool(float number0, float number1)
+{
+    bool result = UnitTest_IsGreaterThan(number0, number1);
+    gUnitTestScriptResult = StringCat(result);
 }
 
-int TestNestedFunctions(int value) {
-    int result1 = MultIntByTwo(MultIntByTwo(MultIntByTwo(value)));
-    Print(result1);
-    int result2 = AddThree(AddThree(AddThree(value)));
-    Print(result2);
+void UnitTest_ReturnTypeString(string animal_name)
+{
+    string result = UnitTest_AnimalType(animal_name);
+    gUnitTestScriptResult = StringCat(result);
+}
+
+void UnitTest_ReturnTypeVector3f(vector3f v0)
+{
+    vector3f result = UnitTest_V3fNormalize(v0);
+    gUnitTestScriptResult = StringCat(result);
+}
+
+// -- Scripted function return types ----------------------------------------------------------------------------------
+int UnitTest_ScriptReturnInt(int number)
+{
+    // -- return 2 * number
+    return (number << 1);
+}
+
+float UnitTest_ScriptReturnFloat(float number)
+{
+    // -- return (number / 3.0f);
+    return (number / 3.0f);
+}
+
+bool UnitTest_ScriptReturnBool(float number0, float number1)
+{
+    // -- return (number0 > number1)
+    return (number0 > number1);
+}
+
+string UnitTest_ScriptReturnString(string animal_type)
+{
+    if (!StringCmp(animal_type, "cat"))
+        return ("felix");
+    else if (!StringCmp(animal_type, "dog"))
+        return ("spot");
+    else if (!StringCmp(animal_type, "goldfish"))
+        return ("fluffy");
+    else
+        return ("unknown");
+}
+
+vector3f UnitTest_ScriptReturnVector3f(vector3f v0)
+{
+    // -- return the 2D normalized vector
+    v0:y = 0.0f;
+    float length = V3fLength(v0);
+    if (length > 0.0f)
+        return (v0 / length);
+    return ('0 0 0');
+}
+
+// -- Scripted recursive function returns -----------------------------------------------------------------------------
+void UnitTest_ScriptRecursiveFibonacci(int nth_number)
+{
+    // -- this will blow the stack if nth_number is too large
+    // -- TinScript does not implement tail-end recursion, or any
+    // -- other VM optimizations - the results will be correct, but
+    // -- strongly advise against unbounded recursive scripting
+    gUnitTestScriptResult = StringCat(Fibonacci(nth_number));
+}
+
+string RecursiveAlphabet(string alphabet, int nth_letter)
+{
+    // -- return the entire alphabet, up to the nth letter
+    if (nth_letter < 1 || nth_letter > 27)
+        return (alphabet);
+        
+    if (nth_letter == 1)
+        return StringCat('a', alphabet);
+    else
+    {
+        string letter = IntToChar(CharToInt('a') + (nth_letter - 1));
+        alphabet = StringCat(letter, alphabet);
+        return StringCat(alphabet, RecursiveAlphabet(alphabet, nth_letter - 1));
+    }
+}
+
+void UnitTest_ScriptRecursiveString(int nth_letter)
+{
+    gUnitTestScriptResult = RecursiveAlphabet("", nth_letter);
 }
 
 int Fibonacci(int num) {
-    if (num <= 1) {
+    if (num == 0)
+        return (0);
+    else if (num <= 2)
         return 1;
-    }
     else {
-        int prev =Fibonacci(num - 1);
+        int prev = Fibonacci(num - 1);
         int prevprev = Fibonacci(num - 2);
         int result = prev + prevprev;
         return result;
@@ -109,159 +207,65 @@ int FibIterative(int num) {
     return (cur);
 }
 
-// -- CVector3f functions--------------------------------------------------------------------------
-void TestObjCVector3f()
+// -- Object functions ------------------------------------------------------------------------------------------------
+
+void UnitTest_CreateBaseObject()
 {
-    object v0 = create CVector3f();
-    v0.Set(1.0f, 2.0f, 3.0f);
-    Print(v0.Length());
-    
-    object v1 = create CVector3f();
-    v1.Set(4.0f, 5.0f, 6.0f);
-    
-    object cross_result = create CVector3f();
-    if (ObjCross(cross_result, v0, v1))
-    {
-        Print("The cross product is: (", cross_result.x, ", ", cross_result.y, ", ", cross_result.z, ")");
-    }
-    
-    float dot = ObjDot(v0, v1);
-    Print("The dot product is: ", dot);
-    
-    // -- cleanup
-    destroy v0;
-    destroy v1;
-    destroy cross_result;
+    // -- retrieving the name demonstrates both access to an object method, and that the
+    // -- object actually exists
+    object test_obj = create CBase("BaseObject");
+    gUnitTestScriptResult = StringCat(test_obj.GetObjectName(), " ", test_obj.GetFloatValue());
+    destroy test_obj;
 }
 
-void TestTypeCVector3f()
+void UnitTest_CreateChildObject()
 {
-    vector3f v0 = "1 2 3";
-    Print(V3fLength(v0));
-    
-    vector3f v1 = "4 5 6";
-    
-    vector3f cross_result = V3fCross(v0, v1);
-    Print("The cross product is: (", cross_result:x, ", ", cross_result:y, ", ", cross_result:z, ")");
-    
-    float dot = V3fDot(v0, v1);
-    Print("The dot product is: ", dot);
+    // -- retrieving the name demonstrates the object exists -
+    // -- retrieving the same GetFloatValue() defined in the base class demonstrates
+    // -- that the hierarchy is correct, and hierarchical methods and members are also correct
+    object test_obj = create CChild("ChildObject");
+    gUnitTestScriptResult = StringCat(test_obj.GetObjectName(), " ", test_obj.GetFloatValue());
+    destroy test_obj;
 }
 
-vector3f TestReturnV3f(vector3f in_v)
+void TestNSObject::OnCreate()
 {
-    vector3f local_v = in_v;
-    local_v:y = 0.0f;
-    return (local_v);
+    // -- demonstrate access to a parent member
+    self.floatvalue = 55.3f;
+    
+    // -- demonstrate access to a parent method - note, CChild implements
+    // -- and registers it's own version, multiplying the value by 2
+    self.SetIntValue(99);
+    
+    // -- declare a scripted member for the object
+    string self.testmember = "foobar";
 }
 
-float TestReturnPODMember(vector3f in_v)
+void UnitTest_CreateTestNSObject()
 {
-    float y_value = in_v:y;
-    return (y_value);
+    // -- The ::OnCreate() demonstrates access to the parent class, as well as defining a new member
+    object test_obj = create CChild("TestNSObject");
+    gUnitTestScriptResult = StringCat(test_obj.GetObjectName(), " ", test_obj.GetFloatValue(), " ",
+                                      test_obj.GetIntValue(), " ", test_obj.testmember);
+    destroy test_obj;
 }
 
-// -- OBJECTS FUNCTIONS ---------------------------------------------------------------------------
-
-object gScriptBaseObject;
-void ScriptCreateObject() {
-    gScriptBaseObject = create CBase();
+// -- creating an object from code, registering it, and linking it to the TestNSObject namespace
+void TestCodeNSObject::OnCreate()
+{
+    // -- add this namespace to the parent hierarchy
+    LinkNamespaces("TestCodeNSObject", "TestNSObject");
+    
+    // -- call the parent OnCreate() in a "constructor"-like fashion
+    TestNSObject::OnCreate();
 }
 
-void ScriptModifyMember() {
-    gScriptBaseObject.floatvalue = 35.0f;
-    Print(gScriptBaseObject.floatvalue);
-}
-
-void ScriptModifyMethod() {
-    gScriptBaseObject.SetIntValue(91);
-    Print(gScriptBaseObject.GetIntValue());
-}
-
-// -- OBJECTS METHODS -----------------------------------------------------------------------------
-
-void CBase::CallBaseMethod() {
-    Print("Enter CBase::CallBaseMethod()");
-    self.floatvalue = self.floatvalue - 100.0f;
-    Print(self.GetFloatValue());
-}
-
-void ScriptCallTestBaseMethod() {
-    gScriptBaseObject.floatvalue = 35.0f;
-    gScriptBaseObject.CallBaseMethod();
-}
-
-object gScriptChildObject;
-void ScriptCreateChildObject() {
-    gScriptChildObject = create CChild();
-}
-
-void ScriptCallChildMethod() {
-    gScriptChildObject.SetIntValue(12);
-    Print(gScriptChildObject.intvalue);
-}
-
-void CChild::CallChildMethod() {
-    Print("Enter CBase::CallChildMethod()");
-    self.SetFloatValue(123.0f);
-    CBase::CallBaseMethod();
-}
-
-void ScriptCallChildScriptMethod() {
-    gScriptChildObject.CallChildMethod();
-    Print(gScriptChildObject.floatvalue);
-}
-
-void ScriptCallBothObjectMethods() {
-    gScriptBaseObject.SetIntValue(18);
-    gScriptChildObject.SetIntValue(18);
-    Print(gScriptBaseObject.intvalue);
-    Print(gScriptChildObject.intvalue);
-}
-
-// -- NAMED OBJECT METHODS ------------------------------------------------------------------------
-object gScriptNamedObject;
-void ScriptCreateNamedObject() {
-    gScriptNamedObject = create CChild("ScriptNS");
-}
-
-void ScriptNS::OnCreate() {
-    Print("Entering TestNS::OnCreate()");
-    int self.schedrequest;
-}
-
-void ScriptNS::OnDestroy() {
-    Print("Entering TestNS::OnDestroy()");
-}
-
-void ScriptNS::TestMethod() {
-    self.floatvalue = 58.0f;
-    Print("Entering TestNS::TestMethod()");
-    Print(self.floatvalue);
-}
-
-void ScriptNS::TestThread() {
-    self.intvalue = self.intvalue - 1;
-    Print(" ");
-    Print(self.intvalue);
-    if(self.intvalue > 0) {
-        self.schedrequest = schedule(self, 1000, Hash("TestThread"));
-    }
-    else {
-        Print(" ");
-        Print("Countdown complete!");
-    }
-}
-
-void ThreadTestCount(int num) {
-    Print(num);
-    if(num > 0)
-        schedule(0, 1000, Hash("ThreadTestCount"), num - 1);
-}
-
-void BeginThreadTest() {
-    gScriptNamedObject.intvalue = 30;
-    gScriptNamedObject.TestThread();
+// -- now create a namespaced method to be executed from code
+string TestCodeNSObject::ModifyTestMember(string append_value)
+{
+    // -- append to our test member
+    self.testmember = StringCat(self.GetObjectName(), " ", self.testmember, " ", append_value);
+    return (self.testmember);
 }
 
 // -- MultiThread test -----------------------------------------------------------------------------
@@ -272,7 +276,6 @@ void MultiThreadTestFunction(string value)
     gMultiThreadVariable = value;
 	ListObjects();
 }
-
 
 // -- DEBUGGER Test Functions ----------------------------------------------------------------------
 int MultBy3(int value) {
@@ -289,7 +292,6 @@ int MultBy6(int value) {
 
 int MultBy24(int value) {
     int test_watch_var3 = 5;
-    object test_obj = gScriptNamedObject;
     int result = MultBy6(value) * 4;
     return (result);
 }

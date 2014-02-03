@@ -171,9 +171,7 @@ const char* TokenPrint(tReadToken& token) {
     if(!token.tokenptr || token.length <= 0)
         return "";
 
-    static int32 bufferindex = 0;
-    static char buffers[kMaxTokenLength][8];
-    char* bufferptr = buffers[(++bufferindex) % 8];
+    char* bufferptr = TinScript::GetContext()->GetScratchBuffer();
     SafeStrcpy(bufferptr, token.tokenptr, token.length + 1);
     return bufferptr;
 }
@@ -2558,43 +2556,46 @@ bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileT
         return false;
     }
 
-    // -- read the obj name
-    tReadToken objnametoken(nexttoken);
-    if(!GetToken(objnametoken) || (objnametoken.type != TOKEN_STRING &&
-                                   objnametoken.type != TOKEN_PAREN_CLOSE)) {
-        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                      objnametoken.linenumber, "Error - expecting ')'\n");
-        gGlobalCreateStatement = false;
-        return false;
+    // -- see if we have an expression which will resolve to the object name
+    CCompileTreeNode* obj_name_expr_root = NULL;
+    CCompileTreeNode** templink = &obj_name_expr_root;
+
+    // -- if we read a valid expression, update the token
+    tReadToken objnameexpr(nexttoken);
+    if (TryParseExpression(codeblock, objnameexpr, *templink))
+    {
+        nexttoken = objnameexpr;
     }
 
-    // -- if we found an object name, read the closing parenthesis
-    nexttoken = objnametoken;
-    if(objnametoken.type == TOKEN_STRING) {
-        if(!GetToken(nexttoken) || nexttoken.type != TOKEN_PAREN_CLOSE) {
-            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                          nexttoken.linenumber, "Error - expecting ')'\n");
-            gGlobalCreateStatement = false;
-            return false;
-        }
+    // -- read the closing parenthesis
+    if(!GetToken(nexttoken) || nexttoken.type != TOKEN_PAREN_CLOSE) {
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                        nexttoken.linenumber, "Error - expecting ')'\n");
+        gGlobalCreateStatement = false;
+        return false;
     }
 
     // -- success
     filebuf = nexttoken;
 
     // -- create the node
-    if(objnametoken.type == TOKEN_STRING) {
+    if(obj_name_expr_root != NULL)
+    {
         CCreateObjectNode* newobjnode = TinAlloc(ALLOC_TreeNode, CCreateObjectNode, codeblock,
                                                  link, filebuf.linenumber, classtoken.tokenptr,
-                                                 classtoken.length, objnametoken.tokenptr,
-                                                 objnametoken.length);
-        Unused_(newobjnode);
+                                                 classtoken.length);
+        newobjnode->leftchild = obj_name_expr_root;
     }
-    else {
+    else
+    {
         CCreateObjectNode* newobjnode = TinAlloc(ALLOC_TreeNode, CCreateObjectNode, codeblock,
                                                  link, filebuf.linenumber, classtoken.tokenptr,
-                                                 classtoken.length, "", 0);
-        Unused_(newobjnode);
+                                                 classtoken.length);
+        CValueNode* emptyname = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock,
+                                         newobjnode->leftchild, filebuf.linenumber, "", 0, false,
+                                         TYPE_string);
+
+        Unused_(emptyname);
     }
 
     // -- reset the bool

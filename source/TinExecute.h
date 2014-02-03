@@ -96,6 +96,33 @@ class CExecStack {
 			return (void*)mStackTop;
 		}
 
+        // -- doesn't remove the top of the stack, and doesn't assert if the stack is empty
+		void* Peek(eVarType& contenttype) {
+			uint32 stacksize = kPointerDiffUInt32(mStackTop, mStack) / sizeof(uint32);
+            if (stacksize == 0)
+                return (NULL);
+
+            uint32* cur_stack_top = mStackTop;
+			contenttype = (eVarType)(*(--cur_stack_top));
+
+            // -- if what's on the stack isn't a valid content type, leave the stack alone, but
+            // -- return NULL - the calling operation should catch the NULL and assert
+            if(contenttype < 0 || contenttype >= TYPE_COUNT)
+                return (NULL);
+
+
+			uint32 contentsize = kBytesToWordCount(gRegisteredTypeSize[contenttype]);
+
+			// -- ensure we have enough data on the stack, both the content, and the type
+            Assert_(stacksize >= contentsize + 1);
+			cur_stack_top -= contentsize;
+
+            // -- pushing and popping strings onto the execstack need to be refcounted
+            // -- peeking, however, does not alter either the stack, or the string table
+
+			return (void*)cur_stack_top;
+		}
+
         void Reserve(int32 wordcount) {
             mStackTop += wordcount;
         }

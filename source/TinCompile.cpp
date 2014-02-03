@@ -1498,12 +1498,10 @@ int32 CSchedParamNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counto
 // ------------------------------------------------------------------------------------------------
 CCreateObjectNode::CCreateObjectNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
                                      int32 _linenumber, const char* _classname,
-                                     uint32 _classlength, const char* _objname,
-                                     uint32 _objlength) :
+                                     uint32 _classlength) :
                                      CCompileTreeNode(_codeblock, _link, eCreateObject,
                                                       _linenumber) {
 	SafeStrcpy(classname, _classname, _classlength + 1);
-	SafeStrcpy(objectname, _objname, _objlength + 1);
 }
 
 int32 CCreateObjectNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
@@ -1511,12 +1509,16 @@ int32 CCreateObjectNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 coun
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
+    // -- evaluate the left child, which resolves to the string name of the object
+    int32 tree_size = leftchild->Eval(instrptr, TYPE_string, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
+
     // -- create the object by classname, objectname
 	uint32 classhash = Hash(classname);
-    uint32 objecthash = Hash(objectname);
 	size += PushInstruction(countonly, instrptr, OP_CreateObject, DBG_instr);
 	size += PushInstruction(countonly, instrptr, classhash, DBG_hash);
-	size += PushInstruction(countonly, instrptr, objecthash, DBG_hash);
 
     // -- if we're not looking to assign the new object ID to anything, pop the stack
     if(pushresult <= TYPE_void) {

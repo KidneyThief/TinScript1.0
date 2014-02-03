@@ -261,7 +261,7 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
             {
                 ScriptAssert_(script_context, 0, "<internal>", -1,
                               "Error - fail to conver from type %s to type %s\n",
-                              GetRegisteredTypeName(val1type), GetRegisteredTypeName(ve0->GetType()));
+                              GetRegisteredTypeName(val1type), GetRegisteredTypeName(varhashtype));
                 return (false);
             }
             memcpy(var, val1addr, gRegisteredTypeSize[varhashtype]);
@@ -563,17 +563,19 @@ bool8 PerformUnaryOp(CScriptContext* script_context, CExecStack& execstack,
         case OP_UnaryNot:
         {
             // -- verify the types - this is only valid for int32 and float32
-            if(valtype != TYPE_bool) {
+            void* boolval = TypeConvert(script_context, valtype, valaddr, TYPE_bool);
+            if (!boolval)
+            {
                 ScriptAssert_(script_context, 0, "<internal>", -1,
                               "Error - Only type bool8 is supported for op: %s\n",
                               GetOperationString(op));
                 return false;
             }
-            bool8 value = *(bool8*)valaddr;
+            bool8 value = *(bool8*)boolval;
             value = !value;
 
 	        // -- push the the value onto the stack
-	        execstack.Push(&value, valtype);
+	        execstack.Push(&value, TYPE_bool);
             DebugTrace(op, "result: %s", DebugPrintVar(&value, valtype));
             return true;
         }
@@ -1512,6 +1514,24 @@ bool8 OpExecFuncCall(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
                       UnHash(fe->GetHash()));
         return false;
     }
+
+    // -- the return value of the call is guaranteed - even void is forced to push a 0
+    // -- don't pop it, however, as it could also be used in an assignment - use Peek()
+    eVarType return_valtype;
+    CVariableEntry* return_ve = NULL;
+    CObjectEntry* return_oe = NULL;
+	void* return_val = execstack.Peek(return_valtype);
+    if(!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, return_val, return_valtype, return_ve,
+                      return_oe))
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - no return value (even void pushes 0) from function: %s()\n", UnHash(fe->GetHash()));
+        return false;
+    }
+
+    // -- store the stack value in the code block, so ExecF has something to retrieve
+    cb->GetScriptContext()->SetFunctionReturnValue(return_val, return_valtype);
+
     return (true);
 }
 
@@ -1787,9 +1807,23 @@ bool8 OpExecScheduleEnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
 
 bool8 OpExecCreateObject(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                          CFunctionCallStack& funccallstack) {
+
+    // -- The next instruction is the class to instantiate
     uint32 classhash = *instrptr++;
-    uint32 objnamehash = *instrptr++;
-    uint32 objid = cb->GetScriptContext()->CreateObject(classhash, objnamehash);
+
+    // -- what will previously have been pushed on the stack, is the object ID
+    eVarType contenttype;
+    void* contentptr = execstack.Pop(contenttype);
+    void* objnameaddr = TypeConvert(cb->GetScriptContext(), contenttype, contentptr, TYPE_string);
+    if (!objnameaddr)
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - ExecStack should contain TYPE_string\n");
+        return false;
+    }
+
+    // -- strings are already hashed, when pulled from the stack
+    uint32 objid = cb->GetScriptContext()->CreateObject(classhash, *(uint32*)objnameaddr);
 
     // -- if we failed to create the object, assert
     if (objid == 0)

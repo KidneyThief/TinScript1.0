@@ -34,20 +34,21 @@
 #include "TinScript.h"
 #include "TinRegistration.h"
 
+// -- external includes
+#include "cmdshell.h"
+
 // ------------------------------------------------------------------------------------------------
 // statics - mostly for the quick and dirty console implementation
 static const uint32 gFramesPerSecond = 33;
 static const uint32 gMSPerFrame = 1000 / gFramesPerSecond;
-static const float32 gSecPerFrame = (1.0f / float32(gFramesPerSecond));
 static uint32 gCurrentTime = 0;
-static char gConsoleInputBuf[TinScript::kMaxTokenLength];
-static const float32 gRefreshDelay = 0.25f;
 
 // ------------------------------------------------------------------------------------------------
 // quick and dirty console framework
 // ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+static CCmdShell* gCmdShell = NULL;
 static bool8 gRunning = true;
+
 void Quit() {
     gRunning = false;
 }
@@ -74,88 +75,17 @@ float32 GetSimTime() {
 }
 REGISTER_FUNCTION_P0(GetSimTime, GetSimTime, float32);
 
-float32 TimeDiffSeconds(uint32 starttime, uint32 endtime) {
-    if (endtime <= starttime)
-        return 0.0f;
-    uint32 framecount = (endtime - starttime) / gMSPerFrame;
-    return float32(framecount) * gSecPerFrame;
-}
-
-void RefreshConsoleInput(const char* new_input_string = NULL)
-{
-    // -- whatever was on in the buffer needs to be deleted
-    int input_len = strlen(gConsoleInputBuf);
-    for (int i = 0; i < input_len; ++i)
-    {
-        // -- print a space over the "last" character
-        printf("\b \b");
-    }
-
-    // -- if we have a new input string, copy it
-    if (new_input_string)
-    {
-        TinScript::SafeStrcpy(gConsoleInputBuf, new_input_string, TinScript::kMaxTokenLength);
-    }
-
-    printf(gConsoleInputBuf);
-}
-
-// -- returns false if we should break
-bool8 AssertHandler(TinScript::CScriptContext* script_context, const char* condition,
-                    const char* file, int32 linenumber, const char* fmt, ...) {
-    if (!script_context->IsAssertStackSkipped() || script_context->IsAssertEnableTrace())
-    {
-        if (!script_context->IsAssertStackSkipped())
-            printf("*************************************************************\n");
-        else
-            printf("\n");
-
-        if (linenumber >= 0)
-            printf("Assert(%s) file: %s, line %d:\n", condition, file, linenumber + 1);
-        else
-            printf("Exec Assert(%s):\n", condition);
-
-        va_list args;
-        va_start(args, fmt);
-        char msgbuf[2048];
-        vsprintf_s(msgbuf, 2048, fmt, args);
-        va_end(args);
-        printf(msgbuf);
-
-        if (!script_context->IsAssertStackSkipped())
-            printf("*************************************************************\n");
-        if (!script_context->IsAssertStackSkipped()) {
-            printf("Press 'b' to break, 't' to trace, otherwise skip...\n");
-            char ch = getchar();
-            if (ch == 'b')
-                return false;
-            else if (ch == 't')
-            {
-                script_context->SetAssertStackSkipped(true);
-                script_context->SetAssertEnableTrace(true);
-                return true;
-            }
-            else
-            {
-                script_context->SetAssertStackSkipped(true);
-                script_context->SetAssertEnableTrace(false);
-                return true;
-            }
-        }
-    }
-
-    // -- handled - return true so we don't break
-    return true;
-}
-
 int32 _tmain(int32 argc, _TCHAR* argv[])
 {
-    // -- initialize
-    TinScript::CreateContext(printf, AssertHandler, true);
-
     // -- required to ensure registered functions from unittest.cpp are linked.
     REGISTER_FILE(unittest_cpp);
     REGISTER_FILE(mathutil_cpp);
+
+    // -- initialize
+    TinScript::CreateContext(printf, CmdShellAssertHandler, true);
+
+    // -- create a command shell
+    gCmdShell = new CCmdShell();
 
 	// -- convert all the wide args into an array of const char*
 	char argstring[kMaxArgs][kMaxArgLength];
@@ -206,144 +136,35 @@ int32 _tmain(int32 argc, _TCHAR* argv[])
 		return 1;
 	}
 
-    // -- q&d history implementation
-    bool8 historyfull = false;
-    const int32 maxhistory = 64;
-    int32 historyindex = -1;
-    int32 historylastindex = -1;
-    char history[TinScript::kMaxTokenLength][maxhistory];
-    for(int32 i = 0; i < maxhistory; ++i)
-        *history[i] = '\0';
-
-    char* inputptr = gConsoleInputBuf;
-    printf("\nConsole => ");
     while(gRunning) {
         // -- simulate a 33ms frametime
         // -- time needs to stand still while an assert is active
         Sleep(gMSPerFrame);
-        if (!gPaused) {
+        if (!gPaused)
+        {
             gCurrentTime += gMSPerFrame;
+        }
+
+        // -- update the cmd shell - see if we have a command to execute
+        if (gCmdShell)
+        {
+            const char* command = gCmdShell->Update();
+            if (command)
+            {
+                TinScript::ExecCommand(command);
+
+                // -- once handled, refresh the prompt
+                gCmdShell->RefreshConsoleInput(true, "");
+            }
         }
 
         // -- keep the system running...
         TinScript::UpdateContext(gCurrentTime);
-        
-        // -- see if we hit a key
-        if (_kbhit()) {
-
-            // -- read the next key
-            bool8 special_key = false;
-            char c = _getch();
-            if (c == -32) {
-                special_key = true;
-                c = _getch();
-            }
-
-            // -- esc
-            if (!special_key && c == 27) {
-                int input_len = strlen(gConsoleInputBuf);
-                for (int i = 0; i < input_len; ++i)
-                {
-                    // -- print a space over the "last" character
-                    printf("\b \b");
-                }
-
-                // -- reset the input pointer, and set it to an empty string
-                inputptr = gConsoleInputBuf;
-                *inputptr = '\0';
-
-                // -- reset the history
-                historyindex = -1;
-            }
-
-            // -- uparrow
-            else if (special_key && c == 72) {
-                int32 oldhistory = historyindex;
-                if (historyindex < 0)
-                    historyindex = historylastindex;
-                else if (historylastindex > 0) {
-                    if (historyfull)
-                        historyindex = (historyindex + maxhistory - 1) % maxhistory;
-                    else
-                        historyindex = (historyindex + historylastindex) % (historylastindex + 1);
-                }
-
-                // -- see if we actually changed
-                if (historyindex != oldhistory && historyindex >= 0)
-                {
-                    // -- update the input buf with the new string
-                    RefreshConsoleInput(history[historyindex]);
-
-                    // -- set the "new character" input ptr to the end of the buf
-                    inputptr = &gConsoleInputBuf[strlen(gConsoleInputBuf)];
-                }
-            }
-
-            // -- downarrow
-            else if (special_key && c == 80) {
-                int32 oldhistory = historyindex;
-                if (historyindex < 0)
-                    historyindex = historylastindex;
-                else if (historylastindex > 0) {
-                    if (historyfull)
-                        historyindex = (historyindex + 1) % maxhistory;
-                    else
-                        historyindex = (historyindex + 1) % (historylastindex + 1);
-                }
-
-                // -- see if we actually changed
-                if (historyindex != oldhistory && historyindex >= 0) {
-                    // -- update the input buf with the new string
-                    RefreshConsoleInput(history[historyindex]);
-
-                    // -- set the "new character" input ptr to the end of the buf
-                    inputptr = &gConsoleInputBuf[strlen(gConsoleInputBuf)];
-                }
-            }
-
-            // -- backspace keypress
-            else if (!special_key && c == 8 && inputptr > gConsoleInputBuf) {
-                *--inputptr = '\0';
-                printf("\b \b");
-            }
-
-            // -- return keypress
-            else if (!special_key && c == 13) {
-                // -- echo the input and execute it
-                *inputptr = '\0';
-                RefreshConsoleInput();
-                printf("\n>> %s\n", gConsoleInputBuf);
-
-                // -- add this to the history buf
-                const char* historyptr = (historylastindex < 0) ? NULL : history[historylastindex];
-                if (gConsoleInputBuf[0] != '\0' && (!historyptr ||
-                                                   strcmp(historyptr, gConsoleInputBuf) != 0)) {
-                    historyfull = historyfull || historylastindex == maxhistory - 1;
-                    historylastindex = (historylastindex + 1) % maxhistory;
-                    TinScript::SafeStrcpy(history[historylastindex], gConsoleInputBuf, TinScript::kMaxTokenLength);
-                }
-                historyindex = -1;
-
-                // -- execute the contents of the input buffer
-                TinScript::ExecCommand(gConsoleInputBuf);
-
-                // -- clear the input, and set the input ptr
-                RefreshConsoleInput("");
-                inputptr = gConsoleInputBuf;
-
-                printf("\nConsole => ");
-            }
-
-            // ignore any other non-printable character
-            else if (!special_key && (uint32)c >= 0x20) {
-                RefreshConsoleInput();
-                *inputptr++ = c;
-                *inputptr = '\0';
-                printf("%c", c);
-            }
-        }
     }
 
+    // -- cleanup
+    delete gCmdShell;
+    gCmdShell = NULL;
     TinScript::DestroyContext();
 
 	return 0;

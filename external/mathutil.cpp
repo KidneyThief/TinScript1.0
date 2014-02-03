@@ -19,6 +19,9 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
+// -- system includes
+#include <cstdlib>
+
 // -- includes
 #include "mathutil.h"
 
@@ -109,19 +112,6 @@ float32 CVector3f::Length(CVector3f v0)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// -- registration
-
-IMPLEMENT_SCRIPT_CLASS_BEGIN(CVector3f, VOID)
-    REGISTER_MEMBER(CVector3f, x, x);
-    REGISTER_MEMBER(CVector3f, y, y);
-    REGISTER_MEMBER(CVector3f, z, z);
-IMPLEMENT_SCRIPT_CLASS_END()
-
-REGISTER_METHOD_P3(CVector3f, Set, Set, void, float32, float32, float32);
-REGISTER_METHOD_P0(CVector3f, Length, Length, float32);
-REGISTER_METHOD_P0(CVector3f, Normalize, Normalize, float32);
-
-// --------------------------------------------------------------------------------------------------------------------
 // -- registered functions
 bool8 TS_Cross(CVector3f* result, CVector3f* v0, CVector3f* v1)
 {
@@ -172,17 +162,77 @@ float32 TS_Normalized(CVector3f* result, CVector3f* v0)
     return (length);
 }
 
+// --------------------------------------------------------------------------------------------------------------------
+// -- registration - CVector3f as a object, using create, destroy, etc..
+IMPLEMENT_SCRIPT_CLASS_BEGIN(CVector3f, VOID)
+    REGISTER_MEMBER(CVector3f, x, x);
+    REGISTER_MEMBER(CVector3f, y, y);
+    REGISTER_MEMBER(CVector3f, z, z);
+IMPLEMENT_SCRIPT_CLASS_END()
+
+REGISTER_METHOD_P3(CVector3f, Set, Set, void, float32, float32, float32);
+REGISTER_METHOD_P0(CVector3f, Length, Length, float32);
+REGISTER_METHOD_P0(CVector3f, Normalize, Normalize, float32);
+
 REGISTER_FUNCTION_P3(ObjCross, TS_Cross, bool8, CVector3f*, CVector3f*, CVector3f*);
 REGISTER_FUNCTION_P2(ObjDot, TS_Dot, float32, CVector3f*, CVector3f*);
 REGISTER_FUNCTION_P2(ObjNormalized, TS_Normalized, float32, CVector3f*, CVector3f*);
 
 // --------------------------------------------------------------------------------------------------------------------
-// -- Re-registered using the registered type, no longer requiring a script context
-// -- the function signature must pass by 
+// -- Re-registered using the registered type, instead of having to find an object
 REGISTER_FUNCTION_P1(V3fLength, CVector3f::Length, float32, CVector3f);
 REGISTER_FUNCTION_P2(V3fCross, CVector3f::Cross, CVector3f, CVector3f, CVector3f);
 REGISTER_FUNCTION_P2(V3fDot, CVector3f::Dot, float32, CVector3f, CVector3f);
 REGISTER_FUNCTION_P1(V3fNormalized, CVector3f::Normalized, CVector3f, CVector3f);
+
+// ====================================================================================================================
+// Random Numbers
+// ====================================================================================================================
+float32 Random()
+{
+    float32 rand_num = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+    return (rand_num);
+}
+
+float32 RandomRange(float32 low, float32 high)
+{
+    // -- sanity check
+    if (high < low)
+        high = low;
+
+    float32 rand_num = low + Random() * (high - low);
+    return (rand_num);
+}
+
+REGISTER_FUNCTION_P0(Random, Random, float32);
+REGISTER_FUNCTION_P2(RandomRange, RandomRange, float32, float32, float32);
+
+// ====================================================================================================================
+// Trigonometry
+// ====================================================================================================================
+static const float32 kPI = 3.1415926535f;
+float32 Cos(float32 degrees)
+{
+    return (cosf(degrees * kPI / 180.0f));
+}
+
+float32 Sin(float32 degrees)
+{
+    return (sinf(degrees * kPI / 180.0f));
+}
+
+float32 Atan2(float32 y, float32 x)
+{
+    float32 angle = atan2(y, x);
+
+    // -- convert the angle back to degrees
+    angle *= (180.0f / kPI);
+    return (angle);
+}
+
+REGISTER_FUNCTION_P1(Cos, Cos, float32, float32);
+REGISTER_FUNCTION_P1(Sin, Sin, float32, float32);
+REGISTER_FUNCTION_P2(Atan2, Atan2, float32, float32, float32);
 
 // ====================================================================================================================
 // EOF

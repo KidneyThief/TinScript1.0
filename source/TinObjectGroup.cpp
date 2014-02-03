@@ -121,11 +121,10 @@ void CMasterMembershipList::OnDelete(CObjectEntry* oe) {
 }
 
 // ------------------------------------------------------------------------------------------------
-CObjectSet::CObjectSet(CScriptContext* script_context, int32 _size) {
-    assert(script_context != NULL && _size > 0);
-    mContextOwner = script_context;
+CObjectSet::CObjectSet() {
+    mContextOwner = TinScript::GetContext();
 
-    mObjectList = TinAlloc(ALLOC_ObjectGroup, CHashTable<CObjectEntry>, _size);
+    mObjectList = TinAlloc(ALLOC_ObjectGroup, CHashTable<CObjectEntry>, kObjectGroupTableSize);
 }
 
 CObjectSet::~CObjectSet() {
@@ -254,8 +253,8 @@ uint32 CObjectSet::GetObjectByIndex(int32 index) {
 }
 
 // ------------------------------------------------------------------------------------------------
-CObjectGroup::CObjectGroup(CScriptContext* script_context, int32 _size)
-                           : CObjectSet(script_context, _size) {
+CObjectGroup::CObjectGroup() : CObjectSet()
+{
 }
 
 CObjectGroup::~CObjectGroup() {

@@ -33,6 +33,13 @@ namespace TinScript {
     class CScriptContext;
 }
 
+// -- The stack size is a limiting factor, if TinScript is to be used for any recursive scripting.
+// -- Highly recommended to avoid this, as there are no optimizations (such as tail-end recursion)
+// -- Testing with the implementation of Fibonacci(nth) found in unittest.ts, The maximum
+// -- depth with the default stack is Fibonacci(12).
+// -- Setting a stack size of 4Mb, Fibonacci(30) was successful, but prohibitively slow.
+#pragma comment(linker, "/STACK:4000000")
+
 // ------------------------------------------------------------------------------------------------
 // -- TYPES
 // ------------------------------------------------------------------------------------------------

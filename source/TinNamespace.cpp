@@ -350,10 +350,8 @@ uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash) {
         CFunctionEntry* createfunc = newobjectentry->GetFunctionEntry(0, Hash("OnCreate"));
         if(createfunc) {
             // -- call the script "OnCreate" for the object
-            if(HasMethod(newobj, "OnCreate")) {
-                int32 dummy = 0;
-                ObjExecF(objectid, dummy, "OnCreate();");
-            }
+            int32 dummy = 0;
+            ObjExecF(objectid, dummy, "OnCreate();");
         }
 
         return objectid;
@@ -423,6 +421,18 @@ uint32 CScriptContext::RegisterObject(void* objaddr, const char* classname,
     return objectid;
 }
 
+void CScriptContext::UnregisterObject(void* objaddr)
+{
+    // -- find the ID of the registered object
+    uint32 objectid = FindIDByAddress(objaddr);
+    if (objectid == 0)
+        return;
+
+    // -- destroy the object (will only remove from dictionaries and call ::OnDestroy())
+    // -- registered objects are new'd from code, and must be delete'd as well
+    DestroyObject(objectid);
+}
+
 void CScriptContext::DestroyObject(uint32 objectid) {
     // -- find this object in the dictionary of all objects created from script
     CObjectEntry* oe = GetObjectDictionary()->FindItem(objectid);
@@ -455,11 +465,8 @@ void CScriptContext::DestroyObject(uint32 objectid) {
     // -- see if the "OnDestroy" has been defined - it's not required to
     CFunctionEntry* destroyfunc = oe->GetFunctionEntry(0, Hash("OnDestroy"));
     if(destroyfunc) {
-        // -- call the script "OnInit" for the object
-        if(HasMethod(oe->GetID(), "OnCreate")) {
-            int32 dummy = 0;
-            ObjExecF(objectid, dummy, "OnDestroy();");
-        }
+        int32 dummy = 0;
+        ObjExecF(objectid, dummy, "OnDestroy();");
     }
 
     // -- get the address of the object

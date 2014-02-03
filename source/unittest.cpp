@@ -41,16 +41,8 @@ DECLARE_FILE(unittest_cpp);
 // -- constants -----------------------------------------------------------------------------------
 static const char* kUnitTestScriptName = "../scripts/unittest.ts";
 
-// -- GLOBAL VARIABLES ----------------------------------------------------------------------------
-int32 gUnitTestRegisteredInt = 17;
-REGISTER_GLOBAL_VAR(gUnitTestRegisteredInt, gUnitTestRegisteredInt);
-
-// -- GLOBAL FUNCTIONS ----------------------------------------------------------------------------
-int32 MultIntByTwo(int32 number) {
-    return (number << 1);
-}
-REGISTER_FUNCTION_P1(MultIntByTwo, MultIntByTwo, int32, int32);
-
+// --------------------------------------------------------------------------------------------------------------------
+// -- Print function, for use by the unit tests
 void MTPrint(const char* fmt, ...) {
     TinScript::CScriptContext* script_context = ::TinScript::GetContext();
     va_list args;
@@ -145,6 +137,200 @@ IMPLEMENT_SCRIPT_CLASS_END()
 
 REGISTER_METHOD_P1(CChild, SetIntValue, SetIntValue, void, int32);
 
+// --------------------------------------------------------------------------------------------------------------------
+// class CUnitTest:  A generic way of specifying unit tests, allowing both scripted and code functions
+// to be executed, and verifying the results from either
+// --------------------------------------------------------------------------------------------------------------------
+class CUnitTest
+{
+    public:
+        typedef void (*UnitTestFunc)();
+        CUnitTest(const char* name, const char* description, const char* script_command, const char* script_result,
+                  UnitTestFunc code_test = NULL, const char* code_result = NULL, bool execute_code_last = false)
+        {
+            // -- copy the unit test parameters
+            TinScript::SafeStrcpy(mName, name, TinScript::kMaxTokenLength);
+            TinScript::SafeStrcpy(mDescription, description, TinScript::kMaxTokenLength);
+            TinScript::SafeStrcpy(mScriptCommand, script_command, TinScript::kMaxTokenLength);
+            TinScript::SafeStrcpy(mScriptResult, script_result, TinScript::kMaxTokenLength);
+
+            mExecuteCodeLast = execute_code_last;
+            mCodeTest = code_test;
+            TinScript::SafeStrcpy(mCodeResult, code_result, TinScript::kMaxTokenLength);
+        }
+
+        // -- members
+        char mName[kMaxArgLength];
+        char mDescription[kMaxArgLength];
+        char mScriptCommand[kMaxArgLength];
+        char mScriptResult[kMaxArgLength];
+
+        bool mExecuteCodeLast;
+        UnitTestFunc mCodeTest;
+        char mCodeResult[kMaxArgLength];
+
+        static const char* gScriptResult;
+        static char gCodeResult[kMaxArgLength];
+
+        static TinScript::CHashTable<CUnitTest>* gUnitTests;
+};
+
+// --------------------------------------------------------------------------------------------------------------------
+// declare static members of CUnitTest, including registrations
+TinScript::CHashTable<CUnitTest>* CUnitTest::gUnitTests = NULL;
+const char* CUnitTest::gScriptResult = "";
+char CUnitTest::gCodeResult[kMaxArgLength];
+
+REGISTER_GLOBAL_VAR(gUnitTestScriptResult, CUnitTest::gScriptResult);
+
+// -- GLOBAL VARIABLES ----------------------------------------------------------------------------
+int32 gUnitTestRegisteredInt = 17;
+REGISTER_GLOBAL_VAR(gUnitTestRegisteredInt, gUnitTestRegisteredInt);
+
+// -- GLOBAL FUNCTIONS ----------------------------------------------------------------------------
+// -- these are registered, and called from script for unit testing
+int32 UnitTest_MultiplyBy2(int32 number) {
+    return (number << 1);
+}
+
+float32 UnitTest_DivideBy3(float32 number) {
+    return (number / 3.0f);
+}
+
+bool UnitTest_IsGreaterThan(float32 number0, float32 number1)
+{
+    return (number0 > number1);
+}
+
+const char* UnitTest_AnimalType(const char* animal_name)
+{
+    if (!_stricmp(animal_name, "spot"))
+        return ("dog");
+    else if(!_stricmp(animal_name, "felix"))
+        return ("cat");
+    else if(!_stricmp(animal_name, "fluffy"))
+        return ("goldfish");
+    else
+        return ("unknown");
+}
+
+CVector3f UnitTest_V3fNormalize(CVector3f v0)
+{
+    CVector3f result = CVector3f::Normalized(v0);
+    return (result);
+}
+
+REGISTER_FUNCTION_P1(UnitTest_MultiplyBy2, UnitTest_MultiplyBy2, int32, int32);
+REGISTER_FUNCTION_P1(UnitTest_DivideBy3, UnitTest_DivideBy3, float32, float32);
+REGISTER_FUNCTION_P2(UnitTest_IsGreaterThan, UnitTest_IsGreaterThan, bool8, float32, float32);
+REGISTER_FUNCTION_P1(UnitTest_AnimalType, UnitTest_AnimalType, const char*, const char*);
+REGISTER_FUNCTION_P1(UnitTest_V3fNormalize, UnitTest_V3fNormalize, CVector3f, CVector3f);
+
+// -- these functions contain calls to scripted functions to test reliably receiving return values
+void UnitTest_GetScriptReturnInt()
+{
+    int result;
+    if (!TinScript::ExecF(result, "UnitTest_ScriptReturnInt(%d);", -5))
+    {
+        ScriptAssert_(TinScript::GetContext(), false, "<internal>", -1,
+                      "Error - failed to execute UnitTest_ScriptReturnInt()\n");
+    }
+    else
+    {
+        // -- print the result to a testable string
+        sprintf_s(CUnitTest::gCodeResult, "%d", result);
+    }
+}
+
+void UnitTest_GetScriptReturnFloat()
+{
+    float result;
+    if (!TinScript::ExecF(result, "UnitTest_ScriptReturnFloat(%f);", 15.0f))
+    {
+        ScriptAssert_(TinScript::GetContext(), false, "<internal>", -1,
+                      "Error - failed to execute UnitTest_ScriptReturnFloat()\n");
+    }
+    else
+    {
+        // -- print the result to a testable string
+        sprintf_s(CUnitTest::gCodeResult, "%.4f", result);
+    }
+}
+
+void UnitTest_GetScriptReturnBool()
+{
+    bool result;
+    if (!TinScript::ExecF(result, "UnitTest_ScriptReturnBool(%f, %f);", 5.1f, 5.0f))
+    {
+        ScriptAssert_(TinScript::GetContext(), false, "<internal>", -1,
+                      "Error - failed to execute UnitTest_ScriptReturnBool()\n");
+    }
+    else
+    {
+        // -- print the result to a testable string
+        sprintf_s(CUnitTest::gCodeResult, "%s", result ? "true" : "false");
+    }
+}
+
+void UnitTest_GetScriptReturnString()
+{
+    const char* result;
+    if (!TinScript::ExecF(result, "UnitTest_ScriptReturnString('goldfish');"))
+    {
+        ScriptAssert_(TinScript::GetContext(), false, "<internal>", -1,
+                      "Error - failed to execute UnitTest_ScriptReturnString()\n");
+    }
+    else
+    {
+        // -- print the result to a testable string
+        sprintf_s(CUnitTest::gCodeResult, "%s", result);
+    }
+}
+
+void UnitTest_GetScriptReturnVector3f()
+{
+    // -- note, the vector3f pass by value to script, is a string which will automatically be converted
+    CVector3f result;
+    if (!TinScript::ExecF(result, "UnitTest_ScriptReturnVector3f('1 2 3');"))
+    {
+        ScriptAssert_(TinScript::GetContext(), false, "<internal>", -1,
+                      "Error - failed to execute UnitTest_ReturnTypeVector3f()\n");
+    }
+    else
+    {
+        // -- print the result to a testable string
+        sprintf_s(CUnitTest::gCodeResult, "%.4f %.4f %.4f", result.x, result.y, result.z);
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+void UnitTest_CallScriptedMethod()
+{
+    // -- create our test object from code this time
+    CChild* test_obj = TinAlloc(ALLOC_Debugger, CChild);
+
+    // -- manually register our test object
+    TinScript::GetContext()->RegisterObject(test_obj, "CChild", "TestCodeNSObject");
+
+    // -- now call a scripted method in the object's namespace, and retrieve a result
+    const char* result = NULL;
+    if (!TinScript::ObjExecF(test_obj, result, "ModifyTestMember('Moooo');"))
+    {
+        ScriptAssert_(TinScript::GetContext(), false, "<internal>", -1,
+                      "Error - failed to execute method ModifyTestMember()\n");
+        return;
+    }
+
+    // -- print the result to a testable string
+    strcpy_s(CUnitTest::gCodeResult, result);
+
+    // -- unregister the object
+    TinScript::GetContext()->UnregisterObject(test_obj);
+
+    // -- delete the object
+    TinFree(test_obj);
+}
+
 // ------------------------------------------------------------------------------------------------
 // -- Test weapon class
 class CWeapon {
@@ -202,51 +388,6 @@ IMPLEMENT_SCRIPT_CLASS_BEGIN(CWeapon, VOID)
 IMPLEMENT_SCRIPT_CLASS_END()
 
 REGISTER_FUNCTION_P0(UpdateWeaponList, CWeapon::UpdateWeaponList, void);
-
-// --------------------------------------------------------------------------------------------------------------------
-// Unit test structure
-// --------------------------------------------------------------------------------------------------------------------
-class CUnitTest
-{
-    public:
-        typedef void (*UnitTestFunc)();
-        CUnitTest(const char* name, const char* description, const char* script_command, const char* script_result,
-                  UnitTestFunc code_test = NULL, const char* code_result = NULL, bool execute_code_last = false)
-        {
-            // -- copy the unit test parameters
-            TinScript::SafeStrcpy(mName, name, TinScript::kMaxTokenLength);
-            TinScript::SafeStrcpy(mDescription, description, TinScript::kMaxTokenLength);
-            TinScript::SafeStrcpy(mScriptCommand, script_command, TinScript::kMaxTokenLength);
-            TinScript::SafeStrcpy(mScriptResult, script_result, TinScript::kMaxTokenLength);
-
-            mExecuteCodeLast = execute_code_last;
-            mCodeTest = code_test;
-            TinScript::SafeStrcpy(mCodeResult, code_result, TinScript::kMaxTokenLength);
-        }
-
-        // -- members
-        char mName[kMaxArgLength];
-        char mDescription[kMaxArgLength];
-        char mScriptCommand[kMaxArgLength];
-        char mScriptResult[kMaxArgLength];
-
-        bool mExecuteCodeLast;
-        UnitTestFunc mCodeTest;
-        char mCodeResult[kMaxArgLength];
-
-        static const char* gScriptResult;
-        static char gCodeResult[kMaxArgLength];
-
-        static TinScript::CHashTable<CUnitTest>* gUnitTests;
-};
-
-// --------------------------------------------------------------------------------------------------------------------
-// declare static members of CUnitTest, including registrations
-TinScript::CHashTable<CUnitTest>* CUnitTest::gUnitTests = NULL;
-const char* CUnitTest::gScriptResult = "";
-char CUnitTest::gCodeResult[kMaxArgLength];
-
-REGISTER_GLOBAL_VAR(gUnitTestScriptResult, CUnitTest::gScriptResult);
 
 bool8 AddUnitTest(const char* name, const char* description, const char* script_command, const char* script_result,
                   CUnitTest::UnitTestFunc code_test = NULL, const char* code_result = NULL, bool execute_code_last = false)
@@ -400,6 +541,27 @@ void UnitTest_RegisteredIntModify()
     sprintf_s(CUnitTest::gCodeResult, "%d", gUnitTestRegisteredInt);
 }
 
+void UnitTest_ScriptIntAccess()
+{
+    int32 script_value;
+    if (!TinScript::GetGlobalVar(TinScript::GetContext(), "gUnitTestScriptInt", script_value))
+    {
+        ScriptAssert_(TinScript::GetContext(), false, "<internal>", -1,
+                      "Error - unable to access global script variable: gUnitTestScriptInt\n");
+    }
+
+    // -- otherwise, pring the value to the code result
+    else
+    {
+        sprintf_s(CUnitTest::gCodeResult, "%d", script_value);
+    }
+}
+
+void UnitTest_ScriptIntModify()
+{
+    TinScript::SetGlobalVar(TinScript::GetContext(), "gUnitTestScriptInt", 23);
+}
+
 bool8 CreateUnitTests()
 {
     // -- initialize the result
@@ -493,12 +655,77 @@ bool8 CreateUnitTests()
         success = success && AddUnitTest("bool_or_tf", "true || false", "gUnitTestScriptResult = StringCat(true || false);", "true");
         success = success && AddUnitTest("bool_or_ff", "false || false", "gUnitTestScriptResult = StringCat(false || false);", "false");
 
-        // -- parenthesis test
-        success = success && AddUnitTest("parenthesis", "Expr: (((3 + 4) * 17) - (3 + 6)) % (42 / 3)", "TestParenthesis();", "12.6667");
+        // -- vector3f unit tests -----------------------------------------------------------------------------------------
+        success = success && AddUnitTest("vector3f_assign", "v0 = (1, 2, 3)", "vector3f v0 = '1, 2, 3'; gUnitTestScriptResult = StringCat(v0);", "1.0000 2.0000 3.0000");
+        success = success && AddUnitTest("vector3f_add", "(1, 2, 3) + (4, 5, 6)", "vector3f v0 = '1, 2, 3'; vector3f v1 = '4 5 6'; gUnitTestScriptResult = StringCat(v0 + v1);", "5.0000 7.0000 9.0000");
+        success = success && AddUnitTest("vector3f_sub", "(1, 2, 3) - (4, 5, 6)", "vector3f v0 = '1, 2, 3'; vector3f v1 = '4 5 6'; gUnitTestScriptResult = StringCat(v0 - v1);", "-3.0000 -3.0000 -3.0000");
+        success = success && AddUnitTest("vector3f_scale1", "(1, 2, 3) * 3.5f", "vector3f v0 = '1, 2, 3'; gUnitTestScriptResult = StringCat(v0 * 3.5f);", "3.5000 7.0000 10.5000");
+        success = success && AddUnitTest("vector3f_scale2", "-2.9f * (1, 2, 3)", "vector3f v0 = '1, 2, 3'; gUnitTestScriptResult = StringCat(-2.9f * v0);", "-2.9000 -5.8000 -8.7000");
+        success = success && AddUnitTest("vector3f_scale3", "-2.9f * (1, 2, 3) * 0.4f", "vector3f v0 = '1, 2, 3'; gUnitTestScriptResult = StringCat(-2.9f * v0 * 0.4f);", "-1.1600 -2.3200 -3.4800");
+        success = success && AddUnitTest("vector3f_scale4", "(1, 2, 3) / 0.3f", "vector3f v0 = '1, 2, 3'; gUnitTestScriptResult = StringCat(v0 / 0.3f);", "3.3333 6.6667 10.0000");
+
+        // -- vector3f POD test
+        success = success && AddUnitTest("vector3f_podx", "Print the 'x' of (1, 2, 3)", "vector3f v0 = '1, 2, 3'; gUnitTestScriptResult = StringCat(v0:x);", "1.0000");
+        success = success && AddUnitTest("vector3f_pody", "Print the 'y' of (1, 2, 3)", "vector3f v0 = '1, 2, 3'; gUnitTestScriptResult = StringCat(v0:y);", "2.0000");
+        success = success && AddUnitTest("vector3f_podz", "Print the 'z' of (1, 2, 3)", "vector3f v0 = '1, 2, 3'; gUnitTestScriptResult = StringCat(v0:z);", "3.0000");
+
+        // -- vector3f registered functions for this registered type
+        success = success && AddUnitTest("vector3f_length", "Length of (1, 2, 3)", "vector3f v0 = '1, 2, 3'; gUnitTestScriptResult = StringCat(V3fLength(v0));", "3.7417");
+        success = success && AddUnitTest("vector3f_cross", "(1, 2, 3) cross (4 5 6)", "vector3f v0 = '1, 2, 3'; vector3f v1 = '4 5 6'; gUnitTestScriptResult = StringCat(V3fCross(v0, v1));", "-3.0000 6.0000 -3.0000");
+        success = success && AddUnitTest("vector3f_dot", "(1, 2, 3) dot (4 5 6)", "vector3f v0 = '1, 2, 3'; vector3f v1 = '4 5 6'; gUnitTestScriptResult = StringCat(V3fDot(v0, v1));", "32.0000");
+        success = success && AddUnitTest("vector3f_norm", "(1, 2, 3) normalized", "vector3f v0 = '1, 2, 3'; gUnitTestScriptResult = StringCat(V3fNormalized(v0));", "0.2673 0.5345 0.8018");
+
+        // -- hashtable test
+        success = success && AddUnitTest("hashtable", "Associative array example", "UnitTest_AssociativeArray();", "goodbye hello goodbye 3.1416");
 
         // -- script access to registered variables -------------------------------------------------------------------
         success = success && AddUnitTest("scriptaccess_regint", "gUnitTestRegisteredInt, value 17 read from script", "UnitTest_RegisteredIntAccess();", "17", UnitTest_RegisteredIntAccess);
         success = success && AddUnitTest("scriptmodify_regint", "Modify gUnitTestRegisteredInt set to 23 from script", "UnitTest_RegisteredIntModify();", "", UnitTest_RegisteredIntModify, "23", true);
+
+        success = success && AddUnitTest("codeaccess_scriptint", "Retrieve scripted gUnitTestScriptInt", "UnitTest_CodeAccess();", "", UnitTest_ScriptIntAccess, "49", true);
+        success = success && AddUnitTest("codemodify_scriptint", "Modify scripted gUnitTestScriptInt", "UnitTest_CodeModify();", "23", UnitTest_ScriptIntModify, "", false);
+
+        // -- flow control --------------------------------------------------------------------------------------------
+        success = success && AddUnitTest("flow_if", "If intput > 9", "UnitTest_IfStatement(10);", "10 is greater than 9");
+        success = success && AddUnitTest("flow_elseif", "If intput < 9", "UnitTest_IfStatement(8);", "8 is less than 9");
+        success = success && AddUnitTest("flow_else", "If intput == 9", "UnitTest_IfStatement(9);", "9 is equal to 9");
+
+        success = success && AddUnitTest("flow_while", "while loop - count 5 to 1", "UnitTest_WhileStatement();", " 5 4 3 2 1");
+        success = success && AddUnitTest("flow_for", "for loop - count 0 to 4", "UnitTest_ForLoop();", " 0 1 2 3 4");
+
+        success = success && AddUnitTest("parenthesis", "Expr: (((3 + 4) * 17) - (3 + 6)) % (42 / 3)", "TestParenthesis();", "12.6667");
+
+        // -- code functions with return types ------------------------------------------------------------------------
+        // -- each of the following, the script function will call a registered code function with a return type
+        // -- and then we verify that the result returned by code is what the scripted function received
+        success = success && AddUnitTest("code_return_int", "Code multiply by 2", "UnitTest_ReturnTypeInt(-5);", "-10");
+        success = success && AddUnitTest("code_return_float", "Code divide by 3.0f", "UnitTest_ReturnTypeFloat(15.0f);", "5.0000");
+        success = success && AddUnitTest("code_return_bool_false", "Code 5.0f > 5.0f?", "UnitTest_ReturnTypeBool(5.0f, 5.0f);", "false");
+        success = success && AddUnitTest("code_return_bool_true", "Code 5.0001f > 5.0f?", "UnitTest_ReturnTypeBool(5.0001f, 5.0f);", "true");
+        success = success && AddUnitTest("code_return_string1", "Code get animal type", "UnitTest_ReturnTypeString('spot');", "dog");
+        success = success && AddUnitTest("code_return_string2", "Code get animal type", "UnitTest_ReturnTypeString('felix');", "cat");
+        success = success && AddUnitTest("code_return_string3", "Code get animal type", "UnitTest_ReturnTypeString('fluffy');", "goldfish");
+        success = success && AddUnitTest("code_return_v3f", "Code normalize vector", "UnitTest_ReturnTypeVector3f('1 2 3');", "0.2673 0.5345 0.8018");
+
+        // -- scripted functions with return types --------------------------------------------------------------------
+        // -- each of the following, the code will execute a scripted function and reliably retrieve the return value
+        success = success && AddUnitTest("script_return_int", "Script multiply by 2", "", "", UnitTest_GetScriptReturnInt, "-10");
+        success = success && AddUnitTest("script_return_float", "Script divide by 3.0f", "", "", UnitTest_GetScriptReturnFloat, "5.0000");
+        success = success && AddUnitTest("script_return_bool", "Script 5.1f > 5.0f", "", "", UnitTest_GetScriptReturnBool, "true");
+        success = success && AddUnitTest("script_return_string", "Script name of goldfish", "", "", UnitTest_GetScriptReturnString, "fluffy");
+        success = success && AddUnitTest("script_return_v3f", "Script 2D normalized", "", "", UnitTest_GetScriptReturnVector3f, "0.3162 0.0000 0.9487");
+
+        // -- recursive scripted function -----------------------------------------------------------------------------
+        success = success && AddUnitTest("script_fib_recur", "Calc the 10th fibonnaci", "UnitTest_ScriptRecursiveFibonacci(10);", "55");
+        success = success && AddUnitTest("script_string_recur", "Print the first 9 letters", "UnitTest_ScriptRecursiveString(9);", "abcdefghi");
+
+        // -- object functions  ---------------------------------------------------------------------------------------
+        success = success && AddUnitTest("object_base", "Create a CBase object", "UnitTest_CreateBaseObject();", "BaseObject 27.0000");
+        success = success && AddUnitTest("object_child", "Create a CChild object", "UnitTest_CreateChildObject();", "ChildObject 19.0000");
+        success = success && AddUnitTest("object_testns", "Create a Namespaced object", "UnitTest_CreateTestNSObject();", "TestNSObject 55.3000 198 foobar");
+        success = success && AddUnitTest("objexecf", "Call a scripted object method", "", "", UnitTest_CallScriptedMethod, "TestCodeNSObject foobar Moooo");
+
+        
     }
 
     // -- return success
@@ -615,7 +842,7 @@ void BeginMultiThreadTest()
     MTPrint("*  3.  The printed value of the global is either 'MainThread' or 'AltThread'\n\n");
 
 
-    MTPrint("MAIN THREAD:  Executing unit tests (results only)");
+    MTPrint("MAIN THREAD:  Executing unit tests (results only)\n");
     BeginUnitTests(true);
 
     // -- create an object on the main thread
@@ -666,6 +893,9 @@ void BeginMultiThreadTest()
     // -- cleanup
     TinScript::GetContext()->DestroyObject(mtObjectID);
     TinFree(mainThreadObject);
+
+    Sleep(500);
+    MTPrint("*** MULTI THREAD TEST COMPLETE ****\n");
 }
 
 #else
@@ -676,340 +906,6 @@ void BeginMultiThreadTest()
 }
 
 #endif
-
-
-/*
-void BeginUnitTests(const char* specific_test_name = NULL)
-{
-    // -- initialize if we have no test range
-    if (testend == 0)
-        testend = 9999;
-
-    // -- unit tests are run on the main thread
-    TinScript::CScriptContext* script_context = TinScript::CScriptContext::GetMainThreadContext();
-
-    // -- banner
-    MTPrint("\n****************************\n");
-    MTPrint("*** TinScript Unit Tests ***\n");
-    MTPrint("****************************\n");
-
-    MTPrint("\nExecuting unittest.ts\n");
-	if(!script_context->ExecScript(kUnitTestScriptName)) {
-		MTPrint("Error - unable to parse file: %s\n", kUnitTestScriptName);
-		return;
-	}
-
-    int32 testindex = 0;
-    MTPrint("***  VARIABLES, FLOW:  ************\n");
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Paren Expr: (((3 + 4) * 17) - (3 + 6)) %% (42 / 3) - next line prints: 12.667f\n");
-        script_context->ExecCommand("TestParenthesis();");
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Test 'if' statement - next line prints: 'Equal to 9'\n");
-        script_context->ExecCommand("TestIfStatement();");
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Test 'while' statement - next line prints the sequence: 5 to 1\n");
-        script_context->ExecCommand("TestWhileStatement();");
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Test 'for' loop - next line prints the sequence 0 to 4\n");
-        script_context->ExecCommand("TestForLoop();");
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        gCodeGlobalVariable = 17;
-        MTPrint("Script access to registered global - next line prints: %d\n", gCodeGlobalVariable);
-        script_context->ExecCommand("TestScriptAccessToGlobal();");
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Script access to modify registered global - next line prints: 43\n");
-        script_context->ExecCommand("SetGlobalVarTo43();");
-        MTPrint("gCodeGlobalVariable: %d\n", gCodeGlobalVariable);
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Code access to script global - next line prints: 12\n");
-        int32 testscriptglobal = 0;
-        if(!TinScript::GetGlobalVar(script_context, "gScriptGlobalVar", testscriptglobal)) {
-		    MTPrint("Error - failed to find script global: gScriptGlobalVar\n");
-		    return;
-        }
-        MTPrint("Found: %d\n", testscriptglobal);
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("CVector3f length, cross, dot product tests\n");
-        MTPrint("Next lines print: 3.7417, (-3, 6, -3), 32.0\n");
-        int32 dummy = 0;
-        if(!TinScript::ExecF(script_context, dummy, "TestObjCVector3f();")) {
-            MTPrint("Error - failed to find execute TestObjCVector3f()\n");
-            return;
-        }
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Same CVector3f test as above, but using the registered type\n");
-        MTPrint("Next lines print: 3.7417, (-3, 6, -3), 32.0\n");
-        int32 dummy = 0;
-        if(!TinScript::ExecF(script_context, dummy, "TestTypeCVector3f();")) {
-            MTPrint("Error - failed to find execute TestObjCVector3f()\n");
-            return;
-        }
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Test a script method that returns a CVector3f\n");
-        MTPrint("Next line prints: (4.0f, 0.0f, 6.0f)\n");
-        CVector3f v_result;
-        if(!TinScript::ExecF(script_context, v_result, "TestReturnV3f('4 5 6');")) {
-            MTPrint("Error - failed to find execute TestReturnV3f()\n");
-            return;
-        }
-        else
-        {
-            MTPrint("Result:  (%.2f, %.2f, %.2f)\n", v_result.x, v_result.y, v_result.z);
-        }
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Test access to a scripted POD member of a registered type\n");
-        MTPrint("Next lines prints: 5.0\n");
-        float32 y_value;
-        if(!TinScript::ExecF(script_context, y_value, "TestReturnPODMember('4 5 6');")) {
-            MTPrint("Error - failed to find execute TestReturnPODMember()\n");
-            return;
-        }
-        else
-        {
-            MTPrint("Result: %.2f\n", y_value);
-        }
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Test Hashtable variables - next two lines print: goodbye and 17.5\n");
-        int32 dummy = 0;
-        if(!TinScript::ExecF(script_context, dummy, "TestHashtables();")) {
-            MTPrint("Error - failed to find execute TestHashtables()\n");
-            return;
-        }
-    }
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n\n***  GLOBAL FUNCTIONS:  ************\n");
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Script access to call a global function with a return value -\nnext line prints: 34\n");
-        script_context->ExecCommand("CallMultIntByTwo(17);");
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Code access to call a script function with a return value -\nnext line prints: 4\n");
-        int32 scriptreturn = 0;
-        if(!TinScript::ExecF(script_context, scriptreturn, "ScriptMod9(%d);", 49)) {
-		    MTPrint("Error - failed to execute script function CallScriptMod9()\n");
-		    return;
-        }
-        MTPrint("Script result: %d\n", scriptreturn);
-    }
-
-    // -- 
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Nested function calls - next lines print: 32 and 13\n");
-        int32 scriptreturn = 0;
-        if(!TinScript::ExecF(script_context, scriptreturn, "TestNestedFunctions(%d);", 4)) {
-		    MTPrint("Error - failed to execute script function TestNestedFunctions()\n");
-		    return;
-        }
-    }
-
-    // -- 
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Recursive function call - next lines prints 21\n");
-        int32 scriptreturn = 0;
-        if(!TinScript::ExecF(script_context, scriptreturn, "Fibonacci(%d);", 7)) {
-		    MTPrint("Error - failed to execute script function Fibonacci()\n");
-		    return;
-        }
-        MTPrint("Script result: %d\n", scriptreturn);
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n\n***  OBJECTS:  ************\n");
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Create an instance of a registered class from script -\n");
-        MTPrint("next line prints:  Entering constructor CBase()\n");
-        if(!script_context->ExecCommand("ScriptCreateObject();")) {
-		    MTPrint("Error - failed to execute ScriptCreateObject()\n");
-		    return;
-        }
-    }
-
-    // --
-    ++testindex;
-    CBase* testobj = NULL;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Find the object from code by ID, cast and read the float32 member-\n");
-        MTPrint("next line prints: 27.0\n");
-        int32 testobjectid = 0;
-        if(!TinScript::GetGlobalVar(script_context, "gScriptBaseObject", testobjectid)) {
-		    MTPrint("Error - failed to find script global: gScriptBaseObject\n");
-		    return;
-        }
-        testobj = static_cast<CBase*>(script_context->FindObject(testobjectid));
-        if(!testobj) {
-		    MTPrint("Error - code failed to find object: %d\n", testobjectid);
-		    return;
-        }
-        MTPrint("%.2f\n", testobj->GetFloatValue());
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend && testobj) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Access the object member from script-\n");
-        MTPrint("next two lines print: 35.0\n");
-        if(!script_context->ExecCommand("ScriptModifyMember();")) {
-		    MTPrint("Error - failed to execute ScriptModifyMember()\n");
-		    return;
-        }
-        MTPrint("%.2f\n", testobj->GetFloatValue());
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend && testobj) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Access the object method from script-\n");
-        MTPrint("next two lines print: 91\n");
-        if(!script_context->ExecCommand("ScriptModifyMethod();")) {
-		    MTPrint("Error - failed to execute ScriptModifyMethod()\n");
-		    return;
-        }
-        MTPrint("%d\n", testobj->GetIntValue());
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Call a scripted method from script\n");
-        MTPrint("next line prints: -65.0f\n");
-        if(!script_context->ExecCommand("ScriptCallTestBaseMethod();")) {
-		    MTPrint("Error - failed to execute ScriptCallTestBaseMethod()\n");
-		    return;
-        }
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Create a derived CChild instance from script\n");
-        MTPrint("next line identifies both CBase and CChild constructors being called\n");
-        if(!script_context->ExecCommand("ScriptCreateChildObject();")) {
-		    MTPrint("Error - failed to execute ScriptCreateChildObject()\n");
-		    return;
-        }
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Call a derived method from script\n");
-        MTPrint("next line prints: 24\n");
-        if(!script_context->ExecCommand("ScriptCallChildMethod();")) {
-		    MTPrint("Error - failed to execute ScriptCallChildMethod()\n");
-		    return;
-        }
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Call the same method for both base and child objects\n");
-        MTPrint("Notice the base object calls base method, the derived method calls the derived\n");
-        MTPrint("next lines print: 18, followed by 36\n");
-        if(!script_context->ExecCommand("ScriptCallBothObjectMethods();")) {
-		    MTPrint("Error - failed to execute ScriptCallBothObjectMethods()\n");
-		    return;
-        }
-    }
-
-    // --
-    ++testindex;
-    if(testindex >= teststart && testindex <= testend) {
-        MTPrint("\n\n***  NAMED OBJECTS:  ************\n");
-        MTPrint("\n%d.  ", testindex);
-        MTPrint("Create a CChild instance, but named 'TestNS'\n");
-        MTPrint("Notice the constructors for both CBase, then CChild are called,\n");
-        MTPrint("followed by the Scripted TestNS::OnCreate()\n");
-        if(!script_context->ExecCommand("ScriptCreateNamedObject();")) {
-		    MTPrint("Error - failed to execute ScriptCreateNamedObject()\n");
-		    return;
-        }
-    }
-
-    MTPrint("\n\n****************************\n");
-    MTPrint("*** Unit Tests Complete ****\n");
-    MTPrint("****************************\n");
-}
-*/
 
 REGISTER_FUNCTION_P2(BeginUnitTests, BeginUnitTests, void, bool8, const char*);
 REGISTER_FUNCTION_P0(BeginMultiThreadTest, BeginMultiThreadTest, void);

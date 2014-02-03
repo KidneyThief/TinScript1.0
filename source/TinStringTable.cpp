@@ -262,6 +262,52 @@ const char* StringCat(const char* str0, const char* str1, const char* str2, cons
 REGISTER_FUNCTION_P8(StringCat, StringCat, const char*, const char*, const char*, const char*, const char*, const char*, const char*, const char*, const char*);
 
 // ====================================================================================================================
+// StringCmp():  Same as strcmp, case sensitive
+// ====================================================================================================================
+int32 StringCmp(const char* str0, const char* str1)
+{
+    // -- be design, a NULL string is the same as an ""
+    if (!str0)
+        str0 = "";
+    if (!str1)
+        str1 = "";
+
+    return (strcmp(str0, str1));
+}
+
+REGISTER_FUNCTION_P2(StringCmp, StringCmp, int32, const char*, const char*);
+
+// ====================================================================================================================
+// IntToChar():  Converts from an int to a single character string
+// ====================================================================================================================
+const char* IntToChar(int32 ascii_value)
+{
+    // -- skip hidden characters
+    if (ascii_value < 0x20 || ascii_value > 255)
+        return ("");
+
+    char* buffer = TinScript::GetContext()->GetScratchBuffer();
+    buffer[0] = ascii_value;
+    buffer[1] = '\0';
+    return (buffer);
+}
+
+REGISTER_FUNCTION_P1(IntToChar, IntToChar, const char*, int32);
+
+// ====================================================================================================================
+// CharToInt():  Converts from char to the ascii int value
+// ====================================================================================================================
+int32 CharToInt(const char* input_string)
+{
+    if (! input_string)
+        return (0);
+    else
+        return ((int32)(input_string[0]));
+}
+
+REGISTER_FUNCTION_P1(CharToInt, CharToInt, int32, const char*);
+
+// ====================================================================================================================
 // Print():  script method to call the main thread print handler
 // Concatenates the strings as a side effect
 // ====================================================================================================================

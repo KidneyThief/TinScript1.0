@@ -132,6 +132,8 @@ const int32 kObjectTableSize = 10007;
 const int32 kMasterMembershipTableSize = 97;
 const int32 kObjectGroupTableSize = 17;
 
+const int32 kMaxScratchBuffers = 64;
+
 namespace TinScript {
 
 // ------------------------------------------------------------------------------------------------
@@ -203,6 +205,10 @@ class CScriptContext {
         CCodeBlock* CompileCommand(const char* statement);
         bool8 ExecCommand(const char* statement);
 
+        // -- if the command contains a function call, we need to be able to access the result
+        void SetFunctionReturnValue(void* value, eVarType valueType);
+        bool8 GetFunctionReturnValue(void*& value, eVarType& valueType);
+
         TinPrintHandler GetPrintHandler() { return (mTinPrintHandler); }
         TinAssertHandler GetAssertHandler() { return (mTinAssertHandler); }
         bool8 IsAssertEnableTrace() { return (mAssertEnableTrace); }
@@ -255,6 +261,7 @@ class CScriptContext {
         uint32 GetNextObjectID();
         uint32 CreateObject(uint32 classhash, uint32 objnamehash);
         uint32 RegisterObject(void* objaddr, const char* classname, const char* objectname);
+        void UnregisterObject(void* objaddr);
         void DestroyObject(uint32 objectid);
 
         bool8 IsObject(uint32 objectid);
@@ -274,6 +281,9 @@ class CScriptContext {
 
         void PrintObject(CObjectEntry* oe, int32 indent = 0);
         void ListObjects();
+
+        // -- convenience buffer
+        char* GetScratchBuffer();
 
         // -- debugger interface
         typedef bool8 (*DebuggerBreakpointHit)(uint32 codeblock_hash, int32& line_number);
@@ -346,6 +356,19 @@ class CScriptContext {
         // -- context scheduler
         CScheduler* mScheduler;
 
+        // -- when a script function returns (even void), a value is always pushed
+        // -- if ExecF() calls a script function, we'll want to return that value to code
+        char mFunctionReturnValue[kMaxTypeSize];
+        eVarType mFunctionReturnValType;
+
+        // -- used mostly for a place to do type conversions, this is a convenience
+        // -- feature to avoid allocations, and to ensure that converted results
+        // -- always have a reliable place to live.
+        // -- if kMaxScratchBuffers is 64, then there would have to be
+        // -- 64 type conversions in a single expression before we get buffer overrun...
+        int32 mScratchBufferIndex;
+        char mScratchBuffers[kMaxScratchBuffers][kMaxTokenLength];
+
         // -- master object list
         CMasterMembershipList* mMasterMembershipList;
 
@@ -354,6 +377,8 @@ class CScriptContext {
         DebuggerCallstackFunc mCallstackCallback;
         CodeblockLoadedFunc mCodeblockLoadedCallback;
         DebuggerWatchVarFunc mWatchVarEntryCallback;
+
+        char mExecfResultBuffer[kMaxArgLength];
 };
 
 }  // TinScript

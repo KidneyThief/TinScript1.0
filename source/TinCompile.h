@@ -497,15 +497,13 @@ class CCreateObjectNode : public CCompileTreeNode
 {
 	public:
 		CCreateObjectNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int _linenumber,
-                          const char* _classname, uint32 _classlength, const char* _objname,
-                          uint32 _objlength);
+                          const char* _classname, uint32 _classlength);
 
 		virtual int Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const;
 
 	protected:
 		CCreateObjectNode() { }
 		char classname[kMaxTokenLength];
-		char objectname[kMaxTokenLength];
 };
 
 class CDestroyObjectNode : public CCompileTreeNode

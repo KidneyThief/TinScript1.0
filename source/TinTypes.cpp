@@ -339,14 +339,10 @@ void* TypeConvert(CScriptContext* script_context, eVarType fromtype, void* froma
     if (! fromaddr)
         return (NULL);
 
-    // -- writing here, since this conversion should only be called from CCodeBlock::Execute()
-    // -- used mostly for binary ops, but allowing for multiple simultaneous conversion
-    // $$$TZA NOT THREAD SAFE!!!
-    const int32 max_static_buffers = 64;
-    static int32 bufferindex = 0;
-    static char buffers[max_static_buffers][kMaxTokenLength];
-    char* bufferptr = buffers[(++bufferindex) % max_static_buffers];
-
+    // -- each script context maintains an array of scratch buffers...
+    // -- this allows us to have a place to do conversions, without memory management
+    char* bufferptr = script_context->GetScratchBuffer();
+    
     // -- if the type remains the same, no conversion is necessary
     if(fromtype == totype || !fromaddr)
         return fromaddr;
@@ -363,7 +359,7 @@ void* TypeConvert(CScriptContext* script_context, eVarType fromtype, void* froma
         }
 
         // -- Type_string actually stores an STE value, so we must convert the char* bufferptr to an STE
-        char* stebuf = buffers[(++bufferindex) % max_static_buffers];
+        char* stebuf = script_context->GetScratchBuffer();
 	    success = gRegisteredStringToType[TYPE_string]((void*)stebuf, (char*)bufferptr);
         if (!success)
         {
@@ -381,7 +377,7 @@ void* TypeConvert(CScriptContext* script_context, eVarType fromtype, void* froma
     {
         // -- note:  string variables are actually STE's, and need to be converted to char*
         // -- before converting to another type
-        char* stringbuf = buffers[(++bufferindex) % max_static_buffers];
+        char* stringbuf = script_context->GetScratchBuffer();
 	    bool8 success = gRegisteredTypeToString[TYPE_string](fromaddr, stringbuf, kMaxTokenLength);
         if (!success)
         {
@@ -425,8 +421,8 @@ const char* DebugPrintVar(void* addr, eVarType vartype) {
 
     if(!addr)
         return "";
-    char* convertbuf = buffers[(++bufferindex) % 8];
-    char* destbuf = buffers[(++bufferindex) % 8];
+    char* convertbuf = TinScript::GetContext()->GetScratchBuffer();
+    char* destbuf = TinScript::GetContext()->GetScratchBuffer();
 	gRegisteredTypeToString[vartype](addr, convertbuf, kMaxTokenLength);
     sprintf_s(destbuf, kMaxTokenLength, "[%s] %s", GetRegisteredTypeName(vartype), convertbuf);
     return convertbuf;
@@ -458,9 +454,21 @@ int32 Atoi(const char* src, int32 length) {
     if(!src || (length == 0))
         return 0;
 
+    // -- see if we need to negate
+    int signchange = 1;
+    if (src[0] == '-')
+    {
+        signchange = -1;
+
+        // -- next character
+        ++src;
+        --length;
+    }
+
     // see if we're converting from hex
     if(src[0] == '0' && (src[1] == 'x' || src[1] == 'X')) {
         src += 2;
+        length -= 2;
         while(*src != '\0' && length != 0) {
             result = result * 16;
             if(*src >= '0' && *src <= '9')
@@ -470,7 +478,7 @@ int32 Atoi(const char* src, int32 length) {
             else if(*src >= 'A' && *src <= 'F')
                 result += 10 + (*src - 'A');
             else
-                return (result);
+                return (signchange * result);
 
             // -- next character
             ++src;
@@ -481,12 +489,13 @@ int32 Atoi(const char* src, int32 length) {
     // see if we're converting from binary
     if(src[0] == '0' && (src[1] == 'b' || src[1] == 'B')) {
         src += 2;
+        length -= 2;
         while(*src != '\0' && length != 0) {
             result = result << 1;
             if(*src == '1')
                 ++result;
             else if(*src != '0')
-                return (result);
+                return (signchange * result);
 
             // -- next character
             ++src;
@@ -499,7 +508,7 @@ int32 Atoi(const char* src, int32 length) {
         while(*src != '\0' && length != 0) {
             // -- validate the character
             if(*src < '0' || *src > '9')
-                return (result);
+                return (signchange * result);
             result = (result * 10) + (int32)(*src - '0');
 
             // -- next character
@@ -508,7 +517,7 @@ int32 Atoi(const char* src, int32 length) {
         }
     }
 
-    return (result);
+    return (signchange * result);
 }
 // --------------------------------------------------------------------------------------------------------------------
 // -- Type conversion functions
