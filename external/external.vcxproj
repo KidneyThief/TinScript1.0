@@ -10,6 +10,14 @@
       <Platform>Win32</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="cmdshell.cpp" />
+    <ClCompile Include="mathutil.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="cmdshell.h" />
+    <ClInclude Include="mathutil.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <Keyword>Win32Proj</Keyword>
   </PropertyGroup>
@@ -54,14 +62,6 @@
       <AdditionalIncludeDirectories>..\source;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="..\..\..\_PERFORCE\_dev\TinScript\external\mathutil.cpp" />
-    <ClCompile Include="cmdshell.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\..\_PERFORCE\_dev\TinScript\external\mathutil.h" />
-    <ClInclude Include="cmdshell.h" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

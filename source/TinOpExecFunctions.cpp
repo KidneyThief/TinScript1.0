@@ -225,8 +225,9 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
 	eVarType val1type;
 	void* val1addr = execstack.Pop(val1type);
     if(!GetStackValue(script_context, execstack, funccallstack, val1addr, val1type, ve1, oe1)) {
-        ScriptAssert_(script_context, 0, "<internal>", -1,
-                      "Error - Failed to pop assignment value\n");
+        // -- this assert is useless - returning false here will assert with a file/line number
+        //ScriptAssert_(script_context, 0, "<internal>", -1,
+        //              "Error - Failed to pop assignment value\n");
         return false;
     }
 
@@ -239,15 +240,17 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
     bool8 is_pod_member = (varhashtype == TYPE__podmember);
     bool8 use_var_addr = (is_stack_var || is_pod_member);
     if(!GetStackValue(script_context, execstack, funccallstack, var, varhashtype, ve0, oe0)) {
-        ScriptAssert_(script_context, 0, "<internal>", -1,
-                      "Error - Failed to pop assignment variable\n");
+        // -- this assert is useless - returning false here will assert with a file/line number
+        //ScriptAssert_(script_context, 0, "<internal>", -1,
+        //              "Error - Failed to pop assignment variable\n");
         return (false);
     }
 
     // -- ensure we're assigning to a variable, an object member, or a local stack variable
     if(!ve0 && !use_var_addr) {
-        ScriptAssert_(script_context, 0, "<internal>", -1,
-                      "Error - Attempting to assign to a non-variable\n");
+        // -- this assert is useless - returning false here will assert with a file/line number
+        //ScriptAssert_(script_context, 0, "<internal>", -1,
+        //              "Error - Attempting to assign to a non-variable\n");
         return (false);
     }
 

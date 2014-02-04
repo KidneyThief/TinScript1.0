@@ -415,7 +415,12 @@ void* TypeConvert(CScriptContext* script_context, eVarType fromtype, void* froma
     return (NULL);
 }
 
-const char* DebugPrintVar(void* addr, eVarType vartype) {
+extern bool gDebugTrace;
+const char* DebugPrintVar(void* addr, eVarType vartype)
+{
+    if (!gDebugTrace)
+        return ("");
+
     static int32 bufferindex = 0;
     static char buffers[8][kMaxTokenLength];
 

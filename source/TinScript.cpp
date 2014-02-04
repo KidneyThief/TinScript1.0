@@ -723,6 +723,10 @@ CCodeBlock* CScriptContext::CompileScript(const char* filename) {
     if (!SaveBinary(codeblock, binfilename))
         return NULL;
 
+    // -- save the string table - *if* we're the main thread
+    if (mIsMainThread)
+        SaveStringTable(this);
+
     // -- reset the assert stack
     ResetAssertStack();
 

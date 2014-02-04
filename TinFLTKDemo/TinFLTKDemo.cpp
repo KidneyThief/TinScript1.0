@@ -39,6 +39,7 @@ struct tLine
         start = _start;
         end = _end;
         color = _color;
+        expired = false;
     }
 
     // -- object_id is the owner of the request (if there is one)
@@ -46,6 +47,7 @@ struct tLine
     CVector3f start;
     CVector3f end;
     int color;
+    bool expired;
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -59,12 +61,14 @@ struct tCircle
         center = _center;
         radius = _radius;
         color = _color;
+        expired = false;
     }
 
     int id;
     CVector3f center;
     float radius;
     int color;
+    bool expired;
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -78,12 +82,14 @@ struct tText
         position = _position;
         TinScript::SafeStrcpy(text, _text, TinScript::kMaxNameLength);
         color = _color;
+        expired = false;
     }
 
     int id;
     CVector3f position;
     char text[TinScript::kMaxNameLength];
     int color;
+    bool expired;
 };
 
 // -- statics ---------------------------------------------------------------------------------------------------------
@@ -139,8 +145,11 @@ public:
         for (int i = 0; i < line_count; ++i)
         {
             tLine& line = mDrawLines[i];
-            fl_color(line.color);
-            fl_line((int)line.start.x, (int)line.start.y, (int)line.end.x, (int)line.end.y);
+            if (!line.expired)
+            {
+                fl_color(line.color);
+                fl_line((int)line.start.x, (int)line.start.y, (int)line.end.x, (int)line.end.y);
+            }
         }
 
         // -- draw all the submitted circles
@@ -148,8 +157,11 @@ public:
         for (int i = 0; i < circle_count; ++i)
         {
             tCircle& circle = mDrawCircles[i];
-            fl_color(circle.color);
-            fl_circle(circle.center.x, circle.center.y, circle.radius);
+            if (!circle.expired)
+            {
+                fl_color(circle.color);
+                fl_circle(circle.center.x, circle.center.y, circle.radius);
+            }
         }
 
         // -- draw all the submitted text
@@ -157,85 +169,137 @@ public:
         for (int i = 0; i < text_count; ++i)
         {
             tText& text = mDrawText[i];
-            fl_color(text.color);
-            fl_draw(text.text, (int)text.position.x, (int)text.position.y);
+            if (!text.expired)
+            {
+                fl_color(text.color);
+                fl_draw(text.text, (int)text.position.x, (int)text.position.y);
+            }
         }
     }
 
     // -- drawing interface
     void DrawLine(int32 id, const CVector3f& start, const CVector3f& end, int color)
     {
-        tLine line(id, start, end, color);
-        mDrawLines.push_back(line);
+        // -- find an expired line, to avoid thrashing memory
+        bool found = false;
+        int count = mDrawLines.size();
+        for (int i = 0; i < count; ++i)
+        {
+            tLine& item = mDrawLines[i];
+            if (item.expired)
+            {
+                item.id = id;
+                item.start = start;
+                item.end = end;
+                item.color = color;
+                item.expired = false;
+
+                // -- we found an expired entry
+                found = true;
+                break;
+            }
+        }
+
+        // -- if we didn't find an expired entry, add a new one
+        if (!found)
+        {
+            tLine line(id, start, end, color);
+            mDrawLines.push_back(line);
+        }
     }
 
-    void DrawCircle(int32 id, const CVector3f& position, float radius, int color)
+    void DrawCircle(int32 id, const CVector3f& center, float radius, int color)
     {
-        tCircle circle(id, position, radius, color);
-        mDrawCircles.push_back(circle);
+        // -- find an expired item, to avoid thrashing memory
+        bool found = false;
+        int count = mDrawCircles.size();
+        for (int i = 0; i < count; ++i)
+        {
+            tCircle& item = mDrawCircles[i];
+            if (item.expired)
+            {
+                item.id = id;
+                item.center = center;
+                item.radius = radius;
+                item.color = color;
+                item.expired = false;
+
+                // -- we found an expired entry
+                found = true;
+                break;
+            }
+        }
+
+        // -- if we didn't find an expired entry, add a new one
+        if (!found)
+        {
+            tCircle circle(id, center, radius, color);
+            mDrawCircles.push_back(circle);
+        }
     }
 
     void DrawText(int32 id, const CVector3f& position, const char* _text, int color)
     {
-        tText text(id, position, _text, color);
-        mDrawText.push_back(text);
+        // -- find an expired item, to avoid thrashing memory
+        bool found = false;
+        int count = mDrawText.size();
+        for (int i = 0; i < count; ++i)
+        {
+            tText& item = mDrawText[i];
+            if (item.expired)
+            {
+                item.id = id;
+                item.position = position;
+                TinScript::SafeStrcpy(item.text, _text, TinScript::kMaxNameLength);
+                item.color = color;
+                item.expired = false;
+
+                // -- we found an expired entry
+                found = true;
+                break;
+            }
+        }
+
+        // -- if we didn't find an expired entry, add a new one
+        if (!found)
+        {
+            tText text(id, position, _text, color);
+            mDrawText.push_back(text);
+        }
     }
 
     void CancelDrawRequests(int draw_request_id)
     {
-        // -- i hate reverse iterators
-        bool finished = false;
-        while (!finished)
+        // -- mark all associated lines as expired
+        std::vector<tLine>::iterator line_it;
+        for (line_it = mDrawLines.begin(); line_it != mDrawLines.end(); ++line_it)
         {
-            bool found = false;
-            std::vector<tLine>::iterator it;
-            for (it = mDrawLines.begin(); it != mDrawLines.end(); ++it)
+            tLine& item = *line_it;
+            if (item.id == draw_request_id)
             {
-                tLine& item = *it;
-                if (item.id == draw_request_id)
-                {
-                    mDrawLines.erase(it);
-                    found = true;
-                    break;
-                }
+                item.expired = true;
             }
-            finished = !found;
         }
 
-        finished = false;
-        while (!finished)
+        std::vector<tCircle>::iterator circle_it;
+        for (circle_it = mDrawCircles.begin(); circle_it != mDrawCircles.end(); ++circle_it)
         {
-            bool found = false;
-            std::vector<tCircle>::iterator it;
-            for (it = mDrawCircles.begin(); it != mDrawCircles.end(); ++it)
+            tCircle& item = *circle_it;
+            if (item.id == draw_request_id)
             {
-                tCircle& item = *it;
-                if (item.id == draw_request_id)
-                {
-                    mDrawCircles.erase(it);
-                    found = true;
-                    break;
-                }
+                item.expired = true;
+                break;
             }
-            finished = !found;
         }
 
-        finished = false;
-        while (!finished)
+        std::vector<tText>::iterator text_it;
+        for (text_it = mDrawText.begin(); text_it != mDrawText.end(); ++text_it)
         {
-            bool found = false;
-            std::vector<tText>::iterator it;
-            for (it = mDrawText.begin(); it != mDrawText.end(); ++it)
+            tText& item = *text_it;
+            if (item.id == draw_request_id)
             {
-                tText& item = *it;
-                if (item.id == draw_request_id)
-                {
-                    mDrawText.erase(it);
-                    found = true;
-                    break;
-                }
+                item.expired = true;
             }
-            finished = !found;
         }
     }
 
@@ -310,7 +374,7 @@ int main() {
     REGISTER_FILE(unittest_cpp);
     REGISTER_FILE(mathutil_cpp);
 
-    Fl_Window window(640, 480, "TinScript Demo");
+    Fl_Double_Window window(640, 480, "TinScript Demo");
     gCanvas = new Canvas(0, 0, window.w(), window.h());
 
     // -- Create the TinScript context, using the default printf, and no assert handler
@@ -391,8 +455,14 @@ void SimUnpause()
     Canvas::gPaused = false;
 }
 
+int32 GetSimTime()
+{
+    return (Canvas::gCurrentTimeMS);
+}
+
 REGISTER_FUNCTION_P0(SimPause, SimPause, void);
 REGISTER_FUNCTION_P0(SimUnpause, SimUnpause, void);
+REGISTER_FUNCTION_P0(GetSimTime, GetSimTime, int32);
 
 // --------------------------------------------------------------------------------------------------------------------
 // EOF

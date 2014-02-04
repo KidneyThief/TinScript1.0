@@ -10,6 +10,9 @@ float gThrust = 0.3f;
 float gAsteroidSpeed = 1.4f;
 float gBulletSpeed = 4.0f;
 
+int gMaxBullets = 4;
+int gFireCDTime = 100;
+
 // ====================================================================================================================
 // Asteroid : SceneObject implementation
 // ====================================================================================================================
@@ -174,7 +177,7 @@ void Ship::OnCreate()
     float self.rotation = 270.0f;
     
     // -- life count
-    int self.lives = 3;
+    int self.lives = 5;
     int self.show_hit_sched = 0;
     bool self.show_hit = false;
     vector3f self.show_hit_position;
@@ -182,6 +185,9 @@ void Ship::OnCreate()
     // -- on spawn, we're invulnerable for a couple seconds
     bool self.invulnerable = true;
     schedule(self, 2000, Hash("ResetInvulnerable"));
+    
+    // -- we can only fire so fast
+    int self.fire_cd_time = 0;
 }
 
 void Ship::OnUpdate()
@@ -242,9 +248,14 @@ void Ship::OnFire()
         return;
         
     // -- only 4x bullets at a time
-    if (gCurrentGame.bullet_set.Used() > 3)
+    if (gCurrentGame.bullet_set.Used() >= gMaxBullets)
         return;
-        
+    
+    // -- only allow one bullet every X msec
+    int cur_time = GetSimTime();
+    if (cur_time < self.fire_cd_time)
+        return;
+    
     // -- calculate our heading
     vector3f heading = '0 0 0';
     heading:x = Cos(self.rotation);
@@ -257,9 +268,7 @@ void Ship::OnFire()
     SpawnBullet(head, heading);
     
     // -- start a cooldown
-    // $$$TZA - make the error here, for a non-existant veriable, more useful
-    //self.fire_cd = true;
-    //schedule(self, 300, Hash("ResetFireCD"));
+    self.fire_cd_time = cur_time + gFireCDTime;
 }
 
 void Ship::ResetShowHit()
@@ -321,12 +330,8 @@ void Bullet::OnCreate()
     vector3f self.velocity = '0 0 0';
     
     // -- self terminating
-    schedule(self, 2000, Hash("Expire"));
-}
-
-void Bullet::Expire()
-{
-    destroy self;
+    int cur_time = GetSimTime();
+    int self.expireTime = cur_time + 2000;
 }
 
 void Bullet::OnUpdate()
@@ -336,6 +341,11 @@ void Bullet::OnUpdate()
     
     // -- default draw
     SceneObject::OnUpdate();
+    
+    // -- see if it's time to expire
+    int cur_time = GetSimTime();
+    if (cur_time > self.expireTime)
+        destroy self;
 }
 
 object SpawnBullet(vector3f position, vector3f direction)
@@ -368,14 +378,14 @@ void AsteroidsGame::OnCreate()
     
     // -- cache the 'ship' object
     object self.ship;
+    
+    object self.delete_set = create CObjectSet("DeleteSet");
+    
 }
 void AsteroidsGame::OnUpdate()
 {
     // -- update all the scene objects
     DefaultGame::OnUpdate();
-    
-    // -- look for bullet collisions
-    object delete_set = create CObjectSet();
     
     object bullet = self.bullet_set.First();
     while (IsObject(bullet))
@@ -393,7 +403,7 @@ void AsteroidsGame::OnUpdate()
                 asteroid.OnCollision();
                 
                 // -- add the bullet to the delete set and break
-                delete_set.AddObject(bullet);
+                self.delete_set.AddObject(bullet);
                 
                 // $$$TZA break doesn't compile??
                 finished = true;
@@ -439,14 +449,11 @@ void AsteroidsGame::OnUpdate()
     }
     
     // -- now clean up the delete set
-    while (delete_set.Used() > 0)
+    while (self.delete_set.Used() > 0)
     {
-        object delete_me = delete_set.GetObjectByIndex(0);
+        object delete_me = self.delete_set.GetObjectByIndex(0);
         destroy delete_me;
     }
-    
-    // -- now destroy the temporary set itself
-    destroy delete_set;
 }
 
 void AsteroidsGame::OnDestroy()
@@ -457,8 +464,8 @@ void AsteroidsGame::OnDestroy()
     // -- clean up the extra sets
     destroy self.asteroid_set;
     destroy self.bullet_set;
+    destroy self.delete_set;
 }
-
 
 void AsteroidsGame::OnKeyPress(int keypress)
 {
@@ -500,6 +507,11 @@ void StartAsteroids()
     gCurrentGame.ship = SpawnShip();
     
     // -- spawn, say, 8 asteroids
+    schedule(0, 5000, Hash("SpawnAsteroids"));
+}
+
+void SpawnAsteroids()
+{
     int i;
     for (i = 0; i < 8; i += 1)
         SpawnAsteroid();

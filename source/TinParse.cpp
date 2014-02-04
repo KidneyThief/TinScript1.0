@@ -2817,9 +2817,6 @@ if(GetDebugCodeBlock()) {
         return (NULL);
     }
 
-    // -- update the string table
-    SaveStringTable(script_context);
-
     // -- destroy the tree
     DestroyTree(root);
 
