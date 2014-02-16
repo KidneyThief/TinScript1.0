@@ -822,7 +822,7 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         CVariableEntry* var = GetVariable(codeblock->GetScriptContext(),
                                           codeblock->smCurrentGlobalVarTable, nshash, funchash,
                                           varhash, 0);
-        if(var->GetType() != TYPE_hashtable) {
+        if(!var || var->GetType() != TYPE_hashtable) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
                           "Error - variable %s is not of type hashtable\n", UnHash(varhash));
@@ -856,13 +856,12 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
     // -- not a self var, not a hash table entry, it's either global or a local function var
     else {
-	    // -- add the variable to the table
+        // $$$TZA ensure we're not trying to declare a hashtable var inside a function (not yet supported)
         int32 stacktopdummy = 0;
         CObjectEntry* dummy = NULL;
         CFunctionEntry* curfunction =
             codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
 
-        // $$$TZA ensure we're not trying to declare a self.hashtable
         if(curfunction != NULL && registeredtype == TYPE_hashtable) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           idtoken.linenumber,
@@ -870,8 +869,8 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
             return false;
         }
 
-        AddVariable(codeblock->GetScriptContext(), codeblock->smCurrentGlobalVarTable, curfunction,
-                    TokenPrint(idtoken), Hash(TokenPrint(idtoken)), registeredtype);
+        //AddVariable(codeblock->GetScriptContext(), codeblock->smCurrentGlobalVarTable, curfunction,
+        //            TokenPrint(idtoken), Hash(TokenPrint(idtoken)), registeredtype);
 
 	    // -- get the final token
 	    finaltoken = idtoken;
@@ -880,11 +879,11 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     }
 
 	// -- see if the last token was a semicolon, marking the end of a var declaration
+    bool is_var_decl = false;
 	if(finaltoken.type == TOKEN_SEMICOLON) {
-
 		// -- we've successfully created a var declaration
 		filebuf = finaltoken;
-		return true;
+        is_var_decl = true;
 	}
 
 	// -- else if the next token is an operator, we're going to
@@ -893,11 +892,23 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 		// -- we're going to update the input buf ptr to just after having read the type
 		// -- and allow the assignment to be ready as an assignment
 		filebuf = nexttoken;
-		return true;
+        is_var_decl = true;
 	}
 
-	// -- no idea what it is...
-	return false;
+    // -- if we found a variable declaration, add the variable
+    if (is_var_decl)
+    {
+        int32 stacktopdummy = 0;
+        CObjectEntry* dummy = NULL;
+        CFunctionEntry* curfunction =
+            codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
+
+        AddVariable(codeblock->GetScriptContext(), codeblock->smCurrentGlobalVarTable, curfunction,
+                    TokenPrint(idtoken), Hash(TokenPrint(idtoken)), registeredtype);
+    }
+
+    // -- return the result
+	return (is_var_decl);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1284,15 +1295,6 @@ bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
 		unarynode = TinAlloc(ALLOC_TreeNode, CUnaryOpNode, codeblock, link, filebuf.linenumber,
                              unarytype);
 
-        // $$TZA pre-increment and pre-decrement require more work to also include the assignment
-        // -- as well as ensuring they preceed variables and not values.
-        if(unarytype == UNARY_UnaryPreInc || unarytype == UNARY_UnaryPreDec) {
-            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                          unarytoken.linenumber,
-                          "Error - Unary operators '++' and '--' are not yet supported\n");
-            return false;
-        }
-
         // -- committed
         filebuf = unarytoken;
     }
@@ -1440,6 +1442,12 @@ bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
         exprlink = parenopennode->leftchild;
         parenopennode->leftchild = NULL;
         TinFree(parenopennode);
+
+        // -- override the binary op precedence, as we don't sort past a parenthesized sub-tree
+        if (exprlink->GetType() == eBinaryOp)
+        {
+            static_cast<CBinaryOpNode*>(exprlink)->OverrideBinaryOpPrecedence(0);
+        }
 
         // -- success
         return true;
@@ -3075,7 +3083,7 @@ CVariableEntry* GetVariable(CScriptContext* script_context, tVarTable* globalVar
         nsentry = script_context->FindNamespace(nshash);
         if(!nsentry) {
             ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - Unable to find namespace: %s\n", UnHash(nshash));
+                          "Error - Unable to find resolve variable with namespace: %s\n", UnHash(nshash));
             return NULL;
         }
 

@@ -112,10 +112,8 @@ object SpawnAsteroid()
     impulse = V3fNormalized(impulse);
     
     // -- apply a random strength
-    // $$$TZA WON'T EXECUTE!!!
-    //impulse = impulse * (2.0f + 3.0f * Random());
     float strength = (gAsteroidSpeed * 0.2f) + ((gAsteroidSpeed * 0.8f) * Random());
-    impulse = impulse * strength;
+    impulse *= strength;
     
     // -- random 
     ApplyImpulse(new_asteroid, impulse);
@@ -136,30 +134,16 @@ void UpdateScreenPosition(object obj)
         // -- apply the velocity
         obj.position = obj.position + obj.velocity;
 
-        /*
         // -- wrap the object around the screen edge
         if (obj.position:x < 0.0f)
             obj.position:x = 640.0f;
         else if (obj.position:x > 640.0f)
-            obj.position:x = 0.0f:
+            obj.position:x = 0.0f;
             
         if (obj.position:y < 0.0f)
             obj.position:y = 480.0f;
         else if (obj.position:y > 480)
-            obj.position.y = 0.0f;
-        */
-        
-        vector3f cur_position = obj.position;
-        if (cur_position:x < 0.0f)
-            cur_position:x = 640.0f;
-        else if (cur_position:x > 640.0f)
-            cur_position:x = 0.0f;
-            
-        if (cur_position:y < 0.0f)
-            cur_position:y = 480.0f;
-        else if (cur_position:y > 480.0f)
-            cur_position:y = 0.0f;
-        obj.position = cur_position;
+            obj.position:y = 0.0f;
     }
 }
 

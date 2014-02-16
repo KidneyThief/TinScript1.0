@@ -235,6 +235,7 @@ class CBinaryOpNode : public CCompileTreeNode
 
         eOpCode GetOpCode() const { return binaryopcode; }
         int GetBinaryOpPrecedence() const { return binaryopprecedence; }
+        void OverrideBinaryOpPrecedence(int32 new_precedence) { binaryopprecedence = new_precedence; }
 
 	protected:
         eOpCode binaryopcode;

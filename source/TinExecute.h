@@ -71,8 +71,14 @@ class CExecStack {
 		void* Pop(eVarType& contenttype) {
 			uint32 stacksize = kPointerDiffUInt32(mStackTop, mStack) / sizeof(uint32);
             Unused_(stacksize);
-            Assert_(stacksize > 0);
-			contenttype = (eVarType)(*(--mStackTop));
+            if (stacksize == 0)
+            {
+                ScriptAssert_(TinScript::GetContext(), 0, "<internal>", -1,
+                              "Error - attempting to pop a value off an empty stack\n");
+                return (NULL);
+            }
+
+            contenttype = (eVarType)(*(--mStackTop));
 
             // -- if what's on the stack isn't a valid content type, leave the stack alone, but
             // -- return NULL - the calling operation should catch the NULL and assert
@@ -97,28 +103,35 @@ class CExecStack {
 		}
 
         // -- doesn't remove the top of the stack, and doesn't assert if the stack is empty
-		void* Peek(eVarType& contenttype) {
-			uint32 stacksize = kPointerDiffUInt32(mStackTop, mStack) / sizeof(uint32);
-            if (stacksize == 0)
-                return (NULL);
-
+		void* Peek(eVarType& contenttype, int depth = 0)
+        {
             uint32* cur_stack_top = mStackTop;
-			contenttype = (eVarType)(*(--cur_stack_top));
+            while (depth >= 0)
+            {
+			    uint32 stacksize = kPointerDiffUInt32(mStackTop, mStack) / sizeof(uint32);
+                if (stacksize == 0)
+                    return (NULL);
 
-            // -- if what's on the stack isn't a valid content type, leave the stack alone, but
-            // -- return NULL - the calling operation should catch the NULL and assert
-            if(contenttype < 0 || contenttype >= TYPE_COUNT)
-                return (NULL);
+			    contenttype = (eVarType)(*(--cur_stack_top));
+
+                // -- if what's on the stack isn't a valid content type, leave the stack alone, but
+                // -- return NULL - the calling operation should catch the NULL and assert
+                if(contenttype < 0 || contenttype >= TYPE_COUNT)
+                    return (NULL);
 
 
-			uint32 contentsize = kBytesToWordCount(gRegisteredTypeSize[contenttype]);
+			    uint32 contentsize = kBytesToWordCount(gRegisteredTypeSize[contenttype]);
 
-			// -- ensure we have enough data on the stack, both the content, and the type
-            Assert_(stacksize >= contentsize + 1);
-			cur_stack_top -= contentsize;
+			    // -- ensure we have enough data on the stack, both the content, and the type
+                Assert_(stacksize >= contentsize + 1);
+			    cur_stack_top -= contentsize;
 
-            // -- pushing and popping strings onto the execstack need to be refcounted
-            // -- peeking, however, does not alter either the stack, or the string table
+                // -- pushing and popping strings onto the execstack need to be refcounted
+                // -- peeking, however, does not alter either the stack, or the string table
+
+                // -- if we're digging past the top of the stack, keep loopoing
+                --depth;
+            }
 
 			return (void*)cur_stack_top;
 		}

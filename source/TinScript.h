@@ -132,7 +132,7 @@ const int32 kObjectTableSize = 10007;
 const int32 kMasterMembershipTableSize = 97;
 const int32 kObjectGroupTableSize = 17;
 
-const int32 kMaxScratchBuffers = 64;
+const int32 kMaxScratchBuffers = 32;
 
 namespace TinScript {
 
@@ -364,8 +364,8 @@ class CScriptContext {
         // -- used mostly for a place to do type conversions, this is a convenience
         // -- feature to avoid allocations, and to ensure that converted results
         // -- always have a reliable place to live.
-        // -- if kMaxScratchBuffers is 64, then there would have to be
-        // -- 64 type conversions in a single expression before we get buffer overrun...
+        // -- if kMaxScratchBuffers is 32, then there would have to be
+        // -- 32 type conversions in a single expression before we get buffer overrun...
         int32 mScratchBufferIndex;
         char mScratchBuffers[kMaxScratchBuffers][kMaxTokenLength];
 

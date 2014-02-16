@@ -61,6 +61,8 @@ class CBase {
             floatvalue = 27.0;
             intvalue = 33;
             boolvalue = true;
+            v3member = CVector3f(1.0f, 2.0f, 3.0f);
+            objmember = NULL;
         }
         virtual ~CBase() {
             MTPrint("Enter destructor ~CBase()\n");
@@ -96,12 +98,18 @@ class CBase {
         float32 floatvalue;
         int32 intvalue;
         bool8 boolvalue;
+
+        // -- additional members, using non-standard registration types
+        CVector3f v3member;
+        CBase* objmember;
 };
 
 IMPLEMENT_SCRIPT_CLASS_BEGIN(CBase, VOID)
     REGISTER_MEMBER(CBase, floatvalue, floatvalue);
     REGISTER_MEMBER(CBase, intvalue, intvalue);
     REGISTER_MEMBER(CBase, boolvalue, boolvalue);
+    REGISTER_MEMBER(CBase, v3member, v3member);
+    REGISTER_MEMBER(CBase, objmember, objmember);
 IMPLEMENT_SCRIPT_CLASS_END()
 
 REGISTER_METHOD_P0(CBase, GetFloatValue, GetFloatValue, float32);
@@ -693,7 +701,7 @@ bool8 CreateUnitTests()
         success = success && AddUnitTest("flow_while", "while loop - count 5 to 1", "UnitTest_WhileStatement();", " 5 4 3 2 1");
         success = success && AddUnitTest("flow_for", "for loop - count 0 to 4", "UnitTest_ForLoop();", " 0 1 2 3 4");
 
-        success = success && AddUnitTest("parenthesis", "Expr: (((3 + 4) * 17) - (3 + 6)) % (42 / 3)", "TestParenthesis();", "12.6667");
+        success = success && AddUnitTest("parenthesis", "Expr: (((3 + 4) * 17) - (3.0f + 6)) % (42 / 3)", "TestParenthesis();", "12.0000");
 
         // -- code functions with return types ------------------------------------------------------------------------
         // -- each of the following, the script function will call a registered code function with a return type

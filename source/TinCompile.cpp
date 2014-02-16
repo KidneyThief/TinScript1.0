@@ -735,35 +735,16 @@ int32 CUnaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly
 		return (-1);
 	}
 
-    // -- (some) unary operators only operate on specific types
-    // $$$TZA We need a way to apply unary operators to user-defined registered types
-    // -- e.g.  do we bother evaluating  ++CVector3f?
-    eVarType resulttype = pushresult;
-    switch(unaryopcode) {
-        case OP_UnaryPreInc:
-        case OP_UnaryPreDec:
-        case OP_UnaryNeg:
-        {
-            if(pushresult != TYPE_int && pushresult != TYPE_float)
-                resulttype = TYPE_float;
-            break;
-        }
-
-        case OP_UnaryBitInvert:
-            resulttype = TYPE_int;
-            break;
-
-        case OP_UnaryNot:
-            resulttype = TYPE_bool;
-            break;
-
-        default:
-            break;
+    // -- pre inc/dec operations are assignments - we need to ensure the left branch resolves to a variable
+    eVarType resultType = pushresult;
+    if (unaryopcode == OP_UnaryPreInc || unaryopcode == OP_UnaryPreDec)
+    {
+        resultType = TYPE__var;
     }
 
 	// -- evaluate the left child, pushing the result of the type required
 	// -- except in the case of an assignment operator - the left child is the variable
-    int32 tree_size = leftchild->Eval(instrptr, resulttype, countonly);
+    int32 tree_size = leftchild->Eval(instrptr, resultType, countonly);
     if (tree_size < 0)
         return (-1);
     size += tree_size;

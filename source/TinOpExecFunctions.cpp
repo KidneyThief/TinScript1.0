@@ -216,177 +216,82 @@ bool8 PerformBinaryOpPush(CScriptContext* script_context, CExecStack& execstack,
     return (false);
 }
 
+// --------------------------------------------------------------------------------------------------------------------
 bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack, eOpCode op) {
-
-	// -- pop the value
-    CVariableEntry* ve1 = NULL;
-    CObjectEntry* oe1 = NULL;
-	eVarType val1type;
-	void* val1addr = execstack.Pop(val1type);
-    if(!GetStackValue(script_context, execstack, funccallstack, val1addr, val1type, ve1, oe1)) {
-        // -- this assert is useless - returning false here will assert with a file/line number
-        //ScriptAssert_(script_context, 0, "<internal>", -1,
-        //              "Error - Failed to pop assignment value\n");
-        return false;
-    }
-
-	// -- pop the (hash) name of the var
-    CVariableEntry* ve0 = NULL;
-    CObjectEntry* oe0 = NULL;
-	eVarType varhashtype;
-	void* var = execstack.Pop(varhashtype);
-    bool8 is_stack_var = (varhashtype == TYPE__stackvar);
-    bool8 is_pod_member = (varhashtype == TYPE__podmember);
-    bool8 use_var_addr = (is_stack_var || is_pod_member);
-    if(!GetStackValue(script_context, execstack, funccallstack, var, varhashtype, ve0, oe0)) {
-        // -- this assert is useless - returning false here will assert with a file/line number
-        //ScriptAssert_(script_context, 0, "<internal>", -1,
-        //              "Error - Failed to pop assignment variable\n");
-        return (false);
-    }
-
-    // -- ensure we're assigning to a variable, an object member, or a local stack variable
-    if(!ve0 && !use_var_addr) {
-        // -- this assert is useless - returning false here will assert with a file/line number
-        //ScriptAssert_(script_context, 0, "<internal>", -1,
-        //              "Error - Attempting to assign to a non-variable\n");
-        return (false);
-    }
-
-    // -- if we're doing a straight up assignment, don't convert to float32
-    if(op == OP_Assign )
+                      CFunctionCallStack& funccallstack, eOpCode op)
+{
+    // -- if we're not doing a straight up assignment, we need to pop the variable and value off the stack,
+    // -- so we can cache the variable to be modified by the result of the operation
+    if (op != OP_Assign)
     {
-        // -- if we've been given the actual address of the var, copy directly to it
-        if (use_var_addr) {
-            val1addr = TypeConvert(script_context, val1type, val1addr, varhashtype);
-            if (!val1addr)
-            {
+	    eVarType assign_valtype;
+	    void* assign_valaddr = execstack.Peek(assign_valtype, 1); // look at the 2nd stack entry (not the top)
+        if (!assign_valaddr)
+        {
+            return (false);
+        }
+
+        // -- store the 2nd entry on the stack - it had better be a variable of some type,
+        // -- and we'll want push it back on the stack for the assignment, after the operation
+        uint32 assign_buf[MAX_TYPE_SIZE];
+        memcpy(assign_buf, assign_valaddr, MAX_TYPE_SIZE * sizeof(uint32));
+
+        // -- here we have to map between the assign version of the op, and the actual op
+        eOpCode perform_op = op;
+        switch (op)
+        {
+            case OP_AssignAdd:         perform_op = OP_Add;             break;
+            case OP_AssignSub:         perform_op = OP_Sub;             break;
+            case OP_AssignMult:        perform_op = OP_Mult;            break;
+            case OP_AssignDiv:         perform_op = OP_Div;             break;
+            case OP_AssignMod:         perform_op = OP_Mod;             break;
+            case OP_AssignLeftShift:   perform_op = OP_BitLeftShift;    break;
+            case OP_AssignRightShift:  perform_op = OP_BitRightShift;   break;
+            case OP_AssignBitAnd:      perform_op = OP_BitAnd;          break;
+            case OP_AssignBitOr:       perform_op = OP_BitOr;           break;
+            case OP_AssignBitXor:      perform_op = OP_BitXor;          break;
+            default:
                 ScriptAssert_(script_context, 0, "<internal>", -1,
-                              "Error - fail to conver from type %s to type %s\n",
-                              GetRegisteredTypeName(val1type), GetRegisteredTypeName(varhashtype));
+                              "Error - Assign operation not mapped to a binary op\n");
                 return (false);
-            }
-            memcpy(var, val1addr, gRegisteredTypeSize[varhashtype]);
-            DebugTrace(op, is_stack_var ? "StackVar: %s" : "PODMember: %s", DebugPrintVar(var, varhashtype));
         }
 
-        // -- else set the value through the variable entry
-        else
+        // -- if the operation isn't a simple assignement, we've got the variable to be assigned - perform the op
+        // -- this will replace the top two stack entries, with the result
+        if (!PerformBinaryOpPush(script_context, execstack, funccallstack, perform_op))
         {
-            val1addr = TypeConvert(script_context, val1type, val1addr, ve0->GetType());
-            if (!val1addr)
-            {
-                ScriptAssert_(script_context, 0, "<internal>", -1,
-                              "Error - fail to convert from type %s to type %s\n",
-                              GetRegisteredTypeName(val1type), GetRegisteredTypeName(ve0->GetType()));
-                return (false);
-            }
-
-    	    ve0->SetValue(oe0 ? oe0->GetAddr() : NULL, val1addr);
-            DebugTrace(op, "Var %s: %s", UnHash(ve0->GetHash()),
-                       DebugPrintVar(val1addr, ve0->GetType()));
+            return (false);
         }
-        return true;
-    }
 
-    void* ve0addr = use_var_addr ? TypeConvert(script_context, varhashtype, var, TYPE_float)
-                                 : TypeConvert(script_context, ve0->GetType(), ve0->GetAddr(oe0), TYPE_float);
-    val1addr = TypeConvert(script_context, val1type, val1addr, TYPE_float);
-    float32 vefloat = *(float32*)ve0addr;
-    float32 val1float = *(float32*)val1addr;
-
-    // -- now perform the op
-    float32 result = 0.0f;
-    switch(op) {
-        case OP_AssignAdd:
-            result = vefloat + val1float;
-            break;
-        case OP_AssignSub:
-            result = vefloat - val1float;
-            break;
-        case OP_AssignMult:
-            result = vefloat * val1float;
-            break;
-        case OP_AssignDiv:
-            ScriptAssert_(script_context, val1float != 0.0f, "<internal>", -1,
-                          "Error - Divide by 0\n");
-            result = vefloat / val1float;
-            break;
-        case OP_AssignMod:
+        // -- now we have the result, we need to pop it, then push the variable, then the result again
+	    eVarType valtype;
+	    void* valaddr = execstack.Pop(valtype);
+        uint32 valbuf[MAX_TYPE_SIZE];
+        if (!valaddr)
         {
-            ScriptAssert_(script_context, val1float != 0.0f, "<internal>", -1,
-                          "Error - Mod Divide by 0\n");
-            int32 val0int = (int32)vefloat;
-            int32 val1int = val1float < 0.0f ? -(int32)val1float : (int32)val1float;
-            while(val0int < 0)
-                val0int += val1int;
-            result = (float32)(val0int % val1int);
-            break;
+            return (false);
         }
+        memcpy(valbuf, valaddr, MAX_TYPE_SIZE * sizeof(uint32));
 
-        default:
-        {
-            ScriptAssert_(script_context, false, "<internal>", -1,
-                          "Error - Unhandled operation: %s\n", GetOperationString(op));
-            return false;
-        }
+        // -- push the variable to be assigned, back on the stack
+        execstack.Push((void*)assign_buf, assign_valtype);
+
+        // -- push the operation result back onto the stack
+        execstack.Push(valbuf, valtype);
     }
 
-    // -- convert back to our variable type
-    if(use_var_addr) {
-        void* convertptr = TypeConvert(script_context, TYPE_float, &result, varhashtype);
-        if(!convertptr) {
-            ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - Unable to convert from type %s to %s\n",
-                          GetRegisteredTypeName(TYPE_float),
-                          GetRegisteredTypeName(varhashtype));
-            return false;
-        }
-
-        // -- if we've been given the actual address of the var, copy directly to it
-        if (use_var_addr) {
-            memcpy(var, convertptr, gRegisteredTypeSize[varhashtype]);
-            DebugTrace(op, is_stack_var ? "StackVar: %s" : "PODMember: %s", DebugPrintVar(val1addr, varhashtype));
-        }
-    }
-    else {
-        void* convertptr = TypeConvert(script_context, TYPE_float, &result, ve0->GetType());
-        if(!convertptr) {
-            ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - Unable to convert from type %s to %s\n",
-                          GetRegisteredTypeName(TYPE_float),
-                          GetRegisteredTypeName(ve0->GetType()));
-            return false;
-        }
-	    ve0->SetValue(oe0 ? oe0->GetAddr() : NULL, convertptr);
-        if(oe0) {
-            DebugTrace(op, "Obj: %d, Var %s: %s", oe0->GetID(), UnHash(ve0->GetHash()),
-                       DebugPrintVar(val1addr, ve0->GetType()));
-        }
-        else {
-            DebugTrace(op, "Var %s: %s", UnHash(ve0->GetHash()),
-                       DebugPrintVar(val1addr, ve0->GetType()));
-        }
-    }
-
-	return true;
-}
-
-bool8 PerformBitAssignOp(CScriptContext* script_context, CExecStack& execstack,
-                         CFunctionCallStack& funccallstack, eOpCode op) {
+    // -- perform the assignment
 	// -- pop the value
     CVariableEntry* ve1 = NULL;
     CObjectEntry* oe1 = NULL;
 	eVarType val1type;
 	void* val1addr = execstack.Pop(val1type);
-    if(!GetStackValue(script_context, execstack, funccallstack, val1addr, val1type, ve1, oe1)) {
-        ScriptAssert_(script_context, 0, "<internal>", -1,
-                      "Error - Failed to pop assignment value\n");
+    if (!GetStackValue(script_context, execstack, funccallstack, val1addr, val1type, ve1, oe1))
+    {
         return false;
     }
 
-	// -- pop the (hash) name of the var
+	// -- pop the var
     CVariableEntry* ve0 = NULL;
     CObjectEntry* oe0 = NULL;
 	eVarType varhashtype;
@@ -394,208 +299,54 @@ bool8 PerformBitAssignOp(CScriptContext* script_context, CExecStack& execstack,
     bool8 is_stack_var = (varhashtype == TYPE__stackvar);
     bool8 is_pod_member = (varhashtype == TYPE__podmember);
     bool8 use_var_addr = (is_stack_var || is_pod_member);
-    if(!GetStackValue(script_context, execstack, funccallstack, var, varhashtype, ve0, oe0)) {
-        ScriptAssert_(script_context, false, "<internal>", -1,
-                      "Error - Failed to pop assignment variable\n");
-        return false;
+    if(!GetStackValue(script_context, execstack, funccallstack, var, varhashtype, ve0, oe0))
+    {
+        return (false);
     }
 
     // -- ensure we're assigning to a variable, an object member, or a local stack variable
-    if(!ve0 && !use_var_addr) {
-        ScriptAssert_(script_context, 0, "<internal>", -1,
-                      "Error - Attempting to assign to a non-variable\n");
-        return false;
+    if(!ve0 && !use_var_addr)
+    {
+        return (false);
     }
 
-    void* ve0addr = use_var_addr ? TypeConvert(script_context, varhashtype, var, TYPE_int)
-                                 : TypeConvert(script_context, ve0->GetType(), ve0->GetAddr(oe0), TYPE_int);
-    val1addr = TypeConvert(script_context, val1type, val1addr, TYPE_int);
-    int32 veint = *(int32*)ve0addr;
-    int32 val1int = *(int32*)val1addr;
-
-    // -- now perform the op
-    int32 result = 0;
-    switch(op) {
-        case OP_AssignLeftShift:
-            result = veint << val1int;
-            break;
-        case OP_AssignRightShift:
-            result = veint >> val1int;
-            break;
-        case OP_AssignBitAnd:
-            result = veint & val1int;
-            break;
-        case OP_AssignBitOr:
-            result = veint | val1int;
-            break;
-        case OP_AssignBitXor:
-            result = veint ^ val1int;
-            break;
-
-        default:
+    // -- if we've been given the actual address of the var, copy directly to it
+    if (use_var_addr) {
+        val1addr = TypeConvert(script_context, val1type, val1addr, varhashtype);
+        if (!val1addr)
         {
-            ScriptAssert_(script_context, false, "<internal>", -1,
-                "Error - Unhandled operation: %s\n", GetOperationString(op));
-            return false;
-        }
-    }
-
-    // -- convert back to our variable type
-    if(use_var_addr) {
-        void* convertptr = TypeConvert(script_context, TYPE_int, &result, varhashtype);
-        if(!convertptr) {
             ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - Unable to convert from type %s to %s\n",
-                          GetRegisteredTypeName(TYPE_int),
-                          GetRegisteredTypeName(varhashtype));
-            return false;
+                            "Error - fail to conver from type %s to type %s\n",
+                            GetRegisteredTypeName(val1type), GetRegisteredTypeName(varhashtype));
+            return (false);
         }
-
-        memcpy(var, convertptr, gRegisteredTypeSize[varhashtype]);
+        memcpy(var, val1addr, gRegisteredTypeSize[varhashtype]);
         DebugTrace(op, is_stack_var ? "StackVar: %s" : "PODMember: %s", DebugPrintVar(var, varhashtype));
     }
-    else {
-        void* convertptr = TypeConvert(script_context, TYPE_int, &result, ve0->GetType());
-        if(!convertptr) {
-            ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - Unable to convert from type %s to %s\n",
-                          GetRegisteredTypeName(TYPE_int),
-                          GetRegisteredTypeName(ve0->GetType()));
-            return false;
-        }
-	    ve0->SetValue(oe0 ? oe0->GetAddr() : NULL, convertptr);
-        if(oe0) {
-            DebugTrace(op, "Obj: %d, Var %s: %s", oe0->GetID(), UnHash(ve0->GetHash()),
-                       DebugPrintVar(val1addr, ve0->GetType()));
-        }
-        else {
-            DebugTrace(op, "Var %s: %s", UnHash(ve0->GetHash()),
-                       DebugPrintVar(val1addr, ve0->GetType()));
-        }
-    }
 
-	return true;
-}
-
-bool8 PerformUnaryOp(CScriptContext* script_context, CExecStack& execstack,
-                     CFunctionCallStack& funccallstack, eOpCode op) {
-	// -- pop the value
-    CVariableEntry* ve = NULL;
-    CObjectEntry* oe = NULL;
-	eVarType valtype;
-	void* valaddr = execstack.Pop(valtype);
-    if(!GetStackValue(script_context, execstack, funccallstack, valaddr, valtype, ve, oe)) {
-        ScriptAssert_(script_context, 0, "<internal>", -1,
-                      "Error - Failed to pop unary op value\n");
-        return false;
-    }
-
-    // $$$TZA This seems clunky... need to consider a 2-D function map that handles all
-    // -- type operations:  Convert, IsZero, Init, ToString, FromString, and all unary operations
-    switch(op) {
-        case OP_UnaryPreInc:
-        case OP_UnaryPreDec:
-        case OP_UnaryNeg:
-        case OP_UnaryPos:
-        {
-            // -- verify the types - this is only valid for int32 and float32
-            if(valtype != TYPE_int && valtype != TYPE_float) {
-                ScriptAssert_(script_context, 0, "<internal>", -1,
-                              "Error - Only types int32 and float32 are supported for op: %s\n",
-                              GetOperationString(op));
-                return false;
-            }
-
-            void* result = NULL;
-            int32 intresult = 0;
-            float32 floatresult = 0.0f;
-
-            if(valtype == TYPE_int) {
-                intresult = *(int32*)valaddr;
-
-                // -- perform the actual operation
-                if(op == OP_UnaryPreInc)
-                    ++intresult;
-                else if(op == OP_UnaryPreDec)
-                    --intresult;
-                else if(op == OP_UnaryNeg)
-                    intresult = -intresult;
-                // -- UnaryPos has no effect
-
-                result = (void*)&intresult;
-            }
-            else {
-                floatresult = *(float32*)valaddr;
-
-                // -- perform the actual operation
-                if(op == OP_UnaryPreInc)
-                    ++floatresult;
-                else if(op == OP_UnaryPreDec)
-                    --floatresult;
-                else if(op == OP_UnaryNeg)
-                    floatresult = -floatresult;
-                // -- UnaryPos has no effect
-
-                result = (void*)&floatresult;
-            }
-
-	        // -- push the the value onto the stack
-	        execstack.Push(result, valtype);
-            DebugTrace(op, "result: %s", DebugPrintVar(result, valtype));
-            return true;
-        }
-
-        case OP_UnaryBitInvert:
-        {
-            // -- verify the types - this is only valid for int32 and float32
-            if(valtype != TYPE_int) {
-                ScriptAssert_(script_context, 0, "<internal>", -1,
-                              "Error - Only type int32 is supported for op: %s\n",
-                              GetOperationString(op));
-                return false;
-            }
-            int32 value = *(int32*)valaddr;
-            value = ~value;
-
-	        // -- push the the value onto the stack
-	        execstack.Push(&value, valtype);
-            DebugTrace(op, "result: %s", DebugPrintVar(&value, valtype));
-            return true;
-        }
-
-        case OP_UnaryNot:
-        {
-            // -- verify the types - this is only valid for int32 and float32
-            void* boolval = TypeConvert(script_context, valtype, valaddr, TYPE_bool);
-            if (!boolval)
-            {
-                ScriptAssert_(script_context, 0, "<internal>", -1,
-                              "Error - Only type bool8 is supported for op: %s\n",
-                              GetOperationString(op));
-                return false;
-            }
-            bool8 value = *(bool8*)boolval;
-            value = !value;
-
-	        // -- push the the value onto the stack
-	        execstack.Push(&value, TYPE_bool);
-            DebugTrace(op, "result: %s", DebugPrintVar(&value, valtype));
-            return true;
-        }
-
-        default:
+    // -- else set the value through the variable entry
+    else
+    {
+        val1addr = TypeConvert(script_context, val1type, val1addr, ve0->GetType());
+        if (!val1addr)
         {
             ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - unsupported (non unary?) op: %s\n",
-                          GetOperationString(op));
-            return false;
+                            "Error - fail to convert from type %s to type %s\n",
+                            GetRegisteredTypeName(val1type), GetRegisteredTypeName(ve0->GetType()));
+            return (false);
         }
+
+    	ve0->SetValue(oe0 ? oe0->GetAddr() : NULL, val1addr);
+        DebugTrace(op, "Var %s: %s", UnHash(ve0->GetHash()),
+                    DebugPrintVar(val1addr, ve0->GetType()));
     }
+
+    // -- success
+    return (true);
 }
 
 // ------------------------------------------------------------------------------------------------
 // Specific Operation Execution Functions begin here
-
 bool8 OpExecNULL(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                  CFunctionCallStack& funccallstack) {
     ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
@@ -639,121 +390,293 @@ bool8 OpExecParamDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
 }
 
 // ------------------------------------------------------------------------------------------------
-// -- Function used for all basic assign ops
-bool8 OpExecAssignVal(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
-    if(!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op)) {
+// -- assignment ops
+bool8 OpExecAssign(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
+                   CFunctionCallStack& funccallstack)
+{
+    if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
+    {
         ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-            "Error - unable to perform op: %s\n",
-            GetOperationString(op));
-        return false;
+                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        return (false);
     }
     return (true);
 }
 
-bool8 OpExecAssign(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
-    return (OpExecAssignVal(cb, op, instrptr, execstack, funccallstack));
-}
-
 bool8 OpExecAssignAdd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                   CFunctionCallStack& funccallstack) {
-    return (OpExecAssignVal(cb, op, instrptr, execstack, funccallstack));
+                      CFunctionCallStack& funccallstack) {
+    if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        return (false);
+    }
+    return (true);
 }
 
 bool8 OpExecAssignSub(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                   CFunctionCallStack& funccallstack) {
-    return (OpExecAssignVal(cb, op, instrptr, execstack, funccallstack));
+                      CFunctionCallStack& funccallstack)
+{
+    if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        return (false);
+    }
+    return (true);
 }
 
 bool8 OpExecAssignMult(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                   CFunctionCallStack& funccallstack) {
-    return (OpExecAssignVal(cb, op, instrptr, execstack, funccallstack));
+                       CFunctionCallStack& funccallstack)
+{
+    if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        return (false);
+    }
+    return (true);
 }
 
 bool8 OpExecAssignDiv(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                   CFunctionCallStack& funccallstack) {
-    return (OpExecAssignVal(cb, op, instrptr, execstack, funccallstack));
+                      CFunctionCallStack& funccallstack)
+{
+    if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        return (false);
+    }
+    return (true);
 }
 
 bool8 OpExecAssignMod(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                   CFunctionCallStack& funccallstack) {
-    return (OpExecAssignVal(cb, op, instrptr, execstack, funccallstack));
-}
-
-// ------------------------------------------------------------------------------------------------
-// -- Function used for all bitwise assign ops
-bool8 OpExecAssignBitwise(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
-    if(!PerformBitAssignOp(cb->GetScriptContext(), execstack, funccallstack, op)) {
-            ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                "Error - unable to perform op: %s\n",
-                GetOperationString(op));
-            return false;
+                      CFunctionCallStack& funccallstack)
+{
+    if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        return (false);
     }
     return (true);
 }
 
 bool8 OpExecAssignLeftShift(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
-    return (OpExecAssignBitwise(cb, op, instrptr, execstack, funccallstack));
-}
-
-bool8 OpExecAssignRightShift(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
-    return (OpExecAssignBitwise(cb, op, instrptr, execstack, funccallstack));
-}
-
-bool8 OpExecAssignBitAnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
-    return (OpExecAssignBitwise(cb, op, instrptr, execstack, funccallstack));
-}
-
-bool8 OpExecAssignBitOr(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
-    return (OpExecAssignBitwise(cb, op, instrptr, execstack, funccallstack));
-}
-
-bool8 OpExecAssignBitXor(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
-    return (OpExecAssignBitwise(cb, op, instrptr, execstack, funccallstack));
-}
-
-// ------------------------------------------------------------------------------------------------
-// -- used for all unary ops
-bool8 OpExecUnary(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                  CFunctionCallStack& funccallstack) {
-    if(!PerformUnaryOp(cb->GetScriptContext(), execstack, funccallstack, op)) {
+                            CFunctionCallStack& funccallstack)
+{
+    if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
+    {
         ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
                       "Error - unable to perform op: %s\n", GetOperationString(op));
-        return false;
+        return (false);
     }
     return (true);
 }
 
+bool8 OpExecAssignRightShift(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
+                             CFunctionCallStack& funccallstack)
+{
+    if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        return (false);
+    }
+    return (true);
+}
+
+bool8 OpExecAssignBitAnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
+                         CFunctionCallStack& funccallstack)
+{
+    if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        return (false);
+    }
+    return (true);
+}
+
+bool8 OpExecAssignBitOr(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
+                        CFunctionCallStack& funccallstack)
+{
+    if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        return (false);
+    }
+    return (true);
+}
+
+bool8 OpExecAssignBitXor(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
+                         CFunctionCallStack& funccallstack)
+{
+    if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        return (false);
+    }
+    return (true);
+}
+
+// ------------------------------------------------------------------------------------------------
+// -- used for all unary ops
 bool8 OpExecUnaryPreInc(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                        CFunctionCallStack& funccallstack) {
-    return (OpExecUnary(cb, op, instrptr, execstack, funccallstack));
+                        CFunctionCallStack& funccallstack)
+{
+    // -- unary preinc is the same as "x += 1", except we also push the variable back onto the stack
+    // -- as it's also used as a value
+
+    // -- first get the variable we're assigning
+    eVarType assign_type;
+	void* assign_var = execstack.Peek(assign_type);
+    if (!assign_var)
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - Failed to pop stack variable, performing: %s\n", GetOperationString(op));
+        return (false);
+    }
+    // -- cache the variable - we'll want to push it's value after it has been incremented
+    uint32 assign_buf[MAX_TYPE_SIZE];
+    memcpy(assign_buf, assign_var, MAX_TYPE_SIZE * sizeof(uint32));
+
+    // push a "1" onto the stack, and perform an AssignAdd
+    int32 value = 1;
+    execstack.Push(&value, TYPE_int);
+    if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, OP_AssignAdd))
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - Failed to perform op: %s\n", GetOperationString(op));
+        return (false);
+    }
+
+    // -- push the variable back onto the stack
+    execstack.Push((void*)assign_buf, assign_type);
+
+    // -- success
+    return (true);
 }
+
 bool8 OpExecUnaryPreDec(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                        CFunctionCallStack& funccallstack) {
-    return (OpExecUnary(cb, op, instrptr, execstack, funccallstack));
+                        CFunctionCallStack& funccallstack)
+{
+    // -- unary predec is the same as "x += -1", except we also push the variable back onto the stack
+    // -- as it's also used as a value
+
+    // -- first get the variable we're assigning
+    eVarType assign_type;
+	void* assign_var = execstack.Peek(assign_type);
+    if (!assign_var)
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - Failed to pop stack variable, performing: %s\n", GetOperationString(op));
+        return (false);
+    }
+    // -- cache the variable - we'll want to push it's value after it has been incremented
+    uint32 assign_buf[MAX_TYPE_SIZE];
+    memcpy(assign_buf, assign_var, MAX_TYPE_SIZE * sizeof(uint32));
+
+    // push a "-1" onto the stack, and perform an AssignAdd
+    int32 value = -1;
+    execstack.Push(&value, TYPE_int);
+    if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, OP_AssignAdd))
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - Failed to perform op: %s\n", GetOperationString(op));
+        return (false);
+    }
+
+    // -- push the variable back onto the stack
+    execstack.Push((void*)assign_buf, assign_type);
+
+    // -- success
+    return (true);
 }
+
 bool8 OpExecUnaryNeg(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                     CFunctionCallStack& funccallstack) {
-    return (OpExecUnary(cb, op, instrptr, execstack, funccallstack));
+                     CFunctionCallStack& funccallstack)
+{
+    // -- we're going to push a -1 onto the stack, and then allow the type to perform a multiplication
+    int32 value = -1;
+    execstack.Push(&value, TYPE_int);
+    DebugTrace(op, "%s", DebugPrintVar((void*)&value, TYPE_int));
+    return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, OP_Mult));
 }
+
 bool8 OpExecUnaryPos(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                      CFunctionCallStack& funccallstack) {
-    return (OpExecUnary(cb, op, instrptr, execstack, funccallstack));
+
+    // -- Unary pos has no effect on anything - leave the value on the stack "as is"
+    return (true);
 }
 bool8 OpExecUnaryBitInvert(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                            CFunctionCallStack& funccallstack) {
-    return (OpExecUnary(cb, op, instrptr, execstack, funccallstack));
+	// -- pop the value
+    CVariableEntry* ve = NULL;
+    CObjectEntry* oe = NULL;
+	eVarType valtype;
+	void* valaddr = execstack.Pop(valtype);
+    if(!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, valaddr, valtype, ve, oe)){
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - Failed pop value for op: %s\n", GetOperationString(op));
+        return false;
+    }
+
+    // -- convert the value to an int (the only valid type a bit-invert operator is implemented for)
+    void* convertaddr = TypeConvert(cb->GetScriptContext(), valtype, valaddr, TYPE_int);
+    if (!convertaddr)
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                "Error - unable to convert from type %s to type TYPE_int, performing op: %s\n",
+                gRegisteredTypeNames[valtype], GetOperationString(op));
+        return false;
+    }
+
+    int32 result = *(int32*)convertaddr;
+    result = ~result;
+
+    execstack.Push(&result, TYPE_int);
+    DebugTrace(op, "%s", DebugPrintVar((void*)&result, TYPE_int));
+
+    // -- success
+    return (true);
 }
+
 bool8 OpExecUnaryNot(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                     CFunctionCallStack& funccallstack) {
-    return (OpExecUnary(cb, op, instrptr, execstack, funccallstack));
+                     CFunctionCallStack& funccallstack)
+{
+	// -- pop the value
+    CVariableEntry* ve = NULL;
+    CObjectEntry* oe = NULL;
+	eVarType valtype;
+	void* valaddr = execstack.Pop(valtype);
+    if(!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, valaddr, valtype, ve, oe)) {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - Failed pop value for op: %s\n", GetOperationString(op));
+        return false;
+    }
+
+    // -- convert the value to a bool (the only valid type a not operator is implemented for)
+    void* convertaddr = TypeConvert(cb->GetScriptContext(), valtype, valaddr, TYPE_bool);
+    if (!convertaddr)
+    {
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                "Error - unable to convert from type %s to type TYPE_bool, performing op: %s\n",
+                gRegisteredTypeNames[valtype], GetOperationString(op));
+        return false;
+    }
+
+    bool result = *(bool*)convertaddr;
+    result = !result;
+
+    execstack.Push(&result, TYPE_bool);
+    DebugTrace(op, "%s", DebugPrintVar((void*)&result, TYPE_bool));
+
+    // -- success
+    return (true);
 }
 
 // ------------------------------------------------------------------------------------------------
