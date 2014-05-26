@@ -16,6 +16,7 @@ void DefaultGame::OnCreate()
 {
     int self.sched_update = schedule(self, 100, Hash("OnUpdate"));
     object self.game_objects = create CObjectGroup("GameObjects");
+    int self.SimTime = GetSimTime();
 }
 
 void DefaultGame::OnDestroy()
@@ -25,10 +26,16 @@ void DefaultGame::OnDestroy()
 
 void DefaultGame::OnUpdate()
 {
+    // -- find out how much sim time has elapsed
+    int curTime = GetSimTime();
+    float deltaTime = (curTime - self.SimTime);
+    deltaTime /= 1000.0f;
+    self.SimTime = curTime;
+    
     object cur_object = self.game_objects.First();
     while (IsObject(cur_object))
     {
-        cur_object.OnUpdate();
+        cur_object.OnUpdate(deltaTime);
         cur_object = self.game_objects.Next();
     }
     
@@ -80,7 +87,7 @@ void SceneObject::OnDestroy()
     CancelDrawRequests(self);
 }
 
-void SceneObject::OnUpdate()
+void SceneObject::OnUpdate(float deltaTime)
 {
     // -- we're using our object ID also as a draw request ID
     CancelDrawRequests(self);

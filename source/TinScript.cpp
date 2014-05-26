@@ -248,6 +248,9 @@ CScriptContext::CScriptContext(TinPrintHandler printfunction, TinAssertHandler a
 
     mDebuggerBreakStep = false;
     mDebuggerLastBreak = -1;
+
+    // -- initialize the thread command
+    mThreadBufPtr = NULL;
 }
 
 void CScriptContext::InitializeDictionaries() {
@@ -406,8 +409,12 @@ void CScriptContext::ShutdownDictionaries() {
     }
 }
 
-void CScriptContext::Update(uint32 curtime) {
+void CScriptContext::Update(uint32 curtime)
+{
     mScheduler->Update(curtime);
+
+    // -- execute any commands queued from a different thread
+    ProcessThreadCommands();
 
     // $$$TZA This doesn't need to happen every frame...
     CCodeBlock::DestroyUnusedCodeBlocks(mCodeBlockList);
@@ -995,6 +1002,94 @@ void CScriptContext::RemoveAllBreakpoints(const char* filename)
 
     code_block->RemoveAllBreakpoints();
 }
+
+// ====================================================================================================================
+// AddThreadCommand():  This enqueues a command, to be process during the normal update
+// ====================================================================================================================
+// -- Thread commands are only supported in WIN32
+#ifdef WIN32
+void CScriptContext::AddThreadCommand(const char* command)
+{
+    // -- sanity check
+    if (!command || !command[0])
+        return;
+
+    // -- we need to wrap access to the command buffer in a thread mutex, to prevent simultaneous access
+    mThreadLock.Lock();
+
+    // -- ensure the thread buf pointer is initialized
+    if (mThreadBufPtr == NULL)
+    {
+        mThreadBufPtr = mThreadExecBuffer;
+        mThreadExecBuffer[0] = '\0';
+    }
+
+    // -- ensure we've got room
+    uint32 cmdLength = strlen(command);
+    uint32 lengthRemaining = kThreadExecBufferSize - ((uint32)mThreadBufPtr - (uint32)mThreadExecBuffer);
+    if (lengthRemaining < cmdLength)
+    {
+        ScriptAssert_(this, 0, "<internal>", -1, "Error - AddThreadCommand():  buffer length exceeded.\n");
+    }
+    else
+    {
+        SafeStrcpy(mThreadBufPtr, command, lengthRemaining);
+        mThreadBufPtr += cmdLength;
+    }
+
+    // -- unlock the thread
+    mThreadLock.Unlock();
+}
+
+// ====================================================================================================================
+// ProcessThreadCommands():  Called during the normal update, to process commands received from an different thread
+// ====================================================================================================================
+void CScriptContext::ProcessThreadCommands()
+{
+    // -- if there's nothing to process, we're done
+    if (mThreadBufPtr == NULL)
+        return;
+
+    // -- we need to wrap access to the command buffer in a thread mutex, to prevent simultaneous access
+    mThreadLock.Lock();
+
+    // -- reset the bufPtr
+    mThreadBufPtr = NULL;
+
+    // -- execute the buffer
+    ExecCommand(mThreadExecBuffer);
+
+    // -- unlock the thread
+    mThreadLock.Unlock();
+}
+
+// == class CThreadMutex ==============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CThreadMutex::CThreadMutex()
+{
+    mThreadMutex = CreateMutex(NULL, false, NULL);
+}
+
+// ====================================================================================================================
+// Lock():  Lock access to the following structure/code from any other thread, until Unlocked()
+// ====================================================================================================================
+void CThreadMutex::Lock()
+{
+    WaitForSingleObject(mThreadMutex, INFINITE);
+}
+
+// ====================================================================================================================
+// Unlock():  Restore access to the previous structure/code, to any other thread
+// ====================================================================================================================
+void CThreadMutex::Unlock()
+{
+    ReleaseMutex(mThreadMutex);
+}
+
+#endif  // WIN32
 
 } // TinScript
 

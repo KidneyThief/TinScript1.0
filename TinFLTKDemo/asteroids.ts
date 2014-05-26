@@ -6,12 +6,23 @@
 Exec("TinScriptDemo.ts");
 
 // -- global tunables -------------------------------------------------------------------------------------------------
-float gThrust = 0.3f;
-float gAsteroidSpeed = 1.4f;
-float gBulletSpeed = 4.0f;
+float gThrust = 12.0f;
+float gAsteroidSpeed = 52.0f;
+float gBulletSpeed = 150.0f;
 
 int gMaxBullets = 4;
 int gFireCDTime = 100;
+
+// -- FLTK Colors -----------------------------------------------------------------------------------------------------
+int gFLTK_BLACK = 0;
+int gFLTK_RED = 1;
+int gFLTK_GREEN = 2;
+int gFLTK_YELLOW = 3;
+int gFLTK_BLUE = 4;
+int gFLTK_PURPLE = 5;
+int gFLTK_CYAN = 6;
+int gFLTK_BROWN = 9;
+
 
 // ====================================================================================================================
 // Asteroid : SceneObject implementation
@@ -31,10 +42,10 @@ void Asteroid::OnCreate()
     }
 }
 
-void Asteroid::OnUpdate()
+void Asteroid::OnUpdate(float deltaTime)
 {
     // -- update the screen position - applies the velocity, and wraps
-    UpdateScreenPosition(self);
+    UpdateScreenPosition(self, deltaTime);
         
     // -- draw the asteroid
     CancelDrawRequests(self);
@@ -127,12 +138,12 @@ void ApplyImpulse(object obj, vector3f impulse)
     }
 }
 
-void UpdateScreenPosition(object obj)
+void UpdateScreenPosition(object obj, float deltaTime)
 {
     if (IsObject(obj))
     {
         // -- apply the velocity
-        obj.position = obj.position + obj.velocity;
+        obj.position = obj.position + (obj.velocity * deltaTime);
 
         // -- wrap the object around the screen edge
         if (obj.position:x < 0.0f)
@@ -174,10 +185,10 @@ void Ship::OnCreate()
     int self.fire_cd_time = 0;
 }
 
-void Ship::OnUpdate()
+void Ship::OnUpdate(float deltaTime)
 {
     // -- update the screen position - applies the velocity, and wraps
-    UpdateScreenPosition(self);
+    UpdateScreenPosition(self, deltaTime);
     
     // -- we look like a triangle
     float head_offset_x = self.radius * Cos(self.rotation);
@@ -202,15 +213,15 @@ void Ship::OnUpdate()
     CancelDrawRequests(self);
     
     // -- draw the 4 lines creating the "triangle-ish" ship
-    DrawLine(self, head, tail0, 0);
-    DrawLine(self, head, tail1, 0);
-    DrawLine(self, tail0, self.position, 0);
-    DrawLine(self, tail1, self.position, 0);
+    DrawLine(self, head, tail0, gFLTK_BLUE);
+    DrawLine(self, head, tail1, gFLTK_BLUE);
+    DrawLine(self, tail0, self.position, gFLTK_BLUE);
+    DrawLine(self, tail1, self.position, gFLTK_BLUE);
     
     // -- draw if we're hit
     if (self.show_hit)
     {
-        //DrawText(self, self.show_hit_position, "OUCH!", 0);
+        DrawText(self, self.show_hit_position, "OUCH!", gFLTK_RED);
     }
 }
 
@@ -239,7 +250,7 @@ void Ship::OnFire()
     int cur_time = GetSimTime();
     if (cur_time < self.fire_cd_time)
         return;
-    
+        
     // -- calculate our heading
     vector3f heading = '0 0 0';
     heading:x = Cos(self.rotation);
@@ -278,6 +289,9 @@ void Ship::OnCollision()
     
     if (self.lives <= 0)
     {
+        // -- game over, at the center of the screen
+        DrawText(self, '280 230 0', "G A M E   O V E R", gFLTK_RED);
+        
         SimPause();
         Print("Type StartAsteroids(); to continue...");
         return;
@@ -318,13 +332,14 @@ void Bullet::OnCreate()
     int self.expireTime = cur_time + 2000;
 }
 
-void Bullet::OnUpdate()
+void Bullet::OnUpdate(float deltaTime)
 {
     // -- update the screen position - applies the velocity, and wraps
-    UpdateScreenPosition(self);
+    UpdateScreenPosition(self, deltaTime);
     
-    // -- default draw
-    SceneObject::OnUpdate();
+    // -- we're using our object ID also as a draw request ID
+    CancelDrawRequests(self);
+    DrawCircle(self, self.position, self.radius, gFLTK_RED);
     
     // -- see if it's time to expire
     int cur_time = GetSimTime();

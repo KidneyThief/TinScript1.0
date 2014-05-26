@@ -13,10 +13,12 @@
   <ItemGroup>
     <ClCompile Include="cmdshell.cpp" />
     <ClCompile Include="mathutil.cpp" />
+    <ClCompile Include="socket.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cmdshell.h" />
     <ClInclude Include="mathutil.h" />
+    <ClInclude Include="socket.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <Keyword>Win32Proj</Keyword>

@@ -36,6 +36,7 @@
 
 // -- external includes
 #include "cmdshell.h"
+#include "socket.h"
 
 // ------------------------------------------------------------------------------------------------
 // statics - mostly for the quick and dirty console implementation
@@ -80,12 +81,16 @@ int32 _tmain(int32 argc, _TCHAR* argv[])
     // -- required to ensure registered functions from unittest.cpp are linked.
     REGISTER_FILE(unittest_cpp);
     REGISTER_FILE(mathutil_cpp);
+    REGISTER_FILE(socket_cpp);
 
     // -- initialize
     TinScript::CreateContext(printf, CmdShellAssertHandler, true);
 
     // -- create a command shell
     gCmdShell = new CCmdShell();
+
+    // -- create a socket, so we can allow a remote debugger to connect
+    SocketManager::Initialize();
 
 	// -- convert all the wide args into an array of const char*
 	char argstring[kMaxArgs][kMaxArgLength];
@@ -136,7 +141,8 @@ int32 _tmain(int32 argc, _TCHAR* argv[])
 		return 1;
 	}
 
-    while(gRunning) {
+    while (gRunning)
+    {
         // -- simulate a 33ms frametime
         // -- time needs to stand still while an assert is active
         Sleep(gMSPerFrame);
@@ -163,6 +169,7 @@ int32 _tmain(int32 argc, _TCHAR* argv[])
     }
 
     // -- cleanup
+    SocketManager::Terminate();
     delete gCmdShell;
     gCmdShell = NULL;
     TinScript::DestroyContext();

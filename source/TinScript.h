@@ -134,6 +134,8 @@ const int32 kObjectGroupTableSize = 17;
 
 const int32 kMaxScratchBuffers = 32;
 
+const int32 kThreadExecBufferSize = 8 * 1024;
+
 namespace TinScript {
 
 // ------------------------------------------------------------------------------------------------
@@ -154,6 +156,23 @@ typedef CHashTable<CFunctionEntry> tFuncTable;
 
 void SaveStringTable(CScriptContext* script_context);
 void LoadStringTable(CScriptContext* script_context);
+
+// -- CThreadMutex is only available in Win32
+#ifdef WIN32
+// ====================================================================================================================
+// class CThreadMutex:  Prevents access to namespace objects from different threads
+// ====================================================================================================================
+class CThreadMutex
+{
+    public:
+        CThreadMutex();
+        void Lock();
+        void Unlock();
+
+    protected:
+        void* mThreadMutex;
+};
+#endif // WIN32
 
 // --Global Var Registration-----------------------------------------------------------------------
 class CRegisterGlobal {
@@ -318,6 +337,12 @@ class CScriptContext {
         bool8 mDebuggerBreakStep;
         int32 mDebuggerLastBreak;
 
+        // -- Thread commands are only supported in WIN32
+        #ifdef WIN32
+            void AddThreadCommand(const char* command);
+            void ProcessThreadCommands();
+        #endif // WIN32
+
     private:
         // -- use the static Create() method
         CScriptContext(TinPrintHandler printhandler = NULL, TinAssertHandler asserthandler = NULL,
@@ -379,6 +404,15 @@ class CScriptContext {
         DebuggerWatchVarFunc mWatchVarEntryCallback;
 
         char mExecfResultBuffer[kMaxArgLength];
+
+        // -- We may need to queue script commands from a remote connection
+        // -- which requires a thread lock
+        // -- Thread commands are only supported in WIN32
+        #ifdef WIN32
+            CThreadMutex mThreadLock;
+            char mThreadExecBuffer[kThreadExecBufferSize];
+        #endif // WIN32
+            char* mThreadBufPtr;
 };
 
 }  // TinScript

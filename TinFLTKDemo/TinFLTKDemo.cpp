@@ -17,6 +17,7 @@
 // -- external includes
 #include "cmdshell.h"
 #include "mathutil.h"
+#include "socket.h"
 
 // -- FLTK inclues
 #include <FL/Fl.H>
@@ -110,6 +111,9 @@ public:
 
         // -- this starts the thread to 
         Fl::add_idle(Update_CB, (void*)this);
+
+        // -- set the current font
+        fl_font(0, 10);
     }
 
     // -- event handler
@@ -373,6 +377,7 @@ int main() {
     // -- ensure the mathutil file isn't deadstripped
     REGISTER_FILE(unittest_cpp);
     REGISTER_FILE(mathutil_cpp);
+    REGISTER_FILE(socket_cpp);
 
     Fl_Double_Window window(640, 480, "TinScript Demo");
     gCanvas = new Canvas(0, 0, window.w(), window.h());
@@ -382,6 +387,9 @@ int main() {
 
     // -- create a command shell
     gCmdShell = new CCmdShell();
+
+    // -- create a socket, so we can allow a remote debugger to connect
+    SocketManager::Initialize();
 
     // -- execute our demo script
     TinScript::ExecScript("TinScriptDemo.ts");
@@ -394,6 +402,7 @@ int main() {
     delete gCanvas;
 
     // shutdown TinScript
+    SocketManager::Terminate();
     TinScript::DestroyContext();
 }
 
