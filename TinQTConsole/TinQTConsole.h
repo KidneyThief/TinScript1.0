@@ -31,6 +31,8 @@
 #include <qlabel.h>
 #include "qlistwidget.h"
 
+#include "socket.h"
+
 class CConsoleInput;
 class CConsoleOutput;
 class CDebugSourceWin;
@@ -39,6 +41,7 @@ class QGridLayout;
 class CDebugBreakpointsWin;
 class CDebugCallstackWin;
 class CDebugWatchWin;
+class CMainWindow;
 
 class CConsoleWindow {
     public:
@@ -61,6 +64,8 @@ class CConsoleWindow {
         // -- Qt component accessors
         CConsoleOutput* GetOutput() { return (mConsoleOutput); }
         CConsoleInput* GetInput() { return (mConsoleInput); }
+        QLineEdit* GetConnectIP() { return (mConnectIP); }
+        QPushButton* GetConnectButton() { return (mButtonConnect); }
         QLineEdit* GetFileLineEdit() { return (mFileLineEdit); }
         CDebugSourceWin* GetDebugSourceWin() { return (mDebugSourceWin); }
         CDebugBreakpointsWin* GetDebugBreakpointsWin() { return (mBreakpointsWin); }
@@ -69,11 +74,20 @@ class CConsoleWindow {
 
         // -- Qt components
         QApplication* mApp;
-        QWidget* mMainWindow;
+        CMainWindow* mMainWindow;
         QGridLayout* mGridLayout;
 
         CConsoleOutput* mConsoleOutput;
+
+        QHBoxLayout* mInputLayout;
+        QLabel* mInputLabel;
         CConsoleInput* mConsoleInput;
+
+        QHBoxLayout* mConnectLayout;
+        QLabel* mIPLabel;
+        QLineEdit* mConnectIP;
+        QPushButton* mButtonConnect;
+
         CDebugSourceWin* mDebugSourceWin;
         CDebugBreakpointsWin* mBreakpointsWin;
         CDebugCallstackWin* mCallstackWin;
@@ -87,13 +101,23 @@ class CConsoleWindow {
         QPushButton* mButtonPause;
         QWidget* mSpacer;
 
+        // -- notifications
+        bool8 IsConnected() const
+        {
+            return (mIsConnected);
+        }
+        void NotifyOnConnect();
+        void NotifyOnDisconnect();
+
+        // -- if we close the window, we destroy the console input (our main signal/slot hub)
+        void NotifyOnClose();
+
         // -- debugger methods
-        int32 ToggleBreakpoint(uint32 codeblock_hash, int32 line_number, bool add, bool enable);
+        void ToggleBreakpoint(uint32 codeblock_hash, int32 line_number, bool add, bool enable);
 
         void HandleBreakpointHit(const char* breakpoint_msg);
         bool mBreakpointRun;
         bool mBreakpointStep;
-
 
     private:
         static CConsoleWindow* gConsoleWindow;
@@ -101,6 +125,20 @@ class CConsoleWindow {
         // -- pause/unpause members
         bool mQuit;
         bool mPaused;
+
+        // -- store whether we're connected
+        bool8 mIsConnected;
+};
+
+class CMainWindow : public QWidget
+{
+    Q_OBJECT;
+
+    public:
+        CMainWindow();
+
+    protected:
+        virtual void closeEvent(QCloseEvent *);
 };
 
 class CConsoleInput : public QLineEdit {
@@ -111,6 +149,8 @@ class CConsoleInput : public QLineEdit {
         virtual ~CConsoleInput() { }
 
     public slots:
+        void OnButtonConnectPressed();
+        void OnConnectIPReturnPressed();
         void OnReturnPressed();
         void OnFileEditReturnPressed();
         void OnButtonRunPressed();
@@ -123,11 +163,11 @@ class CConsoleInput : public QLineEdit {
     private:
         CConsoleWindow* mOwner;
 
-    static const int32 kMaxHistory = 64;
-    bool8 mHistoryFull;
-    int32 mHistoryIndex;
-    int32 mHistoryLastIndex;
-    char mHistory[TinScript::kMaxTokenLength][kMaxHistory];
+        static const int32 kMaxHistory = 64;
+        bool8 mHistoryFull;
+        int32 mHistoryIndex;
+        int32 mHistoryLastIndex;
+        char mHistory[TinScript::kMaxTokenLength][kMaxHistory];
 };
 
 class CConsoleOutput : public QListWidget {
@@ -143,12 +183,21 @@ class CConsoleOutput : public QListWidget {
     public slots:
         void Update();
 
+        // -- these methods queue and process data packets, received from the socket
+        // -- both must be thread safe
+        void ReceiveDataPacket(SocketManager::tDataPacket* packet);
+        void ProcessDataPackets();
+
     private:
         // -- the console output handles the current time, and timer events to call Update()
         CConsoleWindow* mOwner;
         QTimer* mTimer;
 
         unsigned int mCurrentTime;
+
+        // -- the console output also needs to receive and process data packets
+        TinScript::CThreadMutex mThreadLock;
+        std::vector<SocketManager::tDataPacket*> mReceivedPackets;
 };
 
 TinScript::CScriptContext* GetScriptContext();

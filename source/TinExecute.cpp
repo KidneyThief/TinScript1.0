@@ -28,6 +28,8 @@
 #include "string.h"
 #include "stdio.h"
 
+#include "socket.h"
+
 #include "TinScript.h"
 #include "TinCompile.h"
 #include "TinNamespace.h"
@@ -225,10 +227,6 @@ void CFunctionCallStack::BeginExecution() {
 	assert(stacktop > 0);
     assert(funcentrystack[stacktop - 1].isexecuting == false);
     funcentrystack[stacktop - 1].isexecuting = true;
-
-    // -- calling a new function - possibly the same as the function we're in -
-    // -- reset the debugger line break
-    funcentrystack[stacktop - 1].funcentry->GetScriptContext()->mDebuggerLastBreak = -1;
 }
 
 bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
@@ -444,25 +442,28 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 
 	while (instrptr != NULL) {
 
+// -- Debugging is done through a remote connection, which right now is only supported through WIN32
+#ifdef WIN32
 #if TIN_DEBUGGER
 
         // -- see if there's a breakpoint set for this line
-        if(GetScriptContext()->mDebuggerBreakStep || HasBreakpoints()) {
+        CScriptContext* script_context = GetScriptContext();
+        if (script_context->mDebuggerConnected && (funccallstack.mDebuggerBreakStep || HasBreakpoints()))
+        {
             // -- get the current line number - see if we should break
-            int32 cur_line = CalcLineNumber(instrptr);
+            bool isNewLine = false;
+            int32 cur_line = CalcLineNumber(instrptr, &isNewLine);
 
             // -- if we're stepping, and we're on a different line, or if
             // -- we're not stepping, and on a different line, and this new line has a breakpoint
-            if((GetScriptContext()->mDebuggerBreakStep &&
-                GetScriptContext()->mDebuggerLastBreak != cur_line) ||
-                (!GetScriptContext()->mDebuggerBreakStep &&
-                 cur_line != GetScriptContext()->mDebuggerLastBreak &&
-                 mBreakpoints->FindItem(cur_line))) {
+            if ((funccallstack.mDebuggerBreakStep && funccallstack.mDebuggerLastBreak != cur_line) ||
+                (!funccallstack.mDebuggerBreakStep && (isNewLine || cur_line != funccallstack.mDebuggerLastBreak) &&
+                 mBreakpoints->FindItem(cur_line)))
+            {
+                // -- set the current line we're broken on
+                funccallstack.mDebuggerLastBreak = cur_line;
 
-                GetScriptContext()->mDebuggerLastBreak = cur_line;
-
-                // -- build the callstack arrays
-                // $$$TZA when this is a connected tool, we'll need to handle this as a handshake
+                // -- build the callstack arrays, in preparation to send them to the debugger
                 uint32 codeblock_array[kDebuggerCallstackSize];
                 uint32 objid_array[kDebuggerCallstackSize];
                 uint32 namespace_array[kDebuggerCallstackSize];
@@ -472,14 +473,16 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
                     funccallstack.DebuggerGetCallstack(codeblock_array, objid_array,
                                                        namespace_array, func_array,
                                                        linenumber_array, kDebuggerCallstackSize);
+
                 // -- note - the line number for the function we're currently in, won't have been set
                 // -- in the function call stack
                 linenumber_array[0] = cur_line;
 
-                GetScriptContext()->NotifyCallstack(codeblock_array, objid_array,
-                                                    namespace_array, func_array,
-                                                    linenumber_array, stack_size);
+                script_context->DebuggerSendCallstack(codeblock_array, objid_array,
+                                                      namespace_array, func_array,
+                                                      linenumber_array, stack_size);
 
+                /*
                 CDebuggerWatchVarEntry watch_var_stack[kDebuggerWatchWindowSize];
                 int32 watch_entry_size =
                     funccallstack.DebuggerGetWatchVarEntries(GetScriptContext(), execstack,
@@ -487,13 +490,35 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
                 for(int32 i = 0; i < watch_entry_size; ++i) {
                     GetScriptContext()->NotifyWatchVarEntry(&watch_var_stack[i]);
                 }
+                */
 
-                bool8 continue_to_run = GetScriptContext()->NotifyBreakpointHit(GetFilenameHash(), cur_line);
-                GetScriptContext()->mDebuggerBreakStep = !continue_to_run;
+                SocketManager::SendCommandf("DebuggerBreakpointHit(%d, %d);", GetFilenameHash(), cur_line);
+
+                // -- wait for the debugger to either continue to step or run
+                script_context->SetBreakActionStep(false);
+                script_context->SetBreakActionRun(false);
+                while (true)
+                {
+                    // -- we spin forever in this loop, until either the debugger disconnects,
+                    // -- or sends a message to step or run
+                    GetScriptContext()->ProcessThreadCommands();
+
+                    // -- if either mDebuggerBreakStep or mDebuggerBreakRun was set, exit the loop
+                    if (script_context->mDebuggerActionStep || script_context->mDebuggerActionRun)
+                    {
+                        // -- set the bool to continue to break, based on which action is true
+                        funccallstack.mDebuggerBreakStep = script_context->mDebuggerActionStep;
+                        break;
+                    }
+
+                    // -- otherwise, sleep
+                    Sleep(1);
+                }
             }
         }
 
-#endif // DEBUG
+#endif // TIN_DEBUGGER
+#endif // WIN32
 
 		// -- get the operation and process it
 		eOpCode curoperation = (eOpCode)(*instrptr++);

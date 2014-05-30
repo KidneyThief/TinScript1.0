@@ -576,22 +576,48 @@ class CCodeBlock {
 			return (mLineNumbers);
 		}
 
-        uint32 CalcLineNumber(const uint32* instrptr) const {
-            if(!instrptr || mLineNumberCount == 0)
+        uint32 CalcLineNumber(const uint32* instrptr, bool* isNewLine = NULL) const
+        {
+            // -- initialize the result
+            if (isNewLine)
+                *isNewLine = false;
+
+            if (!instrptr || mLineNumberCount == 0)
                 return (0);
 
             // get the offset
             uint32 curoffset = CalcOffset(instrptr);
             uint32 lineindex = 0;
             uint32 linenumber = 0;
-            for(lineindex = 0; lineindex < mLineNumberCount; ++lineindex) {
+            for (lineindex = 0; lineindex < mLineNumberCount; ++lineindex)
+            {
                 uint32 offset = mLineNumbers[lineindex] >> 16;
                 uint32 line = mLineNumbers[lineindex] & 0xffff;
-                if(line != 0xffff) {
-                    if(offset <= curoffset)
+                if (line != 0xffff)
+                {
+                    // -- see if the current offset falls within range of this line
+                    if (offset <= curoffset)
                         linenumber = line;
-                    if(offset >= curoffset)
+                    if (offset >= curoffset)
+                    {
+                        // -- set the result
+                        if (isNewLine)
+                        {
+                            // -- check the previous valid instruction - see if it's on the same line or not
+                            *isNewLine = true;
+                            int testlineindex = lineindex;
+                            while (--testlineindex >= 0)
+                            {
+                                uint32 testline = mLineNumbers[testlineindex] & 0xffff;
+                                if (testline != 0xffff)
+                                {
+                                    *isNewLine = (testline != linenumber);
+                                    break;
+                                }
+                            }
+                        }
                         break;
+                    }
                 }
             }
 

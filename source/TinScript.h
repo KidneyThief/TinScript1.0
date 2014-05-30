@@ -154,11 +154,11 @@ class CMasterMembershipList;
 typedef CHashTable<CVariableEntry> tVarTable;
 typedef CHashTable<CFunctionEntry> tFuncTable;
 
-void SaveStringTable(CScriptContext* script_context);
-void LoadStringTable(CScriptContext* script_context);
+const char* GetStringTableName();
+void SaveStringTable(const char* filename = NULL);
+void LoadStringTable(const char* filename = NULL);
 
-// -- CThreadMutex is only available in Win32
-#ifdef WIN32
+// -- CThreadMutex is only functional in Win32
 // ====================================================================================================================
 // class CThreadMutex:  Prevents access to namespace objects from different threads
 // ====================================================================================================================
@@ -172,7 +172,6 @@ class CThreadMutex
     protected:
         void* mThreadMutex;
 };
-#endif // WIN32
 
 // --Global Var Registration-----------------------------------------------------------------------
 class CRegisterGlobal {
@@ -305,37 +304,22 @@ class CScriptContext {
         char* GetScratchBuffer();
 
         // -- debugger interface
-        typedef bool8 (*DebuggerBreakpointHit)(uint32 codeblock_hash, int32& line_number);
-        typedef void (*DebuggerCallstackFunc)(uint32* codeblock_array, uint32* objid_array,
-                                              uint32* namespace_array, uint32* func_array,
-                                              uint32* linenumber_array, int array_size);
-        typedef void (*CodeblockLoadedFunc)(uint32 codeblock_hash);
-        typedef void (*DebuggerWatchVarFunc)(CDebuggerWatchVarEntry* watch_var_entry);
-
-        void SetBreakpointCallback(DebuggerBreakpointHit breakpoint_callback);
-        void SetCallstackCallback(DebuggerCallstackFunc callstack_callback);
-        void SetCodeblockLoadedCallback(CodeblockLoadedFunc codeblock_callback);
-        void SetWatchVarEntryCallback(DebuggerWatchVarFunc watch_var_callback);
-
-        bool NotifyBreakpointHit(uint32 codeblock_hash, int32& line_number);
-        void NotifyCallstack(uint32* codeblock_array, uint32* objid_array,
-                             uint32* namespace_array,uint32* func_array,
-                             uint32* linenumber_array, int array_size);
-        void NotifyCodeblockLoaded(uint32 codeblock_hash);
-        void NotifyWatchVarEntry(CDebuggerWatchVarEntry* watch_var_entry);
-
-        static void RegisterDebugger(DebuggerBreakpointHit breakpoint_func = NULL,
-                                     DebuggerCallstackFunc callstack_func = NULL,
-                                     CodeblockLoadedFunc codeblock_func = NULL,
-                                     DebuggerWatchVarFunc watch_var_func = NULL);
-
-        static int32 AddBreakpoint(const char* filename, int32 line_number);
-        static int32 RemoveBreakpoint(const char* filename, int32 line_number);
-        static void RemoveAllBreakpoints(const char* filename);
+        void SetDebuggerConnected(bool8 connected);
+        void AddBreakpoint(const char* filename, int32 line_number);
+        void RemoveBreakpoint(const char* filename, int32 line_number);
+        void RemoveAllBreakpoints(const char* filename);
+        void SetBreakActionStep(bool8 torf);
+        void SetBreakActionRun(bool8 torf);
 
         // -- set the bool to indicate we're not stepping through each line in a debugger
-        bool8 mDebuggerBreakStep;
-        int32 mDebuggerLastBreak;
+        bool8 mDebuggerConnected;
+        bool8 mDebuggerActionStep;
+        bool8 mDebuggerActionRun;
+
+        // -- communication with the debugger
+        void DebuggerSendCallstack(uint32* codeblock_array, uint32* objid_array,
+                                   uint32* namespace_array,uint32* func_array,
+                                   uint32* linenumber_array, int array_size);
 
         // -- Thread commands are only supported in WIN32
         #ifdef WIN32
@@ -397,12 +381,7 @@ class CScriptContext {
         // -- master object list
         CMasterMembershipList* mMasterMembershipList;
 
-        // -- debugger interface
-        DebuggerBreakpointHit mBreakpointCallback;
-        DebuggerCallstackFunc mCallstackCallback;
-        CodeblockLoadedFunc mCodeblockLoadedCallback;
-        DebuggerWatchVarFunc mWatchVarEntryCallback;
-
+        // -- buffer to store the results, when executing script commands from code
         char mExecfResultBuffer[kMaxArgLength];
 
         // -- We may need to queue script commands from a remote connection

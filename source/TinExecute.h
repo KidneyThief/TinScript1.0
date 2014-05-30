@@ -197,6 +197,10 @@ class CFunctionCallStack {
 			assert(size > 0);
 			funcentrystack = TinAllocArray(ALLOC_FuncCallEntry, tFunctionCallEntry, size);
 			stacktop = 0;
+
+            // -- debugger members
+            mDebuggerBreakStep = false;
+            mDebuggerLastBreak = -1;
 		}
 
 		virtual ~CFunctionCallStack() {
@@ -288,6 +292,11 @@ class CFunctionCallStack {
             uint32 linenumberfunccall;
             bool8 isexecuting;
         };
+
+        // -- because we can have multiple virtual machines running,
+        // -- the debugger (break, line) members must be stored per execution stack
+        bool8 mDebuggerBreakStep;
+        int32 mDebuggerLastBreak;
 
 	private:
         tFunctionCallEntry* funcentrystack;

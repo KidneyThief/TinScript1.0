@@ -45,6 +45,7 @@
 
 #include "TinScript.h"
 #include "TinRegistration.h"
+#include "socket.h"
 
 #include "TinQTConsole.h"
 #include "TinQTSourceWin.h"
@@ -69,7 +70,7 @@ CConsoleWindow::CConsoleWindow() {
     mApp->setApplicationName("TinConsole");
 
     // -- create the main window
-    mMainWindow = new QWidget();
+    mMainWindow = new CMainWindow();
     mMainWindow->resize(QSize(1200, 800));
 
     // -- create the output widget
@@ -77,8 +78,31 @@ CConsoleWindow::CConsoleWindow() {
     mConsoleOutput->addItem("Welcome to the TinConsole!");
 
     // -- create the consoleinput
+    mInputLayout = new QHBoxLayout();
+    mInputLabel = new QLabel("==>");
     mConsoleInput = new CConsoleInput(this);
     mConsoleInput->setFixedHeight(24);
+    mInputLayout->addWidget(mInputLabel);
+    mInputLayout->addWidget(mConsoleInput);
+
+    // -- create the IPConnect
+    mConnectLayout = new QHBoxLayout();
+    mIPLabel = new QLabel("IP:");
+    mConnectIP = new QLineEdit();
+    mConnectIP->setText("127.0.0.1");
+    mButtonConnect = new QPushButton();
+    mButtonConnect->setText("Connect");
+    mButtonConnect->setGeometry(0, 0, 32, 24); 
+
+    // -- color the pushbutton
+    mButtonConnect->setAutoFillBackground(true);
+	QPalette myPalette = mButtonConnect->palette();
+	myPalette.setColor(QPalette::Button, Qt::red);	
+	mButtonConnect->setPalette(myPalette);
+
+    mConnectLayout->addWidget(mIPLabel);
+    mConnectLayout->addWidget(mConnectIP);
+    mConnectLayout->addWidget(mButtonConnect);
 
     // -- create the debugger components
     mToolbarLayout = new QHBoxLayout();
@@ -119,13 +143,13 @@ CConsoleWindow::CConsoleWindow() {
     mGridLayout->addLayout(mToolbarLayout,  0, 0, 1, Qt::AlignLeft);
     mGridLayout->addWidget(mDebugSourceWin, 1, 0, 2, Qt::AlignLeft);
     mGridLayout->addWidget(mConsoleOutput,  3, 0, 1, Qt::AlignLeft);
-    mGridLayout->addWidget(mConsoleInput,   4, 0, 1, Qt::AlignLeft);
+    mGridLayout->addLayout(mInputLayout,    4, 0, 1, Qt::AlignLeft);
 
     // -- column 1
     mGridLayout->addWidget(mCallstackWin,   1, 1, 1, Qt::AlignLeft);
     mGridLayout->addWidget(mBreakpointsWin, 2, 1, 1, Qt::AlignLeft);
-
     mGridLayout->addWidget(mWatchWin,       3, 1, 1, Qt::AlignLeft);
+    mGridLayout->addLayout(mConnectLayout,  4, 1, 1, Qt::AlignLeft);
 
     // -- temp test
     /*
@@ -138,6 +162,9 @@ CConsoleWindow::CConsoleWindow() {
     */
 
     // -- connect the widgets
+    QObject::connect(mButtonConnect, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonConnectPressed()));
+    QObject::connect(mConnectIP, SIGNAL(returnPressed()), mConsoleInput, SLOT(OnConnectIPReturnPressed()));
+
     QObject::connect(mConsoleInput, SIGNAL(returnPressed()), mConsoleInput, SLOT(OnReturnPressed()));
 
     QObject::connect(mDebugSourceWin, SIGNAL(itemDoubleClicked(QListWidgetItem*)), mDebugSourceWin,
@@ -164,9 +191,11 @@ CConsoleWindow::CConsoleWindow() {
     // -- initialize the running members
     mQuit = false;
     mPaused = false;
+    mIsConnected = false;
 }
 
-CConsoleWindow::~CConsoleWindow() {
+CConsoleWindow::~CConsoleWindow()
+{
     delete mFileLabel;
     delete mFileLineEdit;
     delete mButtonRun;
@@ -179,6 +208,12 @@ CConsoleWindow::~CConsoleWindow() {
     delete mBreakpointsWin;
     delete mDebugSourceWin;
     delete mConsoleInput;
+    delete mInputLabel;
+    delete mInputLayout;
+    delete mIPLabel;
+    delete mConnectIP;
+    delete mButtonConnect;
+    delete mConnectLayout;
     delete mConsoleOutput;
     delete mGridLayout;
     delete mMainWindow;
@@ -255,42 +290,78 @@ void PushBreakpointDialog(const char* breakpoint_msg) {
 }
 
 // ------------------------------------------------------------------------------------------------
-int32 CConsoleWindow::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number,
-                                       bool add, bool enable) {
-    const char* filename = TinScript::UnHash(codeblock_hash);
-    if(!filename)
-        return (-1);
+void CConsoleWindow::NotifyOnConnect()
+{
+    // -- set the bool
+    mIsConnected = true;
 
-    // -- three components need to be informed:  the script context
-    int32 actual_line = add && enable ?
-                        TinScript::GetContext()->AddBreakpoint(filename, line_number) :
-                        TinScript::GetContext()->RemoveBreakpoint(filename, line_number);
+    // -- set the connect button color and text
+    mButtonConnect->setAutoFillBackground(true);
+	QPalette myPalette = mButtonConnect->palette();
+	myPalette.setColor(QPalette::Button, Qt::green);	
+	mButtonConnect->setPalette(myPalette);
+    mButtonConnect->setText("Disconnect");
 
-    // -- if the codeblock hasn't yet been compiled (loaded), use the original line_number
-    if(actual_line < 0)
-        actual_line = line_number;
+    // -- send the text command to identify this connection as for a debugger
+    SocketManager::SendCommand("DebuggerSetConnected(true);");
+}
 
-    // -- the Source Window
-    GetDebugSourceWin()->ToggleBreakpoint(codeblock_hash, actual_line, add, enable);
+void CConsoleWindow::NotifyOnDisconnect()
+{
+    // -- set the bool
+    mIsConnected = true;
 
-    // -- the Breakpoints Window
-    GetDebugBreakpointsWin()->ToggleBreakpoint(codeblock_hash, actual_line, add, enable);
+    // -- set the connect button color and text
+    mButtonConnect->setAutoFillBackground(true);
+	QPalette myPalette = mButtonConnect->palette();
+	myPalette.setColor(QPalette::Button, Qt::red);	
+	mButtonConnect->setPalette(myPalette);
+    mButtonConnect->setText("Connect");
+}
 
-    return (actual_line);
+void CConsoleWindow::NotifyOnClose()
+{
+    // -- disconnect
+    SocketManager::Disconnect();
+
+    // -- first, clear the member
+    mMainWindow = NULL;
 }
 
 // ------------------------------------------------------------------------------------------------
-void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg) {
+void CConsoleWindow::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number,
+                                      bool add, bool enable) {
+    const char* filename = TinScript::UnHash(codeblock_hash);
+    if (!filename)
+        return;
+
+    // -- send the message
+    if (add && enable)
+        SocketManager::SendCommandf("DebuggerAddBreakpoint('%s', %d);", filename, line_number);
+    else
+        SocketManager::SendCommandf("DebuggerRemoveBreakpoint('%s', %d);", filename, line_number);
+
+    // -- notify the Source Window
+    GetDebugSourceWin()->ToggleBreakpoint(codeblock_hash, line_number, add, enable);
+
+    // -- notify the Breakpoints Window
+    GetDebugBreakpointsWin()->ToggleBreakpoint(codeblock_hash, line_number, add, enable);
+}
+
+// ------------------------------------------------------------------------------------------------
+void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg)
+{
     mBreakpointRun = false;
     mBreakpointStep = false;
 
-    // -- highlight the button in green
+    // -- highlight the button in red
     mButtonRun->setAutoFillBackground(true);
 	QPalette myPalette = mButtonRun->palette();
 	myPalette.setColor(QPalette::Button, Qt::red);	
 	mButtonRun->setPalette(myPalette);
 
-    while(!mBreakpointRun && !mBreakpointStep) {
+    while (mIsConnected && !mBreakpointRun && !mBreakpointStep)
+    {
         QCoreApplication::processEvents();
     }
 
@@ -303,44 +374,66 @@ void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg) {
     GetDebugWatchWin()->ClearWatchWin();
 }
 
-// ------------------------------------------------------------------------------------------------
-// -- debugger support
-bool8 DebuggerBreakpointHit(uint32 codeblock_hash, int32& line_number) {
+// ====================================================================================================================
+// DebuggerBreakpointHit():  Registered function, called from the virtual machine via the SocketManager
+// ====================================================================================================================
+void DebuggerBreakpointHit(int32 codeblock_hash, int32 line_number)
+{
     bool8 press_ignore_run = false;
     bool8 press_trace_step = false;
     char breakpoint_msg[256];
     sprintf_s(breakpoint_msg, 256, "Break on line: %d", line_number);
 
     // -- set the PC
-    CConsoleWindow::GetInstance()->mDebugSourceWin->SetCurrentPC(codeblock_hash, line_number);
+    CConsoleWindow::GetInstance()->mDebugSourceWin->SetCurrentPC(static_cast<uint32>(codeblock_hash), line_number);
 
     // -- loop until we press either "Run" or "Step"
     CConsoleWindow::GetInstance()->HandleBreakpointHit(breakpoint_msg);
 
     // -- clear the PC
-    CConsoleWindow::GetInstance()->mDebugSourceWin->SetCurrentPC(codeblock_hash, -1);
+    CConsoleWindow::GetInstance()->mDebugSourceWin->SetCurrentPC(static_cast<uint32>(codeblock_hash), -1);
 
     // -- return true if we're supposed to keep running
-    if(CConsoleWindow::GetInstance()->mBreakpointRun)
-        return (true);
+    if (CConsoleWindow::GetInstance()->mBreakpointRun)
+    {
+        // -- send the message to run
+        SocketManager::SendCommand("DebuggerBreakRun();");
+    }
 
-    // -- otherwise return false, to step to the next statement
+    // -- otherwise we're supposed to step
     else
-        return (false);
+    {
+        // -- send the message to run
+        SocketManager::SendCommand("DebuggerBreakStep();");
+    }
 }
 
-void NotifyCallstack(uint32* codeblock_array, uint32* objid_array, uint32* namespace_array,
-                     uint32* func_array, uint32* linenumber_array, int array_size) {
-    CConsoleWindow::GetInstance()->GetDebugCallstackWin()->
-        NotifyCallstack(codeblock_array, objid_array, namespace_array,
-                        func_array, linenumber_array, array_size);
+// ====================================================================================================================
+// DebuggerNotifyCallstack():  Called directly from the SocketManager registered RecvPacket function
+// ====================================================================================================================
+void DebuggerNotifyCallstack(uint32* codeblock_array, uint32* objid_array, uint32* namespace_array,
+                             uint32* func_array, uint32* linenumber_array, int array_size)
+{
+    CConsoleWindow::GetInstance()->GetDebugCallstackWin()->NotifyCallstack(codeblock_array, objid_array,
+                                                                           namespace_array, func_array,
+                                                                           linenumber_array, array_size);
     CConsoleWindow::GetInstance()->GetDebugWatchWin()->ClearWatchWin();
 }
 
-void NotifyCodeblockLoaded(uint32 codeblock_hash) {
-    CConsoleWindow::GetInstance()->GetDebugSourceWin()->NotifyCodeblockLoaded(codeblock_hash);
+void NotifyCodeblockLoaded(const char* filename)
+{
+    CConsoleWindow::GetInstance()->GetDebugSourceWin()->NotifyCodeblockLoaded(filename);
+
+    // -- breakpoints are keyed from hash values
+    uint32 codeblock_hash = TinScript::Hash(filename);
     CConsoleWindow::GetInstance()->GetDebugBreakpointsWin()->NotifyCodeblockLoaded(codeblock_hash);
 }
+
+void NotifyCurrentDir(const char* cwd)
+{
+    CConsoleWindow::GetInstance()->GetDebugSourceWin()->NotifyCurrentDir(cwd);
+}
+
 
 void NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry) {
     CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyWatchVarEntry(watch_var_entry);
@@ -365,6 +458,17 @@ void CConsoleWindow::AddText(char* msg) {
 }
 
 // ------------------------------------------------------------------------------------------------
+CMainWindow::CMainWindow() : QWidget()
+{
+};
+
+void CMainWindow::closeEvent(QCloseEvent *event)
+{
+    SocketManager::Disconnect();
+    event->accept();
+}
+
+// ------------------------------------------------------------------------------------------------
 CConsoleInput::CConsoleInput(CConsoleWindow* owner) : QLineEdit() {
     mOwner = owner;
 
@@ -376,7 +480,41 @@ CConsoleInput::CConsoleInput(CConsoleWindow* owner) : QLineEdit() {
         *mHistory[i] = '\0';
 }
 
-void CConsoleInput::OnReturnPressed() {
+void CConsoleInput::OnButtonConnectPressed()
+{
+    // -- if we're trying to connect...
+    if (!SocketManager::IsConnected())
+    {
+        // -- connect, same as pressing return from the connect IP
+        OnConnectIPReturnPressed();
+    }
+
+    // -- otherwise, disconnect
+    else
+    {
+        SocketManager::Disconnect();
+    }
+}
+
+void CConsoleInput::OnConnectIPReturnPressed()
+{
+    // -- if we're not connected, try to connect
+    if (!SocketManager::IsConnected())
+    {
+        QByteArray ip_ba = CConsoleWindow::GetInstance()->GetConnectIP()->text().toUtf8();
+        const char* ip_text = ip_ba.data();
+        SocketManager::Connect(ip_text);
+    }
+
+    // -- else disconnect
+    else 
+    {
+        SocketManager::Disconnect();
+    }
+}
+
+void CConsoleInput::OnReturnPressed()
+{
     QByteArray input_ba = text().toUtf8();
     const char* input_text = input_ba.data();
     ConsolePrint("> %s", input_text);
@@ -476,8 +614,8 @@ void CConsoleInput::keyPressEvent(QKeyEvent * event) {
         mHistoryIndex = -1;
     }
 
-    else {
-
+    else
+    {
         QLineEdit::keyPressEvent(event);
     }
 }
@@ -496,17 +634,114 @@ CConsoleOutput::~CConsoleOutput() {
     delete mTimer;
 }
 
-void CConsoleOutput::Update() {
+void CConsoleOutput::Update()
+{
+    // -- see if we've become either connected, or disconnected
+    bool isConnected = SocketManager::IsConnected();
+    if (CConsoleWindow::GetInstance()->IsConnected() != isConnected)
+    {
+        // -- if we've become connected, notify the main window
+        if (isConnected)
+            CConsoleWindow::GetInstance()->NotifyOnConnect();
+        else
+            CConsoleWindow::GetInstance()->NotifyOnDisconnect();
+    }
+
+    // -- process the received packets
+    ProcessDataPackets();
+
     // -- if we're not paused, update TinScript
-    if(!mOwner->IsPaused()) {
+    if (!mOwner->IsPaused())
+    {
         mCurrentTime += kUpdateTime;
         TinScript::UpdateContext(mCurrentTime);
     }
 
     // -- see if we're supposed to quit
-    if(mOwner->IsQuit()) {
+    if(mOwner->IsQuit())
+    {
         QApplication::closeAllWindows();
     }
+}
+
+// ====================================================================================================================
+// ReceiveDataPackets():  Threadsafe method to queue a packet, to be process during update
+// ====================================================================================================================
+void CConsoleOutput::ReceiveDataPacket(SocketManager::tDataPacket* packet)
+{
+    // -- ensure we have something to receive
+    if (!packet)
+        return;
+
+    // -- note:  the packet is received from the Socket's update thread, not the main thread
+    // -- this must be thread safe
+    mThreadLock.Lock();
+
+    // -- push the packet onto the queue
+    mReceivedPackets.push_back(packet);
+
+    // -- unlock the thread
+    mThreadLock.Unlock();
+}
+
+// ====================================================================================================================
+// ProcessDataPackets():  During the update loop, we'll process the packets we've received
+// ====================================================================================================================
+void CConsoleOutput::ProcessDataPackets()
+{
+    // -- note:  the packet is received from the Socket's update thread, not the main thread
+    // -- this is only to be called during the main thread
+    mThreadLock.Lock();
+
+    while (mReceivedPackets.size() > 0)
+    {
+        // -- dequeue the packet
+        SocketManager::tDataPacket* packet = mReceivedPackets[0];
+        mReceivedPackets.erase(mReceivedPackets.begin());
+
+        // -- see what type of data packet we received
+        int32* dataPtr = (int32*)packet->mData;
+    
+        // -- write the "callstack" identifier - defined in the USER CONSTANTS at the top of socket.h
+        int32 dataType = *dataPtr++;
+
+        // -- if the data packet is a DebuggerCallstack, the format had better match CScriptContext::DebuggerSendCallstack
+        if (dataType == k_DebuggerCallstackPacketID)
+        {
+            // -- get the array size
+            int32 array_size = *dataPtr++;
+
+            // -- get the codeblock array
+            uint32* codeblock_array = (uint32*)dataPtr;
+            dataPtr += array_size;
+
+            // -- get the objectID array
+            uint32* objid_array = (uint32*)dataPtr;
+            dataPtr += array_size;
+
+            // -- get the namespace array
+            uint32* namespace_array = (uint32*)dataPtr;
+            dataPtr += array_size;
+
+            // -- get the function ID array
+            uint32* func_array = (uint32*)dataPtr;
+            dataPtr += array_size;
+
+            // -- get the line numbers array
+            uint32* linenumber_array = (uint32*)dataPtr;
+            dataPtr += array_size;
+
+            // -- now send the info to the debugger
+            DebuggerNotifyCallstack(codeblock_array, objid_array, namespace_array, func_array, linenumber_array,
+                                    array_size);
+        }
+
+        // -- the callback is required to manage the packet memory itself
+        delete packet;
+    }
+
+    // -- unlock the thread
+    mThreadLock.Unlock();
 }
 
 bool PushAssertDialog(const char* assertmsg, const char* errormsg, bool& skip, bool& trace) {
@@ -540,6 +775,19 @@ bool PushAssertDialog(const char* assertmsg, const char* errormsg, bool& skip, b
     return (handled);
 }
 
+// ====================================================================================================================
+// DebuggerRecvDataCallback():  Registered with the SocketManager, to directly process packets of type DATA
+// ====================================================================================================================
+static void DebuggerRecvDataCallback(SocketManager::tDataPacket* packet)
+{
+    // -- nothing to process if we have no packet
+    if (!packet || !packet->mData)
+        return;
+
+    // -- let the CConsoleOutput (which owns the update loop) deal with it
+    CConsoleWindow::GetInstance()->GetOutput()->ReceiveDataPacket(packet);
+}
+
 // ------------------------------------------------------------------------------------------------
 int _tmain(int argc, _TCHAR* argv[])
 {
@@ -550,14 +798,21 @@ int _tmain(int argc, _TCHAR* argv[])
     // -- initialize (true for MainThread context)
     TinScript::CreateContext(ConsolePrint, AssertHandler, true);
 
+    // -- initialize the socket manager, for remote debugging
+    SocketManager::Initialize();
+
+    // -- register the callback for non-script packets
+    SocketManager::RegisterProcessRecvDataCallback(DebuggerRecvDataCallback);
+
     // -- register the debugger breakpoint function
-    TinScript::GetContext()->RegisterDebugger(DebuggerBreakpointHit, NotifyCallstack,
-                                     NotifyCodeblockLoaded, NotifyWatchVarEntry);
+    //TinScript::GetContext()->RegisterDebugger(DebuggerBreakpointHit, NotifyCallstack,
+    //                                 NotifyCodeblockLoaded, NotifyWatchVarEntry);
 
     new CConsoleWindow();
     int result = CConsoleWindow::GetInstance()->Exec();
 
     // -- shutdown
+    SocketManager::Terminate();
     TinScript::DestroyContext();
 
     return result;
@@ -587,6 +842,13 @@ REGISTER_FUNCTION_P0(Pause, Pause, void);
 REGISTER_FUNCTION_P0(Unpause, Unpause, void);
 
 REGISTER_FUNCTION_P0(GetSimTime, GetSimTime, float32);
+
+// ------------------------------------------------------------------------------------------------
+// Debugger Registration - because it comes remotely, we need global wrappers to find the objects
+REGISTER_FUNCTION_P1(DebuggerCurrentDir, NotifyCurrentDir, void, const char*);
+REGISTER_FUNCTION_P1(DebuggerOpenFile, NotifyCodeblockLoaded, void, const char*);
+REGISTER_FUNCTION_P2(DebuggerBreakpointHit, DebuggerBreakpointHit, void, int32, int32);
+
 
 // ------------------------------------------------------------------------------------------------
 #include "TinQTConsoleMoc.cpp"

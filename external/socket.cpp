@@ -20,8 +20,12 @@
 // ------------------------------------------------------------------------------------------------
 
 // -- system includes
-#include <winsock2.h>
-#include <ws2tcpip.h>
+// -- sockets are only implemented in WIN32
+#ifdef WIN32
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+#endif
+
 #include <vector>
 
 // -- includes
@@ -51,6 +55,9 @@ static HANDLE mThreadHandle = NULL;
 static CSocket* mThreadSocket = NULL;
 static int mThreadSocketID = 1;
 
+// -- a custom data handler
+static ProcessRecvDataCallback mRecvDataCallback = NULL;
+
 // -- WSA variables
 bool mWSAInitialized = false;
 static WSADATA mWSAdata;
@@ -60,18 +67,21 @@ static WSADATA mWSAdata;
 // ====================================================================================================================
 void Initialize()
 {
-    // -- create the thread
-    mThreadHandle = CreateThread(NULL,                      // default security attributes
-                                 0,                         // use default stack size  
-                                 ThreadUpdate,              // thread function name
-                                 TinScript::GetContext(),   // argument to thread function 
-                                 0,                         // use default creation flags 
-                                 &mThreadID);               // returns the thread identifier 
+    #ifdef WIN32
+        // -- create the thread
+        mThreadHandle = CreateThread(NULL,                      // default security attributes
+                                     0,                         // use default stack size  
+                                     ThreadUpdate,              // thread function name
+                                     TinScript::GetContext(),   // argument to thread function 
+                                     0,                         // use default creation flags 
+                                     &mThreadID);               // returns the thread identifier 
+    #endif // WIN32
 }
 
 // ====================================================================================================================
 // ThreadUpdate():  Update loop for the SocketManager, run inside the thread
 // ====================================================================================================================
+#ifdef WIN32
 DWORD WINAPI ThreadUpdate(void* script_context)
 {
     // -- see if we need to create the socket
@@ -113,34 +123,40 @@ DWORD WINAPI ThreadUpdate(void* script_context)
             return (0);
         }
 
-        Sleep(5);
+        Sleep(k_ThreadUpdateTimeMS);
     }
 
     // -- no errors
     return (0);
 }
+#endif
 
 // ====================================================================================================================
 // Termintate():  Perform all shutdown and cleanup of the SocketManager
 // ====================================================================================================================
 void Terminate()
 {
-    // -- kill the thread
-    TerminateThread(mThreadHandle, 0);
+    #ifdef WIN32
+        // -- first disconnect the socket
+        Disconnect();
 
-    // -- kill the socket
-    if (mThreadSocket)
-    {
-        delete mThreadSocket;
-        mThreadSocket = NULL;
-    }
+        // -- kill the thread
+        TerminateThread(mThreadHandle, 0);
 
-    // -- see if we need to shutdown WSA
-    if (mWSAInitialized)
-    {
-        WSACleanup();
-        mWSAInitialized = false;
-    }
+        // -- kill the socket
+        if (mThreadSocket)
+        {
+            delete mThreadSocket;
+            mThreadSocket = NULL;
+        }
+
+        // -- see if we need to shutdown WSA
+        if (mWSAInitialized)
+        {
+            WSACleanup();
+            mWSAInitialized = false;
+        }
+    #endif
 }
 
 // ====================================================================================================================
@@ -148,12 +164,14 @@ void Terminate()
 // ====================================================================================================================
 bool Listen()
 {
-    // -- see if we can enable listening
-    if (mThreadSocket && !mThreadSocket->isConnected())
-    {
-        mThreadSocket->SetListen(true);
-        return (true);
-    }
+    #ifdef WIN32
+        // -- see if we can enable listening
+        if (mThreadSocket && !mThreadSocket->IsConnected())
+        {
+            mThreadSocket->SetListen(true);
+            return (true);
+        }
+    #endif // WIN32
 
     // -- unable to listen for new connections
     return (false);
@@ -164,28 +182,68 @@ bool Listen()
 // ====================================================================================================================
 bool Connect(const char* ipAddress)
 {
-    if (!mThreadSocket)
-    {
-        TinPrint(TinScript::GetContext(), "Error - Connect(): SocketManager has not been initialized.\n");
-    }
-    else if (mThreadSocket->GetListen())
-    {
-        TinPrint(TinScript::GetContext(), "Error - Connect(): SocketManager is set to listen.\n");
-        return (false);
-    }
+    bool result = false;
 
-    // -- default address is loopback
-    if (!ipAddress || !ipAddress[0])
-        ipAddress = "127.0.0.1";
+    #ifdef WIN32
+        if (!mThreadSocket)
+        {
+            TinPrint(TinScript::GetContext(), "Error - Connect(): SocketManager has not been initialized.\n");
+        }
+        else if (mThreadSocket->GetListen())
+        {
+            TinPrint(TinScript::GetContext(), "Error - Connect(): SocketManager is set to listen.\n");
+            return (false);
+        }
 
-    bool result = mThreadSocket->Connect(ipAddress);
-    if (!result)
-    {
-        TinPrint(TinScript::GetContext(),
-                 "Error - Connect(): unable to connect - execute SocketListen() on target IP.\n");
-    }
+        // -- default address is loopback
+        if (!ipAddress || !ipAddress[0])
+            ipAddress = "127.0.0.1";
+
+        result = mThreadSocket->Connect(ipAddress);
+        if (!result)
+        {
+            TinPrint(TinScript::GetContext(),
+                     "Error - Connect(): unable to connect - execute SocketListen() on target IP.\n");
+        }
+    #endif // WIN32
 
     return (result);
+}
+
+// ====================================================================================================================
+// IsConnected():  returns if we have a valid winsock connected
+// ====================================================================================================================
+bool IsConnected()
+{
+    bool result = false;
+
+    #ifdef WIN32
+        // -- sanity check
+        if (!mThreadSocket)
+            return (false);
+
+        result = mThreadSocket->IsConnected();
+    #endif // WIN32
+
+    // -- return the result
+    return (result);
+}
+
+// ====================================================================================================================
+// Disconnect():  disconnect a winsock connection
+// ====================================================================================================================
+void Disconnect()
+{
+    #ifdef WIN32
+        // -- sanity check
+        if (!mThreadSocket)
+            return;
+
+        // -- call disconnect
+       mThreadSocket->RequestDisconnect();
+       mThreadSocket->SetListen(false);
+
+    #endif // WIN32
 }
 
 // ====================================================================================================================
@@ -193,12 +251,94 @@ bool Connect(const char* ipAddress)
 // ====================================================================================================================
 bool SendCommand(const char* command)
 {
-    if (!mThreadSocket)
-    {
-        return (false);
-    }
+    bool result = false;
 
-    bool result = mThreadSocket->SendScriptCommand(command);
+    #ifdef WIN32
+        if (!mThreadSocket)
+        {
+            return (false);
+        }
+
+        result = mThreadSocket->SendScriptCommand(command);
+    #endif
+
+    return (result);
+}
+
+// ====================================================================================================================
+// SendCommandf():  send a formatted script command to a connected socket
+// ====================================================================================================================
+bool SendCommandf(const char* fmt, ...)
+{
+    bool result = false;
+
+    #ifdef WIN32
+        // -- ensure we're innitialized, and have a command to send
+        if (!mThreadSocket || !fmt || !fmt[0])
+            return (false);
+
+        // -- create the script command
+        va_list args;
+        va_start(args, fmt);
+        char cmdBuf[2048];
+        vsprintf_s(cmdBuf, 2048, fmt, args);
+        va_end(args);
+
+        result = mThreadSocket->SendScriptCommand(cmdBuf);
+    #endif // WIN32
+
+    return (result);
+}
+
+// ====================================================================================================================
+// RegisterProcessRecvDataCallback():  Register a function to call, if a packt of type Socket::DATA is received
+// ====================================================================================================================
+void RegisterProcessRecvDataCallback(ProcessRecvDataCallback recvCallback)
+{
+    mRecvDataCallback = recvCallback;
+}
+
+// ====================================================================================================================
+// CreateDataPacket():  Copies the header, and allocates the data buffer
+// ====================================================================================================================
+tDataPacket* CreateDataPacket(tPacketHeader* header, void* data)
+{
+    tDataPacket* newPacket = NULL;
+    #ifdef WIN32
+        // -- ensure we've initialized and connected the socket
+        if (!mThreadSocket || !mThreadSocket->IsConnected())
+        {
+            return (NULL);
+        }
+
+        // -- create the packet, given a header, and possibly data
+        newPacket = new tDataPacket(header, data);
+
+    #endif // WIN32
+
+    // -- return the result
+    return (newPacket);
+}
+
+// ====================================================================================================================
+// SendDataPacket():  Send a pre-constructed data packet through the socket
+// ====================================================================================================================
+bool SendDataPacket(tDataPacket* dataPacket)
+{
+    // -- initialize the result
+    bool result = false;
+
+    #ifdef WIN32
+        // -- ensure we've initialized and connected the socket
+        if (!mThreadSocket || !mThreadSocket->IsConnected())
+        {
+            return (NULL);
+        }
+
+        result = mThreadSocket->SendDataPacket(dataPacket);
+    #endif // WIN32
+
+    // -- return the result
     return (result);
 }
 
@@ -217,7 +357,7 @@ DataQueue::DataQueue()
 bool DataQueue::Enqueue(tDataPacket* packet)
 {
     // -- sanity check - validate the packet
-    if (!packet || !packet->mData)
+    if (!packet || (packet->mHeader.mSize > 0 && !packet->mData))
     {
         return (false);
     }
@@ -230,41 +370,8 @@ bool DataQueue::Enqueue(tDataPacket* packet)
         return (false);
     }
 
-    // -- we want to insert acknowledge and requst packet types at the front
-    if (packet->mHeader.mType == tPacketHeader::REQUEST || packet->mHeader.mType == tPacketHeader::ACKNOWLEDGE)
-    {
-        mQueue.insert(mQueue.begin(), packet);
-    }
-
-    // -- the remaining are all "in order" requirements, and should be sorted by ID
-    else
-    {
-        bool inserted = false;
-        for (int i = 0; i < (int)mQueue.size(); ++i)
-        {
-            tDataPacket* temp = mQueue[i];
-
-            // -- skip past all the request/acknowledge packet types
-            if (temp->mHeader.mType == tPacketHeader::REQUEST || temp->mHeader.mType == tPacketHeader::ACKNOWLEDGE)
-            {
-                continue;
-            }
-
-            // -- if we find a packet that we should be inserted before...
-            else if (temp->mHeader.mID > packet->mHeader.mID)
-            {
-                mQueue.insert(mQueue.begin() + i, packet);
-                inserted = true;
-                break;
-            }
-        }
-
-        // -- if we didn't already insert it, add it to the end of the queue
-        if (!inserted)
-        {
-            mQueue.push_back(packet);
-        }
-    }
+    // -- add the packet to the queue
+    mQueue.push_back(packet);
 
     // -- success
     return (true);
@@ -273,68 +380,21 @@ bool DataQueue::Enqueue(tDataPacket* packet)
 // ====================================================================================================================
 // Dequeue():  return the next data block and size
 // ====================================================================================================================
-bool DataQueue::Dequeue(tDataPacket*& packet, int32 packetID)
+bool DataQueue::Dequeue(tDataPacket*& packet, bool peekOnly)
 {
     if (mQueue.size() == 0)
-    {
         return (false);
-    }
 
     // -- if we didn't request a specific packet ID, return the first element
-    if (packetID < 0)
-    {
-        packet = mQueue[0];
+    packet = mQueue[0];
+
+    // -- if we're only peeking, then don't remove
+    if (!peekOnly)
         mQueue.erase(mQueue.begin());
-        return (true);
-    }
 
-    // -- see if we can find an entry for the given ID
-    for (int i = 0; i < (int)mQueue.size(); ++i)
-    {
-        tDataPacket* peek = mQueue[i];
-        if (peek->mHeader.mID == packetID)
-        {
-            packet = peek;
-            mQueue.erase(mQueue.begin() + i);
-            return (true);
-        }
-    }
-
-    // -- not found
-    return (false);
+    return (true);
 }
 
-// ====================================================================================================================
-// Peek():  return the packet in the queue either with the packetID, or at the front
-// ====================================================================================================================
-bool DataQueue::Peek(tDataPacket*& packet, int32 packetID)
-{
-    if (mQueue.size() == 0)
-    {
-        return (false);
-    }
-
-    // -- if no ID was specified, simply return the front of the queue
-    if (packetID < 0)
-    {
-        packet = mQueue[0];
-        return (true);
-    }
-
-    // -- see if we can find an entry for the given ID
-    for (int i = 0; i < (int)mQueue.size(); ++i)
-    {
-        tDataPacket* peek = mQueue[i];
-        if (peek->mHeader.mID == packetID)
-        {
-            packet = peek;
-            return (true);
-        }
-    }
-
-    // -- not found
-    return (false);
-}
 
 // ====================================================================================================================
 // Clear();
@@ -452,11 +512,12 @@ bool CSocket::Listen()
         mConnectSocket = accept(mListenSocket, NULL, NULL);
         if (mConnectSocket == INVALID_SOCKET)
         {
-            // -- failed to listen
+            // -- failed to listen - note, if we chose to disconnect, this will also fail
+            // -- so we still return true, to allow the thread to continue
             ScriptCommand("Print('Error - CSocket: accept() failed with error %d\n');", WSAGetLastError());
             closesocket(mListenSocket);
             mListenSocket = INVALID_SOCKET;
-            return (false);
+            return (true);
         }
 
         // -- ensure the connect socket is non-blocking
@@ -468,6 +529,10 @@ bool CSocket::Listen()
         closesocket(mListenSocket);
         mListenSocket = INVALID_SOCKET;
         mConnected = true;
+
+        // -- initialize the heartbeat
+        mSendHeartbeatTimer = k_HeartbeatTimeMS;
+        mRecvHeartbeatTimer = k_HeartbeatTimeoutMS;
     }
 
     // -- done
@@ -546,6 +611,324 @@ bool CSocket::Connect(const char* ipAddress)
     // -- set the bool, return the result
     mConnected = true;
     mListen = false;
+
+    // -- initialize the heartbeat
+    mSendHeartbeatTimer = k_HeartbeatTimeMS;
+    mRecvHeartbeatTimer = k_HeartbeatTimeoutMS;
+
+    return (true);
+}
+
+// ====================================================================================================================
+// RequestDisconnect():  Disconnect the socket from our end
+// ====================================================================================================================
+void CSocket::RequestDisconnect()
+{
+    // -- this must be threadsafe, so as not to stomp the current Update thread
+    mThreadLock.Lock();
+
+    // -- enqueue a disconnect packet to send to our partner
+    tPacketHeader header(k_PacketVersion, tPacketHeader::DISCONNECT, 0);
+    tDataPacket* newPacket = new tDataPacket(&header, NULL);
+    mSendQueue.Enqueue(newPacket);
+
+    // -- unlock the thread
+    mThreadLock.Unlock();
+
+    // -- perform an update, to flush the queues
+    Update();
+
+    // -- and finally disconnect
+    Disconnect();
+}
+
+// ====================================================================================================================
+// Disconnect():  Disconnect the socket, either from our connected partner, or from an error
+// ====================================================================================================================
+void CSocket::Disconnect()
+{
+    // -- kill the connection (thread safe)
+    mThreadLock.Lock();
+
+    // -- close the listening socket as well
+    if (mListenSocket != INVALID_SOCKET)
+    {
+        // -- close the socket
+        shutdown(mListenSocket, 2);
+        closesocket(mListenSocket);
+        mListenSocket = INVALID_SOCKET;
+    }
+
+    // -- close the socket
+    closesocket(mConnectSocket);
+    mConnectSocket = INVALID_SOCKET;
+    mConnected = false;
+
+    // -- notify TinScript, in case this connection was from a debugger
+    ScriptCommand("Print('CSocket: Disconnected.');");
+    ScriptCommand("DebuggerSetConnected(false);");
+
+    // -- clear the queues
+    mSendQueue.Clear();
+    mRecvQueue.Clear();
+
+    // -- unlock
+    mThreadLock.Unlock();
+}
+
+// ====================================================================================================================
+// ProcessSendPackets():  Send all queued packets
+// ====================================================================================================================
+bool CSocket::ProcessSendPackets()
+{
+    // -- this must be threadsafe
+    mThreadLock.Lock();
+
+    // -- if we're not connected, return (successfully)
+    if (!mConnected)
+    {
+        mThreadLock.Unlock();
+        return (true);
+    }
+
+    // -- check the heartbeat timer
+    if (mSendHeartbeatTimer <= 0)
+    {
+        tPacketHeader header(k_PacketVersion, tPacketHeader::HEARTBEAT, 0);
+        tDataPacket* newPacket = new tDataPacket(&header, NULL);
+        mSendQueue.Enqueue(newPacket);
+    }
+
+    // -- send the messages we've queued, and check for an error
+    bool errorDisconnect = false;
+    tDataPacket* packetToSend = NULL;
+    while (mSendQueue.Dequeue(packetToSend, true))
+    {
+        // -- as long as we're attempting to send, reset the heartbeat timer
+        mSendHeartbeatTimer = k_HeartbeatTimeMS;
+
+        // -- see if we have to send the header
+        bool sendingHeader = !packetToSend->mHeader.mHeaderSent;
+        int bytesToSend = 0;
+        if (sendingHeader)
+        {
+            // -- ensure we've initialized the send ptr
+            if (packetToSend->mHeader.mSendPtr == NULL)
+            {
+                packetToSend->mHeader.mSendPtr = (const char*)&packetToSend->mHeader;
+            }
+
+            bytesToSend = sizeof(tPacketHeader) -
+                          ((int)packetToSend->mHeader.mSendPtr - (int)((const char*)&packetToSend->mHeader));
+        }
+        else
+        {
+            bytesToSend = packetToSend->mHeader.mSize -
+                          ((int)packetToSend->mHeader.mSendPtr - (int)packetToSend->mData);
+        }
+
+        // -- send (skip this, if we the packet has no data
+        int bytesSent = 0;
+        if (bytesToSend > 0)
+        {
+            bytesSent = send(mConnectSocket, packetToSend->mHeader.mSendPtr, bytesToSend, 0);
+        }
+
+        // -- if we received an error, we'll have to disconnect
+        if (bytesSent == SOCKET_ERROR)
+        {
+            errorDisconnect = true;
+            break;
+        }
+
+        // -- otherwise, see if we're finished with this packet
+        else
+        {
+            // -- update our pointers, etc... based on what we were able to send
+            bytesToSend -= bytesSent;
+            packetToSend->mHeader.mSendPtr += bytesSent;
+
+            // -- see if we're done
+            if (bytesToSend <= 0)
+            {
+                if (sendingHeader)
+                {
+                    packetToSend->mHeader.mHeaderSent = true;
+                    packetToSend->mHeader.mSendPtr = (const char*)packetToSend->mData;
+                }
+                else
+                {
+                    mSendQueue.Dequeue(packetToSend);
+                    delete packetToSend;
+
+                }
+            }
+
+            // -- not done, but not able to send any more this frame
+            else
+                break;
+        }
+    }
+
+    // -- if we encountered a socket error sending, disconnect
+    if (errorDisconnect)
+    {
+        // -- notify the script context
+        ScriptCommand("Print('Error - CSocket::Send(): failed with error: %d\n');", WSAGetLastError());
+        mThreadLock.Unlock();
+        Disconnect();
+        return (true);
+    }
+
+    // -- this must be threadsafe
+    mThreadLock.Unlock();
+
+    return (true);
+}
+
+// ====================================================================================================================
+// ReceivePackets():  Receive the raw data from the socket
+// ====================================================================================================================
+bool CSocket::ReceivePackets()
+{
+    // -- in an update, we want to lock any access to the send and recv queues, from outside this thread
+    mThreadLock.Lock();
+
+    // -- if we're not connected, we're done
+    if (!mConnected)
+    {
+        mThreadLock.Unlock();
+        return (true);
+    }
+
+    // -- decrement the heartbeat timers
+    mSendHeartbeatTimer -= k_ThreadUpdateTimeMS;
+    mRecvHeartbeatTimer -= k_ThreadUpdateTimeMS;
+
+    // -- see if we have something to recv
+    char recvbuf[k_MaxBufferSize];
+    int recvbuflen = k_MaxBufferSize;
+
+    // -- recv data from the socket
+    while (true)
+    {
+        int bytesRecv = recv(mConnectSocket, recvbuf, recvbuflen, 0);
+
+        // -- check for a disconnecct
+        int error = WSAGetLastError();
+        if (error != WSAEWOULDBLOCK && error != 0)
+        {
+            // -- notify the script context
+            ScriptCommand("Print('CSocket: Recv error %d\n');", error);
+            mThreadLock.Unlock();
+            Disconnect();
+            return (true);
+        }
+
+        else if (bytesRecv > 0)
+        {
+            // -- we received data - reset the heartbeat timer
+            mRecvHeartbeatTimer = k_HeartbeatTimeoutMS;
+
+            // -- if we fail to process the data, something very bad has happened
+            if (!ProcessRecvData(recvbuf, bytesRecv))
+            {
+                // -- notify the script context
+                ScriptCommand("Print('CSocket: Unable to ProcessRecvData()\n');");
+                mThreadLock.Unlock();
+                Disconnect();
+                return (true);
+            }
+        }
+
+        // -- else we're done receiving
+        else
+        {
+            // -- check the heartbeat
+            if (mRecvHeartbeatTimer <= 0)
+            {
+                ScriptCommand("Print('CSocket: Heartbeat timeout\n');");
+                mThreadLock.Unlock();
+                Disconnect();
+            }
+
+            break;
+        }
+    }
+
+    // -- unlock the thread, allowing access to the queues
+    mThreadLock.Unlock();
+
+    return (true);
+}
+
+// ====================================================================================================================
+// ProcessSendPackets():  Send all queued packets
+// ====================================================================================================================
+bool CSocket::ProcessRecvPackets()
+{
+    // -- this must be threadsafe
+    mThreadLock.Lock();
+
+    // -- if we're not connected, return (successfully)
+    if (!mConnected)
+    {
+        mThreadLock.Unlock();
+        return (true);
+    }
+
+    // -- process our recv queue
+    bool receivedDisconnect = false;
+    bool deletePacket = false;
+    tDataPacket* recvPacket = NULL;
+    while (mRecvQueue.Dequeue(recvPacket))
+    {
+        // -- set the bool to delete the packet
+        deletePacket = true;
+
+        // -- if the packet contains a TinScript command
+        if (recvPacket->mHeader.mType == tPacketHeader::SCRIPT)
+        {
+            // -- execute whatever command we received
+            ScriptCommand((const char*)recvPacket->mData);
+        }
+
+        // -- if the packet is raw data, send it through the registered callback
+        // -- note:  the registered callback better be threadsafe
+        // -- note:  the callback is responsible for deallocating the packet
+        else if (recvPacket->mHeader.mType == tPacketHeader::DATA)
+        {
+            if (mRecvDataCallback != NULL)
+            {
+                // -- set the bool to prevent the packet from being deleted here
+                deletePacket = false;
+
+                // -- send the packet to the client
+                mRecvDataCallback(recvPacket);
+            }
+        }
+
+        // -- else if the packet contains a disconnect command
+        else if (recvPacket->mHeader.mType == tPacketHeader::DISCONNECT)
+        {
+            receivedDisconnect = true;
+            break;
+        }
+
+        // -- if we're supposed to delete the packet...
+        if (deletePacket)
+        {
+            delete recvPacket;
+        }
+    }
+
+    // -- Unlock and return success
+    mThreadLock.Unlock();
+
+    // -- if we received a disconnect...
+    if (receivedDisconnect)
+        Disconnect();
+
     return (true);
 }
 
@@ -565,7 +948,14 @@ bool CSocket::SendScriptCommand(const char* command)
 
     // -- fill in the packet header
     int length = strlen(command) + 1;
-    tPacketHeader header(k_PacketVersion, 0, tPacketHeader::SCRIPT, length);
+
+    // -- ensure we don't exceed the max length
+    if (length > k_MaxPacketSize)
+    {
+        return (false);
+    }
+
+    tPacketHeader header(k_PacketVersion, tPacketHeader::SCRIPT, length);
     tDataPacket* newPacket = new tDataPacket(&header, (void*)command);
 
     // -- enqueue the packet
@@ -579,119 +969,85 @@ bool CSocket::SendScriptCommand(const char* command)
 }
 
 // ====================================================================================================================
+// SendData():  Send raw data through the socket
+// ====================================================================================================================
+bool CSocket::SendData(void* data, int dataSize)
+{
+    // -- ensure we're connected, and have something to send
+    if (!data || dataSize <= 0)
+    {
+        return (false);
+    }
+
+    // -- lock the thread before modifying the queues
+    mThreadLock.Lock();
+
+    tPacketHeader header(k_PacketVersion, tPacketHeader::DATA, dataSize);
+    tDataPacket* newPacket = new tDataPacket(&header, data);
+
+    // -- enqueue the packet
+    bool result = mSendQueue.Enqueue(newPacket);
+
+    // -- unlock the thread
+    mThreadLock.Unlock();
+
+    // -- return the result
+    return (result);
+}
+
+// ====================================================================================================================
+// SendDataPacket():  Send a pre=constructed packet through the socket
+// ====================================================================================================================
+bool CSocket::SendDataPacket(tDataPacket* dataPacket)
+{
+    // -- ensure we're connected, and have something to send
+    if (!dataPacket)
+    {
+        return (false);
+    }
+
+    // -- lock the thread before modifying the queues
+    mThreadLock.Lock();
+
+    // -- enqueue the packet
+    bool result = mSendQueue.Enqueue(dataPacket);
+
+    // -- unlock the thread
+    mThreadLock.Unlock();
+
+    // -- return the result
+    // -- note:  if this returns false, the packet will not have been enqueued,
+    // -- so the requestor must either try again, or delete the memory
+    return (result);
+}
+
+// ====================================================================================================================
 // Update():  Update the socket
 // ====================================================================================================================
 bool CSocket::Update()
 {
-    // -- if we're not connected, we're done
-    if (!mConnected)
+    // -- first, receive socket data
+    bool result = ReceivePackets();
+    if (!result)
     {
-        return (true);
+        return (false);
     }
 
-    // -- in an update, we want to lock any access to the send and recv queues, from outside this thread
-    mThreadLock.Lock();
-
-    // -- see if we have something to recv
-    char recvbuf[k_MaxBufferSize];
-    int recvbuflen = k_MaxBufferSize;
-
-    // -- recv data from the socket
-    while (true)
+    // -- then send queued packets
+    result = ProcessSendPackets();
+    if (!result)
     {
-        int bytesRecv = recv(mConnectSocket, recvbuf, recvbuflen, 0);
-
-        // -- check for a disconnecct
-        int error = WSAGetLastError();
-        if (error != WSAEWOULDBLOCK && error != 0)
-        {
-            ScriptCommand("Print('CSocket: Recv error %d\n');", error);
-            closesocket(mConnectSocket);
-            mConnectSocket = INVALID_SOCKET;
-            mConnected = false;
-
-            // -- clear the queues
-            mSendQueue.Clear();
-            mRecvQueue.Clear();
-
-            // -- this is only a disconnection - no reason to kill the thread
-            mThreadLock.Unlock();
-            return (true);
-        }
-
-        else if (bytesRecv > 0)
-        {
-            // -- if we fail to process the data, something very bad has happened
-            if (!ProcessRecvData(recvbuf, bytesRecv))
-            {
-                ScriptCommand("Print('CSocket: Recv error %d\n');", error);
-                closesocket(mConnectSocket);
-                mConnectSocket = INVALID_SOCKET;
-                mConnected = false;
-
-                // -- clear the queues
-                mSendQueue.Clear();
-                mRecvQueue.Clear();
-
-                // -- this is only a disconnection - no reason to kill the thread
-                mThreadLock.Unlock();
-                return (true);
-            }
-        }
-
-        // -- else we're done receiving
-        else
-        {
-            break;
-        }
+        return (false);
     }
 
-    // send the messages we've queued
-    tDataPacket* packetToSend = NULL;
-    while (mSendQueue.Dequeue(packetToSend, -1))
+    // -- finally, process the received packets
+    result = ProcessRecvPackets();
+    if (!result)
     {
-        // -- send the header
-        bool sendError = false;
-        int error = send(mConnectSocket, (const char*)&(packetToSend->mHeader), sizeof(tPacketHeader), 0);
-        if (error == SOCKET_ERROR)
-            sendError = true;
-
-        // -- send the data
-        error = send(mConnectSocket, (const char*)packetToSend->mData, packetToSend->mHeader.mSize, 0);
-        if (error == SOCKET_ERROR)
-            sendError = true;
-
-        // -- if we encountered an error sending, disconnect
-        if (sendError)
-        {
-            ScriptCommand("Print('Error - CSocket::Send(): failed with error: %d\n');", WSAGetLastError());
-            closesocket(mConnectSocket);
-
-            // -- clear the queues
-            mSendQueue.Clear();
-            mRecvQueue.Clear();
-
-            // -- also just a disconnect - no reason to kill the thread
-            mThreadLock.Unlock();
-            return (true);
-        }
+        return (false);
     }
 
-    // -- process our recv queue
-    tDataPacket* recvPacket = NULL;
-    while (mRecvQueue.Dequeue(recvPacket, -1))
-    {
-        if (recvPacket->mHeader.mType == tPacketHeader::SCRIPT)
-        {
-            // -- execute whatever command we received
-            ScriptCommand((const char*)recvPacket->mData);
-        }
-    }
-
-    // -- unlock the thread, allowing access to the queues
-    mThreadLock.Unlock();
-
-    // -- no errors
+    // -- success
     return (true);
 }
 
@@ -729,30 +1085,28 @@ bool CSocket::ProcessRecvData(void* data, int dataSize)
     while (bytesToProcess)
     {
         // -- set up the pointers to fill in either the header, of the data of a packet
-        char* basePtr = (mRecvPacket == NULL) ? mRecvHeader : mRecvPacket->mData;
-        int bufferSize = (mRecvPacket == NULL) ? sizeof(tPacketHeader) : mRecvPacket->mHeader.mSize;
+        bool processHeader = (mRecvPacket == NULL);
+        char* basePtr = (processHeader) ? mRecvHeader : mRecvPacket->mData;
+        int bufferSize = (processHeader) ? sizeof(tPacketHeader) : mRecvPacket->mHeader.mSize;
         int bytesRequired = bufferSize - ((int)mRecvPtr - (int)basePtr);
 
         // -- find out how many bytes we've received, and copy as many as we're able
         int bytesToCopy = (bytesToProcess >= bytesRequired) ? bytesRequired : bytesToProcess;
-        if (bytesToCopy <= 0)
+        if (bytesToCopy > 0)
         {
-            // -- should be impossible - something went wrong
-            return (false);
+            // -- copy the data, and modify the counts and pointers
+            memcpy(mRecvPtr, dataPtr, bytesToCopy);
+            dataPtr += bytesToCopy;
+            mRecvPtr += bytesToCopy;
+            bytesRequired -= bytesToCopy;
+            bytesToProcess -= bytesToCopy;
         }
-
-        // -- copy the data, and modify the counts and pointers
-        memcpy(mRecvPtr, dataPtr, bytesToCopy);
-        dataPtr += bytesToCopy;
-        mRecvPtr += bytesToCopy;
-        bytesRequired -= bytesToCopy;
-        bytesToProcess -= bytesToCopy;
 
         // -- see if we have filled our required bytes
         if (bytesRequired == 0)
         {
             // -- if we don't have a recv packet, then we've completed a header, and can construct one
-            if (mRecvPacket == NULL)
+            if (processHeader)
             {
                 // -- verify the new packet is valid
                 tPacketHeader* newPacketHeader = (tPacketHeader*)mRecvHeader;
@@ -767,7 +1121,7 @@ bool CSocket::ProcessRecvData(void* data, int dataSize)
                     return (false);
                 }
 
-                if (newPacketHeader->mSize <= 0 || newPacketHeader->mSize > 1024)
+                if (newPacketHeader->mSize < 0 || newPacketHeader->mSize > 1024)
                 {
                     // -- invalid size
                     return (false);
@@ -778,10 +1132,18 @@ bool CSocket::ProcessRecvData(void* data, int dataSize)
 
                 // -- reset the recv pointer to the data of the new packet
                 mRecvPtr = mRecvPacket->mData;
+
+                // -- if we have data, we need to keep reading
+                // -- otherwise, fall through, and process a complete packet
+                if (mRecvPacket->mHeader.mSize == 0)
+                {
+                    processHeader = false;
+                }
             }
 
-            // -- otherwise, we've got complete packet
-            else
+            // -- if we're not processing the header, we've got complete packet
+            // -- might have fallen through for a header with no data
+            if (!processHeader)
             {
                 // -- enqueue, and prepare for the next
                 if (!mRecvQueue.Enqueue(mRecvPacket))
@@ -807,6 +1169,7 @@ bool CSocket::ProcessRecvData(void* data, int dataSize)
 // -- TinScript Registration
 REGISTER_FUNCTION_P0(SocketListen, SocketManager::Listen, bool);
 REGISTER_FUNCTION_P1(SocketConnect, SocketManager::Connect, bool, const char*);
+REGISTER_FUNCTION_P0(SocketDisconnect, SocketManager::Disconnect, void);
 REGISTER_FUNCTION_P1(SocketSend, SocketManager::SendCommand, bool, const char*);
 
 // ====================================================================================================================

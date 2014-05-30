@@ -45,14 +45,16 @@ class CDebugSourceWin : public QListWidget {
     Q_OBJECT
 
     public:
-        CDebugSourceWin(CConsoleWindow* owner);
+        CDebugSourceWin(CConsoleWindow* owner = NULL);
         virtual ~CDebugSourceWin();
 
+        void NotifyCurrentDir(const char* cwd);
         bool OpenSourceFile(const char* filename, bool reload = false);
         bool SetSourceView(uint32 codeblock_hash, int32 line_number);
         void SetCurrentPC(uint32 codeblock_hash, int32 line_number);
         void ToggleBreakpoint(uint32 codeblock_hash, int32 line_number, bool add, bool enable);
         void NotifyCodeblockLoaded(uint32 codeblock_hash);
+        void NotifyCodeblockLoaded(const char* filename);
 
     public slots:
         void OnDoubleClicked(QListWidgetItem*);
@@ -62,6 +64,9 @@ class CDebugSourceWin : public QListWidget {
         QList<CSourceLine*> mSourceText;
         uint32 mCurrentCodeblockHash;
         int32 mCurrentLineNumber;
+
+        // -- we need to store the current working directory of our debug target
+        char mDebuggerDir[kMaxArgLength];
 };
 
 #endif

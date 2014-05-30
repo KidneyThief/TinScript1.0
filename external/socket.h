@@ -22,7 +22,14 @@
 #ifndef __SOCKET_H
 #define __SOCKET_H
 
-#include <Windows.h>
+// -- sockets are only implemented in win32
+#ifdef WIN32
+    #include <Windows.h>
+    #include <winsock.h>
+#else
+    #define SOCKET uint32*
+#endif // WIN32
+
 #include <vector>
 
 // -- includes required by any system wanting access to TinScript
@@ -30,12 +37,23 @@
 #include "TinRegistration.h"
 
 // ====================================================================================================================
-// -- constants
-const int k_PacketVersion = 1;
-const int k_MaxPacketSize = 1024;
+// -- USER DEFINED CONSTANTS
+// -- because both clients need to use this library to communicate, we can have them "agree" on the values of constants
+// -- that they share
+const int32 k_DebuggerCallstackPacketID = 0x01;
 
-const int k_DefaultPort = 27069;
-const int k_MaxBufferSize = 8 * 1024;
+// ====================================================================================================================
+// -- constants
+// some random int32, just to ensure socket clients are compatible
+const int32 k_PacketVersion = 0xdeadbeef;  
+const int32 k_MaxPacketSize = 1024;
+
+const int32 k_DefaultPort = 27069;
+const int32 k_MaxBufferSize = 8 * 1024;
+
+const int32 k_ThreadUpdateTimeMS = 5;
+const int32 k_HeartbeatTimeMS = 10000;
+const int32 k_HeartbeatTimeoutMS = 30000;
 
 // ====================================================================================================================
 // namespace SocketManager: managing remote connections
@@ -43,11 +61,18 @@ const int k_MaxBufferSize = 8 * 1024;
 namespace SocketManager
 {
 
+// ====================================================================================================================
+// -- forward declarations
+struct tPacketHeader;
+struct tDataPacket;
+
 // -- initialize the SocketManager
 void Initialize();
 
 // -- update loop for the SocketManager, run inside the thread
-DWORD WINAPI ThreadUpdate(LPVOID lpParam);
+#ifdef WIN32
+    DWORD WINAPI ThreadUpdate(LPVOID lpParam);
+#endif
 
 // -- perform all shutdown and cleanup of the SocketManager
 void Terminate();
@@ -55,7 +80,24 @@ void Terminate();
 // -- request a connection
 bool Listen();
 bool Connect(const char* ipAddress);
+void Disconnect();
+bool IsConnected();
 bool SendCommand(const char* command);
+bool SendCommandf(const char* fmt, ...);
+
+// ====================================================================================================================
+// -- only use this interface if you're sure you know what you're doing - e.g. the TinScript debugger methods
+// -- send too much data for everything to use registered script functions
+// -- first, declare a packet header on the stack, and fill it in (you must know the size already)
+// -- second, create the data packet - the mData will already be allocated
+// -- third, write to the mData buffer the exact size of data as specified in the header mSize
+// -- finally, send the data packet.
+// -- note:  if sending the data packet fails, the client is required to resend or deallocate the memory
+
+typedef void (*ProcessRecvDataCallback)(tDataPacket* packet); 
+void RegisterProcessRecvDataCallback(ProcessRecvDataCallback recvCallback);
+tDataPacket* CreateDataPacket(tPacketHeader* header, void* data); 
+bool SendDataPacket(tDataPacket* dataPacket);
 
 // ====================================================================================================================
 // struct tPacketHeader:  struct to organize the data being queued for send/recv
@@ -66,26 +108,35 @@ struct tPacketHeader
     {
         NONE = 0,
 
-        REQUEST,
-        ACKNOWLEDGE,
-        SCRIPT,
-        DEBUG,
+        // -- socket system packet types
+        HEARTBEAT,
 
+        // -- client data types
+        SCRIPT,
+        DATA,
+
+        DISCONNECT,
         COUNT,
     };
 
-    tPacketHeader(int32 version = 0, int32 id = 0, int32 type = 0, int32 size = 0)
+    tPacketHeader(int32 version = 0, int32 type = 0, int32 size = 0)
     {
         mVersion = version;
-        mID = id;
         mType = type;
         mSize = size;
+
+        // -- initialize the send ptr to the start of the header
+        mHeaderSent = false;
+        mSendPtr = NULL;
     }
 
     int32 mVersion;
-    int32 mID;
     int32 mType;
     int32 mSize;
+
+    // -- send() can still send a partial byte stream - need to track how much still needs to be sent
+    bool mHeaderSent;
+    const char* mSendPtr;
 };
 
 // ====================================================================================================================
@@ -137,10 +188,7 @@ class DataQueue
     public:
         DataQueue();
         bool Enqueue(tDataPacket* packet);
-        bool Dequeue(tDataPacket*& packet, int32 packetID);
-
-        // -- access to specific packets by ID
-        bool Peek(tDataPacket*& packet, int32 packetID);
+        bool Dequeue(tDataPacket*& packet, bool peekOnly = false);
 
         // -- clear the entire queue
         void Clear();
@@ -152,6 +200,7 @@ class DataQueue
 // ====================================================================================================================
 // class CSocket:  an instance of a winsock connection
 // ====================================================================================================================
+#ifdef WIN32
 class CSocket
 {
     public:
@@ -173,7 +222,7 @@ class CSocket
             return (mListen);
         }
 
-        bool isConnected() const
+        bool IsConnected() const
         {
             return (mConnected);
         }
@@ -184,11 +233,23 @@ class CSocket
         // -- request a connection
         bool Connect(const char* ipAddress);
 
+        // -- disconnect methods
+        void RequestDisconnect();
+        void Disconnect();
+
+        // -- handle the socket traffic
+        bool ProcessSendPackets();
+        bool ReceivePackets();
+        bool ProcessRecvPackets();
+
         // -- send a script command
         bool SendScriptCommand(const char* command);
 
-        // -- send data
-        bool Send(void* data, int dataSize);
+        // -- send raw data
+        bool SendData(void* data, int dataSize);
+
+        // -- send a pre-constructed data packet
+        bool SendDataPacket(tDataPacket* packet);
 
         // -- update, to send/recv data
         bool Update();
@@ -215,9 +276,14 @@ class CSocket
         DataQueue mSendQueue;
         DataQueue mRecvQueue;
 
+        // -- timers to track last packet sent/received
+        int32 mSendHeartbeatTimer;
+        int32 mRecvHeartbeatTimer;
+
         // -- we need to ensure the queues are thread safe
         TinScript::CThreadMutex mThreadLock;
 };
+#endif // WIN32
 
 } // SocketManager
 

@@ -28,8 +28,11 @@
 #include "stdio.h"
 #include "string.h"
 
-#include "windows.h"
-#include "conio.h"
+#ifdef WIN32
+    #include "windows.h"
+    #include "conio.h"
+    #include "direct.h"
+#endif
 
 #include "integration.h"
 
@@ -42,6 +45,8 @@
 #include "TinObjectGroup.h"
 #include "TinStringTable.h"
 #include "TinRegistration.h"
+
+#include "socket.h"
 
 #include "TinScript.h"
 
@@ -135,7 +140,8 @@ bool8 NullAssertHandler(CScriptContext*, const char*, const char*, int32, const 
 // ====================================================================================================================
 // NullAssertHandler():  Default assert handler called, if one isn't provided
 // ====================================================================================================================
-int NullPrintHandler(const char*, ...) {
+int NullPrintHandler(const char*, ...)
+{
     return (0);
 }
 
@@ -185,10 +191,6 @@ void CScriptContext::Destroy()
 // --------------------------------------------------------------------------------------------------------------------
 CScriptContext::CScriptContext(TinPrintHandler printfunction, TinAssertHandler asserthandler, bool is_main_thread) {
 
-    // -- initialize and populate the string table
-    mStringTable = TinAlloc(ALLOC_StringTable, CStringTable, this, kStringTableSize);
-    LoadStringTable(this);
-
     // -- set the flag
     mIsMainThread = is_main_thread;
 
@@ -197,6 +199,10 @@ CScriptContext::CScriptContext(TinPrintHandler printfunction, TinAssertHandler a
 
     // -- set the thread local singleton
     gThreadContext = this;
+
+    // -- initialize and populate the string table
+    mStringTable = TinAlloc(ALLOC_StringTable, CStringTable, this, kStringTableSize);
+    LoadStringTable();
 
     // -- ensure our types have all been initialized - only from the main thread
     // -- this will set up global tables of type info... convert functions, op overrides, etc...
@@ -240,14 +246,10 @@ CScriptContext::CScriptContext(TinPrintHandler printfunction, TinAssertHandler a
     // -- initialize the scratch buffer index
     mScratchBufferIndex = 0;
 
-    // -- register the debugger interface separately
-    mBreakpointCallback = NULL;
-    mCallstackCallback = NULL;
-    mCodeblockLoadedCallback = NULL;
-    mWatchVarEntryCallback = NULL;
-
-    mDebuggerBreakStep = false;
-    mDebuggerLastBreak = -1;
+    // -- debugger members
+    mDebuggerConnected = false;
+    mDebuggerActionStep = false;
+    mDebuggerActionRun = true;
 
     // -- initialize the thread command
     mThreadBufPtr = NULL;
@@ -479,8 +481,19 @@ const char* UnHash(uint32 hash) {
         return string;
 }
 
-void SaveStringTable(CScriptContext* script_context) {
+const char* GetStringTableName()
+{
+    return (gStringTableFileName);
+}
 
+void SaveStringTable(const char* filename)
+{
+    // -- ensure we have a valid filename
+    if (!filename || !filename[0])
+        filename = GetStringTableName();
+
+    // -- get the context for this thread
+    CScriptContext* script_context = TinScript::GetContext();
     if (!script_context)
         return;
 
@@ -493,14 +506,12 @@ void SaveStringTable(CScriptContext* script_context) {
 	FILE* filehandle = NULL;
 	int32 result = fopen_s(&filehandle, gStringTableFileName, "wb");
 	if (result != 0) {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n",
-                      gStringTableFileName);
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
 		return;
     }
 
 	if (!filehandle) {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n",
-                      gStringTableFileName);
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
 		return;
     }
 
@@ -526,8 +537,7 @@ void SaveStringTable(CScriptContext* script_context) {
             int32 count = (int32)fwrite(tempbuf, sizeof(char), 12, filehandle);
             if (count != 12) {
                 fclose(filehandle);
-                ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n",
-                              gStringTableFileName);
+                ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
                 return;
             }
 
@@ -536,8 +546,7 @@ void SaveStringTable(CScriptContext* script_context) {
             count = (int32)fwrite(tempbuf, sizeof(char), 6, filehandle);
             if (count != 6) {
                 fclose(filehandle);
-                ScriptAssert_(script_context, 0, "<internal>", -1,
-                              "Error - unable to write file %s\n", gStringTableFileName);
+                ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
                 return;
             }
 
@@ -545,8 +554,7 @@ void SaveStringTable(CScriptContext* script_context) {
             count = (int32)fwrite(string, sizeof(char), length, filehandle);
             if (count != length) {
                 fclose(filehandle);
-                ScriptAssert_(script_context, 0, "<internal>", -1,
-                              "Error - unable to write file %s\n", gStringTableFileName);
+                ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
                 return;
             }
 
@@ -554,8 +562,7 @@ void SaveStringTable(CScriptContext* script_context) {
             count = (int32)fwrite("\r\n", sizeof(char), 2, filehandle);
             if (count != 2) {
                 fclose(filehandle);
-                ScriptAssert_(script_context, 0, "<internal>", -1,
-                              "Error - unable to write file %s\n", gStringTableFileName);
+                ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
                 return;
             }
 
@@ -568,23 +575,36 @@ void SaveStringTable(CScriptContext* script_context) {
 	fclose(filehandle);
 }
 
-void LoadStringTable(CScriptContext* script_context) {
+void LoadStringTable(const char* filename)
+{
+    // -- ensure we have a valid filename
+    if (!filename || !filename[0])
+        filename = GetStringTableName();
+
+    // -- get the context for this thread
+    CScriptContext* script_context = TinScript::GetContext();
+    if (!script_context)
+        return;
 
   	// -- open the file
 	FILE* filehandle = NULL;
-	int32 result = fopen_s(&filehandle, gStringTableFileName, "rb");
+	int32 result = fopen_s(&filehandle, filename, "rb");
 	if (result != 0) {
 		return;
     }
 
-	if (!filehandle) {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n",
-                      gStringTableFileName);
+	if (!filehandle)
+    {
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to read file %s\n", filename);
 		return;
     }
 
-    while(!feof(filehandle)) {
+    CStringTable* string_table = script_context->GetStringTable();
+    if (!string_table)
+        return;
 
+    while (!feof(filehandle))
+    {
         // -- read the hash
         uint32 hash = 0;
         int32 length = 0;
@@ -593,7 +613,8 @@ void LoadStringTable(CScriptContext* script_context) {
 
         // -- read the hash
         int32 count = (int32)fread(tempbuf, sizeof(char), 12, filehandle);
-        if (ferror(filehandle) || count != 12) {
+        if (ferror(filehandle) || count != 12)
+        {
             // -- we're done
             break;
         }
@@ -602,37 +623,36 @@ void LoadStringTable(CScriptContext* script_context) {
 
         // -- read the string length
         count = (int32)fread(tempbuf, sizeof(char), 6, filehandle);
-        if (ferror(filehandle) || count != 6) {
+        if (ferror(filehandle) || count != 6)
+        {
             fclose(filehandle);
-            ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to read file: %s\n",
-                          gStringTableFileName);
+            ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to read file: %s\n", filename);
             return;
         }
         tempbuf[count] = '\0';
         sscanf_s(tempbuf, "%04d: ", &length);
 
-
         // -- read the string
         count = (int32)fread(string, sizeof(char), length, filehandle);
-        if (ferror(filehandle) || count != length) {
+        if (ferror(filehandle) || count != length)
+        {
             fclose(filehandle);
-            ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to read file: %s\n",
-                          gStringTableFileName);
+            ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to read file: %s\n", filename);
             return;
         }
         string[length] = '\0';
 
         // -- read the eol
         count = (int32)fread(tempbuf, sizeof(char), 2, filehandle);
-        if (ferror(filehandle) || count != 2) {
+        if (ferror(filehandle) || count != 2)
+        {
             fclose(filehandle);
-            ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to read file: %s\n",
-                          gStringTableFileName);
+            ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to read file: %s\n", filename);
             return;
         }
 
-        // -- add the string to the table
-        script_context->GetStringTable()->AddString(string, length, hash);
+        // -- add the string to the table (including bumping the hash)
+        string_table->AddString(string, length, hash, true);
     }
 
     // -- close the file before we leave
@@ -732,7 +752,7 @@ CCodeBlock* CScriptContext::CompileScript(const char* filename) {
 
     // -- save the string table - *if* we're the main thread
     if (mIsMainThread)
-        SaveStringTable(this);
+        SaveStringTable();
 
     // -- reset the assert stack
     ResetAssertStack();
@@ -763,11 +783,10 @@ bool8 CScriptContext::ExecScript(const char* filename) {
         codeblock = LoadBinary(this, binfilename);
     }
 
-    // -- notify the debugger
-    // $$$TZA in a connected tool, we actually need to wait until the tool has a chance
-    // -- to send the list of breakpoints for this codeblock
-    if (codeblock) {
-        NotifyCodeblockLoaded(codeblock->GetFilenameHash());
+    // -- notify the debugger, if one is connected
+    if (codeblock && mDebuggerConnected)
+    {
+        SocketManager::SendCommandf("DebuggerOpenFile('%s');", UnHash(codeblock->GetFilenameHash()));
     }
 
     // -- execute the codeblock
@@ -872,135 +891,191 @@ char* CScriptContext::GetScratchBuffer()
     return (scratch_buffer);
 }
 
-// ------------------------------------------------------------------------------------------------
-// -- debugger interface
-void CScriptContext::SetBreakpointCallback(DebuggerBreakpointHit breakpoint_callback) {
-    mBreakpointCallback = breakpoint_callback;
-}
+// ====================================================================================================================
+// SetDebuggerConnected():  Enables debug information to be sent through the socket to a connected debugger
+// ====================================================================================================================
+void CScriptContext::SetDebuggerConnected(bool connected)
+{
+    // -- set the bool
+    mDebuggerConnected = connected;
 
-void CScriptContext::SetCallstackCallback(DebuggerCallstackFunc callstack_callback) {
-    mCallstackCallback = callstack_callback;
-}
+    // -- any change in debugger connectivity resets the debugger break members
+    mDebuggerActionStep = false;
+    mDebuggerActionRun = true;
 
-void CScriptContext::SetCodeblockLoadedCallback(CodeblockLoadedFunc codeblock_callback) {
-    mCodeblockLoadedCallback = codeblock_callback;
-}
+    // -- if we're now connected, send back the current working directory
+    if (connected)
+    {
+        bool error = false;
+        char* cwdBuffer = _getcwd(NULL, 0);
+        if (cwdBuffer == NULL)
+        {
+            error = true;
+            cwdBuffer = ".";
+        }
 
-void CScriptContext::SetWatchVarEntryCallback(DebuggerWatchVarFunc watch_var_callback) {
-    mWatchVarEntryCallback = watch_var_callback;
-}
+        // -- send the command
+        SocketManager::SendCommandf("DebuggerCurrentDir('%s');", cwdBuffer);
 
-bool8 CScriptContext::NotifyBreakpointHit(uint32 codeblock_hash, int32& line_number) {
-
-    // -- no debugger registered - return true - allows us to keep running
-    if (!mBreakpointCallback)
-        return (true);
-
-    // -- otherwise, let the callback determine if we should run or step
-    else {
-        bool8 continue_run = mBreakpointCallback(codeblock_hash, line_number);
-        return (continue_run);
+        // -- if we successfully got the current working directory, we need to free the buffer
+        if (!error)
+            delete [] cwdBuffer;
     }
 }
 
-void CScriptContext::NotifyCallstack(uint32* codeblock_array, uint32* objid_array,
-                                     uint32* namespace_array,uint32* func_array,
-                                     uint32* linenumber_array, int array_size) {
-    if (!mCallstackCallback)
-        return;
-    mCallstackCallback(codeblock_array, objid_array, namespace_array, func_array,
-                       linenumber_array, array_size);
-}
-
-void CScriptContext::NotifyCodeblockLoaded(uint32 codeblock_hash) {
-    if (mCodeblockLoadedCallback) {
-        mCodeblockLoadedCallback(codeblock_hash);
-    }
-}
-
-void CScriptContext::NotifyWatchVarEntry(CDebuggerWatchVarEntry* watch_var_entry) {
-    if (!mWatchVarEntryCallback)
-        return;
-    mWatchVarEntryCallback(watch_var_entry);
-}
-
-// $$$TZA when the debugger becomes remote, do we want debugging on just the MainThread?
-void CScriptContext::RegisterDebugger(DebuggerBreakpointHit breakpoint_func,
-                                      DebuggerCallstackFunc callstack_func,
-                                      CodeblockLoadedFunc codeblock_func,
-                                      DebuggerWatchVarFunc watch_var_func) {
-    CScriptContext* script_context = GetContext();
-    if (script_context) {
-        script_context->SetBreakpointCallback(breakpoint_func);
-        script_context->SetCallstackCallback(callstack_func);
-        script_context->SetCodeblockLoadedCallback(codeblock_func);
-        script_context->SetWatchVarEntryCallback(watch_var_func);
-    }
-}
-
-int32 CScriptContext::AddBreakpoint(const char* filename, int32 line_number)
+// ====================================================================================================================
+// AddBreakpoint():  Method to find a codeblock, and set a line to notify the debugger, if executed
+// ====================================================================================================================
+void CScriptContext::AddBreakpoint(const char* filename, int32 line_number)
 {
     // -- sanity check
     if (!filename || !filename[0])
-        return (-1);
-
-    CScriptContext* script_context = GetContext();
-    if (!script_context) {
-        return (-1);
-    }
+        return;
 
     // -- find the code block within the thread
     uint32 filename_hash = Hash(filename);
-    CCodeBlock* code_block = script_context->GetCodeBlockList()->FindItem(filename_hash);
-    if (! code_block) {
-        return (-1);
-    }
+    CCodeBlock* code_block = GetCodeBlockList()->FindItem(filename_hash);
+    if (! code_block)
+        return;
 
     // -- add the breakpoint
-    return (code_block->AddBreakpoint(line_number));
+    int32 actual_line = code_block->AddBreakpoint(line_number);
+    if (actual_line != line_number)
+    {
+        SocketManager::SendCommandf("DebuggerConfirmBreakpoint(%d, %d, %d);", filename_hash, line_number, actual_line);
+    }
 }
 
-int32 CScriptContext::RemoveBreakpoint(const char* filename, int32 line_number)
+// ====================================================================================================================
+// RemoveBreakpoint():  The given file/line will no longer notify the debugger if executed
+// ====================================================================================================================
+void CScriptContext::RemoveBreakpoint(const char* filename, int32 line_number)
 {
     // -- sanity check
     if (!filename || !filename[0])
-        return (-1);
-
-    CScriptContext* script_context = GetContext();
-    if (!script_context) {
-        return (-1);
-    }
+        return;
 
     // -- find the code block within the thread
     uint32 filename_hash = Hash(filename);
-    CCodeBlock* code_block = script_context->GetCodeBlockList()->FindItem(filename_hash);
-    if (! code_block) {
-        return (-1);
-    }
+    CCodeBlock* code_block = GetCodeBlockList()->FindItem(filename_hash);
+    if (! code_block)
+        return;
 
-    // -- add the breakpoint
-    return (code_block->RemoveBreakpoint(line_number));
+    // -- notify the debugger, if the given line number isn't the actual line
+    int32 actual_line = code_block->RemoveBreakpoint(line_number);
+    if (actual_line != line_number)
+    {
+        SocketManager::SendCommandf("DebuggerConfirmBreakpoint(%d, %d, %d);", filename_hash, line_number, actual_line);
+    }
 }
 
+// ====================================================================================================================
+// RemoveAllBreakpoints():  No breakpoints will be set for the given file
+// ====================================================================================================================
 void CScriptContext::RemoveAllBreakpoints(const char* filename)
 {
     // -- sanity check
     if (!filename || !filename[0])
         return;
 
-    CScriptContext* script_context = GetContext();
-    if (!script_context) {
-        return;
-    }
+    // -- this method must be thread safe
+    mThreadLock.Lock();
 
     // -- find the code block within the thread
     uint32 filename_hash = Hash(filename);
-    CCodeBlock* code_block = script_context->GetCodeBlockList()->FindItem(filename_hash);
-    if (! code_block) {
+    CCodeBlock* code_block = GetCodeBlockList()->FindItem(filename_hash);
+    if (! code_block)
+        return;
+
+    code_block->RemoveAllBreakpoints();
+
+    // -- unlock
+    mThreadLock.Unlock();
+}
+
+// ====================================================================================================================
+// SetBreakStep():  Sets the bool, coordinating breakpoint execution with a remote debugger
+// ====================================================================================================================
+void CScriptContext::SetBreakActionStep(bool8 torf)
+{
+    // -- this is usually set to false when a breakpoint is hit, and then remotely set to true by the debugger
+    mDebuggerActionStep = torf;
+}
+
+// ====================================================================================================================
+// SetBreakRun():  Sets the bool, coordinating breakpoint execution with a remote debugger
+// ====================================================================================================================
+void CScriptContext::SetBreakActionRun(bool torf)
+{
+    // -- this is usually set to false when a breakpoint is hit, and then remotely set to true by the debugger
+    mDebuggerActionRun = torf;
+}
+
+// ====================================================================================================================
+// DebuggerSendCallstack():  Too large to send as a script command, use the packet type DATA,
+// and send the packet directly to the debugger.
+// ====================================================================================================================
+void CScriptContext::DebuggerSendCallstack(uint32* codeblock_array, uint32* objid_array,
+                                           uint32* namespace_array,uint32* func_array,
+                                           uint32* linenumber_array, int array_size)
+{
+    // -- calculate the size of the data
+    int32 total_size = 0;
+
+    // -- first int32 will be identifying this data packet as a callstack
+    total_size += sizeof(int32);
+
+    // -- second int32 will be the array size
+    total_size += sizeof(int32);
+
+    // -- finally, we have a uint32 for each of codeblock, objid, namespace, function, and line number
+    // -- note:  the debugger suppors a callstack of up to 32, so our max packet size is about 640 bytes
+    // -- which is less than the max packet size (1024) specified in socket.h
+    total_size += 5 * (sizeof(uint32)) * array_size;
+
+    // -- declare a header
+    // -- note, if we ever implement a request/acknowledge approach, we can use the mID field
+    SocketManager::tPacketHeader header(k_PacketVersion, SocketManager::tPacketHeader::DATA, total_size);
+
+    // -- create the packet (null data, as we'll fill in the data directly into the packet)
+    SocketManager::tDataPacket* newPacket = SocketManager::CreateDataPacket(&header, NULL);
+    if (!newPacket)
+    {
+        TinPrint(this, "Error - DebuggerSendCallstack():  unable to send\n");
         return;
     }
 
-    code_block->RemoveAllBreakpoints();
+    // -- initialize the ptr to the data buffer
+    int32* dataPtr = (int32*)newPacket->mData;
+
+    // -- write the "callstack" identifier - defined in the USER CONSTANTS at the top of socket.h
+    *dataPtr++ = k_DebuggerCallstackPacketID;
+
+    // -- write the array size
+    *dataPtr++ = array_size;
+
+    // -- write the codeblocks
+    memcpy(dataPtr, codeblock_array, sizeof(uint32) * array_size);
+    dataPtr += array_size;
+
+    // -- write the objid's
+    memcpy(dataPtr, objid_array, sizeof(uint32) * array_size);
+    dataPtr += array_size;
+
+    // -- write the namespaces
+    memcpy(dataPtr, namespace_array, sizeof(uint32) * array_size);
+    dataPtr += array_size;
+
+    // -- write the functions
+    memcpy(dataPtr, func_array, sizeof(uint32) * array_size);
+    dataPtr += array_size;
+
+    // -- write the line numbers
+    memcpy(dataPtr, linenumber_array, sizeof(uint32) * array_size);
+    dataPtr += array_size;
+
+    // -- now send the packet
+    SocketManager::SendDataPacket(newPacket);
 }
 
 // ====================================================================================================================
@@ -1057,20 +1132,122 @@ void CScriptContext::ProcessThreadCommands()
     mThreadBufPtr = NULL;
 
     // -- execute the buffer
+    //TinPrint(this, "Remote: %s\n", mThreadExecBuffer);
     ExecCommand(mThreadExecBuffer);
 
     // -- unlock the thread
     mThreadLock.Unlock();
 }
 
+#endif // WIN32
+
+// -- Debugger Registration -------------------------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------------------------------------------------
+// DebuggerSetConnected():  toggle whether an application connected through the SocketManager is a debugger
+// --------------------------------------------------------------------------------------------------------------------
+void DebuggerSetConnected(bool8 connected)
+{
+    // -- ensure we have a script context
+    CScriptContext* script_context = GetContext();
+    if (!script_context)
+        return;
+
+    // -- this must be threadsafe - only ProcessThreadCommands should ever lead to this function
+    script_context->SetDebuggerConnected(connected);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// DebuggerAddBreakpoint():  Add a breakpoint for the given file/line
+// --------------------------------------------------------------------------------------------------------------------
+void DebuggerAddBreakpoint(const char* filename, int32 line_number)
+{
+    // -- ensure we have a script context
+    CScriptContext* script_context = GetContext();
+    if (!script_context)
+        return;
+
+    // -- this must be threadsafe - only ProcessThreadCommands should ever lead to this function
+    script_context->AddBreakpoint(filename, line_number);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// DebuggerRemoveBreakpoint():  Remove a breakpoint for the given file/line
+// --------------------------------------------------------------------------------------------------------------------
+void DebuggerRemoveBreakpoint(const char* filename, int32 line_number)
+{
+    // -- ensure we have a script context
+    CScriptContext* script_context = GetContext();
+    if (!script_context)
+        return;
+
+    // -- this must be threadsafe - only ProcessThreadCommands should ever lead to this function
+    script_context->RemoveBreakpoint(filename, line_number);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// DebuggerRemoveAllBreakpoints():  Remove all breakpoint for the given file
+// --------------------------------------------------------------------------------------------------------------------
+void DebuggerRemoveAllBreakpoints(const char* filename)
+{
+    // -- ensure we have a script context
+    CScriptContext* script_context = GetContext();
+    if (!script_context)
+        return;
+
+    // -- this must be threadsafe - only ProcessThreadCommands should ever lead to this function
+    script_context->RemoveAllBreakpoints(filename);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// DebuggerBreakStep():  When execution is halted from hitting a breakpoint, step to the next statement
+// --------------------------------------------------------------------------------------------------------------------
+void DebuggerBreakStep()
+{
+    // -- ensure we have a script context
+    CScriptContext* script_context = GetContext();
+    if (!script_context)
+        return;
+
+    // -- this must be threadsafe - only ProcessThreadCommands should ever lead to this function
+    script_context->SetBreakActionStep(true);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// DebuggerBreakStep():  When execution is halted from hitting a breakpoint, continue running
+// --------------------------------------------------------------------------------------------------------------------
+void DebuggerBreakRun()
+{
+    // -- ensure we have a script context
+    CScriptContext* script_context = GetContext();
+    if (!script_context)
+        return;
+
+    // -- this must be threadsafe - only ProcessThreadCommands should ever lead to this function
+    script_context->SetBreakActionRun(true);
+}
+
+// -------------------------------------------------------------------------------------------------------------------
+// -- Registration
+REGISTER_FUNCTION_P1(DebuggerSetConnected, DebuggerSetConnected, void, bool8);
+REGISTER_FUNCTION_P2(DebuggerAddBreakpoint, DebuggerAddBreakpoint, void, const char*, int32);
+REGISTER_FUNCTION_P2(DebuggerRemoveBreakpoint, DebuggerRemoveBreakpoint, void, const char*, int32);
+REGISTER_FUNCTION_P1(DebuggerRemoveAllBreakpoints, DebuggerRemoveAllBreakpoints, void, const char*);
+
+REGISTER_FUNCTION_P0(DebuggerBreakStep, DebuggerBreakStep, void);
+REGISTER_FUNCTION_P0(DebuggerBreakRun, DebuggerBreakRun, void);
+
 // == class CThreadMutex ==============================================================================================
+// -- CThreadMutex is only functional in WIN32
 
 // ====================================================================================================================
 // Constructor
 // ====================================================================================================================
 CThreadMutex::CThreadMutex()
 {
-    mThreadMutex = CreateMutex(NULL, false, NULL);
+    #ifdef WIN32
+        mThreadMutex = CreateMutex(NULL, false, NULL);
+    #endif
 }
 
 // ====================================================================================================================
@@ -1078,7 +1255,9 @@ CThreadMutex::CThreadMutex()
 // ====================================================================================================================
 void CThreadMutex::Lock()
 {
-    WaitForSingleObject(mThreadMutex, INFINITE);
+    #ifdef WIN32
+        WaitForSingleObject(mThreadMutex, INFINITE);
+    #endif
 }
 
 // ====================================================================================================================
@@ -1086,10 +1265,10 @@ void CThreadMutex::Lock()
 // ====================================================================================================================
 void CThreadMutex::Unlock()
 {
-    ReleaseMutex(mThreadMutex);
+    #ifdef WIN32
+        ReleaseMutex(mThreadMutex);
+    #endif
 }
-
-#endif  // WIN32
 
 } // TinScript
 

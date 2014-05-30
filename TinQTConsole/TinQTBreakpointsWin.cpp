@@ -130,7 +130,8 @@ void CDebugBreakpointsWin::ToggleBreakpoint(uint32 codeblock_hash, int32 line_nu
     }
 }
 
-void CDebugBreakpointsWin::NotifyCodeblockLoaded(uint32 codeblock_hash) {
+void CDebugBreakpointsWin::NotifyCodeblockLoaded(uint32 codeblock_hash)
+{
     // -- get the file name
     const char* filename = TinScript::UnHash(codeblock_hash);
 
@@ -142,11 +143,14 @@ void CDebugBreakpointsWin::NotifyCodeblockLoaded(uint32 codeblock_hash) {
             int actual_line = breakpoint->mLineNumber;
 
             // -- notify the script context to add a breakpoint (and adjust the line number if needed)
+            // $$$TZA AddBreakpoint
+            /*
             if(breakpoint_enabled) {
                 actual_line = TinScript::GetContext()->AddBreakpoint(filename, breakpoint->mLineNumber);
                 if(actual_line < 0)
                     actual_line = breakpoint->mLineNumber;
             }
+            */
 
             // -- if we did adjust the line number, update this breakpoint to reflect it
             if(actual_line != breakpoint->mLineNumber)
@@ -160,7 +164,8 @@ void CDebugBreakpointsWin::NotifyCodeblockLoaded(uint32 codeblock_hash) {
 }
 
 // ------------------------------------------------------------------------------------------------
-void CDebugBreakpointsWin::NotifySourceFile(uint32 filehash) {
+void CDebugBreakpointsWin::NotifySourceFile(uint32 filehash)
+{
     // -- loop through all the existing breakpoints, and set the breakpoints
     for(int i = 0; i < mBreakpoints.size(); ++i) {
         CBreakpointEntry* breakpoint = mBreakpoints.at(i);

@@ -1650,9 +1650,11 @@ int32 CCodeBlock::AdjustLineNumber(int32 line_number) {
         return (0);
 
     // -- ensure the line number we're attempting to set, is one that will actually execute
-    for(uint32 i = 0; i < mLineNumberCount; ++i) {
+    for (uint32 i = 0; i < mLineNumberCount; ++i)
+    {
         int32 instr_line_number = mLineNumbers[i] & 0xffff;
-        if(instr_line_number != 0xffff && instr_line_number >= line_number) {
+        if (instr_line_number != 0xffff && instr_line_number >= line_number)
+        {
             return (mLineNumbers[i] & 0xffff);
         }
     }

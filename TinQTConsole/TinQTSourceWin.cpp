@@ -93,6 +93,9 @@ CDebugSourceWin::CDebugSourceWin(CConsoleWindow* owner) : QListWidget() {
     mOwner = owner;
     mCurrentCodeblockHash = 0;
     mCurrentLineNumber = -1;
+
+    // -- initalize the debugger directory
+    mDebuggerDir[0] = '\0';
 }
 
 CDebugSourceWin::~CDebugSourceWin() {
@@ -105,6 +108,35 @@ CDebugSourceWin::~CDebugSourceWin() {
     }
 }
 
+void CDebugSourceWin::NotifyCurrentDir(const char* cwd)
+{
+    if (!cwd)
+        cwd = "./";
+
+    // -- get the length - ensure we don't copy some randomly long directory
+    int length = strlen(cwd);
+    if (length >= kMaxArgLength - 2)
+    {
+        mDebuggerDir[0] = '\0';
+        return;
+    }
+
+    // -- copy the cwd
+    strcpy_s(mDebuggerDir, cwd);
+
+    // -- ensure the directory ends in a '/'
+    if (mDebuggerDir[length - 1] != '/' && mDebuggerDir[length - 1] != '\\')
+    {
+        mDebuggerDir[length] = '/';
+        mDebuggerDir[length + 1] = '\0';
+    }
+
+    // -- because communication is remote, we must be sure our string table is up to date with our target's
+    char remoteStringTableName[256];
+    sprintf_s(remoteStringTableName, "%s%s", mDebuggerDir, TinScript::GetStringTableName());
+    TinScript::LoadStringTable(remoteStringTableName);
+}
+
 bool CDebugSourceWin::OpenSourceFile(const char* filename, bool reload) {
     // -- sanity check
     if(!filename || !filename[0])
@@ -112,11 +144,18 @@ bool CDebugSourceWin::OpenSourceFile(const char* filename, bool reload) {
 
     // -- see if we actually need to reload this file
     uint32 filehash = TinScript::Hash(filename);
-    if(filehash == mCurrentCodeblockHash && !reload)
+    if (filehash == mCurrentCodeblockHash && !reload)
         return (true);
 
-    char* filebuf = ReadFileAllocBuf(filename);
-    if(filebuf) {
+    // -- create the full path
+    char fullPath[kMaxArgLength];
+    int length = sprintf_s(fullPath, "%s%s", mDebuggerDir, filename);
+    if (length >= kMaxArgLength)
+        return (false);
+
+    char* filebuf = ReadFileAllocBuf(fullPath);
+    if (filebuf)
+    {
         // -- set the file line edit
         CConsoleWindow::GetInstance()->GetFileLineEdit()->setText(filename);
 
@@ -134,7 +173,8 @@ bool CDebugSourceWin::OpenSourceFile(const char* filename, bool reload) {
         // --read each line of the document, and add it to the 
         char* filebufptr = filebuf;
         char* eol = strchr(filebufptr, '\n');
-        while(eol) {
+        while(eol)
+        {
             *eol = '\0';
 
             // -- Handle the breakpoint icon as "B  " (3 chars) , and the PC as a "--> " (4 chars)
@@ -260,7 +300,8 @@ void CDebugSourceWin::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number,
     actual_source_line->mBreakpointSet = add;
 }
 
-void CDebugSourceWin::NotifyCodeblockLoaded(uint32 codeblock_hash) {
+void CDebugSourceWin::NotifyCodeblockLoaded(uint32 codeblock_hash)
+{
     // -- do nothing if we've already got a file open,
     // -- unless we're reloading the current file
     if(mCurrentCodeblockHash != 0 && mCurrentCodeblockHash != codeblock_hash)
@@ -268,6 +309,24 @@ void CDebugSourceWin::NotifyCodeblockLoaded(uint32 codeblock_hash) {
 
     // -- get the file name, and open the file
     const char* filename = TinScript::UnHash(codeblock_hash);
+    OpenSourceFile(filename, true);
+}
+
+void CDebugSourceWin::NotifyCodeblockLoaded(const char* filename)
+{
+    // -- sanity check
+    if (!filename || !filename[0])
+        return;
+
+    // -- get the codeblock_hash
+    uint32 codeblock_hash = TinScript::Hash(filename);
+
+    // -- do nothing if we've already got a file open,
+    // -- unless we're reloading the current file
+    if (mCurrentCodeblockHash != 0 && mCurrentCodeblockHash != codeblock_hash)
+        return;
+
+    // -- open the file
     OpenSourceFile(filename, true);
 }
 
