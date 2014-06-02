@@ -44,8 +44,9 @@ void CBreakpointCheck::OnCheckBoxClicked() {
 }
 
 // ------------------------------------------------------------------------------------------------
-CBreakpointEntry::CBreakpointEntry(uint32 codeblock_hash, int line_number, const char* label,
-                                   QListWidget* owner) : QListWidgetItem(label, owner) {
+CBreakpointEntry::CBreakpointEntry(uint32 codeblock_hash, int line_number, QListWidget* owner)
+    : QListWidgetItem("", owner)
+{
     mCodeblockHash = codeblock_hash;
     mLineNumber = line_number;
 
@@ -63,6 +64,24 @@ CBreakpointEntry::CBreakpointEntry(uint32 codeblock_hash, int line_number, const
 
 CBreakpointEntry::~CBreakpointEntry() {
 }
+
+void CBreakpointEntry::UpdateLabel(uint32 codeblock_hash, int32 line_number)
+{
+    char linebuf[256];
+    char spaces[6] = "     ";
+    int space_count = line_number >= 1e5 ? 0 :
+                        line_number >= 1e4 ? 1 :
+                        line_number >= 1e3 ? 2 :
+                        line_number >= 1e2 ? 3 :
+                        line_number >= 1e1 ? 4 : 5;
+    spaces[space_count] = '\0';
+                                               
+    sprintf_s(linebuf, 256, "%s : %s%d", TinScript::UnHash(codeblock_hash), spaces, line_number);
+
+    // -- set the text in the QWidget
+    setText(linebuf);
+}
+
 
 void CDebugBreakpointsWin::OnClicked(QListWidgetItem* item) {
     CBreakpointEntry* breakpoint = static_cast<CBreakpointEntry*>(item);
@@ -108,17 +127,8 @@ void CDebugBreakpointsWin::ToggleBreakpoint(uint32 codeblock_hash, int32 line_nu
 
     // -- not found - create it
     if(add && !breakpoint) {
-        char linebuf[256];
-        char spaces[6] = "     ";
-        int space_count = line_number >= 1e5 ? 0 :
-                          line_number >= 1e4 ? 1 :
-                          line_number >= 1e3 ? 2 :
-                          line_number >= 1e2 ? 3 :
-                          line_number >= 1e1 ? 4 : 5;
-        spaces[space_count] = '\0';
-                                               
-        sprintf_s(linebuf, 256, "%s : %s%d", TinScript::UnHash(codeblock_hash), spaces, line_number);
-        breakpoint = new CBreakpointEntry(codeblock_hash, line_number, linebuf, this);
+        breakpoint = new CBreakpointEntry(codeblock_hash, line_number, this);
+        breakpoint->UpdateLabel(codeblock_hash, line_number);
         mBreakpoints.append(breakpoint);
         sortItems();
     }
@@ -136,29 +146,86 @@ void CDebugBreakpointsWin::NotifyCodeblockLoaded(uint32 codeblock_hash)
     const char* filename = TinScript::UnHash(codeblock_hash);
 
     // -- loop through all the existing breakpoints, and set the breakpoints
-    for(int i = 0; i < mBreakpoints.size(); ++i) {
+    for (int i = 0; i < mBreakpoints.size(); ++i)
+    {
         CBreakpointEntry* breakpoint = mBreakpoints.at(i);
-        if(breakpoint->mCodeblockHash == codeblock_hash) {
+        if (breakpoint->mCodeblockHash == codeblock_hash)
+        {
+            // -- see if the breakpoint is enabled
             bool breakpoint_enabled = breakpoint->checkState() == Qt::Checked;
-            int actual_line = breakpoint->mLineNumber;
-
-            // -- notify the script context to add a breakpoint (and adjust the line number if needed)
-            // $$$TZA AddBreakpoint
-            /*
-            if(breakpoint_enabled) {
-                actual_line = TinScript::GetContext()->AddBreakpoint(filename, breakpoint->mLineNumber);
-                if(actual_line < 0)
-                    actual_line = breakpoint->mLineNumber;
-            }
-            */
-
-            // -- if we did adjust the line number, update this breakpoint to reflect it
-            if(actual_line != breakpoint->mLineNumber)
-                breakpoint->mLineNumber = actual_line;
 
             // -- notify the source window
-            CConsoleWindow::GetInstance()->GetDebugSourceWin()->
-                ToggleBreakpoint(codeblock_hash, actual_line, true, breakpoint_enabled);
+            CConsoleWindow::GetInstance()->GetDebugSourceWin()->ToggleBreakpoint(codeblock_hash,
+                                                                                 breakpoint->mLineNumber, true,
+                                                                                 breakpoint_enabled);
+
+            // -- also notify the target, if the breakpoint is enabled
+            if (breakpoint_enabled)
+            {
+                SocketManager::SendCommandf("DebuggerAddBreakpoint('%s', %d);", filename, breakpoint->mLineNumber);
+            }
+        }
+    }
+}
+
+// ====================================================================================================================
+// NotifyConfirmBreakpoint():  Notification of the actual breakable line for a requested breakpoint
+// ====================================================================================================================
+void CDebugBreakpointsWin::NotifyConfirmBreakpoint(uint32 codeblock_hash, int32 line_number, int32 actual_line)
+{
+    // -- ensure the numbers are different
+    if (line_number == actual_line)
+        return;
+
+    int foundIndex = -1;
+    CBreakpointEntry* found = NULL;
+    CBreakpointEntry* alreadyExists = NULL;
+    for (int i = 0; i < mBreakpoints.size(); ++i)
+    {
+        CBreakpointEntry* breakpoint = mBreakpoints.at(i);
+        if (breakpoint->mCodeblockHash == codeblock_hash)
+        {
+            if (breakpoint->mLineNumber == line_number)
+            {
+                found = breakpoint;
+                foundIndex = i;
+            }
+
+            if (breakpoint->mLineNumber == actual_line)
+                alreadyExists = breakpoint;
+        }
+    }
+
+    // -- if we found our breakpoint, and one doesn't already exist, simply update the line
+    if (found)
+    {
+        // -- clear the breakpoint from the old line
+        CConsoleWindow::GetInstance()->GetDebugSourceWin()->ToggleBreakpoint(codeblock_hash, line_number,
+                                                                             false, false);
+
+        bool old_enabled = found->checkState() == Qt::Checked;
+        if (!alreadyExists)
+        {
+            found->mLineNumber = actual_line;
+            found->UpdateLabel(codeblock_hash, actual_line);
+
+            // -- update the source window with the new breakpoint location
+            CConsoleWindow::GetInstance()->GetDebugSourceWin()->ToggleBreakpoint(codeblock_hash, actual_line,
+                                                                                 true, old_enabled);
+        }
+
+        // -- otherwise they both exist - simply delete the invalid breakpoint
+        else
+        {
+            bool new_enabled = alreadyExists->checkState() == Qt::Checked;
+
+            CBreakpointEntry* temp = mBreakpoints.at(foundIndex);
+            mBreakpoints.removeAt(foundIndex);
+            delete temp;
+
+            // -- update the source window with the new breakpoint location - if either was enabled, choose enabled
+            CConsoleWindow::GetInstance()->GetDebugSourceWin()->ToggleBreakpoint(codeblock_hash, actual_line,
+                                                                                 true, old_enabled || new_enabled);
         }
     }
 }
@@ -167,19 +234,35 @@ void CDebugBreakpointsWin::NotifyCodeblockLoaded(uint32 codeblock_hash)
 void CDebugBreakpointsWin::NotifySourceFile(uint32 filehash)
 {
     // -- loop through all the existing breakpoints, and set the breakpoints
-    for(int i = 0; i < mBreakpoints.size(); ++i) {
+    for (int i = 0; i < mBreakpoints.size(); ++i)
+    {
         CBreakpointEntry* breakpoint = mBreakpoints.at(i);
-        if(breakpoint->mCodeblockHash == filehash) {
-            bool breakpoint_enabled = breakpoint->checkState() == Qt::Checked;
-            int actual_line = breakpoint->mLineNumber;
-
-            // -- if we did adjust the line number, update this breakpoint to reflect it
-            if(actual_line != breakpoint->mLineNumber)
-                breakpoint->mLineNumber = actual_line;
-
+        if (breakpoint->mCodeblockHash == filehash)
+        {
             // -- notify the source window
-            CConsoleWindow::GetInstance()->GetDebugSourceWin()->
-                ToggleBreakpoint(filehash, breakpoint->mLineNumber, true, breakpoint_enabled);
+            bool breakpoint_enabled = breakpoint->checkState() == Qt::Checked;
+            CConsoleWindow::GetInstance()->GetDebugSourceWin()->ToggleBreakpoint(filehash, breakpoint->mLineNumber,
+                                                                                 true, breakpoint_enabled);
+        }
+    }
+}
+
+// ====================================================================================================================
+// NotifyOnConnect():  Called when the debugger is re-attached, to resend all active breakpoints
+// ====================================================================================================================
+void CDebugBreakpointsWin::NotifyOnConnect()
+{
+    // -- we want to re-broadcast all active breakpoints, upon reconnection
+    for (int i = 0; i < mBreakpoints.size(); ++i)
+    {
+        CBreakpointEntry* breakpoint = mBreakpoints.at(i);
+        bool breakpoint_enabled = breakpoint->checkState() == Qt::Checked;
+
+        // -- resend the breakpoint, if it's enabled
+        if (breakpoint_enabled)
+        {
+            const char* filename = TinScript::UnHash(breakpoint->mCodeblockHash);
+            SocketManager::SendCommandf("DebuggerAddBreakpoint('%s', %d);", filename, breakpoint->mLineNumber);
         }
     }
 }

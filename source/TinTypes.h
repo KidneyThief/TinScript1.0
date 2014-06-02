@@ -212,7 +212,8 @@ struct sHashVar {
 // -- 4x words actually, 16x bytes, the size of a HashVar
 #define MAX_TYPE_SIZE 4
 
-enum eVarType {
+enum eVarType : int16
+{
 	#define VarTypeEntry(a, b, c, d, e, f) TYPE_##a,
 	VarTypeTuple
 	#undef VarTypeEntry

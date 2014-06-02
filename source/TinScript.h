@@ -317,9 +317,14 @@ class CScriptContext {
         bool8 mDebuggerActionRun;
 
         // -- communication with the debugger
+        void DebuggerCurrentWorkingDir(const char* cwd);
+        void DebuggerCodeblockLoaded(uint32 codeblock_hash);
+        void DebuggerBreakpointHit(uint32 codeblock_hash, int32 line_number);
+        void DebuggerBreakpointConfirm(uint32 codeblock_hash, int32 line_number, int32 actual_line_number);
         void DebuggerSendCallstack(uint32* codeblock_array, uint32* objid_array,
                                    uint32* namespace_array,uint32* func_array,
                                    uint32* linenumber_array, int array_size);
+        void DebuggerSendWatchVariable(CDebuggerWatchVarEntry* watch_var_entry);
 
         // -- Thread commands are only supported in WIN32
         #ifdef WIN32

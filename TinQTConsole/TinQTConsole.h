@@ -115,7 +115,16 @@ class CConsoleWindow {
         // -- debugger methods
         void ToggleBreakpoint(uint32 codeblock_hash, int32 line_number, bool add, bool enable);
 
+        // -- notify breakpoint hit - allows the next update to execute the HandleBreakpointHit()
+        // -- keeps the threads separate
+        void NotifyBreakpointHit(uint32 codeblock_hash, int32 line_number);
+        bool HasBreakpoint(uint32& codeblock_hash, int32& line_number);
         void HandleBreakpointHit(const char* breakpoint_msg);
+
+        // -- breakpoint members
+        bool mBreakpointHit;
+        uint32 mBreakpointCodeblockHash;
+        int32 mBreakpointLinenumber;
         bool mBreakpointRun;
         bool mBreakpointStep;
 
@@ -180,13 +189,24 @@ class CConsoleOutput : public QListWidget {
         static const unsigned int kUpdateTime = 33;
         int32 GetSimTime() { return (mCurrentTime); }
 
-    public slots:
-        void Update();
-
         // -- these methods queue and process data packets, received from the socket
         // -- both must be thread safe
         void ReceiveDataPacket(SocketManager::tDataPacket* packet);
         void ProcessDataPackets();
+
+        // -- handlers for the data packet
+        void HandlePacketCurrentWorkingDir(int32* dataPtr);
+        void HandlePacketCodeblockLoaded(int32* dataPtr);
+        void HandlePacketBreakpointConfirm(int32* dataPtr);
+        void HandlePacketBreakpointHit(int32* dataPtr);
+        void HandlePacketCallstack(int32* dataPtr);
+        void HandlePacketWatchVarEntry(int32* dataPtr);
+
+        // -- called while handling a breakpoint, to ensure we still get to update our own context
+        void DebuggerUpdate();
+
+    public slots:
+        void Update();
 
     private:
         // -- the console output handles the current time, and timer events to call Update()

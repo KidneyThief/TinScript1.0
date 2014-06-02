@@ -188,6 +188,14 @@ CConsoleWindow::CConsoleWindow() {
     mMainWindow->setLayout(mGridLayout);
     mMainWindow->show();
 
+    // -- initialize the breakpoint members
+    mBreakpointHit = false;
+    mBreakpointCodeblockHash = 0;
+    mBreakpointLinenumber = -1;
+
+    mBreakpointRun = false;
+    mBreakpointStep = false;
+
     // -- initialize the running members
     mQuit = false;
     mPaused = false;
@@ -304,12 +312,15 @@ void CConsoleWindow::NotifyOnConnect()
 
     // -- send the text command to identify this connection as for a debugger
     SocketManager::SendCommand("DebuggerSetConnected(true);");
+
+    // -- resend our list of breakpoints
+    GetDebugBreakpointsWin()->NotifyOnConnect();
 }
 
 void CConsoleWindow::NotifyOnDisconnect()
 {
     // -- set the bool
-    mIsConnected = true;
+    mIsConnected = false;
 
     // -- set the connect button color and text
     mButtonConnect->setAutoFillBackground(true);
@@ -348,9 +359,43 @@ void CConsoleWindow::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number,
     GetDebugBreakpointsWin()->ToggleBreakpoint(codeblock_hash, line_number, add, enable);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// NotifyBreakpointHit():  A breakpoint hit was found during processing of the data packets
+// ====================================================================================================================
+void CConsoleWindow::NotifyBreakpointHit(uint32 codeblock_hash, int32 line_number)
+{
+    // -- set the bool
+    mBreakpointHit = true;
+
+    // -- cache the breakpoint details
+    mBreakpointCodeblockHash = codeblock_hash;
+    mBreakpointLinenumber = line_number;
+}
+
+// ====================================================================================================================
+// HasBreakpoint():  Returns true, if a breakpoint hit is pending, along with the specific codeblock / line number
+// ====================================================================================================================
+bool CConsoleWindow::HasBreakpoint(uint32& codeblock_hash, int32& line_number)
+{
+    // -- no breakpoint - return false
+    if (!mBreakpointHit)
+        return (false);
+
+    // -- fill in the details
+    codeblock_hash = mBreakpointCodeblockHash;
+    line_number = mBreakpointLinenumber;
+
+    // -- we have a pending breakpoint
+    return (true);
+}
+
+// ====================================================================================================================
+// HandleBreakpointHit():  Enters a loop processing events, until "run" or "step" are pressed by the user
+// ====================================================================================================================
 void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg)
 {
+    // -- clear the flag, and initialize the action bools
+    mBreakpointHit = false;
     mBreakpointRun = false;
     mBreakpointStep = false;
 
@@ -360,9 +405,12 @@ void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg)
 	myPalette.setColor(QPalette::Button, Qt::red);	
 	mButtonRun->setPalette(myPalette);
 
-    while (mIsConnected && !mBreakpointRun && !mBreakpointStep)
+    while (SocketManager::IsConnected() && !mBreakpointRun && !mBreakpointStep)
     {
         QCoreApplication::processEvents();
+
+        // -- update our own environment, especially receiving data packetes
+        GetOutput()->DebuggerUpdate();
     }
 
     // -- back to normal color
@@ -408,6 +456,17 @@ void DebuggerBreakpointHit(int32 codeblock_hash, int32 line_number)
     }
 }
 
+
+// ====================================================================================================================
+// DebuggerConfirmBreakpoint():  Corrects the requested breakpoint to the actual breakable line
+// ====================================================================================================================
+void DebuggerConfirmBreakpoint(int32 filename_hash, int32 line_number, int32 actual_line)
+{
+    // -- notify the breakpoints window
+    CConsoleWindow::GetInstance()->GetDebugBreakpointsWin()->NotifyConfirmBreakpoint(filename_hash, line_number,
+                                                                                     actual_line);
+}
+
 // ====================================================================================================================
 // DebuggerNotifyCallstack():  Called directly from the SocketManager registered RecvPacket function
 // ====================================================================================================================
@@ -420,6 +479,9 @@ void DebuggerNotifyCallstack(uint32* codeblock_array, uint32* objid_array, uint3
     CConsoleWindow::GetInstance()->GetDebugWatchWin()->ClearWatchWin();
 }
 
+// ====================================================================================================================
+// NotifyCodeblockLoaded():  Called by the executable when a new codeblock is added, allowing breakpoints, etc...
+// ====================================================================================================================
 void NotifyCodeblockLoaded(const char* filename)
 {
     CConsoleWindow::GetInstance()->GetDebugSourceWin()->NotifyCodeblockLoaded(filename);
@@ -429,13 +491,19 @@ void NotifyCodeblockLoaded(const char* filename)
     CConsoleWindow::GetInstance()->GetDebugBreakpointsWin()->NotifyCodeblockLoaded(codeblock_hash);
 }
 
+// ====================================================================================================================
+// NotifyCodeblockLoaded():  Called upon connection, so looking for file source text matches the target
+// ====================================================================================================================
 void NotifyCurrentDir(const char* cwd)
 {
     CConsoleWindow::GetInstance()->GetDebugSourceWin()->NotifyCurrentDir(cwd);
 }
 
-
-void NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry) {
+// ====================================================================================================================
+// NotifyWatchVarEntry():  Called when a variable is being watched (e.g. autos, during a breakpoint)
+// ====================================================================================================================
+void NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry)
+{
     CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyWatchVarEntry(watch_var_entry);
 }
         
@@ -650,6 +718,17 @@ void CConsoleOutput::Update()
     // -- process the received packets
     ProcessDataPackets();
 
+    // -- see if we have a breakpoint
+    uint32 codeblock_hash = 0;
+    int32 line_number = -1;
+    bool hasBreakpoint = CConsoleWindow::GetInstance()->HasBreakpoint(codeblock_hash, line_number); 
+    
+    // -- this will notify all required windows, and loop until the the breakpoint has been handled
+    if (hasBreakpoint)
+    {
+        DebuggerBreakpointHit(codeblock_hash, line_number);
+    }
+
     // -- if we're not paused, update TinScript
     if (!mOwner->IsPaused())
     {
@@ -662,6 +741,16 @@ void CConsoleOutput::Update()
     {
         QApplication::closeAllWindows();
     }
+}
+
+// ====================================================================================================================
+// DebuggerUpdate():  An abbreviated update to keep us alive while we're handing a breakpoint
+// ====================================================================================================================
+void CConsoleOutput::DebuggerUpdate()
+{
+    // -- process the received packets
+    ProcessDataPackets();
+    //TinScript::UpdateContext(mCurrentTime);
 }
 
 // ====================================================================================================================
@@ -702,38 +791,38 @@ void CConsoleOutput::ProcessDataPackets()
         // -- see what type of data packet we received
         int32* dataPtr = (int32*)packet->mData;
     
-        // -- write the "callstack" identifier - defined in the USER CONSTANTS at the top of socket.h
-        int32 dataType = *dataPtr++;
+        // -- get the ID of the packet, as defined in the USER CONSTANTS at the top of socket.h
+        int32 dataType = *dataPtr;
 
-        // -- if the data packet is a DebuggerCallstack, the format had better match CScriptContext::DebuggerSendCallstack
-        if (dataType == k_DebuggerCallstackPacketID)
+        // -- see if we have a handler for this packet
+        switch (dataType)
         {
-            // -- get the array size
-            int32 array_size = *dataPtr++;
+            case k_DebuggerCurrentWorkingDirPacketID:
+                HandlePacketCurrentWorkingDir(dataPtr);
+                break;
 
-            // -- get the codeblock array
-            uint32* codeblock_array = (uint32*)dataPtr;
-            dataPtr += array_size;
+            case k_DebuggerCodeblockLoadedPacketID:
+                HandlePacketCodeblockLoaded(dataPtr);
+                break;
 
-            // -- get the objectID array
-            uint32* objid_array = (uint32*)dataPtr;
-            dataPtr += array_size;
+            case k_DebuggerBreakpointHitPacketID:
+                HandlePacketBreakpointHit(dataPtr);
+                break;
 
-            // -- get the namespace array
-            uint32* namespace_array = (uint32*)dataPtr;
-            dataPtr += array_size;
+            case k_DebuggerBreakpointConfirmPacketID:
+                HandlePacketBreakpointConfirm(dataPtr);
+                break;
 
-            // -- get the function ID array
-            uint32* func_array = (uint32*)dataPtr;
-            dataPtr += array_size;
+            case k_DebuggerCallstackPacketID:
+                HandlePacketCallstack(dataPtr);
+                break;
 
-            // -- get the line numbers array
-            uint32* linenumber_array = (uint32*)dataPtr;
-            dataPtr += array_size;
+            case k_DebuggerWatchVarEntryPacketID:
+                HandlePacketWatchVarEntry(dataPtr);
+                break;
 
-            // -- now send the info to the debugger
-            DebuggerNotifyCallstack(codeblock_array, objid_array, namespace_array, func_array, linenumber_array,
-                                    array_size);
+            default:
+                break;
         }
 
         // -- the callback is required to manage the packet memory itself
@@ -743,7 +832,154 @@ void CConsoleOutput::ProcessDataPackets()
     // -- unlock the thread
     mThreadLock.Unlock();
 }
+// ====================================================================================================================
+// HandlePacketCurrentWorkingDir():  A callback handler for a packet of type "current working directory"
+// ====================================================================================================================
+void CConsoleOutput::HandlePacketCurrentWorkingDir(int32* dataPtr)
+{
+    // -- skip past the packet ID
+    ++dataPtr;
 
+    // -- notification is of the filename, as the codeblock hash may not yet be in the dictionary
+    const char* cwd = (const char*)dataPtr;
+
+    // -- notify the debugger
+    NotifyCurrentDir(cwd);
+}
+
+// ====================================================================================================================
+// HandlePacketCodeblockLoaded():  A callback handler for a packet of type "codeblock loaded"
+// ====================================================================================================================
+void CConsoleOutput::HandlePacketCodeblockLoaded(int32* dataPtr)
+{
+    // -- skip past the packet ID
+    ++dataPtr;
+
+    // -- notification is of the filename, as the codeblock hash may not yet be in the dictionary
+    const char* filename = (const char*)dataPtr;
+
+    // -- notify the debugger
+    NotifyCodeblockLoaded(filename);
+}
+
+// ====================================================================================================================
+// HandlePacketBreakpointHit():  A callback handler for a packet of type "breakpoint hit"
+// ====================================================================================================================
+void CConsoleOutput::HandlePacketBreakpointHit(int32* dataPtr)
+{
+    // -- skip past the packet ID
+    ++dataPtr;
+
+    // -- get the codeblock has
+    uint32 codeblock_hash = *dataPtr++;
+
+    // -- get the line number
+    int32 line_number = *dataPtr++;
+
+    // -- notify the debugger
+    CConsoleWindow::GetInstance()->NotifyBreakpointHit(codeblock_hash, line_number);
+}
+
+// ====================================================================================================================
+// HandlePacketBreakpointConfirm():  A callback handler for a packet of type "breakpoint confirm"
+// ====================================================================================================================
+void CConsoleOutput::HandlePacketBreakpointConfirm(int32* dataPtr)
+{
+    // -- skip past the packet ID
+    ++dataPtr;
+
+    // -- get the codeblock has
+    uint32 codeblock_hash = *dataPtr++;
+
+    // -- get the line number
+    int32 line_number = *dataPtr++;
+
+    // -- get the correctedline number
+    int32 actual_line = *dataPtr++;
+
+    // -- notifiy the debugger
+    DebuggerConfirmBreakpoint(codeblock_hash, line_number, actual_line);
+}
+
+// ====================================================================================================================
+// HandlePacketCallstack():  A callback handler for a packet of type "callstack"
+// ====================================================================================================================
+void CConsoleOutput::HandlePacketCallstack(int32* dataPtr)
+{
+    // -- skip past the packet ID
+    ++dataPtr;
+
+    // -- get the array size
+    int32 array_size = *dataPtr++;
+
+    // -- get the codeblock array
+    uint32* codeblock_array = (uint32*)dataPtr;
+    dataPtr += array_size;
+
+    // -- get the objectID array
+    uint32* objid_array = (uint32*)dataPtr;
+    dataPtr += array_size;
+
+    // -- get the namespace array
+    uint32* namespace_array = (uint32*)dataPtr;
+    dataPtr += array_size;
+
+    // -- get the function ID array
+    uint32* func_array = (uint32*)dataPtr;
+    dataPtr += array_size;
+
+    // -- get the line numbers array
+    uint32* linenumber_array = (uint32*)dataPtr;
+    dataPtr += array_size;
+
+    // -- notify the debugger
+    DebuggerNotifyCallstack(codeblock_array, objid_array, namespace_array, func_array, linenumber_array, array_size);
+}
+
+// ====================================================================================================================
+// HandlePacketWatchVarEntry():  A handler for packet type "watch var entry"
+// ====================================================================================================================
+void CConsoleOutput::HandlePacketWatchVarEntry(int32* dataPtr)
+{
+    // -- skip past the packet ID
+    ++dataPtr;
+
+    // -- reconstitute the stuct
+    TinScript::CDebuggerWatchVarEntry watch_var_entry;
+
+    // -- stack index
+    watch_var_entry.mStackIndex = *dataPtr++;
+
+    // -- is namespace>
+    watch_var_entry.mIsNamespace = *dataPtr++ == 1 ? true : false;
+
+    // -- is member?
+    watch_var_entry.mIsMember = *dataPtr++ == 1 ? true : false;
+
+    // -- var type
+    watch_var_entry.mType = (TinScript::eVarType)(*dataPtr++);
+
+    // -- name string length
+    int32 name_str_length = *dataPtr++;
+
+    // -- copy the name string
+    strcpy_s(watch_var_entry.mName, (const char*)dataPtr);
+    dataPtr += (name_str_length / 4);
+
+    // -- value string length
+    int32 value_str_length = *dataPtr++;
+
+    // -- copy the value string
+    strcpy_s(watch_var_entry.mValue, (const char*)dataPtr);
+    dataPtr += (value_str_length / 4);
+
+    // -- notify the debugger
+    CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyWatchVarEntry(&watch_var_entry);
+}
+
+// ====================================================================================================================
+// PushAssertDialog():  Handler for a ScriptAssert_(), returns ignore/trace/break input
+// ====================================================================================================================
 bool PushAssertDialog(const char* assertmsg, const char* errormsg, bool& skip, bool& trace) {
     QMessageBox msgBox;
 
@@ -788,7 +1024,7 @@ static void DebuggerRecvDataCallback(SocketManager::tDataPacket* packet)
     CConsoleWindow::GetInstance()->GetOutput()->ReceiveDataPacket(packet);
 }
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 int _tmain(int argc, _TCHAR* argv[])
 {
     // -- required to ensure registered functions from unittest.cpp are linked.
@@ -818,7 +1054,7 @@ int _tmain(int argc, _TCHAR* argv[])
     return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 void Quit() {
     CConsoleWindow::GetInstance()->Quit();
 }
@@ -843,16 +1079,9 @@ REGISTER_FUNCTION_P0(Unpause, Unpause, void);
 
 REGISTER_FUNCTION_P0(GetSimTime, GetSimTime, float32);
 
-// ------------------------------------------------------------------------------------------------
-// Debugger Registration - because it comes remotely, we need global wrappers to find the objects
-REGISTER_FUNCTION_P1(DebuggerCurrentDir, NotifyCurrentDir, void, const char*);
-REGISTER_FUNCTION_P1(DebuggerOpenFile, NotifyCodeblockLoaded, void, const char*);
-REGISTER_FUNCTION_P2(DebuggerBreakpointHit, DebuggerBreakpointHit, void, int32, int32);
-
-
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 #include "TinQTConsoleMoc.cpp"
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // eof
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------

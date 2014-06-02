@@ -786,7 +786,7 @@ bool8 CScriptContext::ExecScript(const char* filename) {
     // -- notify the debugger, if one is connected
     if (codeblock && mDebuggerConnected)
     {
-        SocketManager::SendCommandf("DebuggerOpenFile('%s');", UnHash(codeblock->GetFilenameHash()));
+        DebuggerCodeblockLoaded(codeblock->GetFilenameHash());
     }
 
     // -- execute the codeblock
@@ -915,11 +915,22 @@ void CScriptContext::SetDebuggerConnected(bool connected)
         }
 
         // -- send the command
-        SocketManager::SendCommandf("DebuggerCurrentDir('%s');", cwdBuffer);
+        DebuggerCurrentWorkingDir(cwdBuffer);
 
         // -- if we successfully got the current working directory, we need to free the buffer
         if (!error)
             delete [] cwdBuffer;
+    }
+
+    // -- if we're not connected, we need to delete all breakpoints - they'll be re-added upon reconnection
+    else
+    {
+        CCodeBlock* code_block = GetCodeBlockList()->First();
+        while (code_block)
+        {
+            code_block->RemoveAllBreakpoints();
+            code_block = GetCodeBlockList()->Next();
+        }
     }
 }
 
@@ -940,9 +951,11 @@ void CScriptContext::AddBreakpoint(const char* filename, int32 line_number)
 
     // -- add the breakpoint
     int32 actual_line = code_block->AddBreakpoint(line_number);
+
+    // -- if the actual breakable line doesn't match the request, notify the debugger
     if (actual_line != line_number)
     {
-        SocketManager::SendCommandf("DebuggerConfirmBreakpoint(%d, %d, %d);", filename_hash, line_number, actual_line);
+        DebuggerBreakpointConfirm(filename_hash, line_number, actual_line);
     }
 }
 
@@ -961,11 +974,13 @@ void CScriptContext::RemoveBreakpoint(const char* filename, int32 line_number)
     if (! code_block)
         return;
 
-    // -- notify the debugger, if the given line number isn't the actual line
+    // -- remove the breakpoint
     int32 actual_line = code_block->RemoveBreakpoint(line_number);
+
+    // -- if the actual breakable line doesn't match the request, notify the debugger
     if (actual_line != line_number)
     {
-        SocketManager::SendCommandf("DebuggerConfirmBreakpoint(%d, %d, %d);", filename_hash, line_number, actual_line);
+        DebuggerBreakpointConfirm(filename_hash, line_number, actual_line);
     }
 }
 
@@ -1012,8 +1027,187 @@ void CScriptContext::SetBreakActionRun(bool torf)
 }
 
 // ====================================================================================================================
-// DebuggerSendCallstack():  Too large to send as a script command, use the packet type DATA,
-// and send the packet directly to the debugger.
+// DebuggerCurrentWorkingDir():  Use the packet type DATA, and notify the debugger of our current working directory
+// ====================================================================================================================
+void CScriptContext::DebuggerCurrentWorkingDir(const char* cwd)
+{
+    if (!cwd)
+        cwd = "./";
+
+    // -- calculate the size of the data
+    int32 total_size = 0;
+
+    // -- first int32 will be identifying this data packet
+    total_size += sizeof(int32);
+
+    // -- we're sending the file name as a atring, since the debugger may not be able to unhash it yet
+    int strLength = strlen(cwd) + 1;
+    total_size += strLength;
+
+    // -- declare a header
+    // -- note, if we ever implement a request/acknowledge approach, we can use the mID field
+    SocketManager::tPacketHeader header(k_PacketVersion, SocketManager::tPacketHeader::DATA, total_size);
+
+    // -- create the packet (null data, as we'll fill in the data directly into the packet)
+    SocketManager::tDataPacket* newPacket = SocketManager::CreateDataPacket(&header, NULL);
+    if (!newPacket)
+    {
+        TinPrint(this, "Error - DebuggerCurrentWorkingDir():  unable to send\n");
+        return;
+    }
+
+    // -- initialize the ptr to the data buffer
+    int32* dataPtr = (int32*)newPacket->mData;
+
+    // -- write the identifier - defined in the USER CONSTANTS at the top of socket.h
+    *dataPtr++ = k_DebuggerCurrentWorkingDirPacketID;
+
+    // -- write the string
+    SafeStrcpy((char*)dataPtr, cwd, strLength);
+
+    // -- send the packet
+    SocketManager::SendDataPacket(newPacket);
+}
+
+// ====================================================================================================================
+// DebuggerCodeblockLoaded():  Use the packet type DATA, and notify the debugger of a codeblock we just loaded
+// ====================================================================================================================
+void CScriptContext::DebuggerCodeblockLoaded(uint32 codeblock_hash)
+{
+    // -- calculate the size of the data
+    int32 total_size = 0;
+
+    // -- first int32 will be identifying this data packet
+    total_size += sizeof(int32);
+
+    // -- we're sending the file name as a atring, since the debugger may not be able to unhash it yet
+    const char* filename = UnHash(codeblock_hash);
+    int strLength = strlen(filename) + 1;
+    total_size += strLength;
+
+    // -- declare a header
+    // -- note, if we ever implement a request/acknowledge approach, we can use the mID field
+    SocketManager::tPacketHeader header(k_PacketVersion, SocketManager::tPacketHeader::DATA, total_size);
+
+    // -- create the packet (null data, as we'll fill in the data directly into the packet)
+    SocketManager::tDataPacket* newPacket = SocketManager::CreateDataPacket(&header, NULL);
+    if (!newPacket)
+    {
+        TinPrint(this, "Error - DebuggerCodeblockLoaded():  unable to send\n");
+        return;
+    }
+
+    // -- initialize the ptr to the data buffer
+    int32* dataPtr = (int32*)newPacket->mData;
+
+    // -- write the identifier - defined in the USER CONSTANTS at the top of socket.h
+    *dataPtr++ = k_DebuggerCodeblockLoadedPacketID;
+
+    // -- write the string
+    SafeStrcpy((char*)dataPtr, filename, strLength);
+
+    // -- send the packet
+    SocketManager::SendDataPacket(newPacket);
+}
+
+// ====================================================================================================================
+// DebuggerBreakpointHit():  Use the packet type DATA, and send details of the current breakpoint we just hit
+// ====================================================================================================================
+void CScriptContext::DebuggerBreakpointHit(uint32 codeblock_hash, int32 line_number)
+{
+    // -- calculate the size of the data
+    int32 total_size = 0;
+
+    // -- first int32 will be identifying this data packet
+    total_size += sizeof(int32);
+
+    // -- second int32 will be the codeblock_hash
+    total_size += sizeof(int32);
+
+    // -- final int32 will be the line_number
+    total_size += sizeof(int32);
+
+    // -- declare a header
+    // -- note, if we ever implement a request/acknowledge approach, we can use the mID field
+    SocketManager::tPacketHeader header(k_PacketVersion, SocketManager::tPacketHeader::DATA, total_size);
+
+    // -- create the packet (null data, as we'll fill in the data directly into the packet)
+    SocketManager::tDataPacket* newPacket = SocketManager::CreateDataPacket(&header, NULL);
+    if (!newPacket)
+    {
+        TinPrint(this, "Error - DebuggerBreakpointHit():  unable to send\n");
+        return;
+    }
+
+    // -- initialize the ptr to the data buffer
+    int32* dataPtr = (int32*)newPacket->mData;
+
+    // -- write the identifier - defined in the USER CONSTANTS at the top of socket.h
+    *dataPtr++ = k_DebuggerBreakpointHitPacketID;
+
+    // -- write the codeblock hash
+    *dataPtr++ = codeblock_hash;
+
+    // -- write the line number
+    *dataPtr++ = line_number;
+
+    // -- send the packet
+    SocketManager::SendDataPacket(newPacket);
+}
+
+// ====================================================================================================================
+// DebuggerBreakpointConfirm():  Use the packet type DATA, and correct the actual line number for a given breakpoint
+// ====================================================================================================================
+void CScriptContext::DebuggerBreakpointConfirm(uint32 codeblock_hash, int32 line_number, int32 actual_line)
+{
+    // -- calculate the size of the data
+    int32 total_size = 0;
+
+    // -- first int32 will be identifying this data packet
+    total_size += sizeof(int32);
+
+    // -- second int32 will be the codeblock_hash
+    total_size += sizeof(int32);
+
+    // -- next int32 will be the line_number
+    total_size += sizeof(int32);
+
+    // -- last int32 will be the actual line
+    total_size += sizeof(int32);
+
+    // -- declare a header
+    // -- note, if we ever implement a request/acknowledge approach, we can use the mID field
+    SocketManager::tPacketHeader header(k_PacketVersion, SocketManager::tPacketHeader::DATA, total_size);
+
+    // -- create the packet (null data, as we'll fill in the data directly into the packet)
+    SocketManager::tDataPacket* newPacket = SocketManager::CreateDataPacket(&header, NULL);
+    if (!newPacket)
+    {
+        TinPrint(this, "Error - DebuggerBreakpointConfirm():  unable to send\n");
+        return;
+    }
+
+    // -- initialize the ptr to the data buffer
+    int32* dataPtr = (int32*)newPacket->mData;
+
+    // -- write the identifier - defined in the USER CONSTANTS at the top of socket.h
+    *dataPtr++ = k_DebuggerBreakpointConfirmPacketID;
+
+    // -- write the codeblock hash
+    *dataPtr++ = codeblock_hash;
+
+    // -- write the line number
+    *dataPtr++ = line_number;
+
+    // -- write the line number
+    *dataPtr++ = actual_line;
+
+    // -- send the packet
+    SocketManager::SendDataPacket(newPacket);
+}
+
+// ====================================================================================================================
+// DebuggerSendCallstack():  Use the packet type DATA, and send the callstack data packet directly to the debugger.
 // ====================================================================================================================
 void CScriptContext::DebuggerSendCallstack(uint32* codeblock_array, uint32* objid_array,
                                            uint32* namespace_array,uint32* func_array,
@@ -1022,7 +1216,7 @@ void CScriptContext::DebuggerSendCallstack(uint32* codeblock_array, uint32* obji
     // -- calculate the size of the data
     int32 total_size = 0;
 
-    // -- first int32 will be identifying this data packet as a callstack
+    // -- first int32 will be identifying this data packet
     total_size += sizeof(int32);
 
     // -- second int32 will be the array size
@@ -1048,7 +1242,7 @@ void CScriptContext::DebuggerSendCallstack(uint32* codeblock_array, uint32* obji
     // -- initialize the ptr to the data buffer
     int32* dataPtr = (int32*)newPacket->mData;
 
-    // -- write the "callstack" identifier - defined in the USER CONSTANTS at the top of socket.h
+    // -- write the identifier - defined in the USER CONSTANTS at the top of socket.h
     *dataPtr++ = k_DebuggerCallstackPacketID;
 
     // -- write the array size
@@ -1077,6 +1271,94 @@ void CScriptContext::DebuggerSendCallstack(uint32* codeblock_array, uint32* obji
     // -- now send the packet
     SocketManager::SendDataPacket(newPacket);
 }
+
+// ====================================================================================================================
+// DebuggerSendWatchVariable():  Send a variable entry to the debugger
+// ====================================================================================================================
+void CScriptContext::DebuggerSendWatchVariable(CDebuggerWatchVarEntry* watch_var_entry)
+{
+    // -- calculate the size of the data
+    int32 total_size = 0;
+
+    // -- first int32 will be identifying this data packet
+    total_size += sizeof(int32);
+
+    // -- second int32 will be the stack index
+    total_size += sizeof(int32);
+
+    // -- the next int32 will be isNamespace
+    total_size += sizeof(int32);
+
+    // -- the next int32 will be isMember
+    total_size += sizeof(int32);
+
+    // -- the next int32 will be mType
+    total_size += sizeof(int32);
+
+    // -- the next will be mName - we'll round up to a 4-byte aligned length (including the EOL)
+    int32 nameLength = strlen(watch_var_entry->mName) + 1;
+    nameLength += 4 - (nameLength % 4);
+
+    // -- we send first the string length, then the string
+    total_size += sizeof(int32);
+    total_size += nameLength;
+
+    // -- finally we add the value - we'll round up to a 4-byte aligned length (including the EOL)
+    int32 valueLength = strlen(watch_var_entry->mValue) + 1;
+    valueLength += 4 - (valueLength % 4);
+
+    // -- we send first the string length, then the string
+    total_size += sizeof(int32);
+    total_size += valueLength;
+
+    // -- declare a header
+    // -- note, if we ever implement a request/acknowledge approach, we can use the mID field
+    SocketManager::tPacketHeader header(k_PacketVersion, SocketManager::tPacketHeader::DATA, total_size);
+
+    // -- create the packet (null data, as we'll fill in the data directly into the packet)
+    SocketManager::tDataPacket* newPacket = SocketManager::CreateDataPacket(&header, NULL);
+    if (!newPacket)
+    {
+        TinPrint(this, "Error - DebuggerSendWatchVariable():  unable to send\n");
+        return;
+    }
+
+    // -- initialize the ptr to the data buffer
+    int32* dataPtr = (int32*)newPacket->mData;
+
+    // -- write the identifier - defined in the USER CONSTANTS at the top of socket.h
+    *dataPtr++ = k_DebuggerWatchVarEntryPacketID;
+
+    // -- write the stack index
+    *dataPtr++ = watch_var_entry->mStackIndex;
+
+    // -- write the "is namespace"
+    *dataPtr++ = watch_var_entry->mIsNamespace ? 1 : 0;
+
+    // -- write the "is member"
+    *dataPtr++ = watch_var_entry->mIsMember ? 1 : 0;
+
+    // -- write the line number
+    *dataPtr++ = watch_var_entry->mType;
+
+    // -- write the name string length
+    *dataPtr++ = nameLength;
+
+    // -- write the var name string
+    SafeStrcpy((char*)dataPtr, watch_var_entry->mName, nameLength);
+    dataPtr += (nameLength / 4);
+
+    // -- write the value string length
+    *dataPtr++ = valueLength;
+
+    // -- write the value string
+    SafeStrcpy((char*)dataPtr, watch_var_entry->mValue, valueLength);
+    dataPtr += (valueLength / 4);
+
+    // -- send the packet
+    SocketManager::SendDataPacket(newPacket);
+}
+
 
 // ====================================================================================================================
 // AddThreadCommand():  This enqueues a command, to be process during the normal update

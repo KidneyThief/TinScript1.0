@@ -153,8 +153,8 @@ int32 CFunctionCallStack::DebuggerGetWatchVarEntries(CScriptContext* script_cont
                 // -- if this variable is an object, we need to recurse through its hierarchy
                 if(ve->GetType() == TYPE_object) {
 
-                    void* stack_var_addr = GetStackVarAddr(script_context, execstack,
-                                                           *this, var_stackoffset);
+                    //void* stack_var_addr = GetStackVarAddr(script_context, execstack,
+                    //                                       *this, var_stackoffset);
                     uint32 object_id = stack_var_addr ? *(uint32*)stack_var_addr : 0;
                     CObjectEntry* oe = script_context->FindObjectEntry(object_id);
                     if(oe) {
@@ -166,7 +166,7 @@ int32 CFunctionCallStack::DebuggerGetWatchVarEntries(CScriptContext* script_cont
                                 return max_array_size;
 
                             SafeStrcpy(cur_entry->mName, UnHash(ns->GetHash()), kMaxNameLength);
-                            cur_entry->mValue[0] = '0';
+                            cur_entry->mValue[0] = '\0';
                             cur_entry->mIsNamespace = true;
                             cur_entry->mIsMember = false;
                             cur_entry->mStackIndex = (stacktop - 1) - stack_index;
@@ -482,17 +482,20 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
                                                       namespace_array, func_array,
                                                       linenumber_array, stack_size);
 
-                /*
+                // -- get the entire list of variables, at every level for the current call stack
                 CDebuggerWatchVarEntry watch_var_stack[kDebuggerWatchWindowSize];
                 int32 watch_entry_size =
                     funccallstack.DebuggerGetWatchVarEntries(GetScriptContext(), execstack,
                                                              watch_var_stack, kDebuggerWatchWindowSize);
-                for(int32 i = 0; i < watch_entry_size; ++i) {
-                    GetScriptContext()->NotifyWatchVarEntry(&watch_var_stack[i]);
-                }
-                */
 
-                SocketManager::SendCommandf("DebuggerBreakpointHit(%d, %d);", GetFilenameHash(), cur_line);
+                // -- send each var entry to the debugger
+                for (int32 i = 0; i < watch_entry_size; ++i)
+                {
+                    script_context->DebuggerSendWatchVariable(&watch_var_stack[i]);
+                }
+
+                // -- notify the debugger of the breakpoint we just hit
+                script_context->DebuggerBreakpointHit(GetFilenameHash(), cur_line);
 
                 // -- wait for the debugger to either continue to step or run
                 script_context->SetBreakActionStep(false);

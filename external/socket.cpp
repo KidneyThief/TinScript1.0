@@ -49,18 +49,20 @@ namespace SocketManager
 
 // --------------------------------------------------------------------------------------------------------------------
 // -- statics
-static bool mInitialized = false;
-static DWORD mThreadID = 0;
-static HANDLE mThreadHandle = NULL;
-static CSocket* mThreadSocket = NULL;
-static int mThreadSocketID = 1;
+#ifdef WIN32
+    static bool mInitialized = false;
+    static DWORD mThreadID = 0;
+    static HANDLE mThreadHandle = NULL;
+    static CSocket* mThreadSocket = NULL;
+    static int mThreadSocketID = 1;
+
+    // -- WSA variables
+    bool mWSAInitialized = false;
+    static WSADATA mWSAdata;
+#endif // WIN32
 
 // -- a custom data handler
 static ProcessRecvDataCallback mRecvDataCallback = NULL;
-
-// -- WSA variables
-bool mWSAInitialized = false;
-static WSADATA mWSAdata;
 
 // ====================================================================================================================
 // Initialize():  Initialize the SocketManager
@@ -129,7 +131,7 @@ DWORD WINAPI ThreadUpdate(void* script_context)
     // -- no errors
     return (0);
 }
-#endif
+#endif // WIN32
 
 // ====================================================================================================================
 // Termintate():  Perform all shutdown and cleanup of the SocketManager
@@ -156,7 +158,7 @@ void Terminate()
             WSACleanup();
             mWSAInitialized = false;
         }
-    #endif
+    #endif // WIN32
 }
 
 // ====================================================================================================================
@@ -395,7 +397,6 @@ bool DataQueue::Dequeue(tDataPacket*& packet, bool peekOnly)
     return (true);
 }
 
-
 // ====================================================================================================================
 // Clear();
 // ====================================================================================================================
@@ -411,6 +412,9 @@ void DataQueue::Clear()
 }
 
 // == CSocket =========================================================================================================
+
+// -- only implmeented in WIN32
+#ifdef WIN32
 
 // ====================================================================================================================
 // Constructor
@@ -1162,6 +1166,8 @@ bool CSocket::ProcessRecvData(void* data, int dataSize)
     // -- success
     return (true);
 }
+
+#endif // WIN32
 
 } // namespace SocketManager
 

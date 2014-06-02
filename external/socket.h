@@ -40,7 +40,13 @@
 // -- USER DEFINED CONSTANTS
 // -- because both clients need to use this library to communicate, we can have them "agree" on the values of constants
 // -- that they share
-const int32 k_DebuggerCallstackPacketID = 0x01;
+const int32 k_DebuggerCurrentWorkingDirPacketID     = 0x01;
+const int32 k_DebuggerCodeblockLoadedPacketID       = 0x02;
+const int32 k_DebuggerBreakpointHitPacketID         = 0x03;
+const int32 k_DebuggerBreakpointConfirmPacketID     = 0x04;
+const int32 k_DebuggerCallstackPacketID             = 0x05;
+const int32 k_DebuggerWatchVarEntryPacketID         = 0x06;
+const int32 k_DebuggerMaxPacketID                   = 0xff;
 
 // ====================================================================================================================
 // -- constants
@@ -53,7 +59,7 @@ const int32 k_MaxBufferSize = 8 * 1024;
 
 const int32 k_ThreadUpdateTimeMS = 5;
 const int32 k_HeartbeatTimeMS = 10000;
-const int32 k_HeartbeatTimeoutMS = 30000;
+const int32 k_HeartbeatTimeoutMS = 300000;
 
 // ====================================================================================================================
 // namespace SocketManager: managing remote connections
