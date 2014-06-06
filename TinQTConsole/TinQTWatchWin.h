@@ -40,16 +40,17 @@ class CConsoleWindow;
 // ------------------------------------------------------------------------------------------------
 class CWatchEntry : public QTreeWidgetItem {
     public:
-        CWatchEntry(const char* varname, TinScript::eVarType type, const char* value,
-                    int stack_index);
-        CWatchEntry(const char* nsname, int stack_index);
+        CWatchEntry(const TinScript::CDebuggerWatchVarEntry& debugger_entry);
+
         virtual ~CWatchEntry();
 
-        char mName[TinScript::kMaxNameLength];
-        char mValue[TinScript::kMaxNameLength];
-        TinScript::eVarType mType;
-        int mStackIndex;
-        bool mIsNamespace;
+        void UpdateValue(const char* newValue);
+
+        TinScript::CDebuggerWatchVarEntry mDebuggerEntry;
+
+        // -- need a "confirmed" flag, to ensure each time the stack is updated that the
+        // -- entry still exists
+        bool mUnconfirmed;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -60,22 +61,24 @@ class CDebugWatchWin : public QTreeWidget {
         CDebugWatchWin(CConsoleWindow* owner);
         virtual ~CDebugWatchWin();
 
-        void BeginVariable(const char* varname, TinScript::eVarType type, const char* value,
-                           int stack_index);
-        void AddVariable(const char* varname, TinScript::eVarType type, const char* value,
-                         int stack_index);
-        void AddNamespace(const char* nsname, int stack_index);
+        CWatchEntry* FindWatchEntry(uint32 funcHash, uint32 objectID, uint32 nsHash, bool& foundNamespaceLabel);
+        CWatchEntry* FindWatchEntry(uint32 funcHash, uint32 objectID, uint32 nsHash, uint32 memberHash, bool isMember);
+
+        void AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry);
+        void AddObjectMemberEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry);
 
         void ClearWatchWin();
-        void NotifyCallstackIndex(int callstack_index);
         void NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry);
+
+        void NotifyBreakpointHit();
+        void NotifyEndOfBreakpoint() { }
+        void NotifyUpdateCallstack(bool breakpointHit);
 
     public slots:
 
     private:
         CConsoleWindow* mOwner;
         QTreeWidgetItem* mHeaderItem;
-        CWatchEntry* mCurrentEntry;
         QList<CWatchEntry*> mWatchList;
 };
 

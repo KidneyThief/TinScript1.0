@@ -109,7 +109,12 @@ class CDebugCallstackWin : public QListWidget {
         void NotifyCallstack(uint32* codeblock_array, uint32* objid_array, uint32* namespace_array,
                              uint32* func_array, uint32* linenumber_array, int array_size);
         void ClearCallstack();
-        int GetSelectedStackIndex();
+
+        // -- returns the index of the currently selected stack entry, as well as the calling attributes
+        int GetSelectedStackEntry(uint32& funcHash, uint32& objectID, uint32& nsHash);
+
+        // -- returns the stack entry matching the given attributes, or -1 if it doesn't exist
+        int ValidateStackEntry(uint32 func_ns_hash, uint32 func_hash, uint32 func_obj_id);
 
     public slots:
         void OnDoubleClicked(QListWidgetItem*);

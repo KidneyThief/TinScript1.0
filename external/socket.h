@@ -37,18 +37,6 @@
 #include "TinRegistration.h"
 
 // ====================================================================================================================
-// -- USER DEFINED CONSTANTS
-// -- because both clients need to use this library to communicate, we can have them "agree" on the values of constants
-// -- that they share
-const int32 k_DebuggerCurrentWorkingDirPacketID     = 0x01;
-const int32 k_DebuggerCodeblockLoadedPacketID       = 0x02;
-const int32 k_DebuggerBreakpointHitPacketID         = 0x03;
-const int32 k_DebuggerBreakpointConfirmPacketID     = 0x04;
-const int32 k_DebuggerCallstackPacketID             = 0x05;
-const int32 k_DebuggerWatchVarEntryPacketID         = 0x06;
-const int32 k_DebuggerMaxPacketID                   = 0xff;
-
-// ====================================================================================================================
 // -- constants
 // some random int32, just to ensure socket clients are compatible
 const int32 k_PacketVersion = 0xdeadbeef;  

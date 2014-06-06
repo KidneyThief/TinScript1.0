@@ -419,7 +419,9 @@ void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg)
 
     // -- clear the callstack and the watch window
     GetDebugCallstackWin()->ClearCallstack();
-    GetDebugWatchWin()->ClearWatchWin();
+
+    // -- we need to notify the watch win that we're not currently broken
+    GetDebugWatchWin()->NotifyEndOfBreakpoint();
 }
 
 // ====================================================================================================================
@@ -476,7 +478,9 @@ void DebuggerNotifyCallstack(uint32* codeblock_array, uint32* objid_array, uint3
     CConsoleWindow::GetInstance()->GetDebugCallstackWin()->NotifyCallstack(codeblock_array, objid_array,
                                                                            namespace_array, func_array,
                                                                            linenumber_array, array_size);
-    CConsoleWindow::GetInstance()->GetDebugWatchWin()->ClearWatchWin();
+
+    // -- we need to notify the watch window, we have a new callstack
+    CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyUpdateCallstack(true);
 }
 
 // ====================================================================================================================
@@ -878,6 +882,7 @@ void CConsoleOutput::HandlePacketBreakpointHit(int32* dataPtr)
 
     // -- notify the debugger
     CConsoleWindow::GetInstance()->NotifyBreakpointHit(codeblock_hash, line_number);
+    CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyBreakpointHit();
 }
 
 // ====================================================================================================================
@@ -947,14 +952,20 @@ void CConsoleOutput::HandlePacketWatchVarEntry(int32* dataPtr)
     // -- reconstitute the stuct
     TinScript::CDebuggerWatchVarEntry watch_var_entry;
 
-    // -- stack index
-    watch_var_entry.mStackIndex = *dataPtr++;
+    // -- function namespace hash
+    watch_var_entry.mFuncNamespaceHash = *dataPtr++;
 
-    // -- is namespace>
-    watch_var_entry.mIsNamespace = *dataPtr++ == 1 ? true : false;
+    // -- function hash
+    watch_var_entry.mFunctionHash = *dataPtr++;
 
-    // -- is member?
-    watch_var_entry.mIsMember = *dataPtr++ == 1 ? true : false;
+    // -- function hash
+    watch_var_entry.mFunctionObjectID = *dataPtr++;
+
+    // -- objectID (required, if this var is a member)
+    watch_var_entry.mObjectID = *dataPtr++;
+
+    // -- namespace hash (required, if this var is a member)
+    watch_var_entry.mNamespaceHash = *dataPtr++;
 
     // -- var type
     watch_var_entry.mType = (TinScript::eVarType)(*dataPtr++);
@@ -963,7 +974,7 @@ void CConsoleOutput::HandlePacketWatchVarEntry(int32* dataPtr)
     int32 name_str_length = *dataPtr++;
 
     // -- copy the name string
-    strcpy_s(watch_var_entry.mName, (const char*)dataPtr);
+    strcpy_s(watch_var_entry.mVarName, (const char*)dataPtr);
     dataPtr += (name_str_length / 4);
 
     // -- value string length
@@ -972,6 +983,12 @@ void CConsoleOutput::HandlePacketWatchVarEntry(int32* dataPtr)
     // -- copy the value string
     strcpy_s(watch_var_entry.mValue, (const char*)dataPtr);
     dataPtr += (value_str_length / 4);
+
+    // -- cached var name hash
+    watch_var_entry.mVarHash = *dataPtr++;
+
+    // -- cached var object ID
+    watch_var_entry.mVarObjectID = *dataPtr++;
 
     // -- notify the debugger
     CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyWatchVarEntry(&watch_var_entry);
@@ -1040,10 +1057,7 @@ int _tmain(int argc, _TCHAR* argv[])
     // -- register the callback for non-script packets
     SocketManager::RegisterProcessRecvDataCallback(DebuggerRecvDataCallback);
 
-    // -- register the debugger breakpoint function
-    //TinScript::GetContext()->RegisterDebugger(DebuggerBreakpointHit, NotifyCallstack,
-    //                                 NotifyCodeblockLoaded, NotifyWatchVarEntry);
-
+    // -- create the console, and start the execution
     new CConsoleWindow();
     int result = CConsoleWindow::GetInstance()->Exec();
 

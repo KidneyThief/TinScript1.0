@@ -1059,7 +1059,7 @@ void CScriptContext::DebuggerCurrentWorkingDir(const char* cwd)
     // -- initialize the ptr to the data buffer
     int32* dataPtr = (int32*)newPacket->mData;
 
-    // -- write the identifier - defined in the USER CONSTANTS at the top of socket.h
+    // -- write the identifier - defined in the debugger constants near the top of TinScript.h
     *dataPtr++ = k_DebuggerCurrentWorkingDirPacketID;
 
     // -- write the string
@@ -1100,7 +1100,7 @@ void CScriptContext::DebuggerCodeblockLoaded(uint32 codeblock_hash)
     // -- initialize the ptr to the data buffer
     int32* dataPtr = (int32*)newPacket->mData;
 
-    // -- write the identifier - defined in the USER CONSTANTS at the top of socket.h
+    // -- write the identifier - defined in the debugger constants near the top of TinScript.h
     *dataPtr++ = k_DebuggerCodeblockLoadedPacketID;
 
     // -- write the string
@@ -1142,7 +1142,7 @@ void CScriptContext::DebuggerBreakpointHit(uint32 codeblock_hash, int32 line_num
     // -- initialize the ptr to the data buffer
     int32* dataPtr = (int32*)newPacket->mData;
 
-    // -- write the identifier - defined in the USER CONSTANTS at the top of socket.h
+    // -- write the identifier - defined in the debugger constants near the top of TinScript.h
     *dataPtr++ = k_DebuggerBreakpointHitPacketID;
 
     // -- write the codeblock hash
@@ -1190,7 +1190,7 @@ void CScriptContext::DebuggerBreakpointConfirm(uint32 codeblock_hash, int32 line
     // -- initialize the ptr to the data buffer
     int32* dataPtr = (int32*)newPacket->mData;
 
-    // -- write the identifier - defined in the USER CONSTANTS at the top of socket.h
+    // -- write the identifier - defined in the debugger constants near the top of TinScript.h
     *dataPtr++ = k_DebuggerBreakpointConfirmPacketID;
 
     // -- write the codeblock hash
@@ -1242,7 +1242,7 @@ void CScriptContext::DebuggerSendCallstack(uint32* codeblock_array, uint32* obji
     // -- initialize the ptr to the data buffer
     int32* dataPtr = (int32*)newPacket->mData;
 
-    // -- write the identifier - defined in the USER CONSTANTS at the top of socket.h
+    // -- write the identifier - defined in the debugger constants near the top of TinScript.h
     *dataPtr++ = k_DebuggerCallstackPacketID;
 
     // -- write the array size
@@ -1283,20 +1283,26 @@ void CScriptContext::DebuggerSendWatchVariable(CDebuggerWatchVarEntry* watch_var
     // -- first int32 will be identifying this data packet
     total_size += sizeof(int32);
 
-    // -- second int32 will be the stack index
+    // -- function namespace hash
     total_size += sizeof(int32);
 
-    // -- the next int32 will be isNamespace
+    // -- function hash
     total_size += sizeof(int32);
 
-    // -- the next int32 will be isMember
+    // -- function object ID
     total_size += sizeof(int32);
 
-    // -- the next int32 will be mType
+    // -- object ID
+    total_size += sizeof(int32);
+
+    // -- namespace Hash
+    total_size += sizeof(int32);
+
+    // -- var type
     total_size += sizeof(int32);
 
     // -- the next will be mName - we'll round up to a 4-byte aligned length (including the EOL)
-    int32 nameLength = strlen(watch_var_entry->mName) + 1;
+    int32 nameLength = strlen(watch_var_entry->mVarName) + 1;
     nameLength += 4 - (nameLength % 4);
 
     // -- we send first the string length, then the string
@@ -1310,6 +1316,12 @@ void CScriptContext::DebuggerSendWatchVariable(CDebuggerWatchVarEntry* watch_var
     // -- we send first the string length, then the string
     total_size += sizeof(int32);
     total_size += valueLength;
+
+    // -- cached var name hash
+    total_size += sizeof(int32);
+
+    // -- cached var object ID
+    total_size += sizeof(int32);
 
     // -- declare a header
     // -- note, if we ever implement a request/acknowledge approach, we can use the mID field
@@ -1326,26 +1338,32 @@ void CScriptContext::DebuggerSendWatchVariable(CDebuggerWatchVarEntry* watch_var
     // -- initialize the ptr to the data buffer
     int32* dataPtr = (int32*)newPacket->mData;
 
-    // -- write the identifier - defined in the USER CONSTANTS at the top of socket.h
+    // -- write the identifier - defined in the debugger constants near the top of TinScript.h
     *dataPtr++ = k_DebuggerWatchVarEntryPacketID;
 
-    // -- write the stack index
-    *dataPtr++ = watch_var_entry->mStackIndex;
+    // -- write the function namespace
+    *dataPtr++ = watch_var_entry->mFuncNamespaceHash;
 
-    // -- write the "is namespace"
-    *dataPtr++ = watch_var_entry->mIsNamespace ? 1 : 0;
+    // -- write the function hash
+    *dataPtr++ = watch_var_entry->mFunctionHash;
 
-    // -- write the "is member"
-    *dataPtr++ = watch_var_entry->mIsMember ? 1 : 0;
+    // -- write the function object iD
+    *dataPtr++ = watch_var_entry->mFunctionObjectID;
 
-    // -- write the line number
+    // -- write the "objectID" (required, if this is a member)
+    *dataPtr++ = watch_var_entry->mObjectID;
+
+    // -- write the "namespace hash" (required, if this is a member)
+    *dataPtr++ = watch_var_entry->mNamespaceHash;
+
+    // -- write the type
     *dataPtr++ = watch_var_entry->mType;
 
     // -- write the name string length
     *dataPtr++ = nameLength;
 
     // -- write the var name string
-    SafeStrcpy((char*)dataPtr, watch_var_entry->mName, nameLength);
+    SafeStrcpy((char*)dataPtr, watch_var_entry->mVarName, nameLength);
     dataPtr += (nameLength / 4);
 
     // -- write the value string length
@@ -1355,10 +1373,135 @@ void CScriptContext::DebuggerSendWatchVariable(CDebuggerWatchVarEntry* watch_var
     SafeStrcpy((char*)dataPtr, watch_var_entry->mValue, valueLength);
     dataPtr += (valueLength / 4);
 
+    // -- write the cached var name hash
+    *dataPtr++ = watch_var_entry->mVarHash;
+
+    // -- write the cached var object ID
+    *dataPtr++ = watch_var_entry->mVarObjectID;
+
     // -- send the packet
     SocketManager::SendDataPacket(newPacket);
 }
 
+// ====================================================================================================================
+// void DebuggerSendObjectMembers():  Given an object ID, send the entire hierarchy of members to the debugger
+// ====================================================================================================================
+void CScriptContext::DebuggerSendObjectMembers(CDebuggerWatchVarEntry* callingFunction, uint32 object_id)
+{
+    CObjectEntry* oe = FindObjectEntry(object_id);
+    if (!oe)
+        return;
+
+    // -- send the dynamic var table
+    if (oe->GetDynamicVarTable())
+    {
+        // -- send the header to the debugger
+        CDebuggerWatchVarEntry watch_entry;
+
+        watch_entry.mFuncNamespaceHash = callingFunction ? callingFunction->mFuncNamespaceHash : 0;
+        watch_entry.mFunctionHash = callingFunction ? callingFunction->mFunctionHash : 0;
+        watch_entry.mFunctionObjectID = callingFunction ? callingFunction->mFunctionObjectID : 0;
+
+        watch_entry.mObjectID = object_id;
+        watch_entry.mNamespaceHash = Hash("self");
+
+        // -- TYPE_void marks this as a namespace label
+        watch_entry.mType = TYPE_void;
+        SafeStrcpy(watch_entry.mVarName, "self", kMaxNameLength);
+        watch_entry.mValue[0] = '\0';
+
+        // -- fill in the cached members
+        watch_entry.mVarHash = watch_entry.mNamespaceHash;
+        watch_entry.mVarObjectID = 0;
+
+        // -- send to the Debugger
+        DebuggerSendWatchVariable(&watch_entry);
+
+        // -- now send var table members
+        DebuggerSendObjectVarTable(callingFunction, oe, watch_entry.mNamespaceHash, oe->GetDynamicVarTable());
+    }
+
+    // -- loop through the hierarchy of namespaces
+    CNamespace* ns = oe->GetNamespace();
+    while (ns)
+    {
+        CDebuggerWatchVarEntry ns_entry;
+
+        ns_entry.mFuncNamespaceHash = callingFunction ? callingFunction->mFuncNamespaceHash : 0;
+        ns_entry.mFunctionHash = callingFunction ? callingFunction->mFunctionHash : 0;
+        ns_entry.mFunctionObjectID = callingFunction ? callingFunction->mFunctionObjectID : 0;
+
+        ns_entry.mObjectID = object_id;
+        ns_entry.mNamespaceHash = ns->GetHash();
+
+        // -- TYPE_void marks this as a namespace label
+        ns_entry.mType = TYPE_void;
+        SafeStrcpy(ns_entry.mVarName, UnHash(ns->GetHash()), kMaxNameLength);
+        ns_entry.mValue[0] = '\0';
+
+        // -- fill in the cached members
+        ns_entry.mVarHash = ns_entry.mNamespaceHash;
+        ns_entry.mVarObjectID = 0;
+
+        // -- send to the Debugger
+        DebuggerSendWatchVariable(&ns_entry);
+
+        // -- dump the vtable
+        DebuggerSendObjectVarTable(callingFunction, oe, ns_entry.mNamespaceHash, ns->GetVarTable());
+
+        // -- get the next namespace
+        ns = ns->GetNext();
+    }
+}
+
+// ====================================================================================================================
+// DebuggerSendObjectVarTable():  Send a tVarTable to the debugger.
+// ====================================================================================================================
+void CScriptContext::DebuggerSendObjectVarTable(CDebuggerWatchVarEntry* callingFunction, CObjectEntry* oe,
+                                                uint32 ns_hash, tVarTable* var_table)
+{
+    if (!var_table)
+        return;
+
+    CVariableEntry* member = var_table->First();
+    while (member)
+    {
+        // - -- declare the new entry
+        CDebuggerWatchVarEntry member_entry;
+
+        member_entry.mFuncNamespaceHash = callingFunction ? callingFunction->mFuncNamespaceHash : 0;
+        member_entry.mFunctionHash = callingFunction ? callingFunction->mFunctionHash : 0;
+        member_entry.mFunctionObjectID = callingFunction ? callingFunction->mFunctionObjectID : 0;
+
+        // -- fill in the objectID, namespace hash
+        member_entry.mObjectID = oe->GetID();
+        member_entry.mNamespaceHash = ns_hash;
+
+        // -- set the type
+        member_entry.mType = member->GetType();
+
+        // -- member name
+        SafeStrcpy(member_entry.mVarName, UnHash(member->GetHash()), kMaxNameLength);
+
+        // -- copy the value, as a string (to a max length)
+        gRegisteredTypeToString[member->GetType()](member->GetAddr(oe->GetAddr()), member_entry.mValue,
+                                                   kMaxNameLength);
+
+        // -- fill in the cached members
+        member_entry.mVarHash = member->GetHash();
+        member_entry.mVarObjectID = 0;
+        if (member->GetType() == TYPE_object)
+        {
+             member_entry.mVarObjectID = *(uint32*)(member->GetAddr(oe->GetAddr()));
+        }
+
+        // -- send to the debugger
+        DebuggerSendWatchVariable(&member_entry);
+
+        // -- get the next member
+        member = var_table->Next();
+    }
+}
 
 // ====================================================================================================================
 // AddThreadCommand():  This enqueues a command, to be process during the normal update

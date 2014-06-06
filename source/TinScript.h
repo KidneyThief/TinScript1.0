@@ -136,6 +136,18 @@ const int32 kMaxScratchBuffers = 32;
 
 const int32 kThreadExecBufferSize = 8 * 1024;
 
+// ====================================================================================================================
+// -- debugger constants
+const int32 k_DebuggerCurrentWorkingDirPacketID     = 0x01;
+const int32 k_DebuggerCodeblockLoadedPacketID       = 0x02;
+const int32 k_DebuggerBreakpointHitPacketID         = 0x03;
+const int32 k_DebuggerBreakpointConfirmPacketID     = 0x04;
+const int32 k_DebuggerCallstackPacketID             = 0x05;
+const int32 k_DebuggerWatchVarEntryPacketID         = 0x06;
+const int32 k_DebuggerMaxPacketID                   = 0xff;
+
+// == namespace TinScript =============================================================================================
+
 namespace TinScript {
 
 // ------------------------------------------------------------------------------------------------
@@ -192,14 +204,28 @@ bool8 AssertHandled(const char* condition, const char* file, int32 linenumber,
                     const char* fmt, ...);
 
 // ------------------------------------------------------------------------------------------------
-class CDebuggerWatchVarEntry {
+class CDebuggerWatchVarEntry
+{
     public:
-        char mName[kMaxNameLength];
-        char mValue[kMaxNameLength];
-        int32 mStackIndex;
-        bool8 mIsNamespace;
-        bool8 mIsMember;
+        // -- three members identifying the calling function
+        uint32 mFuncNamespaceHash;
+        uint32 mFunctionHash;
+        uint32 mFunctionObjectID;
+
+        // -- two members if this variable is an object member
+        uint32 mObjectID;
+        uint32 mNamespaceHash;
+
+        // -- type, name, and value of variable/member
+        // -- if the mType is void, and we have an objectID and namespace hash,
+        // -- then we have a namespace label
         eVarType mType;
+        char mVarName[kMaxNameLength];
+        char mValue[kMaxNameLength];
+
+        // -- cached values for the hash of the VarName, and the var objectID (for TYPE_object vars)
+        uint32 mVarHash;
+        uint32 mVarObjectID;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -325,7 +351,9 @@ class CScriptContext {
                                    uint32* namespace_array,uint32* func_array,
                                    uint32* linenumber_array, int array_size);
         void DebuggerSendWatchVariable(CDebuggerWatchVarEntry* watch_var_entry);
-
+        void DebuggerSendObjectMembers(CDebuggerWatchVarEntry* callingFunction, uint32 objectID);
+        void DebuggerSendObjectVarTable(CDebuggerWatchVarEntry* callingFunction, CObjectEntry* oe, uint32 ns_hash,
+                                        tVarTable* var_table);
         // -- Thread commands are only supported in WIN32
         #ifdef WIN32
             void AddThreadCommand(const char* command);

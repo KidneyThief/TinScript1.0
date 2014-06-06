@@ -109,31 +109,73 @@ int32 CFunctionCallStack::DebuggerGetCallstack(uint32* codeblock_array, uint32* 
     return (entry_count);
 }
 
-int32 CFunctionCallStack::DebuggerGetWatchVarEntries(CScriptContext* script_context,
-    CExecStack& execstack, CDebuggerWatchVarEntry* entry_array, int32 max_array_size) {
+int32 CFunctionCallStack::DebuggerGetStackVarEntries(CScriptContext* script_context, CExecStack& execstack,
+                                                     CDebuggerWatchVarEntry* entry_array, int32 max_array_size)
+{
     int32 entry_count = 0;
     int32 stack_index = stacktop - 1;
-    while(stack_index >= 0 && entry_count < max_array_size) {
-        if(funcentrystack[stack_index].isexecuting) {
+    while (stack_index >= 0 && entry_count < max_array_size)
+    {
+        if (funcentrystack[stack_index].isexecuting)
+        {
+            // -- if this function call is a method, send the "self" variable
+            if (funcentrystack[stack_index].objentry != NULL)
+            {
+                // -- limit of kDebuggerWatchWindowSize
+                if (entry_count >= max_array_size)
+                    return (entry_count);
+
+                CDebuggerWatchVarEntry* cur_entry = &entry_array[entry_count++];
+
+                // -- copy the calling function info
+                cur_entry->mFuncNamespaceHash = funcentrystack[stack_index].funcentry->GetNamespaceHash();
+                cur_entry->mFunctionHash = funcentrystack[stack_index].funcentry->GetHash();
+                cur_entry->mFunctionObjectID = funcentrystack[stack_index].objentry->GetID();
+
+                // -- this isn't a member of an object
+                cur_entry->mObjectID = 0;
+                cur_entry->mNamespaceHash = 0;
+
+                // -- copy the var type, name and value
+                cur_entry->mType = TYPE_object;
+                strcpy_s(cur_entry->mVarName, "self");
+                sprintf_s(cur_entry->mValue, "%d", cur_entry->mFunctionObjectID);
+
+                // -- fill in the cached members
+                cur_entry->mVarHash = Hash("self");
+                cur_entry->mVarObjectID = cur_entry->mFunctionObjectID;
+            }
+
             // -- get the variable table
             tVarTable* func_vt = funcentrystack[stack_index].funcentry->GetLocalVarTable();
             CVariableEntry* ve = func_vt->First();
-            while(ve) {
+            while (ve)
+            {
                 // -- limit of kDebuggerWatchWindowSize
-                if(entry_count >= max_array_size)
+                if (entry_count >= max_array_size)
                     return (entry_count);
 
                 // -- fill in the current entry
-                CDebuggerWatchVarEntry* cur_entry = &entry_array[entry_count];
-                ++entry_count;
-                if(entry_count >= max_array_size)
+                CDebuggerWatchVarEntry* cur_entry = &entry_array[entry_count++];
+                if (entry_count >= max_array_size)
                     return max_array_size;
 
-                // -- copy the var name
-                SafeStrcpy(cur_entry->mName, UnHash(ve->GetHash()), kMaxNameLength);
+                // -- copy the calling function info
+                cur_entry->mFuncNamespaceHash = funcentrystack[stack_index].funcentry->GetNamespaceHash();
+                cur_entry->mFunctionHash = funcentrystack[stack_index].funcentry->GetHash();
+                cur_entry->mFunctionObjectID = funcentrystack[stack_index].objentry
+                                               ? funcentrystack[stack_index].objentry->GetID()
+                                               : 0;
 
-                // -- the var type
+                // -- this isn't a member of an object
+                cur_entry->mObjectID = 0;
+                cur_entry->mNamespaceHash = 0;
+
+                // -- copy the var type
                 cur_entry->mType = ve->GetType();
+
+                // -- copy the var name
+                SafeStrcpy(cur_entry->mVarName, UnHash(ve->GetHash()), kMaxNameLength);
 
                 // -- get the address on the stack, where this local var is stored
                 int32 func_stacktop = funcentrystack[stack_index].stackvaroffset;
@@ -143,60 +185,17 @@ int32 CFunctionCallStack::DebuggerGetWatchVarEntries(CScriptContext* script_cont
                 // -- copy the value, as a string (to a max length)
               	gRegisteredTypeToString[ve->GetType()](stack_var_addr, cur_entry->mValue, kMaxNameLength);
 
-                // -- the stack index (count from 0, being the top of the stack)
-                cur_entry->mStackIndex = (stacktop - 1) - stack_index;
+                // -- fill in the hash of the var name, and if applicable, the var object ID
+                cur_entry->mVarHash = ve->GetHash();
+                cur_entry->mVarObjectID = 0;
+                if (ve->GetType() == TYPE_object)
+                {
+                    cur_entry->mVarObjectID = stack_var_addr ? *(uint32*)stack_var_addr : 0;
 
-                // -- initialize the bools
-                cur_entry->mIsNamespace = false;
-                cur_entry->mIsMember = false;
-
-                // -- if this variable is an object, we need to recurse through its hierarchy
-                if(ve->GetType() == TYPE_object) {
-
-                    //void* stack_var_addr = GetStackVarAddr(script_context, execstack,
-                    //                                       *this, var_stackoffset);
-                    uint32 object_id = stack_var_addr ? *(uint32*)stack_var_addr : 0;
-                    CObjectEntry* oe = script_context->FindObjectEntry(object_id);
-                    if(oe) {
-                        CNamespace* ns = oe->GetNamespace();
-                        while(ns) {
-                            cur_entry = &entry_array[entry_count];
-                            ++entry_count;
-                            if(entry_count >= max_array_size)
-                                return max_array_size;
-
-                            SafeStrcpy(cur_entry->mName, UnHash(ns->GetHash()), kMaxNameLength);
-                            cur_entry->mValue[0] = '\0';
-                            cur_entry->mIsNamespace = true;
-                            cur_entry->mIsMember = false;
-                            cur_entry->mStackIndex = (stacktop - 1) - stack_index;
-                            cur_entry->mType = TYPE_void;
-
-                            // -- dump the vtable
-                            tVarTable* ns_vtable = ns->GetVarTable();
-                            CVariableEntry* member = ns_vtable->First();
-                            while(member) {
-
-                                cur_entry = &entry_array[entry_count];
-                                ++entry_count;
-                                if(entry_count >= max_array_size)
-                                    return max_array_size;
-
-                                SafeStrcpy(cur_entry->mName, UnHash(member->GetHash()), kMaxNameLength);
-                                // -- copy the value, as a string (to a max length)
-                              	gRegisteredTypeToString[member->GetType()](member->GetAddr(oe->GetAddr()),
-                                                                           cur_entry->mValue, kMaxNameLength);
-
-                                cur_entry->mIsNamespace = false;
-                                cur_entry->mIsMember = true;
-                                cur_entry->mStackIndex = (stacktop - 1) - stack_index;
-                                cur_entry->mType = member->GetType();
-
-                                member = ns_vtable->Next();
-                            }
-
-                            ns = ns->GetNext();
-                        }
+                    // -- ensure the object actually exists
+                    if (script_context->FindObjectEntry(cur_entry->mVarObjectID) == NULL)
+                    {
+                        cur_entry->mVarObjectID = 0;
                     }
                 }
 
@@ -485,13 +484,21 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
                 // -- get the entire list of variables, at every level for the current call stack
                 CDebuggerWatchVarEntry watch_var_stack[kDebuggerWatchWindowSize];
                 int32 watch_entry_size =
-                    funccallstack.DebuggerGetWatchVarEntries(GetScriptContext(), execstack,
+                    funccallstack.DebuggerGetStackVarEntries(GetScriptContext(), execstack,
                                                              watch_var_stack, kDebuggerWatchWindowSize);
 
-                // -- send each var entry to the debugger
+                // -- now loop through all stack variables, and any that are objects, send their
+                // -- member dictionaries as well
                 for (int32 i = 0; i < watch_entry_size; ++i)
                 {
                     script_context->DebuggerSendWatchVariable(&watch_var_stack[i]);
+
+                    // -- if the watch var is of type object, send the object members over as well
+                    if (watch_var_stack[i].mType == TYPE_object)
+                    {
+                        script_context->DebuggerSendObjectMembers(&watch_var_stack[i],
+                                                                  watch_var_stack[i].mVarObjectID);
+                    }
                 }
 
                 // -- notify the debugger of the breakpoint we just hit

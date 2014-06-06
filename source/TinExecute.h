@@ -242,8 +242,8 @@ class CFunctionCallStack {
                                    uint32* namespace_array, uint32* func_array,
                                    uint32* linenumber_array, int32 max_array_size);
 
-        int32 DebuggerGetWatchVarEntries(CScriptContext* script_context, CExecStack& execstack,
-            CDebuggerWatchVarEntry* entry_array, int32 max_array_size);
+        int32 DebuggerGetStackVarEntries(CScriptContext* script_context, CExecStack& execstack,
+                                         CDebuggerWatchVarEntry* entry_array, int32 max_array_size);
 
         void BeginExecution(const uint32* instrptr);
         void BeginExecution();

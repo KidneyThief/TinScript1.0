@@ -319,36 +319,72 @@ void CDebugCallstackWin::NotifyCallstack(uint32* codeblock_array, uint32* objid_
         setCurrentItem(mCallstack.at(0));
 }
 
-void CDebugCallstackWin::OnDoubleClicked(QListWidgetItem* item) {
+void CDebugCallstackWin::OnDoubleClicked(QListWidgetItem* item)
+{
     CCallstackEntry* stack_entry = static_cast<CCallstackEntry*>(item);
-    CConsoleWindow::GetInstance()->GetDebugSourceWin()->
-        SetSourceView(stack_entry->mCodeblockHash, stack_entry->mLineNumber);
+    CConsoleWindow::GetInstance()->GetDebugSourceWin()->SetSourceView(stack_entry->mCodeblockHash,
+                                                                      stack_entry->mLineNumber);
 
     // -- find out which stack index this entry is, and notify the watchvar window
-    for(int i = 0; i < mCallstack.size(); ++i) {
-        if(mCallstack.at(i) == stack_entry) {
-            CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyCallstackIndex(i);
+    for (int i = 0; i < mCallstack.size(); ++i)
+    {
+        if (mCallstack.at(i) == stack_entry)
+        {
+            CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyUpdateCallstack(false);
             break;
         }
     }
 }
 
-int CDebugCallstackWin::GetSelectedStackIndex() {
-    if(mCallstack.size() <= 0)
-        return -1;
+int CDebugCallstackWin::GetSelectedStackEntry(uint32& func_ns_hash, uint32& func_hash, uint32& func_obj_id)
+{
+    if (mCallstack.size() <= 0)
+        return (-1);
 
     QListWidgetItem* cur_item = currentItem();
     int stack_index = 0;
-    while(stack_index < mCallstack.size() && mCallstack.at(stack_index) != cur_item)
+    while (stack_index < mCallstack.size() && mCallstack.at(stack_index) != cur_item)
         ++stack_index;
 
-    // -- found
-    if(stack_index < mCallstack.size())
-        return stack_index;
+    // -- success
+    if (stack_index < mCallstack.size())
+    {
+        CCallstackEntry* stack_entry = static_cast<CCallstackEntry*>(cur_item);
+        func_ns_hash = stack_entry->mNamespaceHash;
+        func_hash = stack_entry->mFunctionHash;
+        func_obj_id = stack_entry->mObjectID;
 
-    // -- failed
-    else
-        return -1;
+        return (stack_index);
+    }
+
+    // -- fail
+    return (-1);
+}
+
+// ====================================================================================================================
+// ValidateStackEntry():  Returns true if there's a current stack entry matching the given function call attributes
+// ====================================================================================================================
+int CDebugCallstackWin::ValidateStackEntry(uint32 func_ns_hash, uint32 func_hash, uint32 func_obj_id)
+{
+    if (mCallstack.size() <= 0)
+        return (-1);
+
+    int stack_index = 0;
+    while (stack_index < mCallstack.size())
+    {
+        const CCallstackEntry* callstack_entry = mCallstack.at(stack_index);
+        if (callstack_entry && callstack_entry->mNamespaceHash == func_ns_hash &&
+            callstack_entry->mFunctionHash == func_hash && callstack_entry->mObjectID == func_obj_id)
+        {
+            return (stack_index);
+        }
+
+        // -- not yet found
+        ++stack_index;
+    }
+
+    // -- there are no callstack entries matching the watch entry
+    return (-1);
 }
 
 // ------------------------------------------------------------------------------------------------
