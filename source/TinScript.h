@@ -144,6 +144,8 @@ const int32 k_DebuggerBreakpointHitPacketID         = 0x03;
 const int32 k_DebuggerBreakpointConfirmPacketID     = 0x04;
 const int32 k_DebuggerCallstackPacketID             = 0x05;
 const int32 k_DebuggerWatchVarEntryPacketID         = 0x06;
+const int32 k_DebuggerAssertMsgPacketID             = 0x07;
+const int32 k_DebuggerPrintMsgPacketID              = 0x08;
 const int32 k_DebuggerMaxPacketID                   = 0xff;
 
 // == namespace TinScript =============================================================================================
@@ -331,6 +333,8 @@ class CScriptContext {
 
         // -- debugger interface
         void SetDebuggerConnected(bool8 connected);
+        bool IsDebuggerConnected();
+        void DebuggerNotifyAssert();
         void AddBreakpoint(const char* filename, int32 line_number);
         void RemoveBreakpoint(const char* filename, int32 line_number);
         void RemoveAllBreakpoints(const char* filename);
@@ -339,6 +343,7 @@ class CScriptContext {
 
         // -- set the bool to indicate we're not stepping through each line in a debugger
         bool8 mDebuggerConnected;
+        bool8 mDebuggerBreakLoopGuard;
         bool8 mDebuggerActionStep;
         bool8 mDebuggerActionRun;
 
@@ -354,6 +359,9 @@ class CScriptContext {
         void DebuggerSendObjectMembers(CDebuggerWatchVarEntry* callingFunction, uint32 objectID);
         void DebuggerSendObjectVarTable(CDebuggerWatchVarEntry* callingFunction, CObjectEntry* oe, uint32 ns_hash,
                                         tVarTable* var_table);
+        void DebuggerSendAssert(const char* assert_msg, uint32 codeblock_hash, int32 line_number);
+        void DebuggerSendPrint(const char* fmt, ...);
+        
         // -- Thread commands are only supported in WIN32
         #ifdef WIN32
             void AddThreadCommand(const char* command);

@@ -137,7 +137,9 @@ void CDebugWatchWin::AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& w
         CWatchEntry* entry = mWatchList.at(entry_index);
         if (entry->mDebuggerEntry.mObjectID == 0 &&
             entry->mDebuggerEntry.mType == watch_var_entry.mType &&
-            entry->mDebuggerEntry.mVarHash == watch_var_entry.mVarHash)
+            entry->mDebuggerEntry.mVarHash == watch_var_entry.mVarHash &&
+            (entry->mDebuggerEntry.mType != TinScript::TYPE_object ||
+             entry->mDebuggerEntry.mVarObjectID == watch_var_entry.mVarObjectID))
 
         {
             // -- update the value (if it's not a label)
@@ -164,13 +166,22 @@ void CDebugWatchWin::AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& w
         ++entry_index;
     }
 
-    // -- if we did not find the entry for the current callstack, but this entry is from the top of the callstack...
-    if (!found_callstack_entry && watch_var_entry.mFuncNamespaceHash == cur_func_ns_hash &&
-        watch_var_entry.mFunctionHash == cur_func_hash && watch_var_entry.mFunctionObjectID == cur_func_object_id)
+    // -- if we did not find the entry for the current callstack...
+    if (!found_callstack_entry)
     {
+        // -- see if this is for the 
         CWatchEntry* new_entry = new CWatchEntry(watch_var_entry);
         addTopLevelItem(new_entry);
         mWatchList.append(new_entry);
+
+        // -- see if this entry should be hidden
+        bool hidden = (watch_var_entry.mFuncNamespaceHash != cur_func_ns_hash ||
+                       watch_var_entry.mFunctionHash != cur_func_hash ||
+                       watch_var_entry.mFunctionObjectID != cur_func_object_id);
+        if (hidden)
+        {
+            new_entry->setHidden(hidden);
+        }
     }
 }
 

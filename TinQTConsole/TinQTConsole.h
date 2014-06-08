@@ -52,13 +52,6 @@ class CConsoleWindow {
         int Exec();
 
         // -- scripted methods
-        void Quit() { mQuit = true; }
-        void Pause() { mPaused = true; }
-        void Unpause() { mPaused = false; }
-
-        bool IsQuit() { return mQuit; }
-        bool IsPaused() { return mPaused; }
-
         void AddText(char* msg);
 
         // -- Qt component accessors
@@ -98,7 +91,6 @@ class CConsoleWindow {
         QLineEdit* mFileLineEdit;
         QPushButton* mButtonRun;
         QPushButton* mButtonStep;
-        QPushButton* mButtonPause;
         QWidget* mSpacer;
 
         // -- notifications
@@ -121,6 +113,11 @@ class CConsoleWindow {
         bool HasBreakpoint(uint32& codeblock_hash, int32& line_number);
         void HandleBreakpointHit(const char* breakpoint_msg);
 
+        // -- not dissimilar to a breakpoint
+        void NotifyAssertTriggered(const char* assert_msg, uint32 codeblock_hash, int32 line_number);
+        bool HasAssert(const char*& assert_msg, uint32& codeblock_hash, int32& line_number);
+        void ClearAssert(bool set_break);
+
         // -- breakpoint members
         bool mBreakpointHit;
         uint32 mBreakpointCodeblockHash;
@@ -128,12 +125,12 @@ class CConsoleWindow {
         bool mBreakpointRun;
         bool mBreakpointStep;
 
+        // -- assert members
+        bool mAssertTriggered;
+        char mAssertMessage[kMaxArgLength];
+
     private:
         static CConsoleWindow* gConsoleWindow;
-
-        // -- pause/unpause members
-        bool mQuit;
-        bool mPaused;
 
         // -- store whether we're connected
         bool8 mIsConnected;
@@ -164,7 +161,6 @@ class CConsoleInput : public QLineEdit {
         void OnFileEditReturnPressed();
         void OnButtonRunPressed();
         void OnButtonStepPressed();
-        void OnButtonPausePressed();
 
     protected:
         virtual void keyPressEvent(QKeyEvent * event);
@@ -201,6 +197,8 @@ class CConsoleOutput : public QListWidget {
         void HandlePacketBreakpointHit(int32* dataPtr);
         void HandlePacketCallstack(int32* dataPtr);
         void HandlePacketWatchVarEntry(int32* dataPtr);
+        void HandlePacketAssertMsg(int32* dataPtr);
+        void HandlePacketPrintMsg(int32* dataPtr);
 
         // -- called while handling a breakpoint, to ensure we still get to update our own context
         void DebuggerUpdate();

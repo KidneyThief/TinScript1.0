@@ -148,6 +148,7 @@ typedef int (*TinPrintHandler)(const char* fmt, ...);
     if (scriptcontext != NULL)                                      \
     {                                                               \
         scriptcontext->GetPrintHandler()(fmt, ##__VA_ARGS__);       \
+        scriptcontext->DebuggerSendPrint(fmt, ##__VA_ARGS__);       \
     }
 
 #endif // __INTEGRATION_H

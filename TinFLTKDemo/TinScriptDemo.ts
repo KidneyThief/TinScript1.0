@@ -100,7 +100,8 @@ object CreateSceneObject(string name, vector3f position, float radius)
     object scene_object = create CScriptObject(name);
         
     scene_object.position = position;
-    scene_object.radius = radius;
+    if (scene_object.radius == 0.0f)
+        scene_object.radius = radius;
     
     gCurrentGame.game_objects.AddObject(scene_object);
     

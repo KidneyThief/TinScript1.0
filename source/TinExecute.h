@@ -310,6 +310,27 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
 bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
                             CFunctionCallStack& funccallstack);
 
+bool8 DebuggerBreakLoop(CCodeBlock* cb, const uint32* instrptr, CExecStack& execstack,
+                        CFunctionCallStack& funccallstack, const char* assert_msg = NULL);
+
+bool8 DebuggerAssertLoop(const char* condition, CCodeBlock* cb, const uint32* instrptr, CExecStack& execstack,
+                         CFunctionCallStack& funccallstack, const char* fmt, ...);
+
+// --  a debugger assert is special, in that it happens while we have a callstack and use a remote
+// -- debugger to provide insight into the issue (callstack variables can be examined for a bad value/object/etc...)
+#define DebuggerAssert_(condition, cb, intstrptr, execstack, funccallstack, fmt, ...) \
+    {                                                                                                               \
+        if (!(condition))                                                                                           \
+        {                                                                                                           \
+            if (!DebuggerAssertLoop(#condition, cb, instrptr, execstack, funccallstack, fmt, ##__VA_ARGS__))        \
+            {                                                                                                       \
+                ScriptAssert_(cb->GetScriptContext(), condition, cb->GetFileName(), cb->CalcLineNumber(instrptr),   \
+                              fmt, ##__VA_ARGS__);                                                                  \
+            }                                                                                                       \
+        }                                                                                                           \
+    }                                                                                                               \
+
+
 }  // TinScript
 
 #endif // __TINEXECUTE_H

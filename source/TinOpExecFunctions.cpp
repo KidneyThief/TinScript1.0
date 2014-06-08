@@ -316,8 +316,8 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
         if (!val1addr)
         {
             ScriptAssert_(script_context, 0, "<internal>", -1,
-                            "Error - fail to conver from type %s to type %s\n",
-                            GetRegisteredTypeName(val1type), GetRegisteredTypeName(varhashtype));
+                          "Error - fail to conver from type %s to type %s\n",
+                          GetRegisteredTypeName(val1type), GetRegisteredTypeName(varhashtype));
             return (false);
         }
         memcpy(var, val1addr, gRegisteredTypeSize[varhashtype]);
@@ -331,8 +331,8 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
         if (!val1addr)
         {
             ScriptAssert_(script_context, 0, "<internal>", -1,
-                            "Error - fail to convert from type %s to type %s\n",
-                            GetRegisteredTypeName(val1type), GetRegisteredTypeName(ve0->GetType()));
+                          "Error - fail to convert from type %s to type %s\n",
+                          GetRegisteredTypeName(val1type), GetRegisteredTypeName(ve0->GetType()));
             return (false);
         }
 
@@ -349,8 +349,8 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
 // Specific Operation Execution Functions begin here
 bool8 OpExecNULL(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                  CFunctionCallStack& funccallstack) {
-    ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                  "Error - OP_NULL is not a valid op, indicating an error in this codeblock: %s\n");
+    DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                    "Error - OP_NULL is not a valid op, indicating an error in this codeblock: %s\n");
     return (false);
 }
 
@@ -370,7 +370,7 @@ bool8 OpExecVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecSt
     int32 stacktop = 0;
     CObjectEntry* oe = NULL;
     AddVariable(cb->GetScriptContext(), cb->GetScriptContext()->GetGlobalNamespace()->GetVarTable(),
-        funccallstack.GetTop(oe, stacktop), UnHash(varhash), varhash, vartype);
+                funccallstack.GetTop(oe, stacktop), UnHash(varhash), varhash, vartype);
     DebugTrace(op, "Var: %s", UnHash(varhash));
     return (true);
 }
@@ -396,8 +396,9 @@ bool8 OpExecAssign(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecSta
 {
     if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - unable to perform op: %s\nEnsure the variable exists, and the types are valid.\n.",
+                        GetOperationString(op));
         return (false);
     }
     return (true);
@@ -407,8 +408,9 @@ bool8 OpExecAssignAdd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
                       CFunctionCallStack& funccallstack) {
     if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - unable to perform op: %s\nEnsure the variable exists, and the types are valid.\n.",
+                        GetOperationString(op));
         return (false);
     }
     return (true);
@@ -419,8 +421,9 @@ bool8 OpExecAssignSub(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
 {
     if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - unable to perform op: %s\nEnsure the variable exists, and the types are valid.\n.",
+                        GetOperationString(op));
         return (false);
     }
     return (true);
@@ -431,8 +434,9 @@ bool8 OpExecAssignMult(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
 {
     if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - unable to perform op: %s\nEnsure the variable exists, and the types are valid.\n.",
+                        GetOperationString(op));
         return (false);
     }
     return (true);
@@ -443,8 +447,9 @@ bool8 OpExecAssignDiv(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
 {
     if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - unable to perform op: %s\nEnsure the variable exists, and the types are valid.\n.",
+                        GetOperationString(op));
         return (false);
     }
     return (true);
@@ -455,8 +460,9 @@ bool8 OpExecAssignMod(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
 {
     if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - unable to perform op: %s\nEnsure the variable exists, and the types are valid.\n.",
+                        GetOperationString(op));
         return (false);
     }
     return (true);
@@ -467,8 +473,9 @@ bool8 OpExecAssignLeftShift(CCodeBlock* cb, eOpCode op, const uint32*& instrptr,
 {
     if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - unable to perform op: %s\nEnsure the variable exists, and the types are valid.\n.",
+                        GetOperationString(op));
         return (false);
     }
     return (true);
@@ -479,8 +486,9 @@ bool8 OpExecAssignRightShift(CCodeBlock* cb, eOpCode op, const uint32*& instrptr
 {
     if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - unable to perform op: %s\nEnsure the variable exists, and the types are valid.\n.",
+                        GetOperationString(op));
         return (false);
     }
     return (true);
@@ -491,8 +499,9 @@ bool8 OpExecAssignBitAnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
 {
     if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - unable to perform op: %s\nEnsure the variable exists, and the types are valid.\n.",
+                        GetOperationString(op));
         return (false);
     }
     return (true);
@@ -503,8 +512,9 @@ bool8 OpExecAssignBitOr(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
 {
     if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - unable to perform op: %s\nEnsure the variable exists, and the types are valid.\n.",
+                        GetOperationString(op));
         return (false);
     }
     return (true);
@@ -515,8 +525,9 @@ bool8 OpExecAssignBitXor(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
 {
     if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - unable to perform op: %s\nEnsure the variable exists, and the types are valid.\n.",
+                        GetOperationString(op));
         return (false);
     }
     return (true);
@@ -535,8 +546,8 @@ bool8 OpExecUnaryPreInc(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
 	void* assign_var = execstack.Peek(assign_type);
     if (!assign_var)
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Failed to pop stack variable, performing: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Failed to pop stack variable, performing: %s\n", GetOperationString(op));
         return (false);
     }
     // -- cache the variable - we'll want to push it's value after it has been incremented
@@ -548,8 +559,8 @@ bool8 OpExecUnaryPreInc(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     execstack.Push(&value, TYPE_int);
     if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, OP_AssignAdd))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Failed to perform op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Failed to perform op: %s\n", GetOperationString(op));
         return (false);
     }
 
@@ -571,8 +582,8 @@ bool8 OpExecUnaryPreDec(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
 	void* assign_var = execstack.Peek(assign_type);
     if (!assign_var)
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Failed to pop stack variable, performing: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Failed to pop stack variable, performing: %s\n", GetOperationString(op));
         return (false);
     }
     // -- cache the variable - we'll want to push it's value after it has been incremented
@@ -584,8 +595,8 @@ bool8 OpExecUnaryPreDec(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     execstack.Push(&value, TYPE_int);
     if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, OP_AssignAdd))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Failed to perform op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Failed to perform op: %s\n", GetOperationString(op));
         return (false);
     }
 
@@ -620,8 +631,8 @@ bool8 OpExecUnaryBitInvert(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
 	eVarType valtype;
 	void* valaddr = execstack.Pop(valtype);
     if(!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, valaddr, valtype, ve, oe)){
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Failed pop value for op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Failed pop value for op: %s\n", GetOperationString(op));
         return false;
     }
 
@@ -629,9 +640,9 @@ bool8 OpExecUnaryBitInvert(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     void* convertaddr = TypeConvert(cb->GetScriptContext(), valtype, valaddr, TYPE_int);
     if (!convertaddr)
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                "Error - unable to convert from type %s to type TYPE_int, performing op: %s\n",
-                gRegisteredTypeNames[valtype], GetOperationString(op));
+          DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                          "Error - unable to convert from type %s to type TYPE_int, performing op: %s\n",
+                          gRegisteredTypeNames[valtype], GetOperationString(op));
         return false;
     }
 
@@ -654,8 +665,8 @@ bool8 OpExecUnaryNot(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
 	eVarType valtype;
 	void* valaddr = execstack.Pop(valtype);
     if(!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, valaddr, valtype, ve, oe)) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Failed pop value for op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Failed pop value for op: %s\n", GetOperationString(op));
         return false;
     }
 
@@ -663,9 +674,9 @@ bool8 OpExecUnaryNot(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
     void* convertaddr = TypeConvert(cb->GetScriptContext(), valtype, valaddr, TYPE_bool);
     if (!convertaddr)
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                "Error - unable to convert from type %s to type TYPE_bool, performing op: %s\n",
-                gRegisteredTypeNames[valtype], GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - unable to convert from type %s to type TYPE_bool, performing op: %s\n",
+                        gRegisteredTypeNames[valtype], GetOperationString(op));
         return false;
     }
 
@@ -722,8 +733,8 @@ bool8 OpExecPushLocalValue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     void* stackvaraddr = GetStackVarAddr(cb->GetScriptContext(), execstack, funccallstack,
                                          stackoffset);
     if(!stackvaraddr) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Unable to get StackVarAddr()\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Unable to get StackVarAddr()\n");
         return false;
     }
 
@@ -769,8 +780,8 @@ bool8 OpExecPushArrayVar(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
     if(contenttype != TYPE_int) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - ExecStack should contain TYPE_int\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain TYPE_int\n");
         return false;
     }
     uint32 arrayvarhash = *(uint32*)contentptr;
@@ -798,8 +809,8 @@ bool8 OpExecPushArrayValue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
     if(contenttype != TYPE_int) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - ExecStack should contain TYPE_int\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain TYPE_int\n");
         return false;
     }
     uint32 arrayvarhash = *(uint32*)contentptr;
@@ -813,8 +824,8 @@ bool8 OpExecPushArrayValue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
         cb->GetScriptContext()->GetGlobalNamespace()->GetVarTable(), nshash,
         varfunchash, varhash, arrayvarhash);
     if(!ve) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - OP_PushArrayValue failed\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - OP_PushArrayValue failed\n");
         return false;
     }
 
@@ -834,8 +845,8 @@ bool8 OpExecPushMember(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
     if(contenttype != TYPE_object) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - ExecStack should contain TYPE_object\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain TYPE_object\n");
         return false;
     }
 
@@ -861,8 +872,8 @@ bool8 OpExecPushMemberVal(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
     if(contenttype != TYPE_object) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - ExecStack should contain TYPE_object\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain TYPE_object\n");
         return false;
     }
 
@@ -872,17 +883,17 @@ bool8 OpExecPushMemberVal(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     // -- find the object
     CObjectEntry* oe = cb->GetScriptContext()->FindObjectEntry(objectid);
     if(!oe) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Unable to find object %d\n", objectid);
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Unable to find object %d\n", objectid);
         return false;
     }
 
     // -- find the variable entry from the object's namespace variable table
     CVariableEntry* ve = oe->GetVariableEntry(varhash);
     if(!ve) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Unable to find member %s for object %d\n",
-                      UnHash(varhash), objectid);
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Unable to find member %s for object %d\n",
+                        UnHash(varhash), objectid);
         return false;
     }
     assert(ve != NULL);
@@ -909,7 +920,7 @@ bool8 OpExecPushPODMember(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
 	void* varaddr = execstack.Pop(vartype);
     if (!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, varaddr, vartype, ve0, oe0))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - Failed to pop a variable of a registered POD type\n");
         return (false);
     }
@@ -920,7 +931,7 @@ bool8 OpExecPushPODMember(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     void* pod_member_addr = NULL;
     if (!GetRegisteredPODMember(vartype, varaddr, varhash, pod_member_type, pod_member_addr))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - Failed to pop a variable of a registered POD type\n");
         return (false);
     }
@@ -951,8 +962,8 @@ bool8 OpExecPushPODMemberVal(CCodeBlock* cb, eOpCode op, const uint32*& instrptr
     void* pod_member_addr = NULL;
     if (!GetRegisteredPODMember(contenttype, contentptr, varhash, pod_member_type, pod_member_addr))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Failed to pop a variable of a registered POD type\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Failed to pop a variable of a registered POD type\n");
         return (false);
     }
 
@@ -1022,8 +1033,8 @@ bool8 PerformCompareOp(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
 {
     if (!PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - unable to perform op: %s\n", GetOperationString(op));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - unable to perform op: %s\n", GetOperationString(op));
         return (false);
     }
 
@@ -1205,8 +1216,8 @@ bool8 OpExecBranchTrue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     bool8* convertAddr = (bool8*)TypeConvert(cb->GetScriptContext(), valtype, valueraw, TYPE_bool);
     if (! convertAddr)
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - expecting a bool\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - expecting a bool\n");
         return (false);
     }
 
@@ -1290,14 +1301,14 @@ bool8 OpExecFuncCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     CFunctionEntry* fe = functable->FindItem(funchash);
     if(!fe) {
         if(nshash != 0) {
-            ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                          "Error - undefined function: %s::%s()\n",
-                          UnHash(nshash), UnHash(funchash));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - undefined function: %s::%s()\n",
+                        UnHash(nshash), UnHash(funchash));
         }
         else
         {
-            ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                "Error - undefined function: %s()\n", UnHash(funchash));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - undefined function: %s()\n", UnHash(funchash));
         }
         return false;
     }
@@ -1330,15 +1341,15 @@ bool8 OpExecPushParam(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
     CObjectEntry* oe = NULL;
     CFunctionEntry* fe = funccallstack.GetTop(oe, stackoffset);
     if(!fe) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - assigning parameters outside a function call\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - assigning parameters outside a function call\n");
         return false;
     }
     uint32 paramcount = fe->GetContext()->GetParameterCount();
     if(paramindex >= paramcount) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - too many parameters calling function: %s\n",
-                      UnHash(fe->GetHash()));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - too many parameters calling function: %s\n",
+                        UnHash(fe->GetHash()));
         return false;
     }
 
@@ -1369,8 +1380,8 @@ bool8 OpExecMethodCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
     if(contenttype != TYPE_object) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - ExecStack should contain TYPE_object\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain TYPE_object\n");
         return false;
     }
 
@@ -1380,8 +1391,8 @@ bool8 OpExecMethodCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     // -- find the object
     CObjectEntry* oe = cb->GetScriptContext()->FindObjectEntry(objectid);
     if(!oe) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Unable to find object %d\n", objectid);
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Unable to find object %d\n", objectid);
         return false;
     }
 
@@ -1389,9 +1400,9 @@ bool8 OpExecMethodCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     // -- if nshash is 0, then it's from the top of the hierarchy
     CFunctionEntry* fe = oe->GetFunctionEntry(nshash, methodhash);
     if(!fe) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Unable to find method %s for object %d\n",
-                      UnHash(methodhash), objectid);
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Unable to find method %s for object %d\n",
+                        UnHash(methodhash), objectid);
         return false;
     }
 
@@ -1435,9 +1446,9 @@ bool8 OpExecFuncCall(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
 
     bool8 result = CodeBlockCallFunction(fe, oe, execstack, funccallstack);
     if(!result) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Unable to call function: %s()\n",
-                      UnHash(fe->GetHash()));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Unable to call function: %s()\n",
+                        UnHash(fe->GetHash()));
         return false;
     }
 
@@ -1450,8 +1461,8 @@ bool8 OpExecFuncCall(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
     if(!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, return_val, return_valtype, return_ve,
                       return_oe))
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - no return value (even void pushes 0) from function: %s()\n", UnHash(fe->GetHash()));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - no return value (even void pushes 0) from function: %s()\n", UnHash(fe->GetHash()));
         return false;
     }
 
@@ -1467,8 +1478,8 @@ bool8 OpExecFuncReturn(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     CObjectEntry* oe = NULL;
     CFunctionEntry* fe = funccallstack.Pop(oe);
     if(!fe) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-            "Error - return with no function\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - return with no function\n");
         return false;
     }
 
@@ -1506,8 +1517,8 @@ bool8 OpExecArrayHash(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
     eVarType val1type;
     void* val1 = execstack.Pop(val1type);
     if(!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, val1, val1type, ve1, oe1)) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Failed to pop string to hash\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Failed to pop string to hash\n");
         return false;
     }
     // -- ensure it actually is a string
@@ -1517,8 +1528,8 @@ bool8 OpExecArrayHash(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
     if(contenttype != TYPE_int) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - ExecStack should contain TYPE_object\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain TYPE_object\n");
         return false;
     }
 
@@ -1542,8 +1553,8 @@ bool8 OpExecArrayVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
     if(contenttype != TYPE_int) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - ExecStack should contain TYPE_int\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain TYPE_int\n");
         return false;
     }
     uint32 hashvalue = *(uint32*)contentptr;
@@ -1554,13 +1565,13 @@ bool8 OpExecArrayVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     eVarType val0type;
     void* val0 = execstack.Pop(val0type);
     if(!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, val0, val0type, ve0, oe0)) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - ExecStack should contain a hashtable variable\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain a hashtable variable\n");
         return false;
     }
     if(val0type != TYPE_hashtable) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - ExecStack should contain hashtable variable\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain hashtable variable\n");
         return false;
     }
 
@@ -1570,9 +1581,9 @@ bool8 OpExecArrayVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     CVariableEntry* hte = hashtable->FindItem(hashvalue);
     // -- if the entry already exists, ensure it's the same type
     if(hte && hte->GetType() != vartype) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - HashTable variable: %s already has an entry of type: %s\n",
-                      UnHash(ve0->GetHash()), GetRegisteredTypeName(hte->GetType()));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - HashTable variable: %s already has an entry of type: %s\n",
+                        UnHash(ve0->GetHash()), GetRegisteredTypeName(hte->GetType()));
         return false;
     }
     // -- otherwise add the variable entry to the hash table
@@ -1612,8 +1623,8 @@ bool8 OpExecScheduleBegin(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
                           CFunctionCallStack& funccallstack) {
     // -- ensure we're not in the middle of a schedule construction already
     if(cb->GetScriptContext()->GetScheduler()->mCurrentSchedule != NULL) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - A schedule() is already being processed\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - A schedule() is already being processed\n");
         return false;
     }
 
@@ -1634,8 +1645,8 @@ bool8 OpExecScheduleBegin(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     contenttype;
     contentptr = execstack.Pop(contenttype);
     if(contenttype != TYPE_object) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - ExecStack should contain TYPE_object\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain TYPE_object\n");
         return false;
     }
 
@@ -1645,8 +1656,8 @@ bool8 OpExecScheduleBegin(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     // -- finally pull the delay time off the stack
     contentptr = execstack.Pop(contenttype);
     if(contenttype != TYPE_int) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - ExecStack should contain TYPE_int\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain TYPE_int\n");
         return false;
     }
     int32 delaytime = *(int32*)(contentptr);
@@ -1663,8 +1674,8 @@ bool8 OpExecScheduleParam(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
                           CFunctionCallStack& funccallstack) {
     // -- ensure we are in the middle of a schedule construction
     if(cb->GetScriptContext()->GetScheduler()->mCurrentSchedule == NULL) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - There is no schedule() being processed\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - There is no schedule() being processed\n");
         return false;
     }
 
@@ -1693,8 +1704,8 @@ bool8 OpExecScheduleEnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
                         CFunctionCallStack& funccallstack) {
     // -- ensure we are in the middle of a schedule construction
     if(cb->GetScriptContext()->GetScheduler()->mCurrentSchedule == NULL) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - There is no schedule() being processed\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - There is no schedule() being processed\n");
         return false;
     }
 
@@ -1708,8 +1719,8 @@ bool8 OpExecScheduleEnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
         // -- see if we have a return result
         CVariableEntry* return_ve = curcommand->mFuncContext->GetParameter(0);
         if(!return_ve) {
-            ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                          "Error - There is no return value available from schedule()\n");
+            DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                            "Error - There is no return value available from schedule()\n");
             return false;
         }
 
@@ -1743,8 +1754,8 @@ bool8 OpExecCreateObject(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     void* objnameaddr = TypeConvert(cb->GetScriptContext(), contenttype, contentptr, TYPE_string);
     if (!objnameaddr)
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - ExecStack should contain TYPE_string\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain TYPE_string\n");
         return false;
     }
 
@@ -1754,8 +1765,8 @@ bool8 OpExecCreateObject(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     // -- if we failed to create the object, assert
     if (objid == 0)
     {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Failed to create object of class:  %s\n", UnHash(classhash));
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Failed to create object of class:  %s\n", UnHash(classhash));
         return false;
     }
 
@@ -1770,8 +1781,8 @@ bool8 OpExecDestroyObject(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
     if(contenttype != TYPE_object) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - ExecStack should contain TYPE_object\n");
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain TYPE_object\n");
         return false;
     }
 
@@ -1781,8 +1792,8 @@ bool8 OpExecDestroyObject(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     // -- find the object
     CObjectEntry* oe = cb->GetScriptContext()->FindObjectEntry(objectid);
     if(!oe) {
-        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
-                      "Error - Unable to find object %d\n", objectid);
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Unable to find object %d\n", objectid);
         return false;
     }
 

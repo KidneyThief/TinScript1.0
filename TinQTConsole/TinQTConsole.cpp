@@ -57,6 +57,8 @@
 #undef TinPrint
 #define TinPrint Print
 
+bool PushDebuggerAssertDialog(const char* assertmsg, bool& ignore);
+
 // ------------------------------------------------------------------------------------------------
 CConsoleWindow* CConsoleWindow::gConsoleWindow = NULL;
 CConsoleWindow::CConsoleWindow() {
@@ -114,16 +116,12 @@ CConsoleWindow::CConsoleWindow() {
     mButtonStep = new QPushButton();
     mButtonStep->setText("Step");
     mButtonStep->setGeometry(0, 0, 32, 24);
-    mButtonPause = new QPushButton();
-    mButtonPause->setText("Pause");
-    mButtonPause->setGeometry(0, 0, 32, 24);
     mSpacer = new QWidget();
 
     mToolbarLayout->addWidget(mFileLabel);
     mToolbarLayout->addWidget(mFileLineEdit);
     mToolbarLayout->addWidget(mButtonRun);
     mToolbarLayout->addWidget(mButtonStep);
-    mToolbarLayout->addWidget(mButtonPause);
     mToolbarLayout->addWidget(mSpacer, 1);
 
     // -- create the source window
@@ -175,7 +173,6 @@ CConsoleWindow::CConsoleWindow() {
 
     QObject::connect(mButtonRun, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonRunPressed()));
     QObject::connect(mButtonStep, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonStepPressed()));
-    QObject::connect(mButtonPause, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonPausePressed()));
 
     QObject::connect(mCallstackWin, SIGNAL(itemDoubleClicked(QListWidgetItem*)), mCallstackWin,
                                     SLOT(OnDoubleClicked(QListWidgetItem*)));
@@ -193,12 +190,14 @@ CConsoleWindow::CConsoleWindow() {
     mBreakpointCodeblockHash = 0;
     mBreakpointLinenumber = -1;
 
+    // -- initialize the assert messages
+    mAssertTriggered = false;
+    mAssertMessage[0] = '\0';
+
     mBreakpointRun = false;
     mBreakpointStep = false;
 
     // -- initialize the running members
-    mQuit = false;
-    mPaused = false;
     mIsConnected = false;
 }
 
@@ -208,7 +207,6 @@ CConsoleWindow::~CConsoleWindow()
     delete mFileLineEdit;
     delete mButtonRun;
     delete mButtonStep;
-    delete mButtonPause;
     delete mSpacer;
     delete mToolbarLayout;
 
@@ -315,6 +313,12 @@ void CConsoleWindow::NotifyOnConnect()
 
     // -- resend our list of breakpoints
     GetDebugBreakpointsWin()->NotifyOnConnect();
+
+    // -- add some details
+    ConsolePrint("*******************************************************************");
+    ConsolePrint("*                                 Debugger Connected                                     *");
+    ConsolePrint("*  All console input will be redirected to the connected target.  *");
+    ConsolePrint("*******************************************************************");
 }
 
 void CConsoleWindow::NotifyOnDisconnect()
@@ -422,6 +426,57 @@ void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg)
 
     // -- we need to notify the watch win that we're not currently broken
     GetDebugWatchWin()->NotifyEndOfBreakpoint();
+}
+
+// ====================================================================================================================
+// NotifyAssertTriggered():  An assert was found during processing of the data packets
+// ====================================================================================================================
+void CConsoleWindow::NotifyAssertTriggered(const char* assert_msg, uint32 codeblock_hash, int32 line_number)
+{
+    // -- set the bool
+    mAssertTriggered = true;
+
+    strcpy_s(mAssertMessage, assert_msg);
+    mBreakpointCodeblockHash = codeblock_hash;
+    mBreakpointLinenumber = line_number;
+}
+
+// ====================================================================================================================
+// HasAssert():  Returns true, if an assert is pending, along with the specific codeblock / line number
+// ====================================================================================================================
+bool CConsoleWindow::HasAssert(const char*& assert_msg, uint32& codeblock_hash, int32& line_number)
+{
+    // -- no assert - return false
+    if (!mAssertTriggered)
+        return (false);
+
+    // -- fill in the details
+    assert_msg = mAssertMessage;
+    codeblock_hash = mBreakpointCodeblockHash;
+    line_number = mBreakpointLinenumber;
+
+    // -- we have a pending breakpoint
+    return (true);
+}
+
+// ====================================================================================================================
+// ClearAssert():  The assert is or has been handled
+// ====================================================================================================================
+void CConsoleWindow::ClearAssert(bool8 set_break)
+{
+    // -- clear the flag
+    mAssertTriggered = false;
+
+    // -- if we're supposed to proceed by setting a breakpoint, set the flag
+    if (set_break)
+    {
+        mBreakpointHit = true;
+    }
+    else
+    {
+        // -- send the message to run
+        SocketManager::SendCommand("DebuggerBreakRun();");
+    }
 }
 
 // ====================================================================================================================
@@ -589,7 +644,12 @@ void CConsoleInput::OnReturnPressed()
 {
     QByteArray input_ba = text().toUtf8();
     const char* input_text = input_ba.data();
-    ConsolePrint("> %s", input_text);
+
+    bool8 is_connected = CConsoleWindow::GetInstance()->IsConnected();
+    if (is_connected)
+        ConsolePrint("SEND> %s", input_text);
+    else
+        ConsolePrint("> %s", input_text);
 
     // -- add this to the history buf
     const char* historyptr = (mHistoryLastIndex < 0) ? NULL : mHistory[mHistoryLastIndex];
@@ -600,7 +660,10 @@ void CConsoleInput::OnReturnPressed()
     }
     mHistoryIndex = -1;
 
-    TinScript::ExecCommand(input_text);
+    if (is_connected)
+        SocketManager::SendCommand(input_text);
+    else
+        TinScript::ExecCommand(input_text);
     setText("");
 }
 
@@ -616,27 +679,6 @@ void CConsoleInput::OnButtonRunPressed() {
 
 void CConsoleInput::OnButtonStepPressed() {
     CConsoleWindow::GetInstance()->mBreakpointStep = true;
-}
-
-void CConsoleInput::OnButtonPausePressed() {
-    mOwner->mButtonPause->setAutoFillBackground(true);
-	QPalette myPalette = mOwner->mButtonPause->palette();
-
-    bool is_paused = mOwner->IsPaused();
-    if(is_paused) {
-        mOwner->Unpause();
-        mOwner->mButtonPause->setText("Pause");
-
-        myPalette.setColor(QPalette::Button, Qt::transparent);	
-	    mOwner->mButtonPause->setPalette(myPalette);
-    }
-    else {
-        mOwner->Pause();
-        mOwner->mButtonPause->setText("Unpause");
-
-        myPalette.setColor(QPalette::Button, Qt::red);	
-	    mOwner->mButtonPause->setPalette(myPalette);
-    }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -722,9 +764,28 @@ void CConsoleOutput::Update()
     // -- process the received packets
     ProcessDataPackets();
 
-    // -- see if we have a breakpoint
+    // -- see if we an assert was triggered
     uint32 codeblock_hash = 0;
     int32 line_number = -1;
+    const char* assert_msg = "";
+    bool hasAssert = CConsoleWindow::GetInstance()->HasAssert(assert_msg, codeblock_hash, line_number);
+    if (hasAssert)
+    {
+        // -- set the PC
+        CConsoleWindow::GetInstance()->mDebugSourceWin->SetCurrentPC(codeblock_hash, line_number);
+
+        // -- if the response to the assert is to break, then we'll drop down and handle a breakpoint
+        bool ignore = false;
+        PushDebuggerAssertDialog(assert_msg, ignore);
+
+        // -- clear the PC
+        CConsoleWindow::GetInstance()->mDebugSourceWin->SetCurrentPC(codeblock_hash, -1);
+
+        // -- clear the assert flag
+        CConsoleWindow::GetInstance()->ClearAssert(!ignore);
+    }
+
+    // -- see if we have a breakpoint
     bool hasBreakpoint = CConsoleWindow::GetInstance()->HasBreakpoint(codeblock_hash, line_number); 
     
     // -- this will notify all required windows, and loop until the the breakpoint has been handled
@@ -734,17 +795,8 @@ void CConsoleOutput::Update()
     }
 
     // -- if we're not paused, update TinScript
-    if (!mOwner->IsPaused())
-    {
-        mCurrentTime += kUpdateTime;
-        TinScript::UpdateContext(mCurrentTime);
-    }
-
-    // -- see if we're supposed to quit
-    if(mOwner->IsQuit())
-    {
-        QApplication::closeAllWindows();
-    }
+    mCurrentTime += kUpdateTime;
+    TinScript::UpdateContext(mCurrentTime);
 }
 
 // ====================================================================================================================
@@ -823,6 +875,14 @@ void CConsoleOutput::ProcessDataPackets()
 
             case k_DebuggerWatchVarEntryPacketID:
                 HandlePacketWatchVarEntry(dataPtr);
+                break;
+
+            case k_DebuggerAssertMsgPacketID:
+                HandlePacketAssertMsg(dataPtr);
+                break;
+
+            case k_DebuggerPrintMsgPacketID:
+                HandlePacketPrintMsg(dataPtr);
                 break;
 
             default:
@@ -995,6 +1055,50 @@ void CConsoleOutput::HandlePacketWatchVarEntry(int32* dataPtr)
 }
 
 // ====================================================================================================================
+// HandlePacketAssertMsg():  A handler for packet type "assert"
+// ====================================================================================================================
+void CConsoleOutput::HandlePacketAssertMsg(int32* dataPtr)
+{
+    // -- skip past the packet ID
+    ++dataPtr;
+
+    // -- get the length of the message string
+    int32 msg_length = *dataPtr++;
+
+    // -- set the const char*
+    const char* assert_msg = (char*)dataPtr;
+    dataPtr += (msg_length / 4);
+
+    // -- get the codeblock hash
+    uint32 codeblock_hash = *dataPtr++;
+
+    // -- get the line number
+    int32 line_number = *dataPtr++;
+
+    // -- notify the debugger
+    CConsoleWindow::GetInstance()->NotifyAssertTriggered(assert_msg, codeblock_hash, line_number);
+}
+
+// ====================================================================================================================
+// HandlePacketPrintMsg():  A handler for packet type "print"
+// ====================================================================================================================
+void CConsoleOutput::HandlePacketPrintMsg(int32* dataPtr)
+{
+    // -- skip past the packet ID
+    ++dataPtr;
+
+    // -- get the length of the message string
+    int32 msg_length = *dataPtr++;
+
+    // -- set the const char*
+    const char* msg = (char*)dataPtr;
+    dataPtr += (msg_length / 4);
+
+    // -- add the message, preceeded with some indication that it's a remote message
+    ConsolePrint("RECV> %s", msg);
+}
+
+// ====================================================================================================================
 // PushAssertDialog():  Handler for a ScriptAssert_(), returns ignore/trace/break input
 // ====================================================================================================================
 bool PushAssertDialog(const char* assertmsg, const char* errormsg, bool& skip, bool& trace) {
@@ -1025,6 +1129,40 @@ bool PushAssertDialog(const char* assertmsg, const char* errormsg, bool& skip, b
         trace = false;
         handled = false;
     }
+    return (handled);
+}
+
+// ====================================================================================================================
+// PushDebuggerAssertDialog():  Handler for receiving an assert from our target
+// ====================================================================================================================
+bool PushDebuggerAssertDialog(const char* assertmsg, bool& ignore)
+{
+    QMessageBox msgBox;
+
+    QString dialog_msg = QString(assertmsg);
+    msgBox.setText(dialog_msg);
+
+    ConsolePrint("RECV> *** ASSERT ***");
+    ConsolePrint("RECV> %s", assertmsg);
+
+    QPushButton *ignore_button = msgBox.addButton("Ignore", QMessageBox::ActionRole);
+    QPushButton *break_button = msgBox.addButton("Break", QMessageBox::ActionRole);
+
+    msgBox.exec();
+
+    bool handled = false;
+    if (msgBox.clickedButton() == ignore_button)
+    {
+        ignore = true;
+        handled = true;
+    }
+
+    else if (msgBox.clickedButton() == break_button)
+    {
+        ignore = false;
+        handled = true;
+    }
+
     return (handled);
 }
 
@@ -1069,27 +1207,11 @@ int _tmain(int argc, _TCHAR* argv[])
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-void Quit() {
-    CConsoleWindow::GetInstance()->Quit();
-}
-
-void Pause() {
-    CConsoleWindow::GetInstance()->Pause();
-}
-
-void Unpause() {
-    CConsoleWindow::GetInstance()->Unpause();
-}
-
 float32 GetSimTime() {
     int32 cur_time = CConsoleWindow::GetInstance()->GetOutput()->GetSimTime();
     float32 seconds = (float32)cur_time / 1000.0f;
     return (seconds);
 }
-
-REGISTER_FUNCTION_P0(Quit, Quit, void);
-REGISTER_FUNCTION_P0(Pause, Pause, void);
-REGISTER_FUNCTION_P0(Unpause, Unpause, void);
 
 REGISTER_FUNCTION_P0(GetSimTime, GetSimTime, float32);
 

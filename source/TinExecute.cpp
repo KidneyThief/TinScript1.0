@@ -425,6 +425,159 @@ OpExecuteFunction GetOpExecFunction(eOpCode curoperation) {
     return (gOpExecFunctions[curoperation]);
 }
 
+// ====================================================================================================================
+// DebuggerBreakLoop():  Handles a failed assert condition, and either breaks in the remote debugger, or asserts
+// ====================================================================================================================
+bool8 DebuggerAssertLoop(const char* condition, CCodeBlock* cb, const uint32* instrptr, CExecStack& execstack,
+                         CFunctionCallStack& funccallstack, const char* fmt, ...)
+{
+    // -- pull the file and line number, and construct the full condition message
+    const char* filename = cb->GetFileName();
+    int32 line_number = cb->CalcLineNumber(instrptr);
+    char cond_buf[512];
+    sprintf_s(cond_buf, "Assert(%s) file: %s, line %d:", condition, filename, line_number + 1);
+
+    // -- compose the assert message
+    va_list args;
+    va_start(args, fmt);
+    char msg_buf[512];
+    vsprintf_s(msg_buf, 512, fmt, args);
+    va_end(args);
+
+    // -- put both messages together, and send that to the DebuggerBreakLoop
+    char assert_msg[2048];
+    sprintf_s(assert_msg, "%s\n%s", cond_buf, msg_buf);
+
+    return (DebuggerBreakLoop(cb, instrptr, execstack, funccallstack, assert_msg));
+}
+
+// ====================================================================================================================
+// DebuggerBreakLoop():  If a remote debugger is connected, we'll halt the VM until released by the debugger
+// ====================================================================================================================
+bool8 DebuggerBreakLoop(CCodeBlock* cb, const uint32* instrptr, CExecStack& execstack,
+                        CFunctionCallStack& funccallstack, const char* assert_msg)
+{
+    // -- asserts, and breakpoints both need to do the same thing - notify the debugger of the file/line,
+    // -- loop until the user makes choice.  Asserts have an additional message
+
+    // -- if we're not able to handle the break loop, return false (possibly so an assert can trigger instead)
+    if (!cb || !cb->GetScriptContext() || !cb->GetScriptContext()->IsDebuggerConnected())
+        return (false);
+
+    CScriptContext* script_context = cb->GetScriptContext();
+    int32 cur_line = cb->CalcLineNumber(instrptr);
+    uint32 codeblock_hash = cb->GetFilenameHash();
+
+    // -- if we're already broken in an assert of some sort, we need to protect this loop from being re-entrant
+    if (script_context->mDebuggerBreakLoopGuard || script_context->IsAssertStackSkipped())
+    {
+        // -- print the assert message, if we have one, but simply return (true)
+        if (assert_msg && assert_msg[0])
+        {
+            TinPrint(script_context, assert_msg);
+            return (true);
+        }
+    }
+
+    // -- set the guard
+    script_context->mDebuggerBreakLoopGuard = true;
+
+    // -- set the current line we're broken on
+    funccallstack.mDebuggerLastBreak = cur_line;
+
+    // -- build the callstack arrays, in preparation to send them to the debugger
+    uint32 codeblock_array[kDebuggerCallstackSize];
+    uint32 objid_array[kDebuggerCallstackSize];
+    uint32 namespace_array[kDebuggerCallstackSize];
+    uint32 func_array[kDebuggerCallstackSize];
+    uint32 linenumber_array[kDebuggerCallstackSize];
+    int32 stack_size =
+        funccallstack.DebuggerGetCallstack(codeblock_array, objid_array,
+                                            namespace_array, func_array,
+                                            linenumber_array, kDebuggerCallstackSize);
+
+    // -- note - the line number for the function we're currently in, won't have been set
+    // -- in the function call stack
+    linenumber_array[0] = cur_line;
+
+    script_context->DebuggerSendCallstack(codeblock_array, objid_array,
+                                            namespace_array, func_array,
+                                            linenumber_array, stack_size);
+
+    // -- get the entire list of variables, at every level for the current call stack
+    CDebuggerWatchVarEntry watch_var_stack[kDebuggerWatchWindowSize];
+    int32 watch_entry_size =
+        funccallstack.DebuggerGetStackVarEntries(script_context, execstack,
+                                                    watch_var_stack, kDebuggerWatchWindowSize);
+
+    // -- now loop through all stack variables, and any that are objects, send their
+    // -- member dictionaries as well
+    for (int32 i = 0; i < watch_entry_size; ++i)
+    {
+        script_context->DebuggerSendWatchVariable(&watch_var_stack[i]);
+
+        // -- if the watch var is of type object, send the object members over as well
+        if (watch_var_stack[i].mType == TYPE_object)
+        {
+            script_context->DebuggerSendObjectMembers(&watch_var_stack[i],
+                                                        watch_var_stack[i].mVarObjectID);
+        }
+    }
+
+    // -- send a message to the debugger - either this is an assert, or a breakpoint
+    bool is_assert = (assert_msg && assert_msg[0]);
+    if (is_assert)
+    {
+        script_context->DebuggerSendAssert(assert_msg, codeblock_hash, cur_line);
+    }
+    else
+    {
+        script_context->DebuggerBreakpointHit(codeblock_hash, cur_line);
+    }
+
+    // -- wait for the debugger to either continue to step or run
+    script_context->SetBreakActionStep(false);
+    script_context->SetBreakActionRun(false);
+    while (true)
+    {
+        // -- disable breaking on any asserts while we're waiting for the original loop to exit
+        if (is_assert)
+        {
+            script_context->SetAssertStackSkipped(true);
+            script_context->SetAssertEnableTrace(true);
+        }
+
+        // -- we spin forever in this loop, until either the debugger disconnects,
+        // -- or sends a message to step or run
+        script_context->ProcessThreadCommands();
+
+        // -- if either mDebuggerBreakStep or mDebuggerBreakRun was set, exit the loop
+        if (script_context->mDebuggerActionStep || script_context->mDebuggerActionRun)
+        {
+            // -- set the bool to continue to break, based on which action is true
+            // -- (unless it's an assert)
+            funccallstack.mDebuggerBreakStep = !is_assert && script_context->mDebuggerActionStep;
+            break;
+        }
+
+        // -- otherwise, sleep
+        Sleep(1);
+    }
+
+    // -- disable further asserts until the stack is unwound.
+    if (is_assert)
+    {
+        script_context->SetAssertStackSkipped(true);
+        script_context->SetAssertEnableTrace(true);
+    }
+
+    // -- release the guard
+    script_context->mDebuggerBreakLoopGuard = false;
+
+    // -- we successfully handled the breakpoint with the loop
+    return (true);
+}
+
 bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
                          CFunctionCallStack& funccallstack) {
 #if DEBUG_CODEBLOCK
@@ -459,71 +612,8 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
                 (!funccallstack.mDebuggerBreakStep && (isNewLine || cur_line != funccallstack.mDebuggerLastBreak) &&
                  mBreakpoints->FindItem(cur_line)))
             {
-                // -- set the current line we're broken on
-                funccallstack.mDebuggerLastBreak = cur_line;
 
-                // -- build the callstack arrays, in preparation to send them to the debugger
-                uint32 codeblock_array[kDebuggerCallstackSize];
-                uint32 objid_array[kDebuggerCallstackSize];
-                uint32 namespace_array[kDebuggerCallstackSize];
-                uint32 func_array[kDebuggerCallstackSize];
-                uint32 linenumber_array[kDebuggerCallstackSize];
-                int32 stack_size =
-                    funccallstack.DebuggerGetCallstack(codeblock_array, objid_array,
-                                                       namespace_array, func_array,
-                                                       linenumber_array, kDebuggerCallstackSize);
-
-                // -- note - the line number for the function we're currently in, won't have been set
-                // -- in the function call stack
-                linenumber_array[0] = cur_line;
-
-                script_context->DebuggerSendCallstack(codeblock_array, objid_array,
-                                                      namespace_array, func_array,
-                                                      linenumber_array, stack_size);
-
-                // -- get the entire list of variables, at every level for the current call stack
-                CDebuggerWatchVarEntry watch_var_stack[kDebuggerWatchWindowSize];
-                int32 watch_entry_size =
-                    funccallstack.DebuggerGetStackVarEntries(GetScriptContext(), execstack,
-                                                             watch_var_stack, kDebuggerWatchWindowSize);
-
-                // -- now loop through all stack variables, and any that are objects, send their
-                // -- member dictionaries as well
-                for (int32 i = 0; i < watch_entry_size; ++i)
-                {
-                    script_context->DebuggerSendWatchVariable(&watch_var_stack[i]);
-
-                    // -- if the watch var is of type object, send the object members over as well
-                    if (watch_var_stack[i].mType == TYPE_object)
-                    {
-                        script_context->DebuggerSendObjectMembers(&watch_var_stack[i],
-                                                                  watch_var_stack[i].mVarObjectID);
-                    }
-                }
-
-                // -- notify the debugger of the breakpoint we just hit
-                script_context->DebuggerBreakpointHit(GetFilenameHash(), cur_line);
-
-                // -- wait for the debugger to either continue to step or run
-                script_context->SetBreakActionStep(false);
-                script_context->SetBreakActionRun(false);
-                while (true)
-                {
-                    // -- we spin forever in this loop, until either the debugger disconnects,
-                    // -- or sends a message to step or run
-                    GetScriptContext()->ProcessThreadCommands();
-
-                    // -- if either mDebuggerBreakStep or mDebuggerBreakRun was set, exit the loop
-                    if (script_context->mDebuggerActionStep || script_context->mDebuggerActionRun)
-                    {
-                        // -- set the bool to continue to break, based on which action is true
-                        funccallstack.mDebuggerBreakStep = script_context->mDebuggerActionStep;
-                        break;
-                    }
-
-                    // -- otherwise, sleep
-                    Sleep(1);
-                }
+                DebuggerBreakLoop(this, instrptr, execstack, funccallstack);
             }
         }
 

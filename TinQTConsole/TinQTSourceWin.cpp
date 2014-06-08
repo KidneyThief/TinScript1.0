@@ -171,6 +171,7 @@ bool CDebugSourceWin::OpenSourceFile(const char* filename, bool reload) {
         mCurrentCodeblockHash = filehash;
 
         // --read each line of the document, and add it to the 
+        int line_number = 1;
         char* filebufptr = filebuf;
         char* eol = strchr(filebufptr, '\n');
         while(eol)
@@ -178,7 +179,10 @@ bool CDebugSourceWin::OpenSourceFile(const char* filename, bool reload) {
             *eol = '\0';
 
             // -- Handle the breakpoint icon as "B  " (3 chars) , and the PC as a "--> " (4 chars)
-            QString newline("       ");
+            char line_buf[8];
+            sprintf_s(line_buf, "%5d", line_number++);
+            QString newline(line_buf);
+            newline.append("       ");
             newline.append(filebufptr);
 
             CSourceLine* list_item = new CSourceLine(newline.toUtf8(), mSourceText.size());
@@ -244,9 +248,9 @@ void CDebugSourceWin::SetCurrentPC(uint32 codeblock_hash, int32 line_number) {
                 // -- find the CSourceLine for the actual_line
                 CSourceLine* source_line = mSourceText.at(mCurrentLineNumber);
                 QString source_text = source_line->text();
-                source_text[3] = ' ';
-                source_text[4] = ' ';
-                source_text[5] = ' ';
+                source_text[7] = ' ';
+                source_text[8] = ' ';
+                source_text[9] = ' ';
                 source_line->setText(source_text);
             }
 
@@ -255,9 +259,9 @@ void CDebugSourceWin::SetCurrentPC(uint32 codeblock_hash, int32 line_number) {
                 mCurrentLineNumber = line_number;
                 CSourceLine* source_line = mSourceText.at(mCurrentLineNumber);
                 QString source_text = source_line->text();
-                source_text[3] = '-';
-                source_text[4] = '-';
-                source_text[5] = '>';
+                source_text[7] = '-';
+                source_text[8] = '-';
+                source_text[9] = '>';
                 source_line->setText(source_text);
 
                 // -- set the selected line
@@ -295,7 +299,7 @@ void CDebugSourceWin::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number,
     // -- find the CSourceLine for the actual_line
     CSourceLine* actual_source_line = mSourceText.at(line_number);
     QString source_text = actual_source_line->text();
-    source_text[0] = add && enable ? 'B' : add ? 'b' : ' ';
+    source_text[6] = add && enable ? 'B' : add ? 'b' : ' ';
     actual_source_line->setText(source_text);
     actual_source_line->mBreakpointSet = add;
 }

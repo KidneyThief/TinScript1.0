@@ -248,6 +248,7 @@ CScriptContext::CScriptContext(TinPrintHandler printfunction, TinAssertHandler a
 
     // -- debugger members
     mDebuggerConnected = false;
+    mDebuggerBreakLoopGuard = false;
     mDebuggerActionStep = false;
     mDebuggerActionRun = true;
 
@@ -900,6 +901,7 @@ void CScriptContext::SetDebuggerConnected(bool connected)
     mDebuggerConnected = connected;
 
     // -- any change in debugger connectivity resets the debugger break members
+    mDebuggerBreakLoopGuard = false;
     mDebuggerActionStep = false;
     mDebuggerActionRun = true;
 
@@ -932,6 +934,14 @@ void CScriptContext::SetDebuggerConnected(bool connected)
             code_block = GetCodeBlockList()->Next();
         }
     }
+}
+
+// ====================================================================================================================
+// IsDebuggerConnected():  Returns if we have a connected debugger.
+// ====================================================================================================================
+bool CScriptContext::IsDebuggerConnected()
+{
+    return (mDebuggerConnected);
 }
 
 // ====================================================================================================================
@@ -1501,6 +1511,129 @@ void CScriptContext::DebuggerSendObjectVarTable(CDebuggerWatchVarEntry* callingF
         // -- get the next member
         member = var_table->Next();
     }
+}
+
+// ====================================================================================================================
+// DebuggerSendAssert():  Use the packet type DATA, and notify the debugger of an assert
+// ====================================================================================================================
+void CScriptContext::DebuggerSendAssert(const char* assert_msg, uint32 codeblock_hash, int32 line_number)
+{
+    // -- no null strings
+    if (!assert_msg)
+        assert_msg = "";
+
+    // -- calculate the size of the data
+    int32 total_size = 0;
+
+    // -- first int32 will be identifying this data packet
+    total_size += sizeof(int32);
+
+    // -- send the length of the assert message, including EOL, and 4-byte aligned
+    int32 msgLength = strlen(assert_msg) + 1;
+    msgLength += 4 - (msgLength % 4);
+
+    // -- we'll be sending the length of the message, followed by the actual message string
+    total_size += sizeof(int32);
+    total_size += msgLength;
+
+    // -- send the codeblock hash
+    total_size += sizeof(int32);
+
+    // -- send the line number
+    total_size += sizeof(int32);
+
+    // -- declare a header
+    // -- note, if we ever implement a request/acknowledge approach, we can use the mID field
+    SocketManager::tPacketHeader header(k_PacketVersion, SocketManager::tPacketHeader::DATA, total_size);
+
+    // -- create the packet (null data, as we'll fill in the data directly into the packet)
+    SocketManager::tDataPacket* newPacket = SocketManager::CreateDataPacket(&header, NULL);
+    if (!newPacket)
+    {
+        TinPrint(this, "Error - DebuggerSendAssert():  unable to send\n");
+        return;
+    }
+
+    // -- initialize the ptr to the data buffer
+    int32* dataPtr = (int32*)newPacket->mData;
+
+    // -- write the identifier - defined in the debugger constants near the top of TinScript.h
+    *dataPtr++ = k_DebuggerAssertMsgPacketID;
+
+    // -- send the length of the assert message, including EOL, and 4-byte aligned
+    *dataPtr++ = msgLength;
+
+    // -- write the message string
+    SafeStrcpy((char*)dataPtr, assert_msg, msgLength);
+    dataPtr += (msgLength / 4);
+
+    // -- send the codeblock hash
+    *dataPtr++ = codeblock_hash;
+
+    // -- send the line number
+    *dataPtr++ = line_number;
+
+    // -- send the packet
+    SocketManager::SendDataPacket(newPacket);
+}
+
+// ====================================================================================================================
+// DebuggerSendPrint():  Send a print message to the debugger (usually to echo the local output)
+// ====================================================================================================================
+void CScriptContext::DebuggerSendPrint(const char* fmt, ...)
+{
+    // -- ensure we have a valid string, and a connected debugger
+    if (!fmt || !SocketManager::IsConnected())
+        return;
+
+    // -- compose the message
+    va_list args;
+    va_start(args, fmt);
+    char msg_buf[512];
+    vsprintf_s(msg_buf, 512, fmt, args);
+    va_end(args);
+
+    // -- calculate the size of the data
+    int32 total_size = 0;
+
+    // -- first int32 will be identifying this data packet
+    total_size += sizeof(int32);
+
+    // -- send the length of the assert message, including EOL, and 4-byte aligned
+    int32 msgLength = strlen(msg_buf) + 1;
+    msgLength += 4 - (msgLength % 4);
+
+    // -- we'll be sending the length of the message, followed by the actual message string
+    total_size += sizeof(int32);
+    total_size += msgLength;
+
+    // -- declare a header
+    // -- note, if we ever implement a request/acknowledge approach, we can use the mID field
+    SocketManager::tPacketHeader header(k_PacketVersion, SocketManager::tPacketHeader::DATA, total_size);
+
+    // -- create the packet (null data, as we'll fill in the data directly into the packet)
+    SocketManager::tDataPacket* newPacket = SocketManager::CreateDataPacket(&header, NULL);
+    if (!newPacket)
+    {
+        TinPrint(this, "Error - DebuggerSendPrint():  unable to send\n");
+        return;
+    }
+
+    // -- initialize the ptr to the data buffer
+    int32* dataPtr = (int32*)newPacket->mData;
+
+    // -- write the identifier - defined in the debugger constants near the top of TinScript.h
+    *dataPtr++ = k_DebuggerPrintMsgPacketID;
+
+    // -- send the length of the assert message, including EOL, and 4-byte aligned
+    *dataPtr++ = msgLength;
+
+    // -- write the message string
+    SafeStrcpy((char*)dataPtr, msg_buf, msgLength);
+    dataPtr += (msgLength / 4);
+
+    // -- send the packet
+    SocketManager::SendDataPacket(newPacket);
 }
 
 // ====================================================================================================================
