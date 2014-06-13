@@ -152,7 +152,8 @@ void CObjectSet::AddObject(uint32 objectid) {
     CObjectEntry* oe = GetScriptContext()->FindObjectEntry(objectid);
     if(!oe) {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
-                      "Error - CObjectSet::AddObject(): unable to find object %d", objectid);
+                      "Error - [%d] CObjectSet::AddObject(): unable to find object %d",
+                      GetScriptContext()->FindObjectByAddress(this)->GetID(), objectid);
         return;
     }
 
@@ -175,7 +176,8 @@ void CObjectSet::RemoveObject(uint32 objectid) {
     CObjectEntry* oe = GetScriptContext()->FindObjectEntry(objectid);
     if(!oe) {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
-                      "Error - CObjectSet::AddObject(): unable to find object %d", objectid);
+                      "Error - [%d] CObjectSet::RemoveObject(): unable to find object %d",
+                      GetScriptContext()->FindObjectByAddress(this)->GetID(), objectid);
         return;
     }
 
@@ -273,7 +275,8 @@ void CObjectGroup::AddObject(uint32 objectid) {
     CObjectEntry* oe = GetScriptContext()->FindObjectEntry(objectid);
     if(!oe) {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
-                      "Error - CObjectGroup::AddObject(): unable to find object %d", objectid);
+                      "Error - [%d] CObjectGroup::AddObject(): unable to find object %d",
+                      GetScriptContext()->FindObjectByAddress(this)->GetID(), objectid);
         return;
     }
 
@@ -296,7 +299,8 @@ void CObjectGroup::RemoveObject(uint32 objectid) {
     CObjectEntry* oe = GetScriptContext()->FindObjectEntry(objectid);
     if(!oe) {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
-                      "Error - CObjectGroup::RemoveObject(): unable to find object %d", objectid);
+                      "Error - [%d] CObjectGroup::RemoveObject(): unable to find object %d",
+                      GetScriptContext()->FindObjectByAddress(this)->GetID(), objectid);
         return;
     }
 

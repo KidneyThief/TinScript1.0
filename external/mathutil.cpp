@@ -204,8 +204,16 @@ float32 RandomRange(float32 low, float32 high)
     return (rand_num);
 }
 
+int32 RandomInt(int32 exclusiveMax)
+{
+    float32 rand_num = Random() * static_cast<float32>(exclusiveMax);
+    int32 result = static_cast<int32>(rand_num);
+    return (result);
+}
+
 REGISTER_FUNCTION_P0(Random, Random, float32);
 REGISTER_FUNCTION_P2(RandomRange, RandomRange, float32, float32, float32);
+REGISTER_FUNCTION_P1(RandomInt, RandomInt, int32, int32);
 
 // ====================================================================================================================
 // Trigonometry

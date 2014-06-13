@@ -134,30 +134,31 @@ void CDebugWatchWin::AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& w
     int entry_index = 0;
     while (entry_index < mWatchList.size())
     {
+        // -- in order to find a matching entry, *either* the entry needs to be
+        // -- a local variable with a matching stack index:
+        // -- no objectID (not a member), and matching func_ns, func_hash, object_id *and* the type and varhash
         CWatchEntry* entry = mWatchList.at(entry_index);
-        if (entry->mDebuggerEntry.mObjectID == 0 &&
-            entry->mDebuggerEntry.mType == watch_var_entry.mType &&
-            entry->mDebuggerEntry.mVarHash == watch_var_entry.mVarHash &&
-            (entry->mDebuggerEntry.mType != TinScript::TYPE_object ||
-             entry->mDebuggerEntry.mVarObjectID == watch_var_entry.mVarObjectID))
-
+        if (entry->mDebuggerEntry.mObjectID == 0)
         {
-            // -- update the value (if it's not a label)
-            if (entry->mDebuggerEntry.mType != TinScript::TYPE_void)
+            // -- see if this entry matches an existing top level stack variable
+            if (entry->mDebuggerEntry.mFuncNamespaceHash == watch_var_entry.mFuncNamespaceHash &&
+                entry->mDebuggerEntry.mFunctionHash == watch_var_entry.mFunctionHash &&
+                entry->mDebuggerEntry.mFunctionObjectID == watch_var_entry.mFunctionObjectID &&
+                entry->mDebuggerEntry.mType == watch_var_entry.mType && 
+                entry->mDebuggerEntry.mVarHash == watch_var_entry.mVarHash)
             {
-                // -- if the entry is for an object, update the object ID as well
-                if (entry->mDebuggerEntry.mType == TinScript::TYPE_object)
-                    entry->mDebuggerEntry.mVarObjectID = watch_var_entry.mVarObjectID;
+                // -- update the value (if it's not a label)
+                if (entry->mDebuggerEntry.mType != TinScript::TYPE_void)
+                {
+                    // -- if the entry is for an object, update the object ID as well
+                    if (entry->mDebuggerEntry.mType == TinScript::TYPE_object)
+                        entry->mDebuggerEntry.mVarObjectID = watch_var_entry.mVarObjectID;
 
-                // -- update the value (text label)
-                entry->UpdateValue(watch_var_entry.mValue);
-            }
+                    // -- update the value (text label)
+                    entry->UpdateValue(watch_var_entry.mValue);
+                }
 
-            // -- if this entry is *not* the one for the call stack, make sure we still find one
-            if (entry->mDebuggerEntry.mFuncNamespaceHash == cur_func_ns_hash &&
-                entry->mDebuggerEntry.mFunctionHash == cur_func_hash &&
-                entry->mDebuggerEntry.mFunctionObjectID == cur_func_object_id)
-            {
+                // -- set the bool - we found the matching entry
                 found_callstack_entry = true;
             }
         }

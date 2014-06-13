@@ -912,7 +912,11 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 }
 
 // ------------------------------------------------------------------------------------------------
-CCompileTreeNode** SortBinOpPrecedence(CCompileTreeNode** toplink) {
+CCompileTreeNode** SortBinOpPrecedence(CCompileTreeNode** toplink, bool8& found_swap)
+{
+    // -- initialize the return value
+    found_swap = false;
+
     // -- sanity check
     if(toplink == NULL)
         return NULL;
@@ -968,18 +972,42 @@ CCompileTreeNode** SortBinOpPrecedence(CCompileTreeNode** toplink) {
     *swapparent = temp;
     *parent = swap;
 
+    // -- set the return value
+    found_swap = true;
+
     // -- the new toplink we need to sort from is swap->leftchild
-    return &swap->leftchild;
+    return (&swap->leftchild);
 }
 
-void SortTreeBinaryOps(CCompileTreeNode** toplink) {
+void SortTreeBinaryOps(CCompileTreeNode** toplink)
+{
     static bool8 enablesort = true;
-    if(!enablesort)
+    if (!enablesort)
         return;
 
-    CCompileTreeNode** sorthead = SortBinOpPrecedence(toplink);
-    while(sorthead != NULL) {
-        sorthead = SortBinOpPrecedence(sorthead);
+    // -- we need to do passes through the list, until we make it through with no swaps
+    while (true)
+    {
+        // -- we're looking to see if any of the passes in this loop performed a swap
+        bool8 loop_swap = false;
+        bool8 pass_swap = false;
+
+        CCompileTreeNode** sorthead = SortBinOpPrecedence(toplink, pass_swap);
+
+        // -- set the loop bool after every pass
+        loop_swap = loop_swap || pass_swap;
+
+        while (sorthead != NULL)
+        {
+            sorthead = SortBinOpPrecedence(sorthead, pass_swap);
+
+            // -- set the loop bool after every pass
+            loop_swap = loop_swap || pass_swap;
+        }
+
+        // -- if we made it all the way through with no loops, we're done
+        if (!loop_swap)
+            break;
     }
 }
 

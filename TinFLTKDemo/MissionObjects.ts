@@ -1,23 +1,40 @@
 // ====================================================================================================================
-// missions.ts
+// MissionObjects.ts
 // ====================================================================================================================
 
 // -- this game is built upon the TinScriptDemo
 Exec("TinScriptDemo.ts");
 
+// -- aux file just for the AI
+Exec("MissionAI.ts");
+Exec("MissionSpawns.ts");
+
 // -- global tunables -------------------------------------------------------------------------------------------------
-float gThrust = 12.0f;
+float gPlayer_Thrust = 30.0f;
 float gAsteroidSpeed = 52.0f;
 float gBulletSpeed = 150.0f;
 
 int gMaxBullets = 4;
-int gFireCDTime = 100;
+
+int gPlayer_FireCDTime = 100;
+int gEnemy_FireCDTime = 2000;
 
 int gTeam_Neutral = 0;
 int gTeam_Ally = 1;
 int gTeam_Enemy = 2;
 float gPlayer_Radius = 20.0f;
 float gEnemy_Radius = 15.0f;
+
+float gDefaultRotationSpeed = 5.0f;
+float gEnemy_RotationSpeed = 1.0f;
+float gPlayer_RotationSpeed = 10.0f;
+
+float gEnemy_Thrust = 3.0f;
+float gEnemy_MinSpeed = 10.0f;
+float gEnemy_MaxSpeed = 60.0f;
+float gEnemy_PredictionTime = 1.2f;
+float gEnemy_MinDist = 120.0f;
+float gEnemy_MaxDist = 150.0f;
 
 // -- FLTK Colors -----------------------------------------------------------------------------------------------------
 int gFLTK_BLACK = 0;
@@ -72,8 +89,39 @@ void TriggerVolume::OnCreate()
     LinkNamespaces("TriggerVolume", "SceneObject");
     SceneObject::OnCreate();
     
+    vector3f self.top_left;
+    vector3f self.bottom_right;
+    
     bool self.enabled = true;
-    int self.color = gFLTK_BLUE;
+    
+    // -- create a set of characters currently within the volume
+    object self.character_set = create CObjectSet("ContainsCharSet");
+}
+
+void TriggerVolume::OnDestroy()
+{
+    destroy self.character_set;
+}
+
+void TriggerVolume::Initialize(vector3f top_left, vector3f bottom_right)
+{
+    self.top_left = top_left;
+    self.bottom_right = bottom_right;
+}
+
+bool TriggerVolume::ContainsPosition(vector3f position)
+{
+    if (position:x < self.top_left:x)
+        return (false);
+    if (position:x > self.bottom_right:x)
+        return (false);
+    if (position:y < self.top_left:y)
+        return (false);
+    if (position:y > self.bottom_right:y)
+        return (false);
+        
+    // -- success
+    return (true);
 }
 
 void TriggerVolume::OnUpdate(float deltaTime)
@@ -81,30 +129,61 @@ void TriggerVolume::OnUpdate(float deltaTime)
     // -- draw the trigger volume
     CancelDrawRequests(self);
     
-    if (!self.enabled)
+    if (self.enabled == false)
         return;
     
-    float offset = self.radius;
-    vector3f top_left = self.position;
-    top_left:x -= offset;
-    top_left:y -= offset;
+    int color = gFLTK_BLUE;
+    if (self.character_set.Used() > 0)
+        color = gFLTK_PURPLE;
+        
+    vector3f top_right = self.top_left;
+    top_right:x = self.bottom_right:x;
+    vector3f bottom_left = self.top_left;
+    bottom_left:y = self.bottom_right:y;
+        
+    DrawLine(self, self.top_left, top_right, color);
+    DrawLine(self, top_right, self.bottom_right, color);
+    DrawLine(self, self.bottom_right, bottom_left, color);
+    DrawLine(self, bottom_left, self.top_left, color);
     
-    vector3f top_right = self.position;
-    top_left:x += offset;
-    top_left:y -= offset;
+    // -- loop through the TV's character set, see if a character who is inside the trigger volume has left
+    object character = self.character_set.First();
+    while (IsObject(character))
+    {
+        if (self.ContainsPosition(character.position) == false)
+        {
+            self.character_set.RemoveObject(character);
+            self.OnExit(character);
+        }
+        
+        // -- get the next character (and yes, the iterator is updated correctly even if we remove the last)
+        character = self.character_set.Next();
+    }
+    
+    // -- now loop through the current game's character set, see if there's a character who has entered
+    if (IsObject(gCurrentGame.character_set))
+    {
+        object character = gCurrentGame.character_set.First();
+        while (IsObject(character))
+        {
+            if (self.character_set.Contains(character) == false && self.ContainsPosition(character.position))
+            {
+                self.character_set.AddObject(character);
+                self.OnEnter(character);
+            }
+            character = gCurrentGame.character_set.Next();
+        }
+    }
+}
 
-    vector3f bottom_left = self.position;
-    top_left:x -= offset;
-    top_left:y += offset;
-    
-    vector3f bottom_right = self.position;
-    top_left:x += offset;
-    top_left:y += offset;
-    
-    DrawLine(self, top_left, top_right, self.color);
-    DrawLine(self, top_right, bottom_right, self.color);
-    DrawLine(self, bottom_right, bottom_left, self.color);
-    DrawLine(self, bottom_left, top_left, self.color);
+void TriggerVolume::OnEnter(object character)
+{
+    Print("Character: ", character, " has entered TV: ", self);
+}
+
+void TriggerVolume::OnExit(object character)
+{
+    Print("Character: ", character, " has left TV: ", self);
 }
 
 // ====================================================================================================================
@@ -123,17 +202,27 @@ void Character::OnCreate()
     int self.health = 100;
     int self.show_hit_time = 0;
     
-    // -- team
+    // -- team and target
     int self.team = gTeam_Neutral;
+    object self.target;
+    float self.rotation_speed = gDefaultRotationSpeed;
     
     // -- we can only fire so fast
     int self.fire_cd_time = 0;
+    int self.fire_cd = gPlayer_FireCDTime;
+    object self.bullet_set = create CObjectSet("BulletSet");
     
     // -- add ourself to the game's character set
     if (IsObject(gCurrentGame))
     {
         gCurrentGame.character_set.AddObject(self);
     }
+}
+
+void Character::OnDestroy()
+{
+    SceneObject::OnDestroy();
+    destroy self.bullet_set;
 }
 
 void Character::OnUpdate(float deltaTime)
@@ -191,8 +280,32 @@ void Character::ApplyThrust(float thrust)
     heading:x = Cos(self.rotation);
     heading:y = Sin(self.rotation);
     
+    // -- if we're thrusting in the opposite direction, apply the break once
+    float cur_speed = V3fLength(self.velocity);
+    vector3f velocity_norm = self.velocity;
+    if (cur_speed > 0.0f)
+        velocity_norm /= cur_speed;
+    float velocity_dot = V3fDot(velocity_norm, heading);
+    if (velocity_dot < -0.70f)
+    {
+        self.ApplyBreak();
+    }
+    
     // -- Apply the an impulse in the direction we're heading
     ApplyImpulse(self, heading * thrust);
+}
+
+void Character::ApplyBreak()
+{
+    // -- dampen the velocity
+    vector3f cur_velocity = self.velocity;
+    float cur_speed = V3fLength(cur_velocity);
+    if (cur_speed > 0.0f)
+    {
+        cur_velocity /= cur_speed;
+        cur_velocity = cur_velocity * cur_speed * 0.5f;
+        self.velocity = cur_velocity;
+    }
 }
 
 void Character::OnFire()
@@ -202,7 +315,7 @@ void Character::OnFire()
         return;
         
     // -- only 4x bullets at a time
-    if (gCurrentGame.bullet_set.Used() >= gMaxBullets)
+    if (self.bullet_set.Used() >= gMaxBullets)
         return;
     
     // -- only allow one bullet every X msec
@@ -219,10 +332,11 @@ void Character::OnFire()
     vector3f head = self.position + (heading * self.radius);
     
     // -- spawn a bullet
-    SpawnBullet(self, head, heading);
+    object bullet = SpawnBullet(self, head, heading);
+    self.bullet_set.AddObject(bullet);
     
     // -- start a cooldown
-    self.fire_cd_time = cur_time + gFireCDTime;
+    self.fire_cd_time = cur_time + self.fire_cd;
 }
 
 void Character::OnDeath()
@@ -230,7 +344,7 @@ void Character::OnDeath()
     destroy self;
 }
 
-void Character::OnCollision()
+void Character::OnCollision(object bullet)
 {
     if (self.health <= 0)
         return;
@@ -244,7 +358,10 @@ void Character::OnCollision()
         schedule(self, 2000, Hash("OnDeath"));
         return;
     }
-    self.foo = "cat";
+    
+    ApplyImpulse(self, bullet.velocity * 0.5f);
+    
+    self.show_hit_time = GetSimTime() + 500;
 }
 
 // ====================================================================================================================
@@ -292,6 +409,8 @@ object SpawnBullet(object source, vector3f position, vector3f direction)
     // -- add the bullet to the game's bullet set
     if (IsObject(gCurrentGame))
         gCurrentGame.bullet_set.AddObject(bullet);
+        
+    return (bullet);
 }
 
 // ====================================================================================================================
@@ -309,6 +428,8 @@ void MissionSim::OnCreate()
     object self.character_set = create CObjectSet("CharacterSet");
     object self.bullet_set = create CObjectSet("BulletSet");
     object self.delete_set = create CObjectSet("DeleteSet");
+    object self.spawnpoint_set = create CObjectSet("SpawnpointSet");
+    object self.triggervolume_set = create CObjectSet("TriggerVolumeSet");
 }
 
 void MissionSim::OnDestroy()
@@ -320,6 +441,8 @@ void MissionSim::OnDestroy()
     destroy self.character_set;
     destroy self.bullet_set;
     destroy self.delete_set;
+    destroy self.spawnpoint_set;
+    destroy self.triggervolume_set;
 }
 
 void MissionSim::OnUpdate()
@@ -342,7 +465,7 @@ void MissionSim::OnUpdate()
                 if (distance < character.radius)
                 {
                     // -- set the flag, call the function
-                    character.OnCollision();
+                    character.OnCollision(bullet);
                     
                     // -- add the bullet to the delete set and break
                     self.delete_set.AddObject(bullet);
@@ -374,21 +497,28 @@ void MissionSim::OnKeyPress(int keypress)
     if (keypress == CharToInt('j'))
     {
         if (IsObject(gCurrentGame.player))
-            gCurrentGame.player.rotation -= 10.0f;
+            gCurrentGame.player.rotation -= gPlayer_RotationSpeed;
     }
     
     // -- rotate right
     else if (keypress == CharToInt('l'))
     {
         if (IsObject(gCurrentGame.player))
-            gCurrentGame.player.rotation += 10.0f;
+            gCurrentGame.player.rotation += gPlayer_RotationSpeed;
     }
     
     // -- thrust
     else if (keypress == CharToInt('i'))
     {
         if (IsObject(gCurrentGame.player))
-            gCurrentGame.player.ApplyThrust(gThrust);
+            gCurrentGame.player.ApplyThrust(gPlayer_Thrust);
+    }
+    
+    // -- break
+    else if (keypress == CharToInt('k'))
+    {
+        if (IsObject(gCurrentGame.player))
+            gCurrentGame.player.ApplyBreak();
     }
     
     // -- fire
@@ -433,11 +563,36 @@ void Enemy::OnCreate()
     LinkNamespaces("Enemy", "Character");
     Character::OnCreate();
     
-    // -- set the team
+    // -- set the team and health
     self.team = gTeam_Enemy;
+    self.health = 5;
+    float self.prediction_time = gEnemy_PredictionTime * (0.5f + Random());
     
-    // -- override the radius
+    // -- override the radius, fire CD time, and turning speed
+    // -- apply a bit of randomness
     self.radius = gEnemy_Radius;
+    self.fire_cd = gEnemy_FireCDTime * (0.5f + Random());
+    self.rotation_speed = gEnemy_RotationSpeed * (0.5f + Random());
+}
+
+void Enemy::OnUpdate(float deltaTime)
+{
+    // -- update the base class
+    Character::OnUpdate(deltaTime);
+    
+    // -- dampen the velocity
+    vector3f cur_velocity = self.velocity;
+    float cur_speed = V3fLength(cur_velocity);
+    if (cur_speed > 0.0f)
+    {
+        cur_velocity /= cur_speed;
+        cur_velocity = cur_velocity * cur_speed * 0.995f;
+        self.velocity = cur_velocity;
+    }
+    
+    // -- update the AI
+    if (self.health > 0)
+        self.UpdateAI();
 }
 
 // ====================================================================================================================
@@ -445,8 +600,18 @@ void Enemy::OnCreate()
 // ====================================================================================================================
 object SpawnCharacter(string char_name, vector3f position)
 {
+    if (!StringCmp(char_name, ""))
+        char_name = "Character";
     object new_char = CreateSceneObject(char_name, position, 20);
     return (new_char);
+}
+
+object SpawnTriggerVolume(string volume_name, vector3f top_left, vector3f bottom_right)
+{
+    if (!StringCmp(volume_name, ""))
+        volume_name = "TriggerVolume";
+    object new_tv = CreateSceneObject(volume_name, "0 0 0", "0");
+    new_tv.Initialize(top_left, bottom_right);
 }
 
 void StartMission()
@@ -454,8 +619,19 @@ void StartMission()
     ResetGame();
     gCurrentGame = create CScriptObject("MissionSim");
     
+    CreateCornerSpawnGroup();
+    CreateEdgeSpawnGroup();
+    
     SpawnCharacter("Player", "320 240 0");
-    SpawnCharacter("Enemy", "320 100 0");
+    
+    // -- randomly spawn an enemy
+    //object spawn_point = FindObject("CornerSpawns").PickRandom();
+    //if (IsObject(spawn_point))
+    //    SpawnCharacter("Enemy", spawn_point.position);
+    
+    //SpawnCharacter("Enemy", "320 100 0");
+    //SpawnCharacter("Enemy", "220 100 0");
+    //SpawnCharacter("Enemy", "420 100 0");
 }
 
 // ====================================================================================================================
