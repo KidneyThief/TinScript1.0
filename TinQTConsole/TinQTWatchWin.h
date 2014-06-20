@@ -48,8 +48,7 @@ class CWatchEntry : public QTreeWidgetItem {
 
         TinScript::CDebuggerWatchVarEntry mDebuggerEntry;
 
-        // -- need a "confirmed" flag, to ensure each time the stack is updated that the
-        // -- entry still exists
+        // -- need a "confirmed" flag, to ensure each time the stack is updated that the entry still exists
         bool mUnconfirmed;
 };
 
@@ -58,8 +57,32 @@ class CDebugWatchWin : public QTreeWidget {
     Q_OBJECT
 
     public:
-        CDebugWatchWin(CConsoleWindow* owner);
+        CDebugWatchWin(QWidget* parent);
         virtual ~CDebugWatchWin();
+
+        virtual void paintEvent(QPaintEvent* e)
+        {
+            ExpandToParentSize();
+            QTreeWidget::paintEvent(e);
+        }
+
+        virtual void resizeEvent(QResizeEvent* e)
+        {
+            ExpandToParentSize();
+            QTreeWidget::resizeEvent(e);
+        }
+
+        void ExpandToParentSize()
+        {
+            // -- resize to be the parent widget's size, with room for the title
+            QSize parentSize = parentWidget()->size();
+            int newWidth = parentSize.width();
+            int newHeight = parentSize.height();
+            if (newHeight < 20)
+                newHeight = 20;
+            setGeometry(0, 20, newWidth, newHeight);
+            updateGeometry();
+        }
 
         CWatchEntry* FindWatchEntry(uint32 funcHash, uint32 objectID, uint32 nsHash, bool& foundNamespaceLabel);
         CWatchEntry* FindWatchEntry(uint32 funcHash, uint32 objectID, uint32 nsHash, uint32 memberHash, bool isMember);
@@ -77,7 +100,6 @@ class CDebugWatchWin : public QTreeWidget {
     public slots:
 
     private:
-        CConsoleWindow* mOwner;
         QTreeWidgetItem* mHeaderItem;
         QList<CWatchEntry*> mWatchList;
 };

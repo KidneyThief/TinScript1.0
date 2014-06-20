@@ -82,15 +82,16 @@ char* ReadFileAllocBuf(const char* filename) {
 }
 
 // ------------------------------------------------------------------------------------------------
-CSourceLine::CSourceLine(QByteArray& text, int line_number) : QListWidgetItem() {
+CSourceLine::CSourceLine(QByteArray& text, int line_number) : QListWidgetItem()
+{
     setText(text);
     mLineNumber = line_number;
     mBreakpointSet = false;
 }
 
 // ------------------------------------------------------------------------------------------------
-CDebugSourceWin::CDebugSourceWin(CConsoleWindow* owner) : QListWidget() {
-    mOwner = owner;
+CDebugSourceWin::CDebugSourceWin(QWidget* parent) : QListWidget(parent)
+{
     mCurrentCodeblockHash = 0;
     mCurrentLineNumber = -1;
 

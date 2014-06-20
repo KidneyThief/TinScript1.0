@@ -45,8 +45,26 @@ class CDebugSourceWin : public QListWidget {
     Q_OBJECT
 
     public:
-        CDebugSourceWin(CConsoleWindow* owner = NULL);
+        CDebugSourceWin(QWidget* parent);
         virtual ~CDebugSourceWin();
+
+        virtual void paintEvent(QPaintEvent* e)
+        {
+            ExpandToParentSize();
+            QListWidget::paintEvent(e);
+        }
+
+        void ExpandToParentSize()
+        {
+            // -- resize to be the parent widget's size, with room for the title
+            QSize parentSize = parentWidget()->size();
+            int newWidth = parentSize.width();
+            int newHeight = parentSize.height();
+            if (newHeight < 20)
+                newHeight = 20;
+            setGeometry(0, 20, newWidth, newHeight);
+            updateGeometry();
+        }
 
         void NotifyCurrentDir(const char* cwd);
         bool OpenSourceFile(const char* filename, bool reload = false);
@@ -60,7 +78,6 @@ class CDebugSourceWin : public QListWidget {
         void OnDoubleClicked(QListWidgetItem*);
 
     private:
-        CConsoleWindow* mOwner;
         QList<CSourceLine*> mSourceText;
         uint32 mCurrentCodeblockHash;
         int32 mCurrentLineNumber;

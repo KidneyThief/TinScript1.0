@@ -1,3 +1,4 @@
+LinkNamespaces("Remy", "CScriptObject");
 void Remy::OnCreate()
 {
     int self.coffeePercent = 0;

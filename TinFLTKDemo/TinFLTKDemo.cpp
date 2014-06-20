@@ -279,7 +279,7 @@ public:
         for (line_it = mDrawLines.begin(); line_it != mDrawLines.end(); ++line_it)
         {
             tLine& item = *line_it;
-            if (item.id == draw_request_id)
+            if (draw_request_id < 0 || item.id == draw_request_id)
             {
                 item.expired = true;
             }
@@ -289,7 +289,7 @@ public:
         for (circle_it = mDrawCircles.begin(); circle_it != mDrawCircles.end(); ++circle_it)
         {
             tCircle& item = *circle_it;
-            if (item.id == draw_request_id)
+            if (draw_request_id < 0 || item.id == draw_request_id)
             {
                 item.expired = true;
                 break;
@@ -300,7 +300,7 @@ public:
         for (text_it = mDrawText.begin(); text_it != mDrawText.end(); ++text_it)
         {
             tText& item = *text_it;
-            if (item.id == draw_request_id)
+            if (draw_request_id < 0 || item.id == draw_request_id)
             {
                 item.expired = true;
             }
@@ -464,6 +464,11 @@ void SimUnpause()
     Canvas::gPaused = false;
 }
 
+bool8 SimIsPaused()
+{
+    return (Canvas::gPaused);
+}
+
 int32 GetSimTime()
 {
     return (Canvas::gCurrentTimeMS);
@@ -471,6 +476,7 @@ int32 GetSimTime()
 
 REGISTER_FUNCTION_P0(SimPause, SimPause, void);
 REGISTER_FUNCTION_P0(SimUnpause, SimUnpause, void);
+REGISTER_FUNCTION_P0(SimIsPaused, SimIsPaused, bool8);
 REGISTER_FUNCTION_P0(GetSimTime, GetSimTime, int32);
 
 // --------------------------------------------------------------------------------------------------------------------

@@ -75,7 +75,7 @@ void CMasterMembershipList::RemoveMembership(CObjectEntry* oe, CObjectSet* group
     tMembershipList* member_list = mMasterMembershipList->FindItem(object_id);
     if(!member_list) {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
-                      "Error - RemoveMembership() - no membership list for object %d", object_id);
+                      "Error - RemoveMembership() - no membership list for object %d\n", object_id);
         return;
     }
 
@@ -152,7 +152,7 @@ void CObjectSet::AddObject(uint32 objectid) {
     CObjectEntry* oe = GetScriptContext()->FindObjectEntry(objectid);
     if(!oe) {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
-                      "Error - [%d] CObjectSet::AddObject(): unable to find object %d",
+                      "Error - [%d] CObjectSet::AddObject(): unable to find object %d\n",
                       GetScriptContext()->FindObjectByAddress(this)->GetID(), objectid);
         return;
     }
@@ -176,7 +176,7 @@ void CObjectSet::RemoveObject(uint32 objectid) {
     CObjectEntry* oe = GetScriptContext()->FindObjectEntry(objectid);
     if(!oe) {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
-                      "Error - [%d] CObjectSet::RemoveObject(): unable to find object %d",
+                      "Error - [%d] CObjectSet::RemoveObject(): unable to find object %d\n",
                       GetScriptContext()->FindObjectByAddress(this)->GetID(), objectid);
         return;
     }
@@ -275,7 +275,7 @@ void CObjectGroup::AddObject(uint32 objectid) {
     CObjectEntry* oe = GetScriptContext()->FindObjectEntry(objectid);
     if(!oe) {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
-                      "Error - [%d] CObjectGroup::AddObject(): unable to find object %d",
+                      "Error - [%d] CObjectGroup::AddObject(): unable to find object %d\n",
                       GetScriptContext()->FindObjectByAddress(this)->GetID(), objectid);
         return;
     }
@@ -299,7 +299,7 @@ void CObjectGroup::RemoveObject(uint32 objectid) {
     CObjectEntry* oe = GetScriptContext()->FindObjectEntry(objectid);
     if(!oe) {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
-                      "Error - [%d] CObjectGroup::RemoveObject(): unable to find object %d",
+                      "Error - [%d] CObjectGroup::RemoveObject(): unable to find object %d\n",
                       GetScriptContext()->FindObjectByAddress(this)->GetID(), objectid);
         return;
     }

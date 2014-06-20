@@ -25,13 +25,19 @@
 #ifndef __TINQTCONSOLE_H
 #define __TINQTCONSOLE_H
 
+// -- includes
+
 #include <qlineedit.h>
 #include <qpushbutton.h>
 #include <qlayout.h>
 #include <qlabel.h>
 #include "qlistwidget.h"
+#include <QDockWidget>
 
 #include "socket.h"
+
+// --------------------------------------------------------------------------------------------------------------------
+// -- Forward declarations
 
 class CConsoleInput;
 class CConsoleOutput;
@@ -41,9 +47,15 @@ class QGridLayout;
 class CDebugBreakpointsWin;
 class CDebugCallstackWin;
 class CDebugWatchWin;
-class CMainWindow;
 
-class CConsoleWindow {
+// -- new "dock widget" framework
+class MainWindow;
+
+// ====================================================================================================================
+// class CConsoleWindow:  The main application class, owning instance of all other components
+// ====================================================================================================================
+class CConsoleWindow
+{
     public:
         CConsoleWindow();
         virtual ~CConsoleWindow();
@@ -65,10 +77,13 @@ class CConsoleWindow {
         CDebugCallstackWin* GetDebugCallstackWin() { return (mCallstackWin); }
         CDebugWatchWin* GetDebugWatchWin() { return (mWatchWin); }
 
+        void SetStatusMessage(const char* message);
+
         // -- Qt components
         QApplication* mApp;
-        CMainWindow* mMainWindow;
+        MainWindow* mMainWindow;
         QGridLayout* mGridLayout;
+        MainWindow* GetMainWindow() { return (mMainWindow); }
 
         CConsoleOutput* mConsoleOutput;
 
@@ -76,7 +91,7 @@ class CConsoleWindow {
         QLabel* mInputLabel;
         CConsoleInput* mConsoleInput;
 
-        QHBoxLayout* mConnectLayout;
+        QLabel* mStatusLabel;
         QLabel* mIPLabel;
         QLineEdit* mConnectIP;
         QPushButton* mButtonConnect;
@@ -136,22 +151,15 @@ class CConsoleWindow {
         bool8 mIsConnected;
 };
 
-class CMainWindow : public QWidget
+// ====================================================================================================================
+// class CConsoleInput:  Provides text input, and history, to issue commands to the debug target.
+// ====================================================================================================================
+class CConsoleInput : public QLineEdit
 {
     Q_OBJECT;
 
     public:
-        CMainWindow();
-
-    protected:
-        virtual void closeEvent(QCloseEvent *);
-};
-
-class CConsoleInput : public QLineEdit {
-    Q_OBJECT;
-
-    public:
-        explicit CConsoleInput(CConsoleWindow* owner);
+        explicit CConsoleInput(QWidget* parent);
         virtual ~CConsoleInput() { }
 
     public slots:
@@ -164,10 +172,32 @@ class CConsoleInput : public QLineEdit {
 
     protected:
         virtual void keyPressEvent(QKeyEvent * event);
+            
+        virtual void paintEvent(QPaintEvent* e)
+        {
+            ExpandToParentSize();
+            QLineEdit::paintEvent(e);
+        }
+
+        void ExpandToParentSize()
+        {
+            // -- leave room at the start for the input label
+            QSize parentSize = parentWidget()->size();
+            int newWidth = parentSize.width() - 24;
+            if (newWidth < 0)
+                newWidth = 0;
+            int newYOffset = parentSize.height() - 24;
+            if (newYOffset < 0)
+                newYOffset = 0;
+            setGeometry(24, newYOffset, newWidth, 24);
+            updateGeometry();
+
+            // -- update the label as well
+            mInputLabel->setGeometry(0, newYOffset, 24, 24);
+        }
 
     private:
-        CConsoleWindow* mOwner;
-
+        QLabel* mInputLabel;
         static const int32 kMaxHistory = 64;
         bool8 mHistoryFull;
         int32 mHistoryIndex;
@@ -175,12 +205,35 @@ class CConsoleInput : public QLineEdit {
         char mHistory[TinScript::kMaxTokenLength][kMaxHistory];
 };
 
+// ====================================================================================================================
+// class CConsoleOutput:  An output window, receiving any form of output message from the debug target.
+// ====================================================================================================================
 class CConsoleOutput : public QListWidget {
     Q_OBJECT;
 
     public:
-        explicit CConsoleOutput(CConsoleWindow* owner);
+        explicit CConsoleOutput(QWidget* parent);
         virtual ~CConsoleOutput();
+
+        virtual void paintEvent(QPaintEvent* e)
+        {
+            ExpandToParentSize();
+            QListWidget::paintEvent(e);
+        }
+
+        void ExpandToParentSize()
+        {
+            // -- resize to be the parent widget's size, with room for the title,
+            // -- leave room at the bottom for the console input
+            QSize parentSize = parentWidget()->size();
+            int newWidth = parentSize.width();
+            int newHeight = parentSize.height() - 46;
+            if (newHeight < 20)
+                newHeight = 20;
+            setGeometry(0, 20, newWidth, newHeight);
+            updateGeometry();
+            //update();
+        }
 
         static const unsigned int kUpdateTime = 33;
         int32 GetSimTime() { return (mCurrentTime); }
@@ -208,7 +261,6 @@ class CConsoleOutput : public QListWidget {
 
     private:
         // -- the console output handles the current time, and timer events to call Update()
-        CConsoleWindow* mOwner;
         QTimer* mTimer;
 
         unsigned int mCurrentTime;
@@ -218,11 +270,13 @@ class CConsoleOutput : public QListWidget {
         std::vector<SocketManager::tDataPacket*> mReceivedPackets;
 };
 
+// ====================================================================================================================
+// -- global interface
 TinScript::CScriptContext* GetScriptContext();
 int ConsolePrint(const char* fmt, ...);
 
-#endif
+#endif // __TINQTCONSOLE_H
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================

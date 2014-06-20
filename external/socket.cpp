@@ -705,6 +705,7 @@ bool CSocket::ProcessSendPackets()
 
     // -- send the messages we've queued, and check for an error
     bool errorDisconnect = false;
+    int error = 0;
     tDataPacket* packetToSend = NULL;
     while (mSendQueue.Dequeue(packetToSend, true))
     {
@@ -741,7 +742,9 @@ bool CSocket::ProcessSendPackets()
         // -- if we received an error, we'll have to disconnect
         if (bytesSent == SOCKET_ERROR)
         {
-            errorDisconnect = true;
+            error = WSAGetLastError();
+            if (error != WSAEWOULDBLOCK)
+                errorDisconnect = true;
             break;
         }
 
@@ -778,7 +781,7 @@ bool CSocket::ProcessSendPackets()
     if (errorDisconnect)
     {
         // -- notify the script context
-        ScriptCommand("Print('Error - CSocket::Send(): failed with error: %d\n');", WSAGetLastError());
+        ScriptCommand("Print('Error - CSocket::Send(): failed with error: %d\n');", error);
         mThreadLock.Unlock();
         Disconnect();
         return (true);

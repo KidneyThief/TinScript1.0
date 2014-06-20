@@ -68,8 +68,26 @@ class CDebugBreakpointsWin : public QListWidget {
     Q_OBJECT
 
     public:
-        CDebugBreakpointsWin(CConsoleWindow* owner);
+        CDebugBreakpointsWin(QWidget* parent);
         virtual ~CDebugBreakpointsWin();
+
+        virtual void paintEvent(QPaintEvent* e)
+        {
+            ExpandToParentSize();
+            QListWidget::paintEvent(e);
+        }
+
+        void ExpandToParentSize()
+        {
+            // -- resize to be the parent widget's size, with room for the title
+            QSize parentSize = parentWidget()->size();
+            int newWidth = parentSize.width();
+            int newHeight = parentSize.height();
+            if (newHeight < 20)
+                newHeight = 20;
+            setGeometry(0, 20, newWidth, newHeight);
+            updateGeometry();
+        }
 
         void ToggleBreakpoint(uint32 codeblock_hash, int32 line_number, bool add, bool enable);
         void NotifyCodeblockLoaded(uint32 codeblock_hash);
@@ -82,10 +100,7 @@ class CDebugBreakpointsWin : public QListWidget {
         void OnDoubleClicked(QListWidgetItem*);
 
     private:
-        CConsoleWindow* mOwner;
         QList<CBreakpointEntry*> mBreakpoints;
-        //QVBoxLayout* mVBoxLayout;
-        //QWidget* mSpacer;
 };
 
 class CCallstackEntry : public QListWidgetItem {
@@ -103,8 +118,26 @@ class CDebugCallstackWin : public QListWidget {
     Q_OBJECT
 
     public:
-        CDebugCallstackWin(CConsoleWindow* owner);
+        CDebugCallstackWin(QWidget* parent);
         virtual ~CDebugCallstackWin();
+
+        virtual void paintEvent(QPaintEvent* e)
+        {
+            ExpandToParentSize();
+            QListWidget::paintEvent(e);
+        }
+
+        void ExpandToParentSize()
+        {
+            // -- resize to be the parent widget's size, with room for the title
+            QSize parentSize = parentWidget()->size();
+            int newWidth = parentSize.width();
+            int newHeight = parentSize.height();
+            if (newHeight < 20)
+                newHeight = 20;
+            setGeometry(0, 20, newWidth, newHeight);
+            updateGeometry();
+        }
 
         void NotifyCallstack(uint32* codeblock_array, uint32* objid_array, uint32* namespace_array,
                              uint32* func_array, uint32* linenumber_array, int array_size);
@@ -120,7 +153,6 @@ class CDebugCallstackWin : public QListWidget {
         void OnDoubleClicked(QListWidgetItem*);
 
     private:
-        CConsoleWindow* mOwner;
         QList<CCallstackEntry*> mCallstack;
 };
 

@@ -30,6 +30,8 @@
 #include <QPlainTextEdit>
 #include <QToolBar>
 #include <QVBoxLayout>
+#include <QDockWidget>
+#include <QStatusBar>
 #include <QTextBlock>
 #include <QTextlist>
 #include <QListWidget>
@@ -52,6 +54,8 @@
 #include "TinQTBreakpointsWin.h"
 #include "TinQTWatchWin.h"
 
+#include "mainwindow.h"
+
 // ------------------------------------------------------------------------------------------------
 // -- override the macro from integration.h
 #undef TinPrint
@@ -61,7 +65,8 @@ bool PushDebuggerAssertDialog(const char* assertmsg, bool& ignore);
 
 // ------------------------------------------------------------------------------------------------
 CConsoleWindow* CConsoleWindow::gConsoleWindow = NULL;
-CConsoleWindow::CConsoleWindow() {
+CConsoleWindow::CConsoleWindow()
+{
     // -- set the singleton
     gConsoleWindow = this;
 
@@ -72,23 +77,23 @@ CConsoleWindow::CConsoleWindow() {
     mApp->setApplicationName("TinConsole");
 
     // -- create the main window
-    mMainWindow = new CMainWindow();
+    QMap<QString, QSize> customSizeHints;
+    mMainWindow = new MainWindow(customSizeHints);
     mMainWindow->resize(QSize(1200, 800));
 
     // -- create the output widget
-    mConsoleOutput = new CConsoleOutput(this);
+    QDockWidget* outputDockWidget = new QDockWidget();
+    outputDockWidget->setObjectName("Console Output");
+    outputDockWidget->setWindowTitle("Console Output");
+    mConsoleOutput = new CConsoleOutput(outputDockWidget);
     mConsoleOutput->addItem("Welcome to the TinConsole!");
 
     // -- create the consoleinput
-    mInputLayout = new QHBoxLayout();
-    mInputLabel = new QLabel("==>");
-    mConsoleInput = new CConsoleInput(this);
+    mConsoleInput = new CConsoleInput(outputDockWidget);
     mConsoleInput->setFixedHeight(24);
-    mInputLayout->addWidget(mInputLabel);
-    mInputLayout->addWidget(mConsoleInput);
 
     // -- create the IPConnect
-    mConnectLayout = new QHBoxLayout();
+    mStatusLabel = new QLabel("Not Connected");
     mIPLabel = new QLabel("IP:");
     mConnectIP = new QLineEdit();
     mConnectIP->setText("127.0.0.1");
@@ -102,14 +107,16 @@ CConsoleWindow::CConsoleWindow() {
 	myPalette.setColor(QPalette::Button, Qt::red);	
 	mButtonConnect->setPalette(myPalette);
 
-    mConnectLayout->addWidget(mIPLabel);
-    mConnectLayout->addWidget(mConnectIP);
-    mConnectLayout->addWidget(mButtonConnect);
+    mMainWindow->statusBar()->addWidget(mStatusLabel, 1);
+    mMainWindow->statusBar()->addWidget(mIPLabel, 0);
+    mMainWindow->statusBar()->addWidget(mConnectIP, 0);
+    mMainWindow->statusBar()->addWidget(mButtonConnect, 0);
 
-    // -- create the debugger components
-    mToolbarLayout = new QHBoxLayout();
+    // -- create the toolbar components
+    QToolBar* toolbar = new QToolBar();
     mFileLabel = new QLabel("File:");
     mFileLineEdit = new QLineEdit();
+    mFileLineEdit->setFixedWidth(300);
     mButtonRun = new QPushButton();
     mButtonRun->setText("Run");
     mButtonRun->setGeometry(0, 0, 32, 24); 
@@ -118,46 +125,36 @@ CConsoleWindow::CConsoleWindow() {
     mButtonStep->setGeometry(0, 0, 32, 24);
     mSpacer = new QWidget();
 
-    mToolbarLayout->addWidget(mFileLabel);
-    mToolbarLayout->addWidget(mFileLineEdit);
-    mToolbarLayout->addWidget(mButtonRun);
-    mToolbarLayout->addWidget(mButtonStep);
-    mToolbarLayout->addWidget(mSpacer, 1);
+    toolbar->addWidget(mFileLabel);
+    toolbar->addWidget(mFileLineEdit);
+    toolbar->addWidget(mButtonRun);
+    toolbar->addWidget(mButtonStep);
+    toolbar->addWidget(mSpacer);
+    mMainWindow->addToolBar(toolbar);
 
     // -- create the source window
-    mDebugSourceWin = new CDebugSourceWin(this);
+    QDockWidget* sourceWinDockWidget = new QDockWidget();
+    sourceWinDockWidget->setObjectName("Source View");
+    sourceWinDockWidget->setWindowTitle("Source View");
+    mDebugSourceWin = new CDebugSourceWin(sourceWinDockWidget);
 
     // -- create the callstack window
-    mCallstackWin = new CDebugCallstackWin(this);
+    QDockWidget* callstackDockWidget = new QDockWidget();
+    callstackDockWidget->setObjectName("Call Stack");
+    callstackDockWidget->setWindowTitle("Call Stack");
+    mCallstackWin = new CDebugCallstackWin(callstackDockWidget);
 
     // -- create the breakpoints window
-    mBreakpointsWin = new CDebugBreakpointsWin(this);
+    QDockWidget* breakpointsDockWidget = new QDockWidget();
+    breakpointsDockWidget->setObjectName("Breakpoints");
+    breakpointsDockWidget->setWindowTitle("Breakpoints");
+    mBreakpointsWin = new CDebugBreakpointsWin(breakpointsDockWidget);
 
     // -- create the watch window
-    mWatchWin = new CDebugWatchWin(this);
-
-    // -- column 0
-    mGridLayout = new QGridLayout();
-    mGridLayout->addLayout(mToolbarLayout,  0, 0, 1, Qt::AlignLeft);
-    mGridLayout->addWidget(mDebugSourceWin, 1, 0, 2, Qt::AlignLeft);
-    mGridLayout->addWidget(mConsoleOutput,  3, 0, 1, Qt::AlignLeft);
-    mGridLayout->addLayout(mInputLayout,    4, 0, 1, Qt::AlignLeft);
-
-    // -- column 1
-    mGridLayout->addWidget(mCallstackWin,   1, 1, 1, Qt::AlignLeft);
-    mGridLayout->addWidget(mBreakpointsWin, 2, 1, 1, Qt::AlignLeft);
-    mGridLayout->addWidget(mWatchWin,       3, 1, 1, Qt::AlignLeft);
-    mGridLayout->addLayout(mConnectLayout,  4, 1, 1, Qt::AlignLeft);
-
-    // -- temp test
-    /*
-    mWatchWin->BeginVariable("TestObject", TinScript::TYPE_object, "ID:  5");
-    mWatchWin->AddVariable("Foo", TinScript::TYPE_float, "3.0f");
-    mWatchWin->AddVariable("Bar", TinScript::TYPE_int, "17");
-    mWatchWin->AddNamespace("BaseObject");
-    mWatchWin->AddVariable("Name", TinScript::TYPE_string, "Whatever");
-    mWatchWin->AddVariable("Class", TinScript::TYPE_string, "Heffe");
-    */
+    QDockWidget* watchesDockWidget = new QDockWidget();
+    watchesDockWidget->setObjectName("Autos");
+    watchesDockWidget->setWindowTitle("Autos");
+    mWatchWin = new CDebugWatchWin(watchesDockWidget);
 
     // -- connect the widgets
     QObject::connect(mButtonConnect, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonConnectPressed()));
@@ -182,8 +179,16 @@ CConsoleWindow::CConsoleWindow() {
     QObject::connect(mBreakpointsWin, SIGNAL(itemClicked(QListWidgetItem*)), mBreakpointsWin,
                                       SLOT(OnClicked(QListWidgetItem*)));
 
-    mMainWindow->setLayout(mGridLayout);
+    mMainWindow->addDockWidget(Qt::TopDockWidgetArea, sourceWinDockWidget);
+    mMainWindow->addDockWidget(Qt::LeftDockWidgetArea, outputDockWidget);
+    mMainWindow->addDockWidget(Qt::TopDockWidgetArea, callstackDockWidget);
+    mMainWindow->addDockWidget(Qt::RightDockWidgetArea, breakpointsDockWidget);
+    mMainWindow->addDockWidget(Qt::BottomDockWidgetArea, watchesDockWidget);
+
     mMainWindow->show();
+
+    // -- restore the last used layout
+    mMainWindow->loadLayout();
 
     // -- initialize the breakpoint members
     mBreakpointHit = false;
@@ -203,38 +208,19 @@ CConsoleWindow::CConsoleWindow() {
 
 CConsoleWindow::~CConsoleWindow()
 {
-    delete mFileLabel;
-    delete mFileLineEdit;
-    delete mButtonRun;
-    delete mButtonStep;
-    delete mSpacer;
-    delete mToolbarLayout;
-
-    delete mCallstackWin;
-    delete mBreakpointsWin;
-    delete mDebugSourceWin;
-    delete mConsoleInput;
-    delete mInputLabel;
-    delete mInputLayout;
-    delete mIPLabel;
-    delete mConnectIP;
-    delete mButtonConnect;
-    delete mConnectLayout;
-    delete mConsoleOutput;
-    delete mGridLayout;
-    delete mMainWindow;
-    delete mApp;
 }
 
-int CConsoleWindow::Exec() {
-    return mApp->exec();
+int CConsoleWindow::Exec()
+{
+    return (mApp->exec());
 }
 
 // ------------------------------------------------------------------------------------------------
 // -- create a handler to register, so we can receive print messages and asserts
 bool PushAssertDialog(const char* assertmsg, const char* errormsg, bool& skip, bool& trace);
 
-int ConsolePrint(const char* fmt, ...) {
+int ConsolePrint(const char* fmt, ...)
+{
     // -- write the string into the buffer
     va_list args;
     va_start(args, fmt);
@@ -248,8 +234,10 @@ int ConsolePrint(const char* fmt, ...) {
 
 // -- returns false if we should break
 bool8 AssertHandler(TinScript::CScriptContext* script_context, const char* condition,
-                    const char* file, int32 linenumber, const char* fmt, ...) {
-    if(!script_context->IsAssertStackSkipped() || script_context->IsAssertEnableTrace()) {
+                    const char* file, int32 linenumber, const char* fmt, ...)
+{
+    if (!script_context->IsAssertStackSkipped() || script_context->IsAssertEnableTrace())
+    {
         if(!script_context->IsAssertStackSkipped())
             ConsolePrint("*************************************************************\n");
         else
@@ -284,11 +272,12 @@ bool8 AssertHandler(TinScript::CScriptContext* script_context, const char* condi
     }
 
     // -- handled - return true so we don't break
-    return true;
+    return (true);
 }
 
 // ------------------------------------------------------------------------------------------------
-void PushBreakpointDialog(const char* breakpoint_msg) {
+void PushBreakpointDialog(const char* breakpoint_msg)
+{
     QMessageBox msgBox;
     msgBox.setModal(true);
     msgBox.setText(breakpoint_msg);
@@ -307,6 +296,9 @@ void CConsoleWindow::NotifyOnConnect()
 	myPalette.setColor(QPalette::Button, Qt::green);	
 	mButtonConnect->setPalette(myPalette);
     mButtonConnect->setText("Disconnect");
+
+    // -- set the status message
+    SetStatusMessage("Connected");
 
     // -- send the text command to identify this connection as for a debugger
     SocketManager::SendCommand("DebuggerSetConnected(true);");
@@ -332,6 +324,9 @@ void CConsoleWindow::NotifyOnDisconnect()
 	myPalette.setColor(QPalette::Button, Qt::red);	
 	mButtonConnect->setPalette(myPalette);
     mButtonConnect->setText("Connect");
+
+    // -- set the status message
+    SetStatusMessage("Not Connected");
 }
 
 void CConsoleWindow::NotifyOnClose()
@@ -409,6 +404,9 @@ void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg)
 	myPalette.setColor(QPalette::Button, Qt::red);	
 	mButtonRun->setPalette(myPalette);
 
+    // -- set the status message
+    SetStatusMessage("Breakpoint");
+
     while (SocketManager::IsConnected() && !mBreakpointRun && !mBreakpointStep)
     {
         QCoreApplication::processEvents();
@@ -416,6 +414,12 @@ void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg)
         // -- update our own environment, especially receiving data packetes
         GetOutput()->DebuggerUpdate();
     }
+
+    // -- set the status message
+    if (SocketManager::IsConnected())
+        SetStatusMessage("Connected");
+    else
+        SetStatusMessage("Not Connected");
 
     // -- back to normal color
 	myPalette.setColor(QPalette::Button, Qt::transparent);	
@@ -566,8 +570,11 @@ void NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry)
     CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyWatchVarEntry(watch_var_entry);
 }
         
-// ------------------------------------------------------------------------------------------------
-void CConsoleWindow::AddText(char* msg) {
+// ====================================================================================================================
+// AddText():  Adds a message to the console output window.
+// ====================================================================================================================
+void CConsoleWindow::AddText(char* msg)
+{
     if(!msg)
         return;
 
@@ -584,27 +591,31 @@ void CConsoleWindow::AddText(char* msg) {
     mConsoleOutput->setCurrentRow(count - 1);
 }
 
-// ------------------------------------------------------------------------------------------------
-CMainWindow::CMainWindow() : QWidget()
+// ====================================================================================================================
+// SetStatusMessage():  Sets the messsage in the status bar, at the bottom of the application window.
+// ====================================================================================================================
+void CConsoleWindow::SetStatusMessage(const char* message)
 {
-};
+    // -- ensure we have a message
+    if (!message)
+        message = "";
 
-void CMainWindow::closeEvent(QCloseEvent *event)
-{
-    SocketManager::Disconnect();
-    event->accept();
+    if (mStatusLabel)
+        mStatusLabel->setText(QString(message));
 }
 
 // ------------------------------------------------------------------------------------------------
-CConsoleInput::CConsoleInput(CConsoleWindow* owner) : QLineEdit() {
-    mOwner = owner;
-
+CConsoleInput::CConsoleInput(QWidget* parent) : QLineEdit(parent)
+{
     // -- q&d history implementation
     mHistoryFull = false;
     mHistoryIndex = -1;
     mHistoryLastIndex = -1;
     for(int32 i = 0; i < kMaxHistory; ++i)
         *mHistory[i] = '\0';
+
+    // -- create the label as well
+    mInputLabel = new QLabel("==>", parent);
 }
 
 void CConsoleInput::OnButtonConnectPressed()
@@ -735,8 +746,8 @@ void CConsoleInput::keyPressEvent(QKeyEvent * event) {
 }
 
 // ------------------------------------------------------------------------------------------------
-CConsoleOutput::CConsoleOutput(CConsoleWindow* owner) : QListWidget() {
-    mOwner = owner;
+CConsoleOutput::CConsoleOutput(QWidget* parent) : QListWidget(parent)
+{
     mCurrentTime = 0;
 
     mTimer = new QTimer(this);
@@ -806,7 +817,6 @@ void CConsoleOutput::DebuggerUpdate()
 {
     // -- process the received packets
     ProcessDataPackets();
-    //TinScript::UpdateContext(mCurrentTime);
 }
 
 // ====================================================================================================================
@@ -1196,8 +1206,9 @@ int _tmain(int argc, _TCHAR* argv[])
     SocketManager::RegisterProcessRecvDataCallback(DebuggerRecvDataCallback);
 
     // -- create the console, and start the execution
-    new CConsoleWindow();
+    CConsoleWindow* debugger = new CConsoleWindow();;
     int result = CConsoleWindow::GetInstance()->Exec();
+    debugger->GetMainWindow()->saveLayout();
 
     // -- shutdown
     SocketManager::Terminate();

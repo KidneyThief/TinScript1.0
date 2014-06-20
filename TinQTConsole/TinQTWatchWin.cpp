@@ -91,10 +91,8 @@ void CWatchEntry::UpdateValue(const char* new_value)
 
 // ------------------------------------------------------------------------------------------------
 // CDebugWatchWin
-CDebugWatchWin::CDebugWatchWin(CConsoleWindow* owner)
+CDebugWatchWin::CDebugWatchWin(QWidget* parent) : QTreeWidget(parent)
 {
-    mOwner = owner;
-
     setColumnCount(3);
     setItemsExpandable(true);
     setExpandsOnDoubleClick(true);

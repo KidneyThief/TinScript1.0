@@ -256,10 +256,43 @@ void CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns) {
         }
 
         // -- not found in the hierarchy - we can insert the new parent into the hierarchy
-        // -- of the child, if the new parent doesn't have any children itself
-        if(parentns->GetNext() == NULL) {
-            parentns->SetNext(childns->GetNext());
-            childns->SetNext(parentns);
+        // -- *only* if the order is deterministic - which means one must be a registered
+        // -- class, and one must be a script class
+        if (parentns->GetNext() == NULL)
+        {
+            // -- if the parent is *not* a registered class, then it goes at the end of the
+            // -- child's hierarchy, as long as the child's hierarchy is still purely script
+            bool found_registered_class = false;
+            if (parentns->IsRegisteredClass() && !childns->IsRegisteredClass())
+            {
+                tempns = childns;
+                while (tempns->GetNext())
+                {
+                    if (tempns->GetNext()->IsRegisteredClass())
+                    {
+                        found_registered_class = true;
+                        break;
+                    }
+
+                    // -- get the next
+                    tempns = tempns->GetNext();
+                }
+
+                // -- see if we can append to the hierarchy
+                if (!found_registered_class)
+                {
+                    tempns->SetNext(parentns);
+                    return;
+                }
+            }
+
+            // -- else if the parent is not a registered class, then it gets inserted at the front of the
+            // -- current child hierarchy
+            else if (!parentns->IsRegisteredClass())
+            {
+                parentns->SetNext(childns->GetNext());
+                childns->SetNext(parentns);
+            }
             return;
         }
     }
@@ -277,14 +310,35 @@ uint32 CScriptContext::GetNextObjectID() {
     return ++mObjectIDGenerator;
 }
 
-uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash) {
+uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash)
+{
     uint32 objectid = GetNextObjectID();
 
     // -- find the creation function
     CNamespace* namespaceentry = GetNamespaceDictionary()->FindItem(classhash);
-    if(namespaceentry != NULL) {
-        CNamespace::CreateInstance funcptr = namespaceentry->GetCreateInstance();
-        if(funcptr == NULL) {
+    if (namespaceentry != NULL)
+    {
+        // -- loop down the hierarchy, until you find the actual registered class namespace
+        CNamespace* class_namespace = namespaceentry;
+        while (class_namespace && !class_namespace->IsRegisteredClass())
+            class_namespace = class_namespace->GetNext();
+
+        // -- if we get all the way down and don't find a registered class, assume the CScriptObject base class,
+        // -- and the hierarchy of linked namespaces will uncover any errors
+        if (!class_namespace)
+        {
+            class_namespace = GetNamespaceDictionary()->FindItem(Hash("CScriptObject"));
+            if (class_namespace)
+            {
+                LinkNamespaces(namespaceentry, class_namespace);
+                TinPrint(this, "Warning - CreateObject():  Unable to find registered class %s.\n"
+                               "Linking to default base class CScriptObject\n", UnHash(classhash));
+            }
+        }
+
+        CNamespace::CreateInstance funcptr = class_namespace ? class_namespace->GetCreateInstance() : NULL;
+        if (funcptr == NULL)
+        {
             ScriptAssert_(this, 0, "<internal>", -1,
                           "Error - Class is not registered: %s\n", UnHash(classhash));
             return 0;
@@ -322,10 +376,11 @@ uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash) {
                 //delete newobj;
                 return 0;
             }
-            else if(tempns != namespaceentry) {
+            else if(tempns != class_namespace) {
                 ScriptAssert_(this, 0, "<internal>", -1,
-                    "Error - Unable to create an instance of base class: %s, using object namespace: %s.  Use derived class: %s\n",
-                    UnHash(classhash), UnHash(objnamehash), UnHash(tempns->GetHash()));
+                              "Error - Unable to create an instance of base class: %s, using object namespace: %s.\n"
+                              "Use derived class: %s\n",
+                              UnHash(class_namespace->GetHash()), UnHash(objnamehash), UnHash(tempns->GetHash()));
                 // $$$TZA find a way to delete the newly created, but non-registered object
                 //delete newobj;
                 return 0;

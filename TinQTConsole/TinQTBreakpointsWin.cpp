@@ -25,7 +25,7 @@
 
 #include "stdafx.h"
 
-#include <QListWidget>
+#include <QDockWidget>
 
 #include "TinScript.h"
 #include "TinRegistration.h"
@@ -98,8 +98,8 @@ void CDebugBreakpointsWin::OnDoubleClicked(QListWidgetItem* item) {
                                                                       breakpoint->mLineNumber);
 }
 
-CDebugBreakpointsWin::CDebugBreakpointsWin(CConsoleWindow* owner) : QListWidget() {
-    mOwner = owner;
+CDebugBreakpointsWin::CDebugBreakpointsWin(QWidget* parent) : QListWidget(parent)
+{
 }
 
 CDebugBreakpointsWin::~CDebugBreakpointsWin() {
@@ -269,7 +269,8 @@ void CDebugBreakpointsWin::NotifyOnConnect()
 
 // ------------------------------------------------------------------------------------------------
 CCallstackEntry::CCallstackEntry(uint32 codeblock_hash, int32 line_number, uint32 object_id,
-                                 uint32 namespace_hash, uint32 function_hash) : QListWidgetItem() {
+                                 uint32 namespace_hash, uint32 function_hash) : QListWidgetItem()
+{
     mCodeblockHash = codeblock_hash;
     mLineNumber = line_number;
 
@@ -284,7 +285,9 @@ CCallstackEntry::CCallstackEntry(uint32 codeblock_hash, int32 line_number, uint3
     setText(buf);
 };
 
-CDebugCallstackWin::CDebugCallstackWin(CConsoleWindow* owner) : QListWidget() {
+CDebugCallstackWin::CDebugCallstackWin(QWidget* parent) : QListWidget(parent)
+{
+    setWindowTitle(QString("Call Stack"));
 }
 
 CDebugCallstackWin::~CDebugCallstackWin() {

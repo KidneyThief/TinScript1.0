@@ -40,7 +40,7 @@ void Enemy::UpdateAI()
         float closest_dist = 10000.0f;
         while (IsObject(test_character))
         {
-            if (test_character.team != gTeam_Neutral && test_character.team != self.team && test_character.health > 0)
+            if (test_character.team != TEAM_NONE && test_character.team != self.team && test_character.health > 0)
             {
                 vector3f v_to_character = test_character.position - my_pos;
                 float test_dist = V3fLength(v_to_character);

@@ -54,6 +54,9 @@ void CreateGame()
 
 void ResetGame()
 {
+    // -- cancel all draw requests
+    CancelDrawRequests(-1);
+    
     if (IsObject(gCurrentGame))
     {
         destroy gCurrentGame;
@@ -75,6 +78,7 @@ void NotifyEvent(int keypress)
 // ====================================================================================================================
 // SceneObject implementation
 // ====================================================================================================================
+LinkNamespaces("SceneObject", "CScriptObject");
 void SceneObject::OnCreate()
 {
     vector3f self.position;

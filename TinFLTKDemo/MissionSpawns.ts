@@ -19,10 +19,9 @@ void SpawnPoint::Initialize(vector3f pos)
 // ====================================================================================================================
 // SpawnGroup implementation
 // ====================================================================================================================
+LinkNamespaces("SpawnGroup", "CObjectGroup");
 void SpawnGroup::OnCreate()
 {
-    LinkNamespaces("SpawnGroup", "CObjectSet");
-    
     object self.temp_set = create CObjectSet("TempSet");
 }
 
@@ -95,67 +94,26 @@ object SpawnGroup::CreateSpawnPoint(vector3f position)
     self.AddObject(spawn_point);
 }
 
-void CornerSpawns::OnCreate()
-{
-    LinkNamespaces("CornerSpawns", "SpawnGroup");
-    SpawnGroup::OnCreate();
-}
-
-void CreateCornerSpawnGroup()
-{
-    // -- create the group
-    object corner_group = create CObjectGroup("CornerSpawns");
-    
-    if (IsObject(gCurrentGame))
-        gCurrentGame.game_objects.AddObject(corner_group);
-        
-    // -- create the spawn points for the group
-    corner_group.CreateSpawnPoint("0 0 0");
-    corner_group.CreateSpawnPoint("640 0 0");
-    corner_group.CreateSpawnPoint("0 480 0");
-    corner_group.CreateSpawnPoint("640 480 0");
-}
-
-void EdgeSpawns::OnCreate()
-{
-    LinkNamespaces("EdgeSpawns", "SpawnGroup");
-    SpawnGroup::OnCreate();
-}
-
-void CreateEdgeSpawnGroup()
-{
-    // -- create the group
-    object edge_group = create CObjectGroup("EdgeSpawns");
-    
-    if (IsObject(gCurrentGame))
-        gCurrentGame.game_objects.AddObject(edge_group);
-        
-    // -- create the spawn points for the group
-    edge_group.CreateSpawnPoint("320 0 0");
-    edge_group.CreateSpawnPoint("640 240 0");
-    edge_group.CreateSpawnPoint("320 480 0");
-    edge_group.CreateSpawnPoint("0 240 0");
-}
-
 // ====================================================================================================================
 // SpawnWave implementation
 // ====================================================================================================================
+LinkNamespaces("SpawnWave", "CScriptObject");
 void SpawnWave::OnCreate()
 {
     // -- create a set of minions that spawned by this wave
     object self.minion_set = create CObjectSet("Minions");
     
     // -- reference to the parent mission objective, for whom the wave was created
-    object self.parent_objective;
+    object self.parent_action;
     
     // -- reference to the set of spawn points used by this wave
     object self.spawn_set;
 }
 
-void SpawnWave::Initialize(object parent_objective, object spawn_set)
+void SpawnWave::Initialize(object parent_action, object spawn_set)
 {
     // -- initialize the spawn wave with their parent objective, and the set of points they're to use
-    self.parent_objective = parent_objective;
+    self.parent_action = parent_action;
     self.spawn_set = spawn_set;
 }
 
@@ -165,19 +123,20 @@ void SpawnWave::OnDestroy()
     destroy self.minion_set;
 }
 
-void SpawnWave::OnKilled(object dead_minion)
+void SpawnWave::NotifyOnKilled(object dead_minion)
 {
     // -- remove the object from the set
     self.minion_set.RemoveObject(dead_minion);
     
     // -- notify the mission objective.
-    if (IsObject(self.parent_objective))
+    if (IsObject(self.parent_action))
     {
-        self.parent_objective.NotifyOnKilled(dead_minion);
+        if (ObjectHasMethod(self.parent_action, "NotifyOnKilled"))
+            self.parent_action.NotifyOnKilled(dead_minion);
         
         // -- and to demonstrate for fun, a made up event like "last man standing"
-        if (self.minion_set.Used() == 1)
-            self.parent_objective.NotifyLastManStanding();
+        if (self.minion_set.Used() == 1 && ObjectHasMethod(self.parent_action, "NotifyLastManStanding"))
+            self.parent_action.NotifyLastManStanding();
     }
 }
 
@@ -195,17 +154,9 @@ void SpawnWave::Spawn(int count)
         {
             object enemy = SpawnCharacter("Enemy", spawn_point.position);
             self.minion_set.AddObject(enemy);
+            enemy.AddNotifyOnKilled(self);
         }
     }
-}
-
-object CreateSpawnWave(string spawn_set_name)
-{
-    object spawn_wave = create CScriptObject("SpawnWave");
-    spawn_wave.Initialize(0, FindObject(spawn_set_name));
-    
-    // -- return the result
-    return (spawn_wave);
 }
 
 // ====================================================================================================================

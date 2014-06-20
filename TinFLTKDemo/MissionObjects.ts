@@ -8,6 +8,9 @@ Exec("TinScriptDemo.ts");
 // -- aux file just for the AI
 Exec("MissionAI.ts");
 Exec("MissionSpawns.ts");
+Exec("MissionTree.ts");
+Exec("MissionAction.ts");
+Exec("MissionTest.ts");
 
 // -- global tunables -------------------------------------------------------------------------------------------------
 float gPlayer_Thrust = 30.0f;
@@ -19,9 +22,9 @@ int gMaxBullets = 4;
 int gPlayer_FireCDTime = 100;
 int gEnemy_FireCDTime = 2000;
 
-int gTeam_Neutral = 0;
-int gTeam_Ally = 1;
-int gTeam_Enemy = 2;
+int TEAM_NONE = 0;
+int TEAM_ALLY = 1;
+int TEAM_ENEMY = 2;
 float gPlayer_Radius = 20.0f;
 float gEnemy_Radius = 15.0f;
 
@@ -84,22 +87,31 @@ void UpdateScreenPosition(object obj, float deltaTime)
 // ====================================================================================================================
 // TriggerVolume implementation
 // ====================================================================================================================
+LinkNamespaces("TriggerVolume", "SceneObject");
 void TriggerVolume::OnCreate()
 {
-    LinkNamespaces("TriggerVolume", "SceneObject");
+    // -- construct the base class
     SceneObject::OnCreate();
     
     vector3f self.top_left;
     vector3f self.bottom_right;
     
-    bool self.enabled = true;
+    // -- create a set of objects to notify, when an OnEnter / OnExit happens
+    object self.notify_set = create CObjectSet("NotifySet");
     
     // -- create a set of characters currently within the volume
     object self.character_set = create CObjectSet("ContainsCharSet");
+    
+    // -- if we have an active game, add ourself to the trigger volume set
+    if (IsObject(gCurrentGame))
+    {
+        gCurrentGame.triggervolume_set.AddObject(self);
+    }
 }
 
 void TriggerVolume::OnDestroy()
 {
+    destroy self.notify_set;
     destroy self.character_set;
 }
 
@@ -129,9 +141,10 @@ void TriggerVolume::OnUpdate(float deltaTime)
     // -- draw the trigger volume
     CancelDrawRequests(self);
     
-    if (self.enabled == false)
+    // -- if there's no one to receive the notifications, there's no point in updating
+    if (self.notify_set.Used() == 0)
         return;
-    
+
     int color = gFLTK_BLUE;
     if (self.character_set.Used() > 0)
         color = gFLTK_PURPLE;
@@ -176,22 +189,61 @@ void TriggerVolume::OnUpdate(float deltaTime)
     }
 }
 
+// -- adding to the notify set implies the requesting object has implemented NotifyOnEnter()/NotifyOnExit() methods
+void TriggerVolume::AddNotify(object notify_me)
+{
+    if (IsObject(notify_me))
+        self.notify_set.AddObject(notify_me);
+}
+
+// -- once the notify set is empty, it's essentially no longer active
+void TriggerVolume::RemoveNotify(object notify_me)
+{
+    self.notify_set.RemoveObject(notify_me);
+    if (self.notify_set.Used() == 0)
+    {
+        CancelDrawRequests(self);
+        
+        // -- we also want to completely clear the character_set, so any new events start from scratch
+        self.character_set.RemoveAll();
+    }
+}
+
 void TriggerVolume::OnEnter(object character)
 {
-    Print("Character: ", character, " has entered TV: ", self);
+    // -- notify the requesting objects
+    object notify_me = self.notify_set.First();
+    while (IsObject(notify_me))
+    {
+        if (ObjectHasMethod(notify_me, "NotifyOnEnter"))
+        {
+            notify_me.NotifyOnEnter(character);
+        }
+        notify_me = self.notify_set.Next();
+    }
 }
 
 void TriggerVolume::OnExit(object character)
 {
-    Print("Character: ", character, " has left TV: ", self);
+    // -- notify the requesting objects
+    object notify_me = self.notify_set.First();
+    while (IsObject(notify_me))
+    {
+        if (ObjectHasMethod(notify_me, "NotifyOnExit"))
+        {
+            notify_me.NotifyOnExit(character);
+        }
+        notify_me = self.notify_set.Next();
+    }
 }
 
 // ====================================================================================================================
 // Character implementation
 // ====================================================================================================================
+LinkNamespaces("Character", "SceneObject");
 void Character::OnCreate()
 {
-    LinkNamespaces("Character", "SceneObject");
+    // -- construct the base class
     SceneObject::OnCreate();
     
     // -- characters have velocity and rotation
@@ -199,13 +251,14 @@ void Character::OnCreate()
     float self.rotation = 270.0f;
     
     // -- life count
-    int self.health = 100;
+    int self.health = 20;
     int self.show_hit_time = 0;
     
     // -- team and target
-    int self.team = gTeam_Neutral;
+    int self.team = TEAM_NONE;
     object self.target;
     float self.rotation_speed = gDefaultRotationSpeed;
+    object self.notify_death_set = create CObjectSet("NotifyDeath");
     
     // -- we can only fire so fast
     int self.fire_cd_time = 0;
@@ -223,6 +276,19 @@ void Character::OnDestroy()
 {
     SceneObject::OnDestroy();
     destroy self.bullet_set;
+    destroy self.notify_death_set;
+}
+
+void Character::AddNotifyOnKilled(object listener)
+{
+    if (IsObject(listener))
+        self.notify_death_set.AddObject(listener);
+}
+
+void Character::RemoveNotifyOnKilled(object listener)
+{
+    if (IsObject(listener))
+        self.notify_death_set.RemoveObject(listener);
 }
 
 void Character::OnUpdate(float deltaTime)
@@ -254,9 +320,9 @@ void Character::OnUpdate(float deltaTime)
     
     // -- determine our color
     int color = gFLTK_BLACK;
-    if (self.team == gTeam_Ally)
+    if (self.team == TEAM_ALLY)
         color = gFLTK_BLUE;
-    else if (self.team == gTeam_Enemy)
+    else if (self.team == TEAM_ENEMY)
         color = gFLTK_PURPLE;
     int cur_time = GetSimTime();
     if (cur_time < self.show_hit_time || self.health <= 0)
@@ -355,6 +421,19 @@ void Character::OnCollision(object bullet)
     // -- if we're dead, schedule the object to be deleted
     if (self.health <= 0)
     {
+        // -- draw the "DEAD" immediately
+        DrawText(self, self.position - '15 0 0', "DEAD", gFLTK_RED);
+        
+        // -- notify whoever wants to know about our death
+        object listener = self.notify_death_set.First();
+        while (IsObject(listener))
+        {
+            if (ObjectHasMethod(listener, "NotifyOnKilled"))
+                listener.NotifyOnKilled(self);
+            listener = self.notify_death_set.Next();
+        }
+        
+        // -- schedule the destruction
         schedule(self, 2000, Hash("OnDeath"));
         return;
     }
@@ -367,9 +446,10 @@ void Character::OnCollision(object bullet)
 // ====================================================================================================================
 // Bullet implementation
 // ====================================================================================================================
+LinkNamespaces("Bullet", "SceneObject");
 void Bullet::OnCreate()
 {
-    LinkNamespaces("Bullet", "SceneObject");
+    // -- construct the base class
     SceneObject::OnCreate();
     
     // -- Bullets are shot by characters
@@ -416,13 +496,17 @@ object SpawnBullet(object source, vector3f position, vector3f direction)
 // ====================================================================================================================
 // MissionSim implementation
 // ====================================================================================================================
+LinkNamespaces("MissionSim", "DefaultGame");
 void MissionSim::OnCreate()
 {
-    LinkNamespaces("MissionSim", "DefaultGame");
+    // -- construct the base class
     DefaultGame::OnCreate();
     
     // -- cache the 'player' object
     object self.player;
+    
+    // -- if a "dialog" is displayed, set an object to receive the notification that "OK" was pressed
+    object self.notify_dialog_ok;
     
     // -- create sets for iterating/finding objects
     object self.character_set = create CObjectSet("CharacterSet");
@@ -458,7 +542,7 @@ void MissionSim::OnUpdate()
         object character = self.character_set.First();
         while (!finished && IsObject(character))
         {
-            if (character.team != gTeam_Neutral && bullet.source.team != character.team)
+            if (character.team != TEAM_NONE && bullet.source.team != character.team)
             {
                 // -- if the bullet is within radius of the character, it's a collision
                 float distance = V3fLength(bullet.position - character.position);
@@ -527,6 +611,28 @@ void MissionSim::OnKeyPress(int keypress)
         if (IsObject(gCurrentGame.player))
             gCurrentGame.player.OnFire();
     }
+    
+    // -- pause / unpause
+    else if (keypress == CharToInt('z'))
+    {
+        bool is_paused = SimIsPaused();
+        if (is_paused)
+            SimUnpause();
+        else
+            SimPause();
+    }
+    
+    // -- q is our "dialog OK" button for this demo
+    else if (keypress == CharToInt('q'))
+    {
+        if (ObjectHasMethod(gCurrentGame.notify_dialog_ok, "OnDialogOK"))
+            gCurrentGame.notify_dialog_ok.OnDialogOK();
+    }
+}
+
+void MissionSim::SetNotifyDialogOK(object notify_me)
+{
+    gCurrentGame.notify_dialog_ok = notify_me;
 }
 
 void ApplyImpulse(object obj, vector3f impulse)
@@ -540,13 +646,14 @@ void ApplyImpulse(object obj, vector3f impulse)
 // ====================================================================================================================
 // Player
 // ====================================================================================================================
+LinkNamespaces("Player", "Character");
 void Player::OnCreate()
 {
-    LinkNamespaces("Player", "Character");
+    // -- construct the base class
     Character::OnCreate();
     
     // -- set the team
-    self.team = gTeam_Ally;
+    self.team = TEAM_ALLY;
     
     // -- let the game know who to send key events to
     gCurrentGame.player = self;
@@ -558,13 +665,14 @@ void Player::OnCreate()
 // ====================================================================================================================
 // Enemy
 // ====================================================================================================================
+LinkNamespaces("Enemy", "Character");
 void Enemy::OnCreate()
 {
-    LinkNamespaces("Enemy", "Character");
+    // -- construct the base class
     Character::OnCreate();
     
     // -- set the team and health
-    self.team = gTeam_Enemy;
+    self.team = TEAM_ENEMY;
     self.health = 5;
     float self.prediction_time = gEnemy_PredictionTime * (0.5f + Random());
     
@@ -604,34 +712,6 @@ object SpawnCharacter(string char_name, vector3f position)
         char_name = "Character";
     object new_char = CreateSceneObject(char_name, position, 20);
     return (new_char);
-}
-
-object SpawnTriggerVolume(string volume_name, vector3f top_left, vector3f bottom_right)
-{
-    if (!StringCmp(volume_name, ""))
-        volume_name = "TriggerVolume";
-    object new_tv = CreateSceneObject(volume_name, "0 0 0", "0");
-    new_tv.Initialize(top_left, bottom_right);
-}
-
-void StartMission()
-{
-    ResetGame();
-    gCurrentGame = create CScriptObject("MissionSim");
-    
-    CreateCornerSpawnGroup();
-    CreateEdgeSpawnGroup();
-    
-    SpawnCharacter("Player", "320 240 0");
-    
-    // -- randomly spawn an enemy
-    //object spawn_point = FindObject("CornerSpawns").PickRandom();
-    //if (IsObject(spawn_point))
-    //    SpawnCharacter("Enemy", spawn_point.position);
-    
-    //SpawnCharacter("Enemy", "320 100 0");
-    //SpawnCharacter("Enemy", "220 100 0");
-    //SpawnCharacter("Enemy", "420 100 0");
 }
 
 // ====================================================================================================================

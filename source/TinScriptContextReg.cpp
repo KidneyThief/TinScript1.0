@@ -135,6 +135,13 @@ bool8 ContextObjectIsDerivedFrom(uint32 objectid, const char* requred_namespace)
     return (objaddr != NULL);
 }
 
+bool8 ContextObjectHasMethod(uint32 objectid, const char* method_name)
+{
+    CScriptContext* script_context = TinScript::GetContext();
+    bool8 has_method = script_context->HasMethod(objectid, method_name);
+    return (has_method);
+}
+
 void ContextAddDynamicVariable(uint32 objectid, const char* varname, const char* vartype)
 {
     CScriptContext* script_context = TinScript::GetContext();
@@ -225,7 +232,8 @@ REGISTER_FUNCTION_P1(DebugBreak, ContextDebugBreak, void, const char*);
 REGISTER_FUNCTION_P0(ListObjects, ContextListObjects, void);
 REGISTER_FUNCTION_P1(IsObject, ContextIsObject, bool8, uint32);
 REGISTER_FUNCTION_P1(FindObject, ContextFindObjectByName, uint32, const char*);
-REGISTER_FUNCTION_P2(HasNamespace, ContextObjectIsDerivedFrom, bool8, uint32, const char*);
+REGISTER_FUNCTION_P2(ObjectHasNamespace, ContextObjectIsDerivedFrom, bool8, uint32, const char*);
+REGISTER_FUNCTION_P2(ObjectHasMethod, ContextObjectHasMethod, bool8, uint32, const char*);
 REGISTER_FUNCTION_P3(AddDynamicVar, ContextAddDynamicVariable, void, uint32, const char*, const char*);
 REGISTER_FUNCTION_P2(LinkNamespaces, ContextLinkNamespaces, void, const char*, const char*);
 REGISTER_FUNCTION_P1(ListVariables, ContextListVariables, void, uint32);
