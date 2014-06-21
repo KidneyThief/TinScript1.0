@@ -64,6 +64,11 @@
 #include <QPushButton>
 #include <qdebug.h>
 
+#include "TinQTConsole.h"
+#include "TinQTSourceWin.h"
+
+// ====================================================================================================================
+
 Q_DECLARE_METATYPE(QDockWidget::DockWidgetFeatures)
 
 MainWindow::MainWindow(const QMap<QString, QSize> &customSizeHints,
@@ -84,9 +89,70 @@ MainWindow::MainWindow(const QMap<QString, QSize> &customSizeHints,
     setupDockWidgets(customSizeHints);
 }
 
-void MainWindow::actionTriggered(QAction *action)
+// -- destructor
+MainWindow::~MainWindow()
 {
-    qDebug("action '%s' triggered", action->text().toLocal8Bit().data());
+    for (int i = 0; i < mScriptOpenActionList.size(); ++i)
+    {
+        delete mScriptOpenActionList[i];
+    }
+    mScriptOpenActionList.clear();
+}
+
+void MainWindow::AddScriptOpenAction(const char* fullPath)
+{
+    if (!fullPath || !fullPath[0])
+        return;
+
+    const char* fileName = CDebugSourceWin::GetFileName(fullPath);
+    uint32 fileHash = TinScript::Hash(fileName);
+
+    // -- ensure we haven't already added this action
+    bool found = false;
+    for (int i = 0; i < mScriptOpenActionList.size(); ++i)
+    {
+        CScriptOpenAction* scriptOpenAction = mScriptOpenActionList[i];
+        if (scriptOpenAction->mFileHash == fileHash)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    // -- if this entry already exists, we're done
+    if (found)
+        return;
+
+    // -- create the script action
+    QAction* action = mScriptsMenu->addAction(tr(fileName));
+    CScriptOpenWidget *actionWidget = new CScriptOpenWidget(action, this);
+    CScriptOpenAction* scriptOpenAction = new CScriptOpenAction(fullPath, fileHash, actionWidget);
+    mScriptOpenActionList.push_back(scriptOpenAction);
+    connect(action, SIGNAL(triggered()), actionWidget, SLOT(menuOpenScriptAction()));
+}
+
+// ====================================================================================================================
+// menuOpenScriptAction():  Slot called when the menu option is selected for a dynamically added script open action.
+// ====================================================================================================================
+void MainWindow::menuOpenScriptAction(QAction *action)
+{
+    // -- loop through all the actions - find the one matching this action
+    CScriptOpenAction* found = NULL;
+    for (int i = 0; i < mScriptOpenActionList.size(); ++i)
+    {
+        CScriptOpenAction* scriptOpenAction = mScriptOpenActionList[i];
+        if (scriptOpenAction->mActionWidget->mAction == action)
+        {
+            found = scriptOpenAction;
+            break;
+        }
+    }
+
+    // -- if we found our entry, open the file
+    if (found)
+    {
+        CConsoleWindow::GetInstance()->GetDebugSourceWin()->OpenFullPathFile(found->mFullPath, true);
+    }
 }
 
 void MainWindow::setupMenuBar()
@@ -94,15 +160,19 @@ void MainWindow::setupMenuBar()
     QMenu *menu = menuBar()->addMenu(tr("&File"));
 
     QAction *action = menu->addAction(tr("Save layout..."));
-    connect(action, SIGNAL(triggered()), this, SLOT(saveLayout()));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuSaveLayout()));
 
     action = menu->addAction(tr("Load layout..."));
-    connect(action, SIGNAL(triggered()), this, SLOT(loadLayout()));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuLoadLayout()));
+
+    action = menu->addAction(tr("Default layout"));
+    connect(action, SIGNAL(triggered()), this, SLOT(defaultLoadLayout()));
 
     menu->addSeparator();
 
     menu->addAction(tr("&Quit"), this, SLOT(close()));
 
+    // -- Dock Options menu
     mainWindowMenu = menuBar()->addMenu(tr("Main window"));
 
     action = mainWindowMenu->addAction(tr("Animated docks"));
@@ -130,7 +200,17 @@ void MainWindow::setupMenuBar()
     action->setChecked(dockOptions() & VerticalTabs);
     connect(action, SIGNAL(toggled(bool)), this, SLOT(setDockOptions()));
 
+    // -- Dock Widgets menu
     dockWidgetMenu = menuBar()->addMenu(tr("&Dock Widgets"));
+
+    // -- Scripts menu
+    mScriptsMenu = menuBar()->addMenu(tr("&Scripts"));
+
+    action = mScriptsMenu->addAction(tr("Open Script..."));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuOpenScript()));
+
+    mScriptsMenu->addSeparator();
+
 }
 
 void MainWindow::setDockOptions()
@@ -152,13 +232,46 @@ void MainWindow::setDockOptions()
     QMainWindow::setDockOptions(opts);
 }
 
-void MainWindow::saveLayout()
+// ====================================================================================================================
+// menuSaveLayout():  The slot called by selecting the menu option to save the layout
+// ====================================================================================================================
+void MainWindow::menuSaveLayout()
+{
+    QString fileName = QFileDialog::getSaveFileName(this, tr("Save layout"));
+    if (fileName.isEmpty())
+        return;
+    QFile file(fileName);
+    if (!file.open(QFile::WriteOnly))
+    {
+        QString msg = tr("Failed to open %1\n%2")
+                        .arg(fileName)
+                        .arg(file.errorString());
+        QMessageBox::warning(this, tr("Error"), msg);
+        return;
+    }
+
+    // -- write the layout to the opened file
+    writeLayout(file);
+}
+
+// ====================================================================================================================
+// autoSaveLayout():  Called automatically upon exiting, using a hardcoded file name
+// ====================================================================================================================
+void MainWindow::autoSaveLayout()
 {
     QString fileName = "TinScript Debugger Layout";
     QFile file(fileName);
     if (!file.open(QFile::WriteOnly))
         return;
 
+    writeLayout(file);
+}
+
+// ====================================================================================================================
+// writeLayout():  The method to write the binary layout details to the given *open* file
+// ====================================================================================================================
+void MainWindow::writeLayout(QFile& file)
+{
     QByteArray geo_data = saveGeometry();
     QByteArray layout_data = saveState();
 
@@ -170,14 +283,38 @@ void MainWindow::saveLayout()
 
     if (!ok) {
         QString msg = tr("Error writing to %1\n%2")
-                        .arg(fileName)
+                        .arg(file.fileName())
                         .arg(file.errorString());
         QMessageBox::warning(this, tr("Error"), msg);
         return;
     }
 }
 
-void MainWindow::loadLayout()
+// ====================================================================================================================
+// menuLoadLayout():  The slot called by selecting the menu option to load the layout
+// ====================================================================================================================
+void MainWindow::menuLoadLayout()
+{
+    QString fileName
+        = QFileDialog::getOpenFileName(this, tr("Load layout"));
+    if (fileName.isEmpty())
+        return;
+    QFile file(fileName);
+    if (!file.open(QFile::ReadOnly)) {
+        QString msg = tr("Failed to open %1\n%2")
+                        .arg(fileName)
+                        .arg(file.errorString());
+        QMessageBox::warning(this, tr("Error"), msg);
+        return;
+    }
+
+    readLayout(file);
+}
+
+// ====================================================================================================================
+// autoLoadLayout():  Automatically called when the application starts, to load the last (or default) layout.
+// ====================================================================================================================
+void MainWindow::autoLoadLayout()
 {
     QString fileName = "TinScript Debugger Layout";
     QString defaultFileName = "TinScript Default Layout";
@@ -194,17 +331,42 @@ void MainWindow::loadLayout()
     if (!result)
         return;
 
+    readLayout(*activeFile);
+}
+
+// ====================================================================================================================
+// defaultLoadLayout():  Slot called to specifically load the default layout.
+// ====================================================================================================================
+void MainWindow::defaultLoadLayout()
+{
+    QString defaultFileName = "TinScript Default Layout";
+    QFile defaultFile(defaultFileName);
+    bool result = defaultFile.open(QFile::ReadOnly);
+    if (!result)
+        return;
+
+    readLayout(defaultFile);
+}
+
+// ====================================================================================================================
+// readLayout():  Loads the binary layout from the given *open* file.
+// ====================================================================================================================
+void MainWindow::readLayout(QFile& file)
+{
     uchar geo_size;
     QByteArray geo_data;
     QByteArray layout_data;
 
-    bool ok = activeFile->getChar((char*)&geo_size);
-    if (ok) {
-        geo_data = activeFile->read(geo_size);
+    bool ok = file.getChar((char*)&geo_size);
+    if (ok)
+    {
+        geo_data = file.read(geo_size);
         ok = geo_data.size() == geo_size;
     }
-    if (ok) {
-        layout_data = activeFile->readAll();
+
+    if (ok)
+    {
+        layout_data = file.readAll();
         ok = layout_data.size() > 0;
     }
 
@@ -213,14 +375,28 @@ void MainWindow::loadLayout()
     if (ok)
         ok = restoreState(layout_data);
 
-    if (!ok) {
-        QString msg = tr("Error reading %1")
-                        .arg(fileName);
+    if (!ok)
+    {
+        QString msg = tr("Error reading %1").arg(file.fileName());
         QMessageBox::warning(this, tr("Error"), msg);
         return;
     }
 }
 
+
+// ====================================================================================================================
+// openScript():  Slot called when the menu option is selected.
+// ====================================================================================================================
+void MainWindow::menuOpenScript()
+{
+    QString fileName = QFileDialog::getOpenFileName(this, tr("OpenScript"));
+    if (fileName.isEmpty())
+        return;
+
+    CConsoleWindow::GetInstance()->GetDebugSourceWin()->OpenFullPathFile(fileName.toUtf8(), true);
+}
+
+// ====================================================================================================================
 QAction *addAction(QMenu *menu, const QString &text, QActionGroup *group, QSignalMapper *mapper,
                     int id)
 {
@@ -264,48 +440,6 @@ void MainWindow::setupDockWidgets(const QMap<QString, QSize> &customSizeHints)
     group->setExclusive(true);
     ::addAction(corner_menu, tr("Bottom dock area"), group, mapper, 6);
     ::addAction(corner_menu, tr("Right dock area"), group, mapper, 7);
-
-    dockWidgetMenu->addSeparator();
-
-    static const struct Set {
-        const char * name;
-        uint flags;
-        Qt::DockWidgetArea area;
-    } sets [] = {
-#ifndef Q_OS_MAC
-        { "Black", 0, Qt::LeftDockWidgetArea },
-#else
-        { "Black", Qt::Drawer, Qt::LeftDockWidgetArea },
-#endif
-        { "White", 0, Qt::RightDockWidgetArea },
-        { "Red", 0, Qt::TopDockWidgetArea },
-        { "Green", 0, Qt::TopDockWidgetArea },
-        { "Blue", 0, Qt::BottomDockWidgetArea },
-        { "Yellow", 0, Qt::BottomDockWidgetArea }
-    };
-    const int setCount = sizeof(sets) / sizeof(Set);
-
-    /*
-    for (int i = 0; i < setCount; ++i) {
-        ColorSwatch *swatch = new ColorSwatch(tr(sets[i].name), this, Qt::WindowFlags(sets[i].flags));
-        if (i%2)
-            swatch->setWindowIcon(QIcon(QPixmap(":/res/qt.png")));
-        if (qstrcmp(sets[i].name, "Blue") == 0) {
-            BlueTitleBar *titlebar = new BlueTitleBar(swatch);
-            swatch->setTitleBarWidget(titlebar);
-            connect(swatch, SIGNAL(topLevelChanged(bool)), titlebar, SLOT(updateMask()));
-            connect(swatch, SIGNAL(featuresChanged(QDockWidget::DockWidgetFeatures)), titlebar, SLOT(updateMask()), Qt::QueuedConnection);
-
-        }
-
-        QString name = QString::fromLatin1(sets[i].name);
-        if (customSizeHints.contains(name))
-            swatch->setCustomSizeHint(customSizeHints.value(name));
-
-        addDockWidget(sets[i].area, swatch);
-        dockWidgetMenu->addMenu(swatch->menu);
-    }
-    */
 
     dockWidgetMenu->addSeparator();
 }

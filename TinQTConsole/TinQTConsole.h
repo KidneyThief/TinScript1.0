@@ -232,7 +232,6 @@ class CConsoleOutput : public QListWidget {
                 newHeight = 20;
             setGeometry(0, 20, newWidth, newHeight);
             updateGeometry();
-            //update();
         }
 
         static const unsigned int kUpdateTime = 33;

@@ -33,6 +33,7 @@
 #include "TinQTConsole.h"
 #include "TinQTSourceWin.h"
 #include "TinQTBreakpointsWin.h"
+#include "mainwindow.h"
 
 // ------------------------------------------------------------------------------------------------
 char* ReadFileAllocBuf(const char* filename) {
@@ -138,13 +139,15 @@ void CDebugSourceWin::NotifyCurrentDir(const char* cwd)
     TinScript::LoadStringTable(remoteStringTableName);
 }
 
-bool CDebugSourceWin::OpenSourceFile(const char* filename, bool reload) {
+bool CDebugSourceWin::OpenSourceFile(const char* filename, bool reload)
+{
     // -- sanity check
     if(!filename || !filename[0])
         return (false);
 
     // -- see if we actually need to reload this file
-    uint32 filehash = TinScript::Hash(filename);
+    const char* fileNamePtr = GetFileName(filename);
+    uint32 filehash = TinScript::Hash(fileNamePtr);
     if (filehash == mCurrentCodeblockHash && !reload)
         return (true);
 
@@ -154,11 +157,18 @@ bool CDebugSourceWin::OpenSourceFile(const char* filename, bool reload) {
     if (length >= kMaxArgLength)
         return (false);
 
+    return (OpenFullPathFile(fullPath, reload));
+}
+
+bool CDebugSourceWin::OpenFullPathFile(const char* fullPath, bool reload)
+{
+    const char* fileNamePtr = GetFileName(fullPath);
+    uint32 filehash = TinScript::Hash(fileNamePtr);
     char* filebuf = ReadFileAllocBuf(fullPath);
     if (filebuf)
     {
         // -- set the file line edit
-        CConsoleWindow::GetInstance()->GetFileLineEdit()->setText(filename);
+        CConsoleWindow::GetInstance()->GetFileLineEdit()->setText(fileNamePtr);
 
         // -- reset the current hash
         mCurrentCodeblockHash = 0;
@@ -200,7 +210,8 @@ bool CDebugSourceWin::OpenSourceFile(const char* filename, bool reload) {
     }
 
     // -- unable to open file
-    else {
+    else
+    {
         return (false);
     }
 
@@ -307,14 +318,24 @@ void CDebugSourceWin::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number,
 
 void CDebugSourceWin::NotifyCodeblockLoaded(uint32 codeblock_hash)
 {
-    // -- do nothing if we've already got a file open,
-    // -- unless we're reloading the current file
-    if(mCurrentCodeblockHash != 0 && mCurrentCodeblockHash != codeblock_hash)
+    // -- get the matching filename
+    const char* filename = TinScript::UnHash(codeblock_hash);
+
+    // -- open the file in the source window, unless it's already open
+    if(mCurrentCodeblockHash == 0 && mCurrentCodeblockHash != codeblock_hash)
+    {
+        // -- get the file name, and open the file
+        OpenSourceFile(filename, true);
+    }
+
+    // -- add an action to the main menu
+    char fullPath[kMaxArgLength];
+    int length = sprintf_s(fullPath, "%s%s", mDebuggerDir, filename);
+    if (length >= kMaxArgLength)
         return;
 
-    // -- get the file name, and open the file
-    const char* filename = TinScript::UnHash(codeblock_hash);
-    OpenSourceFile(filename, true);
+    // -- add an entry to the Scripts menu
+    CConsoleWindow::GetInstance()->GetMainWindow()->AddScriptOpenAction(fullPath);
 }
 
 void CDebugSourceWin::NotifyCodeblockLoaded(const char* filename)
@@ -328,11 +349,50 @@ void CDebugSourceWin::NotifyCodeblockLoaded(const char* filename)
 
     // -- do nothing if we've already got a file open,
     // -- unless we're reloading the current file
-    if (mCurrentCodeblockHash != 0 && mCurrentCodeblockHash != codeblock_hash)
+    if (mCurrentCodeblockHash == 0 && mCurrentCodeblockHash != codeblock_hash)
+    {
+        // -- open the file
+        OpenSourceFile(filename, true);
+    }
+
+    // -- add an action to the main menu
+    char fullPath[kMaxArgLength];
+    int length = sprintf_s(fullPath, "%s%s", mDebuggerDir, filename);
+    if (length >= kMaxArgLength)
         return;
 
-    // -- open the file
-    OpenSourceFile(filename, true);
+    // -- add an entry to the Scripts menu
+    CConsoleWindow::GetInstance()->GetMainWindow()->AddScriptOpenAction(fullPath);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// GetFileName():  Return just the file name, given a full path.
+// --------------------------------------------------------------------------------------------------------------------
+const char* CDebugSourceWin::GetFileName(const char* fullPath)
+{
+    if (!fullPath)
+        return ("");
+
+    // -- see if we actually need to reload this file
+    const char* fileNamePtr = fullPath;
+    const char* pathPtr0 = strrchr(fullPath, '/');
+    const char* pathPtr1 = strrchr(fullPath, '\\');
+    if (pathPtr0 || pathPtr1)
+    {
+        // -- if we actually found both path delineators in the same name (ugh)
+        if (pathPtr0 && pathPtr1)
+        {
+            if ((uint32)pathPtr0 > (uint32)pathPtr1)
+                fileNamePtr = &pathPtr0[1];
+            else
+                fileNamePtr = &pathPtr1[1];
+        }
+        else
+            fileNamePtr = pathPtr0 ? &pathPtr0[1] : &pathPtr1[1];
+    }
+
+    // -- return the result
+    return (fileNamePtr);
 }
 
 // ------------------------------------------------------------------------------------------------

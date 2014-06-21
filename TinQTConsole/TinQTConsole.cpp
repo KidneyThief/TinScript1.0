@@ -40,6 +40,7 @@
 #include <QKeyEvent>
 #include <QMessageBox>
 #include <qcolor.h>
+#include <QShortcut>
 
 #include "qmainwindow.h"
 #include "qmetaobject.h"
@@ -179,6 +180,15 @@ CConsoleWindow::CConsoleWindow()
     QObject::connect(mBreakpointsWin, SIGNAL(itemClicked(QListWidgetItem*)), mBreakpointsWin,
                                       SLOT(OnClicked(QListWidgetItem*)));
 
+    // -- hotkeys
+    // F5 - Run
+    QShortcut* shortcut_Run = new QShortcut(QKeySequence("F5"), mButtonRun);
+    QObject::connect(shortcut_Run, SIGNAL(activated()), mConsoleInput, SLOT(OnButtonRunPressed()));
+
+    // F11 - Run
+    QShortcut* shortcut_Step = new QShortcut(QKeySequence("F11"), mButtonStep);
+    QObject::connect(shortcut_Step, SIGNAL(activated()), mConsoleInput, SLOT(OnButtonStepPressed()));
+
     mMainWindow->addDockWidget(Qt::TopDockWidgetArea, sourceWinDockWidget);
     mMainWindow->addDockWidget(Qt::LeftDockWidgetArea, outputDockWidget);
     mMainWindow->addDockWidget(Qt::TopDockWidgetArea, callstackDockWidget);
@@ -188,7 +198,7 @@ CConsoleWindow::CConsoleWindow()
     mMainWindow->show();
 
     // -- restore the last used layout
-    mMainWindow->loadLayout();
+    mMainWindow->autoLoadLayout();
 
     // -- initialize the breakpoint members
     mBreakpointHit = false;
@@ -696,6 +706,23 @@ void CConsoleInput::OnButtonStepPressed() {
 void CConsoleInput::keyPressEvent(QKeyEvent * event) {
     if(!event)
         return;
+
+    // -- hotkeys
+    // -- run
+    /*
+    if (event->key() == Qt::Key_F5)
+    {
+        OnButtonRunPressed();
+        return;
+    }
+
+    // -- step into
+    if (event->key() == Qt::Key_F11)
+    {
+        OnButtonStepPressed();
+        return;
+    }
+    */
 
     // -- up arrow
     if(event->key() == Qt::Key_Up) {
@@ -1208,7 +1235,7 @@ int _tmain(int argc, _TCHAR* argv[])
     // -- create the console, and start the execution
     CConsoleWindow* debugger = new CConsoleWindow();;
     int result = CConsoleWindow::GetInstance()->Exec();
-    debugger->GetMainWindow()->saveLayout();
+    debugger->GetMainWindow()->autoSaveLayout();
 
     // -- shutdown
     SocketManager::Terminate();
