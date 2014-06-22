@@ -31,6 +31,7 @@
 #include <qlabel.h>
 
 class CBreakpointEntry;
+class QKeyEvent;
 
 class CBreakpointCheck : public QCheckBox {
     Q_OBJECT
@@ -57,14 +58,10 @@ class CBreakpointEntry : public QListWidgetItem {
 
         // -- if the actual breakable line is corrected by the executable, we need to update the label to match
         void UpdateLabel(uint32 codeblock_hash, int line_number);
-
-        // $$$TZA FIXME
-        //QListWidgetItem* item = new QListWidgetItem("item", listWidget);
-        //item->setFlags(item->flags() | Qt::ItemIsUserCheckable); // set checkable flag
-        //item->setCheckState(Qt::Unchecked); // AND initialize check state
 };
 
-class CDebugBreakpointsWin : public QListWidget {
+class CDebugBreakpointsWin : public QListWidget
+{
     Q_OBJECT
 
     public:
@@ -90,6 +87,7 @@ class CDebugBreakpointsWin : public QListWidget {
         }
 
         void ToggleBreakpoint(uint32 codeblock_hash, int32 line_number, bool add, bool enable);
+        void SetCurrentBreakpoint(uint32 codeblock_hash, int32 line_number);
         void NotifyCodeblockLoaded(uint32 codeblock_hash);
         void NotifyConfirmBreakpoint(uint32 codeblock_hash, int32 line_number, int32 actual_line);
         void NotifySourceFile(uint32 filehash);
@@ -98,6 +96,9 @@ class CDebugBreakpointsWin : public QListWidget {
     public slots:
         void OnClicked(QListWidgetItem*);
         void OnDoubleClicked(QListWidgetItem*);
+
+    protected:
+        virtual void keyPressEvent(QKeyEvent * event);
 
     private:
         QList<CBreakpointEntry*> mBreakpoints;

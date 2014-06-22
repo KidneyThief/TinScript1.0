@@ -201,6 +201,7 @@ class CFunctionCallStack {
             // -- debugger members
             mDebuggerBreakStep = false;
             mDebuggerLastBreak = -1;
+            mDebuggerBreakOnStackDepth = -1;
 		}
 
 		virtual ~CFunctionCallStack() {
@@ -236,6 +237,11 @@ class CFunctionCallStack {
                 varoffset = -1;
                 return NULL;
             }
+        }
+
+        int32 GetStackDepth() const
+        {
+            return (stacktop);
         }
 
         int32 DebuggerGetCallstack(uint32* codeblock_array, uint32* objid_array,
@@ -297,6 +303,9 @@ class CFunctionCallStack {
         // -- the debugger (break, line) members must be stored per execution stack
         bool8 mDebuggerBreakStep;
         int32 mDebuggerLastBreak;
+
+        // -- to manage stepping over/out, we might need to track which stack depth is appropriate to break on
+        int32 mDebuggerBreakOnStackDepth;
 
 	private:
         tFunctionCallEntry* funcentrystack;

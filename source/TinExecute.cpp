@@ -426,7 +426,7 @@ OpExecuteFunction GetOpExecFunction(eOpCode curoperation) {
 }
 
 // ====================================================================================================================
-// DebuggerBreakLoop():  Handles a failed assert condition, and either breaks in the remote debugger, or asserts
+// DebuggerAssertLoop():  Handles a failed assert condition, and either breaks in the remote debugger, or asserts
 // ====================================================================================================================
 bool8 DebuggerAssertLoop(const char* condition, CCodeBlock* cb, const uint32* instrptr, CExecStack& execstack,
                          CFunctionCallStack& funccallstack, const char* fmt, ...)
@@ -538,6 +538,7 @@ bool8 DebuggerBreakLoop(CCodeBlock* cb, const uint32* instrptr, CExecStack& exec
     // -- wait for the debugger to either continue to step or run
     script_context->SetBreakActionStep(false);
     script_context->SetBreakActionRun(false);
+    funccallstack.mDebuggerBreakOnStackDepth = -1;
     while (true)
     {
         // -- disable breaking on any asserts while we're waiting for the original loop to exit
@@ -557,6 +558,18 @@ bool8 DebuggerBreakLoop(CCodeBlock* cb, const uint32* instrptr, CExecStack& exec
             // -- set the bool to continue to break, based on which action is true
             // -- (unless it's an assert)
             funccallstack.mDebuggerBreakStep = !is_assert && script_context->mDebuggerActionStep;
+
+            // -- if the break step action is either step over, or step out, we need to track the stack
+            if (script_context->mDebuggerActionStepOver)
+            {
+                // -- only break at the same depth (or lower) - e.g.  don't step *into* functions
+                funccallstack.mDebuggerBreakOnStackDepth = funccallstack.GetStackDepth();
+            }
+            else if (script_context->mDebuggerActionStepOut)
+            {
+                // -- only break at below the current depth
+                funccallstack.mDebuggerBreakOnStackDepth = funccallstack.GetStackDepth() - 1;
+            }
             break;
         }
 
@@ -599,16 +612,30 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 #if TIN_DEBUGGER
 
         // -- see if there's a breakpoint set for this line
+        // -- or if it's being forced, or if we're stepping from the last break
+        // -- note:  it's possible to be *in* the infinite loop, and then try to connect the debugger
+        // -- followed by forcing a break.  The break comes in on the socket thread, so processing the
+        // -- debugger connection might not have happened yet...
         CScriptContext* script_context = GetScriptContext();
-        if (script_context->mDebuggerConnected && (funccallstack.mDebuggerBreakStep || HasBreakpoints()))
+        if (script_context->mDebuggerActionForceBreak ||
+            script_context->mDebuggerConnected && (funccallstack.mDebuggerBreakStep || HasBreakpoints()))
         {
             // -- get the current line number - see if we should break
             bool isNewLine = false;
             int32 cur_line = CalcLineNumber(instrptr, &isNewLine);
 
+            // -- break if we're stepping, and on a new line
+            // -- if we're stepping out or over, then there's a stack depth we want to be at or below
+            int32 cur_stack_depth = funccallstack.GetStackDepth();
+            bool break_at_stack_depth = (funccallstack.mDebuggerBreakOnStackDepth < 0 ||
+                                         cur_stack_depth <= funccallstack.mDebuggerBreakOnStackDepth);
+
+            // -- if we're forcing a debugger break
             // -- if we're stepping, and we're on a different line, or if
             // -- we're not stepping, and on a different line, and this new line has a breakpoint
-            if ((funccallstack.mDebuggerBreakStep && funccallstack.mDebuggerLastBreak != cur_line) ||
+            if (script_context->mDebuggerActionForceBreak || 
+                (funccallstack.mDebuggerBreakStep && funccallstack.mDebuggerLastBreak != cur_line &&
+                 break_at_stack_depth) ||
                 (!funccallstack.mDebuggerBreakStep && (isNewLine || cur_line != funccallstack.mDebuggerLastBreak) &&
                  mBreakpoints->FindItem(cur_line)))
             {

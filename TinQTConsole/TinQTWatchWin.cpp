@@ -48,7 +48,7 @@ CWatchEntry::CWatchEntry(const TinScript::CDebuggerWatchVarEntry& debugger_entry
     {
         setText(0, mDebuggerEntry.mVarName);
         setText(1, "Namespace");
-        setText(2, "");
+        setText(2, mDebuggerEntry.mValue);
     }
 
     // -- otherwise, it's a real entry

@@ -249,7 +249,10 @@ CScriptContext::CScriptContext(TinPrintHandler printfunction, TinAssertHandler a
     // -- debugger members
     mDebuggerConnected = false;
     mDebuggerBreakLoopGuard = false;
+    mDebuggerActionForceBreak = false;
     mDebuggerActionStep = false;
+    mDebuggerActionStepOver = false;
+    mDebuggerActionStepOut = false;
     mDebuggerActionRun = true;
 
     // -- initialize the thread command
@@ -902,7 +905,10 @@ void CScriptContext::SetDebuggerConnected(bool connected)
 
     // -- any change in debugger connectivity resets the debugger break members
     mDebuggerBreakLoopGuard = false;
+    mDebuggerActionForceBreak = false;
     mDebuggerActionStep = false;
+    mDebuggerActionStepOver = false;
+    mDebuggerActionStepOut = false;
     mDebuggerActionRun = true;
 
     // -- if we're now connected, send back the current working directory
@@ -922,6 +928,15 @@ void CScriptContext::SetDebuggerConnected(bool connected)
         // -- if we successfully got the current working directory, we need to free the buffer
         if (!error)
             delete [] cwdBuffer;
+
+        // -- now notify the debugger of all the codeblocks loaded
+        CCodeBlock* code_block = GetCodeBlockList()->First();
+        while (code_block)
+        {
+            if (code_block->GetFilenameHash() != Hash("<stdin>"))
+                DebuggerCodeblockLoaded(code_block->GetFilenameHash());
+            code_block = GetCodeBlockList()->Next();
+        }
     }
 
     // -- if we're not connected, we need to delete all breakpoints - they'll be re-added upon reconnection
@@ -941,7 +956,7 @@ void CScriptContext::SetDebuggerConnected(bool connected)
 // ====================================================================================================================
 bool CScriptContext::IsDebuggerConnected()
 {
-    return (mDebuggerConnected);
+    return (mDebuggerConnected || mDebuggerActionForceBreak);
 }
 
 // ====================================================================================================================
@@ -1019,12 +1034,24 @@ void CScriptContext::RemoveAllBreakpoints(const char* filename)
 }
 
 // ====================================================================================================================
+// SetForceBreak():  Sets the bool, forcing the VM to halt on the next statement.
+// ====================================================================================================================
+void CScriptContext::SetForceBreak()
+{
+    // -- this is usually set to when requested by the debugger, and auto set back to false when the break is handled.
+    mDebuggerActionForceBreak = true;
+}
+
+// ====================================================================================================================
 // SetBreakStep():  Sets the bool, coordinating breakpoint execution with a remote debugger
 // ====================================================================================================================
-void CScriptContext::SetBreakActionStep(bool8 torf)
+void CScriptContext::SetBreakActionStep(bool8 torf, bool8 step_over, bool8 step_out)
 {
     // -- this is usually set to false when a breakpoint is hit, and then remotely set to true by the debugger
+    mDebuggerActionForceBreak = false;
     mDebuggerActionStep = torf;
+    mDebuggerActionStepOver = torf ? step_over : false;
+    mDebuggerActionStepOut = torf ? step_out : false;
 }
 
 // ====================================================================================================================
@@ -1415,10 +1442,10 @@ void CScriptContext::DebuggerSendObjectMembers(CDebuggerWatchVarEntry* callingFu
         watch_entry.mObjectID = object_id;
         watch_entry.mNamespaceHash = Hash("self");
 
-        // -- TYPE_void marks this as a namespace label
+        // -- TYPE_void marks this as a namespace label, and set the object's name as the value
         watch_entry.mType = TYPE_void;
         SafeStrcpy(watch_entry.mVarName, "self", kMaxNameLength);
-        watch_entry.mValue[0] = '\0';
+        SafeStrcpy(watch_entry.mValue, oe->GetName(), kMaxNameLength);
 
         // -- fill in the cached members
         watch_entry.mVarHash = watch_entry.mNamespaceHash;
@@ -1758,9 +1785,9 @@ void DebuggerRemoveAllBreakpoints(const char* filename)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// DebuggerBreakStep():  When execution is halted from hitting a breakpoint, step to the next statement
+// DebuggerForceBreak():  Force the VM to break on the next executed statement.
 // --------------------------------------------------------------------------------------------------------------------
-void DebuggerBreakStep()
+void DebuggerForceBreak()
 {
     // -- ensure we have a script context
     CScriptContext* script_context = GetContext();
@@ -1768,11 +1795,25 @@ void DebuggerBreakStep()
         return;
 
     // -- this must be threadsafe - only ProcessThreadCommands should ever lead to this function
-    script_context->SetBreakActionStep(true);
+    script_context->SetForceBreak();
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// DebuggerBreakStep():  When execution is halted from hitting a breakpoint, continue running
+// DebuggerBreakStep():  When execution is halted from hitting a breakpoint, step to the next statement
+// --------------------------------------------------------------------------------------------------------------------
+void DebuggerBreakStep(bool8 step_over, bool8 step_out)
+{
+    // -- ensure we have a script context
+    CScriptContext* script_context = GetContext();
+    if (!script_context)
+        return;
+
+    // -- this must be threadsafe - only ProcessThreadCommands should ever lead to this function
+    script_context->SetBreakActionStep(true, step_over, step_out);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// DebuggerBreakRun():  When execution is halted from hitting a breakpoint, continue running
 // --------------------------------------------------------------------------------------------------------------------
 void DebuggerBreakRun()
 {
@@ -1792,7 +1833,8 @@ REGISTER_FUNCTION_P2(DebuggerAddBreakpoint, DebuggerAddBreakpoint, void, const c
 REGISTER_FUNCTION_P2(DebuggerRemoveBreakpoint, DebuggerRemoveBreakpoint, void, const char*, int32);
 REGISTER_FUNCTION_P1(DebuggerRemoveAllBreakpoints, DebuggerRemoveAllBreakpoints, void, const char*);
 
-REGISTER_FUNCTION_P0(DebuggerBreakStep, DebuggerBreakStep, void);
+REGISTER_FUNCTION_P0(DebuggerForceBreak, DebuggerForceBreak, void);
+REGISTER_FUNCTION_P2(DebuggerBreakStep, DebuggerBreakStep, void, bool8, bool8);
 REGISTER_FUNCTION_P0(DebuggerBreakRun, DebuggerBreakRun, void);
 
 // == class CThreadMutex ==============================================================================================

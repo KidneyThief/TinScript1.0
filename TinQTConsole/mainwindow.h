@@ -78,6 +78,7 @@ public:
 
 protected:
     virtual void showEvent(QShowEvent *event);
+    virtual void closeEvent(QCloseEvent *event);
 
 public slots:
     void menuSaveLayout();
@@ -87,6 +88,12 @@ public slots:
     void defaultLoadLayout();
     void setCorner(int id);
     void setDockOptions();
+
+    void menuDebugStop();
+    void menuDebugRun();
+    void menuDebugStepOver();
+    void menuDebugStepIn();
+    void menuDebugStepOut();
 
     void menuOpenScript();
     void menuOpenScriptAction(QAction*);

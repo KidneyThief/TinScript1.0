@@ -293,6 +293,19 @@ bool SendCommandf(const char* fmt, ...)
 }
 
 // ====================================================================================================================
+// DebuggerBreak():  Called to set the debugger force break in the script context.
+// ====================================================================================================================
+void SendDebuggerBreak()
+{
+    #ifdef WIN32
+        // -- construct and send a debugger break packet
+        tPacketHeader header(k_PacketVersion, tPacketHeader::DEBUGGER_BREAK, 0);
+        tDataPacket* newPacket = new tDataPacket(&header, NULL);
+        SendDataPacket(newPacket);
+    #endif // WIN32
+}
+
+// ====================================================================================================================
 // RegisterProcessRecvDataCallback():  Register a function to call, if a packt of type Socket::DATA is received
 // ====================================================================================================================
 void RegisterProcessRecvDataCallback(ProcessRecvDataCallback recvCallback)
@@ -913,6 +926,13 @@ bool CSocket::ProcessRecvPackets()
                 // -- send the packet to the client
                 mRecvDataCallback(recvPacket);
             }
+        }
+
+        // -- if we received a debugger break, notify the script context immediately
+        // -- this is technically not thread safe, but it's the only way to break an infinite loop
+        else if (recvPacket->mHeader.mType == tPacketHeader::DEBUGGER_BREAK)
+        {
+            mScriptContext->SetForceBreak();
         }
 
         // -- else if the packet contains a disconnect command

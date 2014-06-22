@@ -79,6 +79,10 @@ bool IsConnected();
 bool SendCommand(const char* command);
 bool SendCommandf(const char* fmt, ...);
 
+// -- This is not technically thread safe, but the chances of a collision are remote,
+// -- and if you're using this, you're probably stuck in an infinte loop anyways
+void SendDebuggerBreak();
+
 // ====================================================================================================================
 // -- only use this interface if you're sure you know what you're doing - e.g. the TinScript debugger methods
 // -- send too much data for everything to use registered script functions
@@ -108,6 +112,7 @@ struct tPacketHeader
         // -- client data types
         SCRIPT,
         DATA,
+        DEBUGGER_BREAK,
 
         DISCONNECT,
         COUNT,
@@ -250,6 +255,9 @@ class CSocket
 
         // -- Because sockets run in their own thread, they have to enqueue commands and statements through a mutex
         void ScriptCommand(const char* fmt, ...);
+
+        // -- sets the "force break" bool in the script context
+        void DebuggerBreak();
 
     protected:
         bool mListen;

@@ -338,13 +338,17 @@ class CScriptContext {
         void AddBreakpoint(const char* filename, int32 line_number);
         void RemoveBreakpoint(const char* filename, int32 line_number);
         void RemoveAllBreakpoints(const char* filename);
-        void SetBreakActionStep(bool8 torf);
+        void SetForceBreak();
+        void SetBreakActionStep(bool8 torf, bool8 step_in = false, bool8 step_out = false);
         void SetBreakActionRun(bool8 torf);
 
         // -- set the bool to indicate we're not stepping through each line in a debugger
         bool8 mDebuggerConnected;
         bool8 mDebuggerBreakLoopGuard;
+        bool8 mDebuggerActionForceBreak;
         bool8 mDebuggerActionStep;
+        bool8 mDebuggerActionStepOver;
+        bool8 mDebuggerActionStepOut;
         bool8 mDebuggerActionRun;
 
         // -- communication with the debugger

@@ -201,7 +201,27 @@ void MainWindow::setupMenuBar()
     connect(action, SIGNAL(toggled(bool)), this, SLOT(setDockOptions()));
 
     // -- Dock Widgets menu
-    dockWidgetMenu = menuBar()->addMenu(tr("&Dock Widgets"));
+    dockWidgetMenu = menuBar()->addMenu(tr("&Dock Options"));
+
+    menuBar()->addSeparator();
+
+    // -- Scripts menu
+    mScriptsMenu = menuBar()->addMenu(tr("&Debug"));
+
+    action = mScriptsMenu->addAction(tr("Stop  [Shift + F5]"));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuDebugStop()));
+
+    action = mScriptsMenu->addAction(tr("Run  [F5]"));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuDebugRun()));
+
+    action = mScriptsMenu->addAction(tr("Step Over  [F10]"));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuDebugStepOver()));
+
+    action = mScriptsMenu->addAction(tr("Step In  [F11]"));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuDebugStepIn()));
+
+    action = mScriptsMenu->addAction(tr("Step Out  [Shift + F11]"));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuDebugStepOut()));
 
     // -- Scripts menu
     mScriptsMenu = menuBar()->addMenu(tr("&Scripts"));
@@ -383,6 +403,45 @@ void MainWindow::readLayout(QFile& file)
     }
 }
 
+// ====================================================================================================================
+// menuDebugStop():  Slot called when the menu option is selected.
+// ====================================================================================================================
+void MainWindow::menuDebugStop()
+{
+    CConsoleWindow::GetInstance()->GetInput()->OnButtonStopPressed();
+}
+
+// ====================================================================================================================
+// menuDebugRun():  Slot called when the menu option is selected.
+// ====================================================================================================================
+void MainWindow::menuDebugRun()
+{
+    CConsoleWindow::GetInstance()->GetInput()->OnButtonRunPressed();
+}
+
+// ====================================================================================================================
+// menuDebugStepOver():  Slot called when the menu option is selected.
+// ====================================================================================================================
+void MainWindow::menuDebugStepOver()
+{
+    CConsoleWindow::GetInstance()->GetInput()->OnButtonStepPressed();
+}
+
+// ====================================================================================================================
+// menuDebugStepIn():  Slot called when the menu option is selected.
+// ====================================================================================================================
+void MainWindow::menuDebugStepIn()
+{
+    CConsoleWindow::GetInstance()->GetInput()->OnButtonStepInPressed();
+}
+
+// ====================================================================================================================
+// menuDebugStepOut():  Slot called when the menu option is selected.
+// ====================================================================================================================
+void MainWindow::menuDebugStepOut()
+{
+    CConsoleWindow::GetInstance()->GetInput()->OnButtonStepOutPressed();
+}
 
 // ====================================================================================================================
 // openScript():  Slot called when the menu option is selected.
@@ -477,6 +536,11 @@ void MainWindow::setCorner(int id)
 void MainWindow::showEvent(QShowEvent *event)
 {
     QMainWindow::showEvent(event);
+}
+
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+    CConsoleWindow::GetInstance()->NotifyOnClose();
 }
 
 #include "mainwindowMOC.cpp"

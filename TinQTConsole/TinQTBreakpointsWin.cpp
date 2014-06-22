@@ -26,6 +26,7 @@
 #include "stdafx.h"
 
 #include <QDockWidget>
+#include <QKeyEvent>
 
 #include "TinScript.h"
 #include "TinRegistration.h"
@@ -50,16 +51,12 @@ CBreakpointEntry::CBreakpointEntry(uint32 codeblock_hash, int line_number, QList
     mCodeblockHash = codeblock_hash;
     mLineNumber = line_number;
 
-    //QListWidgetItem* item = new QListWidgetItem("item", listWidget);
     setFlags(flags() | Qt::ItemIsUserCheckable);
     setCheckState(Qt::Checked);
 
     // -- store the actual data needed
     mCodeblockHash = codeblock_hash;
     mLineNumber = line_number;
-
-    // -- connect the signals
-    //QObject::connect(mJumpButton, SIGNAL(clicked()), this, SLOT(OnJumpButtonClicked()));
 };
 
 CBreakpointEntry::~CBreakpointEntry() {
@@ -75,27 +72,52 @@ void CBreakpointEntry::UpdateLabel(uint32 codeblock_hash, int32 line_number)
                         line_number >= 1e2 ? 3 :
                         line_number >= 1e1 ? 4 : 5;
     spaces[space_count] = '\0';
-                                               
-    sprintf_s(linebuf, 256, "%s : %s%d", TinScript::UnHash(codeblock_hash), spaces, line_number);
+
+    // -- note:  all line numbers are stored accurately (0 based), but displayed +1, to match text editors
+    sprintf_s(linebuf, 256, "%s : %s%d", TinScript::UnHash(codeblock_hash), spaces, line_number + 1);
 
     // -- set the text in the QWidget
     setText(linebuf);
 }
 
 
-void CDebugBreakpointsWin::OnClicked(QListWidgetItem* item) {
+void CDebugBreakpointsWin::OnClicked(QListWidgetItem* item)
+{
     CBreakpointEntry* breakpoint = static_cast<CBreakpointEntry*>(item);
+
     // -- see if we're enabled
     bool enabled = breakpoint->checkState() == Qt::Checked;
     CConsoleWindow::GetInstance()->ToggleBreakpoint(breakpoint->mCodeblockHash,
                                                     breakpoint->mLineNumber, true, enabled);
 }
 
-void CDebugBreakpointsWin::OnDoubleClicked(QListWidgetItem* item) {
+void CDebugBreakpointsWin::OnDoubleClicked(QListWidgetItem* item)
+{
     CBreakpointEntry* breakpoint = static_cast<CBreakpointEntry*>(item);
+
     // -- open the source, to the filename
     CConsoleWindow::GetInstance()->GetDebugSourceWin()->SetSourceView(breakpoint->mCodeblockHash,
                                                                       breakpoint->mLineNumber);
+}
+
+void CDebugBreakpointsWin::keyPressEvent(QKeyEvent* event)
+{
+    if (!event)
+        return;
+
+    // -- delete the selected, if we have a selected
+    if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace)
+    {
+        CBreakpointEntry* cur_item = static_cast<CBreakpointEntry*>(currentItem());
+        if (cur_item)
+        {
+            CConsoleWindow::GetInstance()->ToggleBreakpoint(cur_item->mCodeblockHash, cur_item->mLineNumber,
+                                                            false, false);
+        }
+        return;
+    }
+
+    QListWidget::keyPressEvent(event);
 }
 
 CDebugBreakpointsWin::CDebugBreakpointsWin(QWidget* parent) : QListWidget(parent)
@@ -113,7 +135,6 @@ CDebugBreakpointsWin::~CDebugBreakpointsWin() {
 void CDebugBreakpointsWin::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number,
                                             bool add, bool enable) {
 
-    // -- note:  +1 since all line numbers count from 1 to match editors
     int found_index = -1;
     CBreakpointEntry* breakpoint = NULL;
     for(int i = 0; i < mBreakpoints.size(); ++i) {
@@ -138,6 +159,23 @@ void CDebugBreakpointsWin::ToggleBreakpoint(uint32 codeblock_hash, int32 line_nu
         mBreakpoints.removeAt(found_index);
         delete breakpoint;
     }
+}
+
+void CDebugBreakpointsWin::SetCurrentBreakpoint(uint32 codeblock_hash, int32 line_number)
+{
+    int found_index = -1;
+    CBreakpointEntry* breakpoint = NULL;
+    for(int i = 0; i < mBreakpoints.size(); ++i) {
+        CBreakpointEntry* temp = mBreakpoints.at(i);
+        if(temp->mCodeblockHash == codeblock_hash && temp->mLineNumber == line_number) {
+            breakpoint = temp;
+            found_index = i;
+            break;
+        }
+    }
+
+    // -- set the current entry (or clear it, if the entry wasn't found)
+    setCurrentItem(breakpoint);
 }
 
 void CDebugBreakpointsWin::NotifyCodeblockLoaded(uint32 codeblock_hash)

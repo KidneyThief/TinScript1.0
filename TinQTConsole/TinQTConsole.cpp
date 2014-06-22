@@ -95,6 +95,8 @@ CConsoleWindow::CConsoleWindow()
 
     // -- create the IPConnect
     mStatusLabel = new QLabel("Not Connected");
+    mStatusLabel->setFixedWidth(120);
+    mTargetInfoLabel = new QLabel("");
     mIPLabel = new QLabel("IP:");
     mConnectIP = new QLineEdit();
     mConnectIP->setText("127.0.0.1");
@@ -109,6 +111,7 @@ CConsoleWindow::CConsoleWindow()
 	mButtonConnect->setPalette(myPalette);
 
     mMainWindow->statusBar()->addWidget(mStatusLabel, 1);
+    mMainWindow->statusBar()->addWidget(mTargetInfoLabel, 1);
     mMainWindow->statusBar()->addWidget(mIPLabel, 0);
     mMainWindow->statusBar()->addWidget(mConnectIP, 0);
     mMainWindow->statusBar()->addWidget(mButtonConnect, 0);
@@ -124,12 +127,16 @@ CConsoleWindow::CConsoleWindow()
     mButtonStep = new QPushButton();
     mButtonStep->setText("Step");
     mButtonStep->setGeometry(0, 0, 32, 24);
+    mButtonStepIn = new QPushButton();
+    mButtonStepIn->setText("Step In");
+    mButtonStepIn->setGeometry(0, 0, 32, 24);
     mSpacer = new QWidget();
 
     toolbar->addWidget(mFileLabel);
     toolbar->addWidget(mFileLineEdit);
     toolbar->addWidget(mButtonRun);
     toolbar->addWidget(mButtonStep);
+    toolbar->addWidget(mButtonStepIn);
     toolbar->addWidget(mSpacer);
     mMainWindow->addToolBar(toolbar);
 
@@ -171,6 +178,7 @@ CConsoleWindow::CConsoleWindow()
 
     QObject::connect(mButtonRun, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonRunPressed()));
     QObject::connect(mButtonStep, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonStepPressed()));
+    QObject::connect(mButtonStepIn, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonStepInPressed()));
 
     QObject::connect(mCallstackWin, SIGNAL(itemDoubleClicked(QListWidgetItem*)), mCallstackWin,
                                     SLOT(OnDoubleClicked(QListWidgetItem*)));
@@ -181,13 +189,26 @@ CConsoleWindow::CConsoleWindow()
                                       SLOT(OnClicked(QListWidgetItem*)));
 
     // -- hotkeys
+
+    // Ctrl + Break - Run
+    QShortcut* shortcut_Break = new QShortcut(QKeySequence("Shift+F5"), mConsoleInput);
+    QObject::connect(shortcut_Break, SIGNAL(activated()), mConsoleInput, SLOT(OnButtonStopPressed()));
+
     // F5 - Run
     QShortcut* shortcut_Run = new QShortcut(QKeySequence("F5"), mButtonRun);
     QObject::connect(shortcut_Run, SIGNAL(activated()), mConsoleInput, SLOT(OnButtonRunPressed()));
 
-    // F11 - Run
-    QShortcut* shortcut_Step = new QShortcut(QKeySequence("F11"), mButtonStep);
+    // F10 - Step
+    QShortcut* shortcut_Step = new QShortcut(QKeySequence("F10"), mButtonStep);
     QObject::connect(shortcut_Step, SIGNAL(activated()), mConsoleInput, SLOT(OnButtonStepPressed()));
+
+    // F11 - Step In
+    QShortcut* shortcut_StepIn = new QShortcut(QKeySequence("F11"), mButtonStepIn);
+    QObject::connect(shortcut_StepIn, SIGNAL(activated()), mConsoleInput, SLOT(OnButtonStepInPressed()));
+
+    // Shift + F11 - Step Out
+    QShortcut* shortcut_StepOut = new QShortcut(QKeySequence("Shift+F11"), mButtonStepIn);
+    QObject::connect(shortcut_StepOut, SIGNAL(activated()), mConsoleInput, SLOT(OnButtonStepOutPressed()));
 
     mMainWindow->addDockWidget(Qt::TopDockWidgetArea, sourceWinDockWidget);
     mMainWindow->addDockWidget(Qt::LeftDockWidgetArea, outputDockWidget);
@@ -211,6 +232,8 @@ CConsoleWindow::CConsoleWindow()
 
     mBreakpointRun = false;
     mBreakpointStep = false;
+    mBreakpointStepIn = false;
+    mBreakpointStepOut = false;
 
     // -- initialize the running members
     mIsConnected = false;
@@ -309,6 +332,7 @@ void CConsoleWindow::NotifyOnConnect()
 
     // -- set the status message
     SetStatusMessage("Connected");
+    SetTargetInfoMessage("");
 
     // -- send the text command to identify this connection as for a debugger
     SocketManager::SendCommand("DebuggerSetConnected(true);");
@@ -337,15 +361,13 @@ void CConsoleWindow::NotifyOnDisconnect()
 
     // -- set the status message
     SetStatusMessage("Not Connected");
+    SetTargetInfoMessage("");
 }
 
 void CConsoleWindow::NotifyOnClose()
 {
     // -- disconnect
     SocketManager::Disconnect();
-
-    // -- first, clear the member
-    mMainWindow = NULL;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -404,9 +426,10 @@ bool CConsoleWindow::HasBreakpoint(uint32& codeblock_hash, int32& line_number)
 void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg)
 {
     // -- clear the flag, and initialize the action bools
-    mBreakpointHit = false;
     mBreakpointRun = false;
     mBreakpointStep = false;
+    mBreakpointStepIn = false;
+    mBreakpointStepOut = false;
 
     // -- highlight the button in red
     mButtonRun->setAutoFillBackground(true);
@@ -417,7 +440,11 @@ void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg)
     // -- set the status message
     SetStatusMessage("Breakpoint");
 
-    while (SocketManager::IsConnected() && !mBreakpointRun && !mBreakpointStep)
+    // -- set the currently selected breakpoint
+    GetDebugBreakpointsWin()->SetCurrentBreakpoint(mBreakpointCodeblockHash, mBreakpointLinenumber);
+
+    while (SocketManager::IsConnected() && !mBreakpointRun &&
+           !mBreakpointStep && !mBreakpointStepIn && !mBreakpointStepOut)
     {
         QCoreApplication::processEvents();
 
@@ -425,11 +452,17 @@ void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg)
         GetOutput()->DebuggerUpdate();
     }
 
+    // -- reset the "hit" flag
+    mBreakpointHit = false;
+
     // -- set the status message
     if (SocketManager::IsConnected())
         SetStatusMessage("Connected");
     else
+    {
         SetStatusMessage("Not Connected");
+        SetTargetInfoMessage("");
+    }
 
     // -- back to normal color
 	myPalette.setColor(QPalette::Button, Qt::transparent);	
@@ -520,13 +553,20 @@ void DebuggerBreakpointHit(int32 codeblock_hash, int32 line_number)
     }
 
     // -- otherwise we're supposed to step
+    // -- NOTE:  stepping *in* is the default... step over and step out are the exceptions
+    else if (CConsoleWindow::GetInstance()->mBreakpointStepIn)
+    {
+        SocketManager::SendCommand("DebuggerBreakStep(false, false);");
+    }
+    else if (CConsoleWindow::GetInstance()->mBreakpointStepOut)
+    {
+        SocketManager::SendCommand("DebuggerBreakStep(false, true);");
+    }
     else
     {
-        // -- send the message to run
-        SocketManager::SendCommand("DebuggerBreakStep();");
+        SocketManager::SendCommand("DebuggerBreakStep(true, false);");
     }
 }
-
 
 // ====================================================================================================================
 // DebuggerConfirmBreakpoint():  Corrects the requested breakpoint to the actual breakable line
@@ -570,6 +610,11 @@ void NotifyCodeblockLoaded(const char* filename)
 void NotifyCurrentDir(const char* cwd)
 {
     CConsoleWindow::GetInstance()->GetDebugSourceWin()->NotifyCurrentDir(cwd);
+
+    // -- set the status message
+    char msg[1024];
+    sprintf_s(msg, "Target Dir: %s", cwd ? cwd : "./");
+    CConsoleWindow::GetInstance()->SetTargetInfoMessage(msg);
 }
 
 // ====================================================================================================================
@@ -612,6 +657,19 @@ void CConsoleWindow::SetStatusMessage(const char* message)
 
     if (mStatusLabel)
         mStatusLabel->setText(QString(message));
+}
+
+// ====================================================================================================================
+// SetTargetInfoMessage():  Sets the messsage in the status bar, for any target info
+// ====================================================================================================================
+void CConsoleWindow::SetTargetInfoMessage(const char* message)
+{
+    // -- ensure we have a message
+    if (!message)
+        message = "";
+
+    if (mTargetInfoLabel)
+        mTargetInfoLabel->setText(QString(message));
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -691,38 +749,42 @@ void CConsoleInput::OnReturnPressed()
 void CConsoleInput::OnFileEditReturnPressed() {
     QLineEdit* fileedit = CConsoleWindow::GetInstance()->GetFileLineEdit();
     QString filename = fileedit->text();
-    CConsoleWindow::GetInstance()->GetDebugSourceWin()->OpenSourceFile(filename.toUtf8());
+    CConsoleWindow::GetInstance()->GetDebugSourceWin()->OpenSourceFile(filename.toUtf8(), true);
 }
 
-void CConsoleInput::OnButtonRunPressed() {
+void CConsoleInput::OnButtonStopPressed()
+{
+    if (!CConsoleWindow::GetInstance()->mBreakpointHit)
+    {
+        SocketManager::SendDebuggerBreak();
+    }
+}
+
+void CConsoleInput::OnButtonRunPressed()
+{
     CConsoleWindow::GetInstance()->mBreakpointRun = true;
 }
 
-void CConsoleInput::OnButtonStepPressed() {
+void CConsoleInput::OnButtonStepPressed()
+{
     CConsoleWindow::GetInstance()->mBreakpointStep = true;
 }
 
+void CConsoleInput::OnButtonStepInPressed()
+{
+    CConsoleWindow::GetInstance()->mBreakpointStepIn = true;
+}
+
+void CConsoleInput::OnButtonStepOutPressed()
+{
+    CConsoleWindow::GetInstance()->mBreakpointStepOut = true;
+}
+
 // ------------------------------------------------------------------------------------------------
-void CConsoleInput::keyPressEvent(QKeyEvent * event) {
+void CConsoleInput::keyPressEvent(QKeyEvent * event)
+{
     if(!event)
         return;
-
-    // -- hotkeys
-    // -- run
-    /*
-    if (event->key() == Qt::Key_F5)
-    {
-        OnButtonRunPressed();
-        return;
-    }
-
-    // -- step into
-    if (event->key() == Qt::Key_F11)
-    {
-        OnButtonStepPressed();
-        return;
-    }
-    */
 
     // -- up arrow
     if(event->key() == Qt::Key_Up) {

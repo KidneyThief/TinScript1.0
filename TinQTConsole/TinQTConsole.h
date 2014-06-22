@@ -78,6 +78,7 @@ class CConsoleWindow
         CDebugWatchWin* GetDebugWatchWin() { return (mWatchWin); }
 
         void SetStatusMessage(const char* message);
+        void SetTargetInfoMessage(const char* message);
 
         // -- Qt components
         QApplication* mApp;
@@ -92,6 +93,7 @@ class CConsoleWindow
         CConsoleInput* mConsoleInput;
 
         QLabel* mStatusLabel;
+        QLabel* mTargetInfoLabel;
         QLabel* mIPLabel;
         QLineEdit* mConnectIP;
         QPushButton* mButtonConnect;
@@ -106,6 +108,7 @@ class CConsoleWindow
         QLineEdit* mFileLineEdit;
         QPushButton* mButtonRun;
         QPushButton* mButtonStep;
+        QPushButton* mButtonStepIn;
         QWidget* mSpacer;
 
         // -- notifications
@@ -139,6 +142,8 @@ class CConsoleWindow
         int32 mBreakpointLinenumber;
         bool mBreakpointRun;
         bool mBreakpointStep;
+        bool mBreakpointStepIn;
+        bool mBreakpointStepOut;
 
         // -- assert members
         bool mAssertTriggered;
@@ -167,8 +172,11 @@ class CConsoleInput : public QLineEdit
         void OnConnectIPReturnPressed();
         void OnReturnPressed();
         void OnFileEditReturnPressed();
+        void OnButtonStopPressed();
         void OnButtonRunPressed();
         void OnButtonStepPressed();
+        void OnButtonStepInPressed();
+        void OnButtonStepOutPressed();
 
     protected:
         virtual void keyPressEvent(QKeyEvent * event);
