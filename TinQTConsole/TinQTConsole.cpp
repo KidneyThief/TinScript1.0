@@ -118,6 +118,7 @@ CConsoleWindow::CConsoleWindow()
 
     // -- create the toolbar components
     QToolBar* toolbar = new QToolBar();
+	toolbar->setWindowTitle("Debug Toolbar");
     mFileLabel = new QLabel("File:");
     mFileLineEdit = new QLineEdit();
     mFileLineEdit->setFixedWidth(300);
@@ -158,11 +159,17 @@ CConsoleWindow::CConsoleWindow()
     breakpointsDockWidget->setWindowTitle("Breakpoints");
     mBreakpointsWin = new CDebugBreakpointsWin(breakpointsDockWidget);
 
-    // -- create the watch window
+    // -- create the autos window
+    QDockWidget* autosDockWidget = new QDockWidget();
+    autosDockWidget->setObjectName("Autos");
+    autosDockWidget->setWindowTitle("Autos");
+    mAutosWin = new CDebugWatchWin(autosDockWidget);
+
+    // -- create the watches window
     QDockWidget* watchesDockWidget = new QDockWidget();
-    watchesDockWidget->setObjectName("Autos");
-    watchesDockWidget->setWindowTitle("Autos");
-    mWatchWin = new CDebugWatchWin(watchesDockWidget);
+    watchesDockWidget->setObjectName("Watches");
+    watchesDockWidget->setWindowTitle("Watches");
+    mWatchesWin = new CDebugWatchWin(watchesDockWidget);
 
     // -- connect the widgets
     QObject::connect(mButtonConnect, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonConnectPressed()));
@@ -210,10 +217,15 @@ CConsoleWindow::CConsoleWindow()
     QShortcut* shortcut_StepOut = new QShortcut(QKeySequence("Shift+F11"), mButtonStepIn);
     QObject::connect(shortcut_StepOut, SIGNAL(activated()), mConsoleInput, SLOT(OnButtonStepOutPressed()));
 
+    // Ctrl + w - Add variable watch
+    QShortcut* shortcut_AddVar = new QShortcut(QKeySequence("Ctrl+W"), mMainWindow);
+    QObject::connect(shortcut_AddVar, SIGNAL(activated()), mMainWindow, SLOT(menuAddVariableWatch()));
+
     mMainWindow->addDockWidget(Qt::TopDockWidgetArea, sourceWinDockWidget);
     mMainWindow->addDockWidget(Qt::LeftDockWidgetArea, outputDockWidget);
     mMainWindow->addDockWidget(Qt::TopDockWidgetArea, callstackDockWidget);
     mMainWindow->addDockWidget(Qt::RightDockWidgetArea, breakpointsDockWidget);
+    mMainWindow->addDockWidget(Qt::BottomDockWidgetArea, autosDockWidget);
     mMainWindow->addDockWidget(Qt::BottomDockWidgetArea, watchesDockWidget);
 
     mMainWindow->show();
@@ -472,7 +484,7 @@ void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg)
     GetDebugCallstackWin()->ClearCallstack();
 
     // -- we need to notify the watch win that we're not currently broken
-    GetDebugWatchWin()->NotifyEndOfBreakpoint();
+    GetDebugAutosWin()->NotifyEndOfBreakpoint();
 }
 
 // ====================================================================================================================
@@ -525,6 +537,8 @@ void CConsoleWindow::ClearAssert(bool8 set_break)
         SocketManager::SendCommand("DebuggerBreakRun();");
     }
 }
+
+// == Global Interface ================================================================================================
 
 // ====================================================================================================================
 // DebuggerBreakpointHit():  Registered function, called from the virtual machine via the SocketManager
@@ -589,7 +603,7 @@ void DebuggerNotifyCallstack(uint32* codeblock_array, uint32* objid_array, uint3
                                                                            linenumber_array, array_size);
 
     // -- we need to notify the watch window, we have a new callstack
-    CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyUpdateCallstack(true);
+    CConsoleWindow::GetInstance()->GetDebugAutosWin()->NotifyUpdateCallstack(true);
 }
 
 // ====================================================================================================================
@@ -622,7 +636,7 @@ void NotifyCurrentDir(const char* cwd)
 // ====================================================================================================================
 void NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry)
 {
-    CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyWatchVarEntry(watch_var_entry);
+    CConsoleWindow::GetInstance()->GetDebugAutosWin()->NotifyWatchVarEntry(watch_var_entry);
 }
         
 // ====================================================================================================================
@@ -1041,7 +1055,8 @@ void CConsoleOutput::HandlePacketBreakpointHit(int32* dataPtr)
 
     // -- notify the debugger
     CConsoleWindow::GetInstance()->NotifyBreakpointHit(codeblock_hash, line_number);
-    CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyBreakpointHit();
+    CConsoleWindow::GetInstance()->GetDebugAutosWin()->NotifyBreakpointHit();
+    CConsoleWindow::GetInstance()->GetDebugWatchesWin()->NotifyBreakpointHit();
 }
 
 // ====================================================================================================================
@@ -1111,6 +1126,9 @@ void CConsoleOutput::HandlePacketWatchVarEntry(int32* dataPtr)
     // -- reconstitute the stuct
     TinScript::CDebuggerWatchVarEntry watch_var_entry;
 
+	// -- variable watch request ID (unused for stack dumps)
+	watch_var_entry.mWatchRequestID = *dataPtr++;
+
     // -- function namespace hash
     watch_var_entry.mFuncNamespaceHash = *dataPtr++;
 
@@ -1149,8 +1167,11 @@ void CConsoleOutput::HandlePacketWatchVarEntry(int32* dataPtr)
     // -- cached var object ID
     watch_var_entry.mVarObjectID = *dataPtr++;
 
-    // -- notify the debugger
-    CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyWatchVarEntry(&watch_var_entry);
+    // -- notify the debugger - if we've got a request ID > 0, it's a watch variable, not an auto var
+	if (watch_var_entry.mWatchRequestID > 0)
+		CConsoleWindow::GetInstance()->GetDebugWatchesWin()->NotifyVarWatchResponse(&watch_var_entry);
+	else
+		CConsoleWindow::GetInstance()->GetDebugAutosWin()->NotifyWatchVarEntry(&watch_var_entry);
 }
 
 // ====================================================================================================================

@@ -33,6 +33,7 @@
 #include <qlabel.h>
 #include "qlistwidget.h"
 #include <QDockWidget>
+#include <QDialog>
 
 #include "socket.h"
 
@@ -75,7 +76,8 @@ class CConsoleWindow
         CDebugSourceWin* GetDebugSourceWin() { return (mDebugSourceWin); }
         CDebugBreakpointsWin* GetDebugBreakpointsWin() { return (mBreakpointsWin); }
         CDebugCallstackWin* GetDebugCallstackWin() { return (mCallstackWin); }
-        CDebugWatchWin* GetDebugWatchWin() { return (mWatchWin); }
+        CDebugWatchWin* GetDebugAutosWin() { return (mAutosWin); }
+        CDebugWatchWin* GetDebugWatchesWin() { return (mWatchesWin); }
 
         void SetStatusMessage(const char* message);
         void SetTargetInfoMessage(const char* message);
@@ -101,7 +103,8 @@ class CConsoleWindow
         CDebugSourceWin* mDebugSourceWin;
         CDebugBreakpointsWin* mBreakpointsWin;
         CDebugCallstackWin* mCallstackWin;
-        CDebugWatchWin* mWatchWin;
+        CDebugWatchWin* mAutosWin;
+        CDebugWatchWin* mWatchesWin;
 
         QHBoxLayout* mToolbarLayout;
         QLabel* mFileLabel;

@@ -98,6 +98,8 @@ public slots:
     void menuOpenScript();
     void menuOpenScriptAction(QAction*);
 
+	void menuAddVariableWatch();
+
 private:
     void readLayout(QFile& file);
     void writeLayout(QFile& file);

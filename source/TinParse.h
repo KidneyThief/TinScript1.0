@@ -220,6 +220,7 @@ struct tReadToken
 const char* TokenPrint(tReadToken& token);
 const char* SkipWhiteSpace(const char* inbuf, int32& linenumber);
 bool8 IsIdentifierChar(const char c, bool8 allownumerics);
+eReservedKeyword GetReservedKeywordType(const char* token, int32 length);
 
 bool8 GetToken(tReadToken& token, bool8 expectunaryop = false);
 const char* GetToken(const char*& inbuf, int32& length, eTokenType& type,	const char* expectedtoken,

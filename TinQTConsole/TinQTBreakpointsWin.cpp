@@ -371,7 +371,7 @@ void CDebugCallstackWin::OnDoubleClicked(QListWidgetItem* item)
     {
         if (mCallstack.at(i) == stack_entry)
         {
-            CConsoleWindow::GetInstance()->GetDebugWatchWin()->NotifyUpdateCallstack(false);
+            CConsoleWindow::GetInstance()->GetDebugAutosWin()->NotifyUpdateCallstack(false);
             break;
         }
     }

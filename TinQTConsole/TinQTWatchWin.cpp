@@ -25,12 +25,19 @@
 
 #include "stdafx.h"
 
+#include <QLineEdit>
+#include <QKeyEvent>
+
 #include "TinScript.h"
 #include "TinRegistration.h"
 
 #include "TinQTConsole.h"
 #include "TinQTBreakpointsWin.h"
 #include "TinQTWatchWin.h"
+
+// --------------------------------------------------------------------------------------------------------------------
+// -- statics
+int CDebugWatchWin::gVariableWatchRequestID = 1;  // zero is "not a dynamic var watch"
 
 // ------------------------------------------------------------------------------------------------
 // CWatchEntry
@@ -56,7 +63,11 @@ CWatchEntry::CWatchEntry(const TinScript::CDebuggerWatchVarEntry& debugger_entry
     {
         // -- set the text
         setText(0, mDebuggerEntry.mVarName);
-        setText(1, TinScript::GetRegisteredTypeName(mDebuggerEntry.mType));
+
+		if (mDebuggerEntry.mType != TinScript::TYPE_void)
+			setText(1, TinScript::GetRegisteredTypeName(mDebuggerEntry.mType));
+		else
+			setText(1, "");
 
         const char* value = mDebuggerEntry.mValue;
         if (mDebuggerEntry.mType == TinScript::TYPE_object && mDebuggerEntry.mVarObjectID == 0)
@@ -65,13 +76,19 @@ CWatchEntry::CWatchEntry(const TinScript::CDebuggerWatchVarEntry& debugger_entry
         }
         setText(2, value);
     }
-
-    // -- it's being added, so it's valid
-    mUnconfirmed = false;
 }
 
 CWatchEntry::~CWatchEntry()
 {
+}
+
+void CWatchEntry::UpdateType(TinScript::eVarType type)
+{
+	mDebuggerEntry.mType = type;
+	if (mDebuggerEntry.mType != TinScript::TYPE_void)
+		setText(1, TinScript::GetRegisteredTypeName(mDebuggerEntry.mType));
+	else
+		setText(1, "");
 }
 
 void CWatchEntry::UpdateValue(const char* new_value)
@@ -150,7 +167,14 @@ void CDebugWatchWin::AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& w
                 {
                     // -- if the entry is for an object, update the object ID as well
                     if (entry->mDebuggerEntry.mType == TinScript::TYPE_object)
+                    {
+                        // -- if we're changing our object ID, clear the old members out
+                        if (entry->mDebuggerEntry.mVarObjectID != watch_var_entry.mVarObjectID)
+                            RemoveWatchVarChildren(entry_index);
+
+                        // -- update the object ID
                         entry->mDebuggerEntry.mVarObjectID = watch_var_entry.mVarObjectID;
+                    }
 
                     // -- update the value (text label)
                     entry->UpdateValue(watch_var_entry.mValue);
@@ -285,20 +309,123 @@ void CDebugWatchWin::AddObjectMemberEntry(const TinScript::CDebuggerWatchVarEntr
         // -- otherwise, simply update it's value
         else if (member_entry->mDebuggerEntry.mType != TinScript::TYPE_void)
         {
+            // -- if the entry is for an object, update the object ID as well
+            if (member_entry->mDebuggerEntry.mType == TinScript::TYPE_object)
+            {
+                // -- if we're changing our object ID, clear the old members out
+                if (member_entry->mDebuggerEntry.mVarObjectID != watch_var_entry.mVarObjectID)
+                    RemoveWatchVarChildren(entry_index);
+
+                // -- update the object ID
+                member_entry->mDebuggerEntry.mVarObjectID = watch_var_entry.mVarObjectID;
+            }
+
             member_entry->UpdateValue(watch_var_entry.mValue);
         }
     }
 }
 
+// ====================================================================================================================
+// AddVariableWatch():  Dynamically add a watch to be updated by the debugger
+// ====================================================================================================================
+void CDebugWatchWin::AddVariableWatch(const char* variableWatch)
+{
+	if (!variableWatch || !variableWatch[0])
+		return;
+
+    // -- ensure this window is the top level (visable in front of the other docked widgets)
+    parentWidget()->show();
+    parentWidget()->raise();
+
+	// -- the variable name for a watch is the expression requested
+	TinScript::CDebuggerWatchVarEntry new_watch;
+
+	// -- set the request ID, so if/when we receive an update from the target, we'll know what it
+	// -- is in response to
+	new_watch.mWatchRequestID = gVariableWatchRequestID++;
+
+	new_watch.mFuncNamespaceHash = 0;
+    new_watch.mFunctionHash = 0;
+    new_watch.mFunctionObjectID = 0;
+
+    new_watch.mObjectID = 0;
+    new_watch.mNamespaceHash = 0;
+
+	// -- we *hope* the target can identify the expression and fill in the type
+    new_watch.mType = TinScript::TYPE_void;
+
+	// -- var name holds the expresion
+	TinScript::SafeStrcpy(new_watch.mVarName, variableWatch, TinScript::kMaxNameLength);
+
+	// -- we also *hope* the target can fill in a value for us as well
+    new_watch.mValue[0] = '\0';
+
+	// -- also to be filled in by a response from the target
+	new_watch.mVarHash = 0;
+    new_watch.mVarObjectID = 0;
+
+	// -- we're allowed *anything* including duplicates when adding variable watches
+	CWatchEntry* new_entry = new CWatchEntry(new_watch);
+    addTopLevelItem(new_entry);
+    mWatchList.append(new_entry);
+
+	// -- send the request to the target, if we're currently in a break point
+    if (CConsoleWindow::GetInstance()->mBreakpointHit)
+    {
+        SocketManager::SendCommandf("DebuggerAddVariableWatch(%d, `%s`);", new_watch.mWatchRequestID, variableWatch);
+    }
+}
+
 // ------------------------------------------------------------------------------------------------
-void CDebugWatchWin::ClearWatchWin() {
+void CDebugWatchWin::ClearWatchWin()
+{
     mWatchList.clear();
     clear();
+}
+
+// ====================================================================================================================
+// RemoveEntryChildren():  Used when an object variable watch points at a different object
+// ====================================================================================================================
+void CDebugWatchWin::RemoveWatchVarChildren(int32 object_entry_index)
+{
+    // -- sanity check
+    if (object_entry_index < 0 || object_entry_index >= mWatchList.size())
+        return;
+
+    CWatchEntry* parent_entry = mWatchList.at(object_entry_index);
+    int32 object_id = parent_entry->mDebuggerEntry.mVarObjectID;
+
+    // -- remove all children (if we had any)
+    if (object_id > 0)
+    {
+        // -- remove the children from the Qt list
+        while (parent_entry->childCount() > 0)
+            parent_entry->removeChild(parent_entry->child(0));
+
+        // -- removethe children from the watch list
+        int entry_index = object_entry_index + 1;
+        while (entry_index < mWatchList.size())
+        {
+            CWatchEntry* child_entry = mWatchList.at(entry_index);
+            if (child_entry->mDebuggerEntry.mObjectID == object_id)
+            {
+                mWatchList.removeAt(entry_index);
+                delete child_entry;
+            }
+
+            // -- otherwise we're done
+            else
+            {
+                break;
+            }
+        }
+    }
 }
 
 // ------------------------------------------------------------------------------------------------
 void CDebugWatchWin::NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry)
 {
+	// -- sanity check
     if (!watch_var_entry)
         return;
 
@@ -328,59 +455,133 @@ void CDebugWatchWin::NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watc
 }
 
 // ====================================================================================================================
+// NotifyVarWatchResponse():  Update received from the target in response to a dynamic variable watch.
+// ====================================================================================================================
+void CDebugWatchWin::NotifyVarWatchResponse(TinScript::CDebuggerWatchVarEntry* watch_var_entry)
+{
+	// -- sanity check
+	if (!watch_var_entry || watch_var_entry->mWatchRequestID <= 0)
+        return;
+
+	// -- find the entry
+    int entry_index = 0;
+    while (entry_index < mWatchList.size())
+    {
+		CWatchEntry* entry = mWatchList.at(entry_index);
+        if (entry->mDebuggerEntry.mWatchRequestID == watch_var_entry->mWatchRequestID &&
+            entry->mDebuggerEntry.mObjectID == 0)
+		{
+            // -- if this response is for the main (top level) request, update the value
+            if (watch_var_entry->mObjectID == 0)
+            {
+                // -- if the type used to be an object, and the new type is something else, we
+                // -- need to remove the children
+                if (entry->mDebuggerEntry.mType == TinScript::TYPE_object &&
+                    watch_var_entry->mType != TinScript::TYPE_object)
+                {
+                    RemoveWatchVarChildren(entry_index);
+                }
+
+                // -- update the type (it may have been undetermined)
+                entry->UpdateType(watch_var_entry->mType);
+
+                // -- if the type is a variable, copy the object ID as well
+                if (watch_var_entry->mType == TinScript::TYPE_object)
+                {
+                    // -- if we're changing objects, we need to delete the children
+                    if (entry->mDebuggerEntry.mVarObjectID != watch_var_entry->mVarObjectID)
+                        RemoveWatchVarChildren(entry_index);
+
+                    // -- set the new object ID
+                    entry->mDebuggerEntry.mVarObjectID = watch_var_entry->mVarObjectID;
+                }
+
+			    // -- update the value
+			    entry->UpdateValue(watch_var_entry->mValue);
+            }
+
+            // -- otherwise, if this entry is a matching object, then this is a member of that object
+            else if (entry->mDebuggerEntry.mType == TinScript::TYPE_object &&
+                     entry->mDebuggerEntry.mVarObjectID == watch_var_entry->mObjectID)
+            {
+                NotifyVarWatchMember(entry_index, watch_var_entry);
+            }
+
+			// -- we're done
+			return;
+		}
+
+        // -- next entry
+        ++entry_index;
+	}
+}
+
+// ====================================================================================================================
+// NotifyVarWatchMember():  A member update received from the target in response to a dynamic variable watch.
+// ====================================================================================================================
+void CDebugWatchWin::NotifyVarWatchMember(int parent_entry_index, TinScript::CDebuggerWatchVarEntry* watch_var_entry)
+{
+	// -- sanity check
+    if (!watch_var_entry || watch_var_entry->mWatchRequestID <= 0 || watch_var_entry->mObjectID <= 0 ||
+        parent_entry_index < 0 || parent_entry_index >= mWatchList.size())
+    {
+        return;
+    }
+
+	CWatchEntry* parent_entry = mWatchList.at(parent_entry_index);
+    int entry_index = parent_entry_index + 1;
+    while (entry_index < mWatchList.size())
+    {
+		CWatchEntry* entry = mWatchList.at(entry_index);
+        if (entry->mDebuggerEntry.mWatchRequestID == watch_var_entry->mWatchRequestID &&
+            watch_var_entry->mObjectID == parent_entry->mDebuggerEntry.mVarObjectID)
+		{
+            // -- see if this for the same member
+            if (entry->mDebuggerEntry.mVarHash == watch_var_entry->mVarHash)
+            {
+			    // -- update the value, and we're done
+			    entry->UpdateValue(watch_var_entry->mValue);
+                return;
+            }
+		}
+        else
+        {
+            break;
+        }
+
+        // -- next entry
+        ++entry_index;
+	}
+
+    // -- if we'd have found an entry, we'd have updated it - at this point we need to insert an entry
+    // -- right before entry_index
+    CWatchEntry* ns = new CWatchEntry(*watch_var_entry);
+    parent_entry->addChild(ns);
+    if (entry_index == mWatchList.size())
+        mWatchList.append(ns);
+    else
+        mWatchList.insert(mWatchList.begin() + entry_index, ns);
+}
+
+// ====================================================================================================================
 // NotifyBreakpointHit():  Notification that the callstack has been updated, all watch entries are complete
 // ====================================================================================================================
 void CDebugWatchWin::NotifyBreakpointHit()
 {
-    // -- loop through all entries, remove the children of any object variable that is invalid
+	// -- loop through any dynamic watches, and re-request the value
     int entry_index = 0;
     while (entry_index < mWatchList.size())
     {
         CWatchEntry* entry = mWatchList.at(entry_index);
-        if (entry->mDebuggerEntry.mFunctionHash != 0 && entry->mDebuggerEntry.mType == TinScript::TYPE_object &&
-            entry->mDebuggerEntry.mVarObjectID == 0)
-        {
-            // -- retrieve the original object ID
-            uint32 object_id = 0;
-            if (entry->childCount() > 0)
-            {
-                CWatchEntry* child_entry = static_cast<CWatchEntry*>(entry->child(0));
-                object_id = child_entry->mDebuggerEntry.mObjectID;
-            }
+		if (entry->mDebuggerEntry.mWatchRequestID > 0)
+		{
+			// -- send the request to the target
+			SocketManager::SendCommandf("DebuggerAddVariableWatch(%d, `%s`);", entry->mDebuggerEntry.mWatchRequestID, entry->mDebuggerEntry.mVarName);
+		}
 
-            // -- now remove any children from the main watch list (starting with the next index)
-            ++entry_index;
-
-            // -- remove all children (if we had any)
-            if (object_id > 0)
-            {
-                while (entry->childCount() > 0)
-                    entry->removeChild(entry->child(0));
-
-                while (entry_index < mWatchList.size())
-                {
-                    CWatchEntry* child_entry = mWatchList.at(entry_index);
-                    if (entry->mDebuggerEntry.mObjectID == object_id)
-                    {
-                        mWatchList.removeAt(entry_index);
-                        delete child_entry;
-                    }
-
-                    // -- otherwise we're done
-                    else
-                    {
-                        break;
-                    }
-                }
-            }
-        }
-
-        // -- else next index
-        else
-        {
-            ++entry_index;
-        }
-    }
+		// -- next entry
+		++entry_index;
+	}
 }
 
 
@@ -403,24 +604,6 @@ void CDebugWatchWin::NotifyUpdateCallstack(bool breakpointHit)
     {
         return;
     }
-
-    // -- if the reason we're updating the callstack, is because of a breakpoint, then we need to
-    // -- mark all entries as "unconfirmed" until we receive a debugger watch entry confirming they
-    // -- still exist.
-    // -- Specifically, if an object is deleted, the object var still exists, but
-    // -- the members need to be removed
-    /*
-    if (breakpointHit)
-    {
-        int entry_index = 0;
-        while (entry_index < mWatchList.size())
-        {
-            CWatchEntry* entry = mWatchList.at(entry_index);
-            entry->mUnconfirmed = true;
-            ++entry_index;
-        }
-    }
-    */
 
     // -- loop through all watches
     int entry_index = 0;
@@ -495,9 +678,52 @@ void CDebugWatchWin::NotifyUpdateCallstack(bool breakpointHit)
     }
 }
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
+// keyPressEvent():  Handler for key presses, when a watch window is in focus
+// --------------------------------------------------------------------------------------------------------------------
+void CDebugWatchWin::keyPressEvent(QKeyEvent* event)
+{
+    if (!event)
+        return;
+
+    // -- delete the selected, if we have a selected
+    if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace)
+    {
+        CWatchEntry* cur_item = static_cast<CWatchEntry*>(currentItem());
+        if (cur_item)
+        {
+            // -- we're only allowed to delete top level entries (no children), and only from dyanic watches
+            if (cur_item->mDebuggerEntry.mWatchRequestID > 0 && cur_item->mDebuggerEntry.mObjectID == 0)
+            {
+                // -- find the index for the entry
+                int entry_index = 0;
+                for (entry_index = 0; entry_index < mWatchList.size(); ++entry_index)
+                {
+                    if (mWatchList.at(entry_index) == cur_item)
+                        break;
+                }
+
+                // -- if we found our entry, ensure we remove any children
+                if (entry_index < mWatchList.size())
+                {
+                    RemoveWatchVarChildren(entry_index);
+                }
+
+                // -- now remove the item and delete it
+                mWatchList.removeAt(entry_index);
+                delete cur_item;
+            }
+        }
+        return;
+    }
+
+    // -- pass to the base class for handling
+    QTreeWidget::keyPressEvent(event);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 #include "TinQTWatchWinMoc.cpp"
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================

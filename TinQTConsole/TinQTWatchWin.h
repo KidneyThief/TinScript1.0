@@ -28,6 +28,7 @@
 #include <qgridlayout.h>
 #include <qtreewidget.h>
 #include <qlabel.h>
+#include <QLineEdit>
 
 // ------------------------------------------------------------------------------------------------
 // forward declares
@@ -44,12 +45,10 @@ class CWatchEntry : public QTreeWidgetItem {
 
         virtual ~CWatchEntry();
 
+        void UpdateType(TinScript::eVarType type);
         void UpdateValue(const char* newValue);
 
         TinScript::CDebuggerWatchVarEntry mDebuggerEntry;
-
-        // -- need a "confirmed" flag, to ensure each time the stack is updated that the entry still exists
-        bool mUnconfirmed;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -90,14 +89,23 @@ class CDebugWatchWin : public QTreeWidget {
         void AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry);
         void AddObjectMemberEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry);
 
+		void AddVariableWatch(const char* variableWatch);
+
         void ClearWatchWin();
+
+        void RemoveWatchVarChildren(int32 object_entry_index);
         void NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry);
+        void NotifyVarWatchResponse(TinScript::CDebuggerWatchVarEntry* watch_var_entry);
+        void NotifyVarWatchMember(int32 parent_entry_index, TinScript::CDebuggerWatchVarEntry* watch_var_entry);
 
         void NotifyBreakpointHit();
         void NotifyEndOfBreakpoint() { }
         void NotifyUpdateCallstack(bool breakpointHit);
 
-    public slots:
+		static int gVariableWatchRequestID;
+
+    protected:
+        virtual void keyPressEvent(QKeyEvent * event);
 
     private:
         QTreeWidgetItem* mHeaderItem;

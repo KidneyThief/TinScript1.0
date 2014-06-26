@@ -134,7 +134,8 @@ typedef bool8 (*TinAssertHandler)(TinScript::CScriptContext* script_context, con
                                   const char* file, int32 linenumber, const char* fmt, ...);
 #define ScriptAssert_(scriptcontext, condition, file, linenumber, fmt, ...)                     \
     {                                                                                           \
-        if(!(condition)) {                                                                      \
+        if(!(condition) && (!scriptcontext->mDebuggerConnected ||								\
+							!scriptcontext->mDebuggerBreakLoopGuard)) {                         \
             if(!scriptcontext->GetAssertHandler()(scriptcontext, #condition, file, linenumber,  \
                                                   fmt, ##__VA_ARGS__)) {                        \
                 __asm   int 3                                                                   \

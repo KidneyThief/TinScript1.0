@@ -164,6 +164,8 @@ class CScheduler;
 class CScriptContext;
 class CObjectEntry;
 class CMasterMembershipList;
+class CFunctionCallStack;
+class CExecStack;
 
 typedef CHashTable<CVariableEntry> tVarTable;
 typedef CHashTable<CFunctionEntry> tFuncTable;
@@ -209,6 +211,12 @@ bool8 AssertHandled(const char* condition, const char* file, int32 linenumber,
 class CDebuggerWatchVarEntry
 {
     public:
+		// -- watches that are part of the call stack are well defined.
+		// -- watches that are dynamic user requests are "iffy", and
+		// -- we'll use a request ID, if we're able to match a watch expression
+		// -- with a type and value
+		uint32 mWatchRequestID;
+
         // -- three members identifying the calling function
         uint32 mFuncNamespaceHash;
         uint32 mFunctionHash;
@@ -342,14 +350,21 @@ class CScriptContext {
         void SetBreakActionStep(bool8 torf, bool8 step_in = false, bool8 step_out = false);
         void SetBreakActionRun(bool8 torf);
 
+		void InitWatchEntryFromVarEntry(CVariableEntry& ve, void* obj_addr, CDebuggerWatchVarEntry& watch_entry,
+										CObjectEntry*& oe);
+		void AddVariableWatch(int32 request_id, const char* expression);
+
         // -- set the bool to indicate we're not stepping through each line in a debugger
         bool8 mDebuggerConnected;
-        bool8 mDebuggerBreakLoopGuard;
         bool8 mDebuggerActionForceBreak;
         bool8 mDebuggerActionStep;
         bool8 mDebuggerActionStepOver;
         bool8 mDebuggerActionStepOut;
         bool8 mDebuggerActionRun;
+
+        bool8 mDebuggerBreakLoopGuard;
+		CFunctionCallStack* mDebuggerBreakFuncCallStack;
+		CExecStack* mDebuggerBreakExecStack;
 
         // -- communication with the debugger
         void DebuggerCurrentWorkingDir(const char* cwd);

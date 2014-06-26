@@ -66,6 +66,59 @@
 
 #include "TinQTConsole.h"
 #include "TinQTSourceWin.h"
+#include "TinQTWatchWin.h"
+
+class CreateVarWatchDialog : public QDialog
+{
+public:
+    CreateVarWatchDialog(QWidget *parent = 0);
+
+    QString GetVariableName() const;
+    Qt::DockWidgetArea location() const;
+
+private:
+    QLineEdit *mVariableName;
+};
+
+CreateVarWatchDialog::CreateVarWatchDialog(QWidget *parent)
+    : QDialog(parent)
+{
+	setWindowTitle("Add Variable Watch");
+	setMinimumWidth(280);
+    QGridLayout *layout = new QGridLayout(this);
+
+    layout->addWidget(new QLabel(tr("Variable:")), 0, 0);
+    mVariableName = new QLineEdit;
+    layout->addWidget(mVariableName, 0, 1);
+
+    QHBoxLayout *buttonLayout = new QHBoxLayout;
+    layout->addLayout(buttonLayout, 2, 0, 1, 2);
+    buttonLayout->addStretch();
+
+    QPushButton *cancelButton = new QPushButton(tr("Cancel"));
+    connect(cancelButton, SIGNAL(clicked()), this, SLOT(reject()));
+    buttonLayout->addWidget(cancelButton);
+    QPushButton *okButton = new QPushButton(tr("Ok"));
+    connect(okButton, SIGNAL(clicked()), this, SLOT(accept()));
+    buttonLayout->addWidget(okButton);
+
+    okButton->setDefault(true);
+}
+
+QString CreateVarWatchDialog::GetVariableName() const
+{
+    return (mVariableName->text());
+}
+
+void MainWindow::menuAddVariableWatch()
+{
+    CreateVarWatchDialog dialog(this);
+    int ret = dialog.exec();
+    if (ret == QDialog::Rejected)
+        return;
+
+	CConsoleWindow::GetInstance()->GetDebugWatchesWin()->AddVariableWatch(dialog.GetVariableName().toUtf8());
+}
 
 // ====================================================================================================================
 
