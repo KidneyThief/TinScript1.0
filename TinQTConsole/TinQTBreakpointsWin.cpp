@@ -37,33 +37,66 @@
 #include "TinQTWatchWin.h"
 
 // ------------------------------------------------------------------------------------------------
-CBreakpointCheck::CBreakpointCheck(CBreakpointEntry* breakpoint) : QCheckBox() {
+CBreakpointCheck::CBreakpointCheck(CBreakpointEntry* breakpoint) : QCheckBox()
+{
     mBreakpoint = breakpoint;
 }
 
-void CBreakpointCheck::OnCheckBoxClicked() {
+void CBreakpointCheck::OnCheckBoxClicked()
+{
 }
 
 // ------------------------------------------------------------------------------------------------
-CBreakpointEntry::CBreakpointEntry(uint32 codeblock_hash, int line_number, QListWidget* owner)
+CBreakpointEntry::CBreakpointEntry(uint32 codeblock_hash, int32 line_number, QListWidget* owner)
     : QListWidgetItem("", owner)
 {
+    // -- store the file/line members
     mCodeblockHash = codeblock_hash;
     mLineNumber = line_number;
+
+    // -- clear the var watch members
+    mWatchRequestID = 0;
+    mWatchVarObjectID = 0;
+    mWatchVarNameHash = 0;
+
+    setFlags(flags() | Qt::ItemIsUserCheckable);
+    setCheckState(Qt::Checked);
+};
+
+CBreakpointEntry::CBreakpointEntry(int32 watch_request_id, uint32 var_object_id, uint32 var_name_hash, QListWidget* owner)
+    : QListWidgetItem("", owner)
+{
+    // -- clear the file/line members
+    mCodeblockHash = 0;
+    mLineNumber = 0;
+
+    // -- set the var watch members
+    mWatchRequestID = watch_request_id;
+    mWatchVarObjectID = var_object_id;
+    mWatchVarNameHash = var_name_hash;
 
     setFlags(flags() | Qt::ItemIsUserCheckable);
     setCheckState(Qt::Checked);
 
-    // -- store the actual data needed
-    mCodeblockHash = codeblock_hash;
-    mLineNumber = line_number;
+    // -- set the text in the QWidget
+    char label_buf[TinScript::kMaxNameLength];
+    if (mWatchVarObjectID > 0)
+        sprintf_s(label_buf, 256, "_watch:  %d.%s", mWatchVarObjectID, TinScript::UnHash(mWatchVarNameHash));
+    else
+        sprintf_s(label_buf, 256, "_watch:  %s", TinScript::UnHash(mWatchVarNameHash));
+    setText(label_buf);
 };
 
-CBreakpointEntry::~CBreakpointEntry() {
+CBreakpointEntry::~CBreakpointEntry()
+{
 }
 
 void CBreakpointEntry::UpdateLabel(uint32 codeblock_hash, int32 line_number)
 {
+    // -- ensure we're not updating the label for a variable watch
+    if (mWatchRequestID > 0)
+        return;
+
     char linebuf[256];
     char spaces[6] = "     ";
     int space_count = line_number >= 1e5 ? 0 :
@@ -80,15 +113,28 @@ void CBreakpointEntry::UpdateLabel(uint32 codeblock_hash, int32 line_number)
     setText(linebuf);
 }
 
-
 void CDebugBreakpointsWin::OnClicked(QListWidgetItem* item)
 {
     CBreakpointEntry* breakpoint = static_cast<CBreakpointEntry*>(item);
 
     // -- see if we're enabled
     bool enabled = breakpoint->checkState() == Qt::Checked;
-    CConsoleWindow::GetInstance()->ToggleBreakpoint(breakpoint->mCodeblockHash,
-                                                    breakpoint->mLineNumber, true, enabled);
+
+    // -- if this is a file/line breakpoint, toggle it (affects the source view as well)
+    if (breakpoint->mWatchRequestID == 0)
+    {
+        CConsoleWindow::GetInstance()->ToggleBreakpoint(breakpoint->mCodeblockHash,
+                                                        breakpoint->mLineNumber, true, enabled);
+    }
+
+    // -- otherwise, send the toggle message directly
+    else
+    {
+        SocketManager::SendCommandf("DebuggerToggleVarWatch(%d, %d, %d, %s);", breakpoint->mWatchRequestID,
+                                                                               breakpoint->mWatchVarObjectID,
+                                                                               breakpoint->mWatchVarNameHash,
+                                                                               enabled ? "true" : "false");
+    }
 }
 
 void CDebugBreakpointsWin::OnDoubleClicked(QListWidgetItem* item)
@@ -96,8 +142,11 @@ void CDebugBreakpointsWin::OnDoubleClicked(QListWidgetItem* item)
     CBreakpointEntry* breakpoint = static_cast<CBreakpointEntry*>(item);
 
     // -- open the source, to the filename
-    CConsoleWindow::GetInstance()->GetDebugSourceWin()->SetSourceView(breakpoint->mCodeblockHash,
-                                                                      breakpoint->mLineNumber);
+    if (breakpoint->mWatchRequestID == 0)
+    {
+        CConsoleWindow::GetInstance()->GetDebugSourceWin()->SetSourceView(breakpoint->mCodeblockHash,
+                                                                          breakpoint->mLineNumber);
+    }
 }
 
 void CDebugBreakpointsWin::keyPressEvent(QKeyEvent* event)
@@ -111,8 +160,17 @@ void CDebugBreakpointsWin::keyPressEvent(QKeyEvent* event)
         CBreakpointEntry* cur_item = static_cast<CBreakpointEntry*>(currentItem());
         if (cur_item)
         {
-            CConsoleWindow::GetInstance()->ToggleBreakpoint(cur_item->mCodeblockHash, cur_item->mLineNumber,
-                                                            false, false);
+            if (cur_item->mWatchRequestID == 0)
+            {
+                CConsoleWindow::GetInstance()->ToggleBreakpoint(cur_item->mCodeblockHash, cur_item->mLineNumber,
+                                                                false, false);
+            }
+            else
+            {
+                SocketManager::SendCommandf("DebuggerToggleVarWatch(%d, %d, %d, false);", cur_item->mWatchRequestID,
+                                                                                          cur_item->mWatchVarObjectID,
+                                                                                          cur_item->mWatchVarNameHash);
+            }
         }
         return;
     }
@@ -137,9 +195,11 @@ void CDebugBreakpointsWin::ToggleBreakpoint(uint32 codeblock_hash, int32 line_nu
 
     int found_index = -1;
     CBreakpointEntry* breakpoint = NULL;
-    for(int i = 0; i < mBreakpoints.size(); ++i) {
+    for(int i = 0; i < mBreakpoints.size(); ++i)
+    {
         CBreakpointEntry* temp = mBreakpoints.at(i);
-        if(temp->mCodeblockHash == codeblock_hash && temp->mLineNumber == line_number) {
+        if (temp->mWatchRequestID == 0 && temp->mCodeblockHash == codeblock_hash && temp->mLineNumber == line_number)
+        {
             breakpoint = temp;
             found_index = i;
             break;
@@ -147,7 +207,8 @@ void CDebugBreakpointsWin::ToggleBreakpoint(uint32 codeblock_hash, int32 line_nu
     }
 
     // -- not found - create it
-    if(add && !breakpoint) {
+    if (add && !breakpoint)
+    {
         breakpoint = new CBreakpointEntry(codeblock_hash, line_number, this);
         breakpoint->UpdateLabel(codeblock_hash, line_number);
         mBreakpoints.append(breakpoint);
@@ -155,19 +216,47 @@ void CDebugBreakpointsWin::ToggleBreakpoint(uint32 codeblock_hash, int32 line_nu
     }
 
     // -- else delete it
-    else if(!add && breakpoint) {
+    else if (!add && breakpoint)
+    {
         mBreakpoints.removeAt(found_index);
         delete breakpoint;
     }
 }
 
+// ====================================================================================================================
+// SetCurrentBreakpoint():  Set the current breakpoint, when we hit a file/line break.
+// ====================================================================================================================
 void CDebugBreakpointsWin::SetCurrentBreakpoint(uint32 codeblock_hash, int32 line_number)
 {
     int found_index = -1;
     CBreakpointEntry* breakpoint = NULL;
-    for(int i = 0; i < mBreakpoints.size(); ++i) {
+    for (int i = 0; i < mBreakpoints.size(); ++i)
+    {
         CBreakpointEntry* temp = mBreakpoints.at(i);
-        if(temp->mCodeblockHash == codeblock_hash && temp->mLineNumber == line_number) {
+        if (temp->mWatchRequestID == 0 && temp->mCodeblockHash == codeblock_hash && temp->mLineNumber == line_number)
+        {
+            breakpoint = temp;
+            found_index = i;
+            break;
+        }
+    }
+
+    // -- set the current entry (or clear it, if the entry wasn't found)
+    setCurrentItem(breakpoint);
+}
+
+// ====================================================================================================================
+// SetCurrentVarWatch():  Set the current breakpoint, when we hit a variable watch.
+// ====================================================================================================================
+void CDebugBreakpointsWin::SetCurrentVarWatch(int32 watch_request_id)
+{
+    int found_index = -1;
+    CBreakpointEntry* breakpoint = NULL;
+    for (int i = 0; i < mBreakpoints.size(); ++i)
+    {
+        CBreakpointEntry* temp = mBreakpoints.at(i);
+        if (temp->mWatchRequestID == watch_request_id)
+        {
             breakpoint = temp;
             found_index = i;
             break;
@@ -187,7 +276,7 @@ void CDebugBreakpointsWin::NotifyCodeblockLoaded(uint32 codeblock_hash)
     for (int i = 0; i < mBreakpoints.size(); ++i)
     {
         CBreakpointEntry* breakpoint = mBreakpoints.at(i);
-        if (breakpoint->mCodeblockHash == codeblock_hash)
+        if (breakpoint->mWatchRequestID == 0 && breakpoint->mCodeblockHash == codeblock_hash)
         {
             // -- see if the breakpoint is enabled
             bool breakpoint_enabled = breakpoint->checkState() == Qt::Checked;
@@ -223,7 +312,7 @@ void CDebugBreakpointsWin::NotifyConfirmBreakpoint(uint32 codeblock_hash, int32 
         CBreakpointEntry* breakpoint = mBreakpoints.at(i);
         if (breakpoint->mCodeblockHash == codeblock_hash)
         {
-            if (breakpoint->mLineNumber == line_number)
+            if (breakpoint->mWatchRequestID == 0 && breakpoint->mLineNumber == line_number)
             {
                 found = breakpoint;
                 foundIndex = i;
@@ -268,6 +357,37 @@ void CDebugBreakpointsWin::NotifyConfirmBreakpoint(uint32 codeblock_hash, int32 
     }
 }
 
+// ====================================================================================================================
+// NotifyConfirmVarWatch():  Received in response to a variable watch request to break on write.
+// ====================================================================================================================
+void CDebugBreakpointsWin::NotifyConfirmVarWatch(int32 watch_request_id, uint32 watch_object_id, uint32 var_name_hash)
+{
+    CBreakpointEntry* found = NULL;
+    CBreakpointEntry* alreadyExists = NULL;
+    for (int i = 0; i < mBreakpoints.size(); ++i)
+    {
+        CBreakpointEntry* breakpoint = mBreakpoints.at(i);
+        if (breakpoint->mWatchRequestID == watch_request_id && breakpoint->mWatchVarObjectID == watch_object_id &&
+            breakpoint->mWatchVarNameHash == var_name_hash)
+        {
+            found = breakpoint;
+            break;
+        }
+    }
+
+    // -- if we found our breakpoint, it means we've had a duplicate watch request, simply enable it
+    if (found)
+    {
+        found->setCheckState(Qt::Checked);
+    }
+    else
+    {
+        CBreakpointEntry* breakpoint = new CBreakpointEntry(watch_request_id, watch_object_id, var_name_hash, this);
+        mBreakpoints.append(breakpoint);
+        sortItems();
+    }
+}
+
 // ------------------------------------------------------------------------------------------------
 void CDebugBreakpointsWin::NotifySourceFile(uint32 filehash)
 {
@@ -296,11 +416,17 @@ void CDebugBreakpointsWin::NotifyOnConnect()
         CBreakpointEntry* breakpoint = mBreakpoints.at(i);
         bool breakpoint_enabled = breakpoint->checkState() == Qt::Checked;
 
-        // -- resend the breakpoint, if it's enabled
-        if (breakpoint_enabled)
+        // -- resend the breakpoint, if it's enabled, and a file/line breakpoint
+        if (breakpoint_enabled && breakpoint->mWatchRequestID == 0)
         {
             const char* filename = TinScript::UnHash(breakpoint->mCodeblockHash);
             SocketManager::SendCommandf("DebuggerAddBreakpoint('%s', %d);", filename, breakpoint->mLineNumber);
+        }
+
+        // -- otherwise, variable watches are disabled
+        else if (breakpoint->mWatchRequestID > 0)
+        {
+            breakpoint->setCheckState(Qt::Unchecked);
         }
     }
 }

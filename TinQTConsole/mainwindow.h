@@ -75,6 +75,7 @@ public:
     ~MainWindow();
 
     void AddScriptOpenAction(const char* fullPath);
+    void CreateVariableWatch(const char* watch_string);
 
 protected:
     virtual void showEvent(QShowEvent *event);
@@ -99,6 +100,10 @@ public slots:
     void menuOpenScriptAction(QAction*);
 
 	void menuAddVariableWatch();
+	void menuCreateVariableWatch();
+    void menuGoToLine();
+    void menuSearch();
+    void menuSearchAgain();
 
 private:
     void readLayout(QFile& file);

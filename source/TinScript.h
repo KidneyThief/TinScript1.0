@@ -142,10 +142,11 @@ const int32 k_DebuggerCurrentWorkingDirPacketID     = 0x01;
 const int32 k_DebuggerCodeblockLoadedPacketID       = 0x02;
 const int32 k_DebuggerBreakpointHitPacketID         = 0x03;
 const int32 k_DebuggerBreakpointConfirmPacketID     = 0x04;
-const int32 k_DebuggerCallstackPacketID             = 0x05;
-const int32 k_DebuggerWatchVarEntryPacketID         = 0x06;
-const int32 k_DebuggerAssertMsgPacketID             = 0x07;
-const int32 k_DebuggerPrintMsgPacketID              = 0x08;
+const int32 k_DebuggerVarWatchConfirmPacketID       = 0x05;
+const int32 k_DebuggerCallstackPacketID             = 0x06;
+const int32 k_DebuggerWatchVarEntryPacketID         = 0x07;
+const int32 k_DebuggerAssertMsgPacketID             = 0x08;
+const int32 k_DebuggerPrintMsgPacketID              = 0x09;
 const int32 k_DebuggerMaxPacketID                   = 0xff;
 
 // == namespace TinScript =============================================================================================
@@ -341,20 +342,22 @@ class CScriptContext {
 
         // -- debugger interface
         void SetDebuggerConnected(bool8 connected);
-        bool IsDebuggerConnected();
+        bool IsDebuggerConnected(int32& debugger_session);
         void DebuggerNotifyAssert();
         void AddBreakpoint(const char* filename, int32 line_number);
         void RemoveBreakpoint(const char* filename, int32 line_number);
         void RemoveAllBreakpoints(const char* filename);
-        void SetForceBreak();
+        void SetForceBreak(int32 watch_var_request_id);
         void SetBreakActionStep(bool8 torf, bool8 step_in = false, bool8 step_out = false);
         void SetBreakActionRun(bool8 torf);
 
 		void InitWatchEntryFromVarEntry(CVariableEntry& ve, void* obj_addr, CDebuggerWatchVarEntry& watch_entry,
 										CObjectEntry*& oe);
-		void AddVariableWatch(int32 request_id, const char* expression);
+		void AddVariableWatch(int32 request_id, const char* expression, bool isObject, bool breakOnWrite);
+		void ToggleVarWatch(int32 watch_request_id, uint32 object_id, uint32 var_name_hash, bool breakOnWrite);
 
         // -- set the bool to indicate we're not stepping through each line in a debugger
+		int32 mDebuggerSessionNumber;
         bool8 mDebuggerConnected;
         bool8 mDebuggerActionForceBreak;
         bool8 mDebuggerActionStep;
@@ -365,12 +368,14 @@ class CScriptContext {
         bool8 mDebuggerBreakLoopGuard;
 		CFunctionCallStack* mDebuggerBreakFuncCallStack;
 		CExecStack* mDebuggerBreakExecStack;
+        int32 mDebuggerVarWatchRequestID;
 
         // -- communication with the debugger
         void DebuggerCurrentWorkingDir(const char* cwd);
         void DebuggerCodeblockLoaded(uint32 codeblock_hash);
-        void DebuggerBreakpointHit(uint32 codeblock_hash, int32 line_number);
+        void DebuggerBreakpointHit(int32 watch_var_request_id, uint32 codeblock_hash, int32 line_number);
         void DebuggerBreakpointConfirm(uint32 codeblock_hash, int32 line_number, int32 actual_line_number);
+        void DebuggerVarWatchConfirm(int32 request_id, uint32 watch_object_id, uint32 var_name_hash);
         void DebuggerSendCallstack(uint32* codeblock_array, uint32* objid_array,
                                    uint32* namespace_array,uint32* func_array,
                                    uint32* linenumber_array, int array_size);

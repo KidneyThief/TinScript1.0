@@ -247,6 +247,7 @@ CScriptContext::CScriptContext(TinPrintHandler printfunction, TinAssertHandler a
     mScratchBufferIndex = 0;
 
     // -- debugger members
+	mDebuggerSessionNumber = 0;
     mDebuggerConnected = false;
     mDebuggerActionForceBreak = false;
     mDebuggerActionStep = false;
@@ -257,6 +258,7 @@ CScriptContext::CScriptContext(TinPrintHandler printfunction, TinAssertHandler a
 	mDebuggerBreakLoopGuard = false;
 	mDebuggerBreakFuncCallStack = NULL;
 	mDebuggerBreakExecStack = NULL;
+	mDebuggerVarWatchRequestID = 0;
 
     // -- initialize the thread command
     mThreadBufPtr = NULL;
@@ -905,6 +907,8 @@ void CScriptContext::SetDebuggerConnected(bool connected)
 {
     // -- set the bool
     mDebuggerConnected = connected;
+	if (connected)
+		++mDebuggerSessionNumber;
 
     // -- any change in debugger connectivity resets the debugger break members
     mDebuggerActionForceBreak = false;
@@ -916,6 +920,7 @@ void CScriptContext::SetDebuggerConnected(bool connected)
 	mDebuggerBreakLoopGuard = false;
 	mDebuggerBreakFuncCallStack = NULL;
 	mDebuggerBreakExecStack = NULL;
+	mDebuggerVarWatchRequestID = 0;
 
     // -- if we're now connected, send back the current working directory
     if (connected)
@@ -960,8 +965,9 @@ void CScriptContext::SetDebuggerConnected(bool connected)
 // ====================================================================================================================
 // IsDebuggerConnected():  Returns if we have a connected debugger.
 // ====================================================================================================================
-bool CScriptContext::IsDebuggerConnected()
+bool CScriptContext::IsDebuggerConnected(int32& cur_debugger_session)
 {
+	cur_debugger_session = mDebuggerSessionNumber;
     return (mDebuggerConnected || mDebuggerActionForceBreak);
 }
 
@@ -1042,10 +1048,13 @@ void CScriptContext::RemoveAllBreakpoints(const char* filename)
 // ====================================================================================================================
 // SetForceBreak():  Sets the bool, forcing the VM to halt on the next statement.
 // ====================================================================================================================
-void CScriptContext::SetForceBreak()
+void CScriptContext::SetForceBreak(int32 watch_var_request_id)
 {
     // -- this is usually set to when requested by the debugger, and auto set back to false when the break is handled.
     mDebuggerActionForceBreak = true;
+
+	// -- it's also how variable watches trigger - set the request ID
+	mDebuggerVarWatchRequestID = watch_var_request_id;
 }
 
 // ====================================================================================================================
@@ -1058,6 +1067,9 @@ void CScriptContext::SetBreakActionStep(bool8 torf, bool8 step_over, bool8 step_
     mDebuggerActionStep = torf;
     mDebuggerActionStepOver = torf ? step_over : false;
     mDebuggerActionStepOut = torf ? step_out : false;
+
+	// -- clear the var watch requst ID - it'll be set on the next write if necessary
+	mDebuggerVarWatchRequestID = 0;
 }
 
 // ====================================================================================================================
@@ -1075,7 +1087,7 @@ void CScriptContext::SetBreakActionRun(bool torf)
 void CScriptContext::InitWatchEntryFromVarEntry(CVariableEntry& ve, void* obj_addr,
 												CDebuggerWatchVarEntry& watch_entry, CObjectEntry*& oe)
 {
-	// -- initialize the return value
+	// -- initialize the return result
 	oe = NULL;
 
 	// -- we'll initialize the request ID later, if applicable
@@ -1108,7 +1120,7 @@ void CScriptContext::InitWatchEntryFromVarEntry(CVariableEntry& ve, void* obj_ad
 // ====================================================================================================================
 // AddBreakpoint():  Method to find a codeblock, and set a line to notify the debugger, if executed
 // ====================================================================================================================
-void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_watch)
+void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_watch, bool isObject, bool breakOnWrite)
 {
     // -- sanity check
     if (request_id < 0 || !variable_watch || !variable_watch[0])
@@ -1118,7 +1130,9 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
 	// -- looping through, as long as at each step, we find a valid object
 	CDebuggerWatchVarEntry found_variable;
 	found_variable.mType = TYPE_void;
+	CObjectEntry* parent_oe = NULL;
 	CObjectEntry* oe = NULL;
+	CVariableEntry* ve = NULL;
 
 	// -- first we look for an identifier, or 'self' and find a matching variable entry
 	tReadToken token(variable_watch, 0);
@@ -1130,7 +1144,7 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
 		uint32 var_hash = Hash(token.tokenptr, token.length);
 
 		// -- if this isn't a stack variable, see if it's a global variable
-		if (DebuggerFindStackTopVar(this, var_hash, found_variable))
+		if (DebuggerFindStackTopVar(this, var_hash, found_variable, ve))
 		{
 			// -- if this refers to an object, find the object entry
 			if (found_variable.mType == TYPE_object)
@@ -1140,7 +1154,7 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
 		}
 		else
 		{
-			CVariableEntry* ve = GetGlobalNamespace()->GetVarTable()->FindItem(var_hash);
+			ve = GetGlobalNamespace()->GetVarTable()->FindItem(var_hash);
 			if (ve)
 			{
 				// -- use the helper function to fill in the results, including the oe pointer
@@ -1155,6 +1169,7 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
 		// -- see if there's a valid oe for this
 		uint32 object_id = Atoi(token.tokenptr, token.length);
 		oe = FindObjectEntry(object_id);
+		parent_oe = oe;
 
 		// -- if we found one, fill in the watch entry
 		if (oe)
@@ -1196,12 +1211,15 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
 				tReadToken member_token(next_token);
 				if (GetToken(member_token) && member_token.type == TOKEN_IDENTIFIER)
 				{
+					// -- at this point, we're dereferencing a the member of an object, so update the parent oe
+					parent_oe = oe;
+
 					// -- update the token pointer
 					token = member_token;
 
 					// -- if the member token is for a valid member, update the token pointer, and continue the pattern
 					uint32 var_hash = Hash(token.tokenptr, token.length);
-					CVariableEntry* ve = oe->GetVariableEntry(var_hash);
+					ve = oe->GetVariableEntry(var_hash);
 					if (ve)
 					{
 						// -- use the helper function to fill in the results, including the oe pointer
@@ -1253,6 +1271,15 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
 				DebuggerSendObjectMembers(&found_variable, found_variable.mVarObjectID);
 			}
 
+			// -- if we've been requested to break on write, set the flag on the variable entry
+			if (ve && breakOnWrite)
+			{
+				ve->SetBreakOnWrite(true, request_id, mDebuggerSessionNumber);
+
+				// -- confirm the variable watch
+				DebuggerVarWatchConfirm(request_id, parent_oe ? parent_oe->GetID() : 0, ve->GetHash());
+			}
+
 			// -- and we're done
 			return;
 		}
@@ -1267,6 +1294,49 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
 	{
 		// -- send a debugger response
 		CDebuggerWatchVarEntry result;
+
+		// -- if this is meant to be an object, see if we can find the object
+		if (isObject)
+		{
+			uint32 object_id = Atoi(return_value);
+			if (object_id > 0)
+				oe = FindObjectEntry(object_id);
+			else
+				oe = FindObjectByName(return_value);
+
+			// -- if we found our object, fill in and return the result
+			if (oe)
+			{
+				// -- we'll initialize the request ID later, if applicable
+				result.mWatchRequestID = request_id;
+
+				// -- fill in the watch entry
+				result.mFuncNamespaceHash = 0;
+				result.mFunctionHash = 0;
+				result.mFunctionObjectID = 0;
+				result.mObjectID = 0;
+				result.mNamespaceHash = 0;
+
+				// -- type, name, and value string
+				result.mType = TYPE_object;
+				SafeStrcpy(result.mVarName, variable_watch, kMaxNameLength);
+				sprintf_s(result.mValue, "%d", oe->GetID());
+
+				result.mVarHash = oe->GetNameHash();
+				result.mVarObjectID = oe->GetID();
+
+				// -- send the response
+				DebuggerSendWatchVariable(&result);
+
+				// -- and since it's an object, send the members as well
+				DebuggerSendObjectMembers(&result, result.mVarObjectID);
+
+				// -- and we're done
+				return;
+			}
+		}
+
+		// -- we either weren't trying to force an object, or it wasn't one... send whatever we did find
 		result.mWatchRequestID = request_id;
 		result.mFuncNamespaceHash = 0;
 		result.mFunctionHash = 0;
@@ -1287,29 +1357,36 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
 		// -- send the response
         DebuggerSendWatchVariable(&result);
 	}
+}
 
-	/*
-	// -- not an expression we can deal with - see if we've found a stack variable
+// ====================================================================================================================
+// ToggleVarWatch():  Find the given variable and toggle whether we break on write.
+// ====================================================================================================================
+void CScriptContext::ToggleVarWatch(int32 watch_request_id, uint32 object_id, uint32 var_name_hash, bool breakOnWrite)
+{
+	CVariableEntry* ve = NULL;
+	if (object_id > 0)
+	{
+		CObjectEntry* oe = FindObjectEntry(object_id);
+		if (!oe)
+			return;
+
+		ve = oe->GetVariableEntry(var_name_hash);
+	}
 	else
 	{
-		CDebuggerWatchVarEntry result;
-		uint32 var_hash = Hash(variable_watch);
-		if (DebuggerFindStackTopVar(this, var_hash, result))
+		// -- first see if the variable is a local variable on the stack
+		CDebuggerWatchVarEntry found_variable;
+		if (!DebuggerFindStackTopVar(this, var_name_hash, found_variable, ve))
 		{
-			// -- set the request ID back in the result
-			result.mWatchRequestID = request_id;
-
-			// -- send the response
-			DebuggerSendWatchVariable(&result);
-
-			// -- if the result is an object, then send the complete object
-			if (result.mType == TYPE_object)
-			{
-				DebuggerSendObjectMembers(&result, result.mVarObjectID);
-			}
+			// -- not a stack variable - the only remaining option is a global
+			ve = GetGlobalNamespace()->GetVarTable()->FindItem(var_name_hash);
 		}
 	}
-	*/
+
+	// -- if we found our variable, toggle the break
+	if (ve)
+		ve->SetBreakOnWrite(breakOnWrite, watch_request_id, mDebuggerSessionNumber);
 }
 
 // ====================================================================================================================
@@ -1399,7 +1476,7 @@ void CScriptContext::DebuggerCodeblockLoaded(uint32 codeblock_hash)
 // ====================================================================================================================
 // DebuggerBreakpointHit():  Use the packet type DATA, and send details of the current breakpoint we just hit
 // ====================================================================================================================
-void CScriptContext::DebuggerBreakpointHit(uint32 codeblock_hash, int32 line_number)
+void CScriptContext::DebuggerBreakpointHit(int32 watch_var_request_id, uint32 codeblock_hash, int32 line_number)
 {
     // -- calculate the size of the data
     int32 total_size = 0;
@@ -1407,7 +1484,10 @@ void CScriptContext::DebuggerBreakpointHit(uint32 codeblock_hash, int32 line_num
     // -- first int32 will be identifying this data packet
     total_size += sizeof(int32);
 
-    // -- second int32 will be the codeblock_hash
+    // -- next int32 will be the watch_var_request_id (> 0, if that's what caused the break)
+    total_size += sizeof(int32);
+
+    // -- next int32 will be the codeblock_hash
     total_size += sizeof(int32);
 
     // -- final int32 will be the line_number
@@ -1431,7 +1511,10 @@ void CScriptContext::DebuggerBreakpointHit(uint32 codeblock_hash, int32 line_num
     // -- write the identifier - defined in the debugger constants near the top of TinScript.h
     *dataPtr++ = k_DebuggerBreakpointHitPacketID;
 
-    // -- write the codeblock hash
+	// -- write the watch_var_request_id
+    *dataPtr++ = watch_var_request_id;
+
+	// -- write the codeblock hash
     *dataPtr++ = codeblock_hash;
 
     // -- write the line number
@@ -1487,6 +1570,57 @@ void CScriptContext::DebuggerBreakpointConfirm(uint32 codeblock_hash, int32 line
 
     // -- write the line number
     *dataPtr++ = actual_line;
+
+    // -- send the packet
+    SocketManager::SendDataPacket(newPacket);
+}
+
+// ====================================================================================================================
+// DebuggerVarWatchConfirm():  Use the packet type DATA to confirm a variable watch
+// ====================================================================================================================
+void CScriptContext::DebuggerVarWatchConfirm(int32 request_id, uint32 watch_object_id, uint32 var_name_hash)
+{
+    // -- calculate the size of the data
+    int32 total_size = 0;
+
+    // -- first int32 will be identifying this data packet
+    total_size += sizeof(int32);
+
+    // -- next int32 will be the request_id
+    total_size += sizeof(int32);
+
+    // -- next int32 will be the watch_object_id
+    total_size += sizeof(int32);
+
+    // -- next int32 will be the var_name_hash
+    total_size += sizeof(int32);
+
+    // -- declare a header
+    // -- note, if we ever implement a request/acknowledge approach, we can use the mID field
+    SocketManager::tPacketHeader header(k_PacketVersion, SocketManager::tPacketHeader::DATA, total_size);
+
+    // -- create the packet (null data, as we'll fill in the data directly into the packet)
+    SocketManager::tDataPacket* newPacket = SocketManager::CreateDataPacket(&header, NULL);
+    if (!newPacket)
+    {
+        TinPrint(this, "Error - DebuggerVarWatchConfirm():  unable to send\n");
+        return;
+    }
+
+    // -- initialize the ptr to the data buffer
+    int32* dataPtr = (int32*)newPacket->mData;
+
+    // -- write the identifier - defined in the debugger constants near the top of TinScript.h
+    *dataPtr++ = k_DebuggerVarWatchConfirmPacketID;
+
+    // -- write the request_id
+    *dataPtr++ = request_id;
+
+    // -- write the object id
+    *dataPtr++ = watch_object_id;
+
+    // -- write the var name has
+    *dataPtr++ = var_name_hash;
 
     // -- send the packet
     SocketManager::SendDataPacket(newPacket);
@@ -2059,7 +2193,7 @@ void DebuggerForceBreak()
         return;
 
     // -- this must be threadsafe - only ProcessThreadCommands should ever lead to this function
-    script_context->SetForceBreak();
+    script_context->SetForceBreak(0);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2093,7 +2227,7 @@ void DebuggerBreakRun()
 // --------------------------------------------------------------------------------------------------------------------
 // DebuggerAddVariableWatch():  Add a variable watch - requires an ID, and an expression.
 // --------------------------------------------------------------------------------------------------------------------
-void DebuggerAddVariableWatch(int32 request_id, const char* variable_watch)
+void DebuggerAddVariableWatch(int32 request_id, const char* variable_watch, bool isObject, bool breakOnWrite)
 {
     // -- ensure we have a script context
     CScriptContext* script_context = GetContext();
@@ -2105,7 +2239,25 @@ void DebuggerAddVariableWatch(int32 request_id, const char* variable_watch)
 		return;
 
     // -- this must be threadsafe - only ProcessThreadCommands should ever lead to this function
-    script_context->AddVariableWatch(request_id, variable_watch);
+    script_context->AddVariableWatch(request_id, variable_watch, isObject, breakOnWrite);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// DebuggerToggleVarWatch():  Toggle whether we break on write for a given variable
+// --------------------------------------------------------------------------------------------------------------------
+void DebuggerToggleVarWatch(int32 watch_request_id, uint32 object_id, int32 var_name_hash, bool breakOnWrite)
+{
+    // -- ensure we have a script context
+    CScriptContext* script_context = GetContext();
+    if (!script_context)
+        return;
+
+	// -- ensure we have a valid request_id and an expression
+	if (watch_request_id <= 0)
+		return;
+
+    // -- this must be threadsafe - only ProcessThreadCommands should ever lead to this function
+    script_context->ToggleVarWatch(watch_request_id, object_id, var_name_hash, breakOnWrite);
 }
 
 // -------------------------------------------------------------------------------------------------------------------
@@ -2119,7 +2271,8 @@ REGISTER_FUNCTION_P0(DebuggerForceBreak, DebuggerForceBreak, void);
 REGISTER_FUNCTION_P2(DebuggerBreakStep, DebuggerBreakStep, void, bool8, bool8);
 REGISTER_FUNCTION_P0(DebuggerBreakRun, DebuggerBreakRun, void);
 
-REGISTER_FUNCTION_P2(DebuggerAddVariableWatch, DebuggerAddVariableWatch, void, int32, const char*);
+REGISTER_FUNCTION_P4(DebuggerAddVariableWatch, DebuggerAddVariableWatch, void, int32, const char*, bool8, bool8);
+REGISTER_FUNCTION_P4(DebuggerToggleVarWatch, DebuggerToggleVarWatch, void, int32, uint32, int32, bool8);
 
 // == class CThreadMutex ==============================================================================================
 // -- CThreadMutex is only functional in WIN32

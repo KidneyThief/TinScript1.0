@@ -50,14 +50,21 @@ class CBreakpointCheck : public QCheckBox {
 
 class CBreakpointEntry : public QListWidgetItem {
     public:
-        CBreakpointEntry(uint32 codeblock_hash, int line_number, QListWidget* owner);
+        CBreakpointEntry(uint32 codeblock_hash, int32 line_number, QListWidget* owner);
+        CBreakpointEntry(int32 watch_request_id, uint32 var_object_id, uint32 var_name_hash, QListWidget* owner);
         virtual ~CBreakpointEntry();
 
+        // -- breakpoint based on a file/line
         uint32 mCodeblockHash;
         int32 mLineNumber;
 
+        // -- breakpoint based on a variable watch
+        int32 mWatchRequestID;
+        uint32 mWatchVarObjectID;
+        uint32 mWatchVarNameHash;
+
         // -- if the actual breakable line is corrected by the executable, we need to update the label to match
-        void UpdateLabel(uint32 codeblock_hash, int line_number);
+        void UpdateLabel(uint32 codeblock_hash, int32 line_number);
 };
 
 class CDebugBreakpointsWin : public QListWidget
@@ -86,10 +93,23 @@ class CDebugBreakpointsWin : public QListWidget
             updateGeometry();
         }
 
+        // -- toggle the breakpoint for a file/line
         void ToggleBreakpoint(uint32 codeblock_hash, int32 line_number, bool add, bool enable);
+
+        // -- set the current breakpoint, when a file/line break has been triggered
         void SetCurrentBreakpoint(uint32 codeblock_hash, int32 line_number);
+
+        // -- set the current variable watch break, when a variable watch has been triggered
+        void SetCurrentVarWatch(int32 watch_request_id);
+
         void NotifyCodeblockLoaded(uint32 codeblock_hash);
+
+        // -- confirmation of a file/line breakpoint, to correct the actual breakable line
         void NotifyConfirmBreakpoint(uint32 codeblock_hash, int32 line_number, int32 actual_line);
+
+        // -- confirmation of a variable watch, requested to break on write
+        void NotifyConfirmVarWatch(int32 watch_request_id, uint32 watch_object_id, uint32 var_name_hash);
+
         void NotifySourceFile(uint32 filehash);
         void NotifyOnConnect();
 

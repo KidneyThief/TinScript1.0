@@ -34,6 +34,7 @@
 #include "TinQTConsole.h"
 #include "TinQTBreakpointsWin.h"
 #include "TinQTWatchWin.h"
+#include "mainwindow.h"
 
 // --------------------------------------------------------------------------------------------------------------------
 // -- statics
@@ -42,8 +43,11 @@ int CDebugWatchWin::gVariableWatchRequestID = 1;  // zero is "not a dynamic var 
 // ------------------------------------------------------------------------------------------------
 // CWatchEntry
 
-CWatchEntry::CWatchEntry(const TinScript::CDebuggerWatchVarEntry& debugger_entry)
+CWatchEntry::CWatchEntry(const TinScript::CDebuggerWatchVarEntry& debugger_entry, bool isObject, bool breakOnWrite)
     : QTreeWidgetItem()
+    , mIsObject(isObject)
+    , mBreakOnWrite(breakOnWrite)
+    , mRequestSent(false)
 {
     // -- copy the debugger entry
     memcpy(&mDebuggerEntry, &debugger_entry, sizeof(TinScript::CDebuggerWatchVarEntry));
@@ -328,7 +332,7 @@ void CDebugWatchWin::AddObjectMemberEntry(const TinScript::CDebuggerWatchVarEntr
 // ====================================================================================================================
 // AddVariableWatch():  Dynamically add a watch to be updated by the debugger
 // ====================================================================================================================
-void CDebugWatchWin::AddVariableWatch(const char* variableWatch)
+void CDebugWatchWin::AddVariableWatch(const char* variableWatch, bool isObject, bool breakOnWrite)
 {
 	if (!variableWatch || !variableWatch[0])
 		return;
@@ -365,14 +369,39 @@ void CDebugWatchWin::AddVariableWatch(const char* variableWatch)
     new_watch.mVarObjectID = 0;
 
 	// -- we're allowed *anything* including duplicates when adding variable watches
-	CWatchEntry* new_entry = new CWatchEntry(new_watch);
+	CWatchEntry* new_entry = new CWatchEntry(new_watch, isObject, breakOnWrite);
     addTopLevelItem(new_entry);
     mWatchList.append(new_entry);
 
 	// -- send the request to the target, if we're currently in a break point
     if (CConsoleWindow::GetInstance()->mBreakpointHit)
     {
-        SocketManager::SendCommandf("DebuggerAddVariableWatch(%d, `%s`);", new_watch.mWatchRequestID, variableWatch);
+        SocketManager::SendCommandf("DebuggerAddVariableWatch(%d, `%s`, %s, %s);",
+                                    new_watch.mWatchRequestID, variableWatch,
+                                    isObject ? "true" : "false",
+                                    breakOnWrite ? "true" : "false");
+        new_entry->mRequestSent = true;
+    }
+}
+
+// ====================================================================================================================
+// CreateSelectedWatch():  Dynamically add a watch to be updated by the debugger
+// ====================================================================================================================
+void CDebugWatchWin::CreateSelectedWatch()
+{
+    CWatchEntry* cur_item = static_cast<CWatchEntry*>(currentItem());
+    if (cur_item && cur_item->mDebuggerEntry.mType != TinScript::TYPE_void)
+    {
+        // -- create the string to use as a watch
+        char watch_string[TinScript::kMaxNameLength];
+
+        // -- see if we have a variable or a member
+        if (cur_item->mDebuggerEntry.mObjectID > 0)
+            sprintf_s(watch_string, "%d.%s", cur_item->mDebuggerEntry.mObjectID, cur_item->mDebuggerEntry.mVarName);
+        else
+            strcpy_s(watch_string, cur_item->mDebuggerEntry.mVarName);
+
+        CConsoleWindow::GetInstance()->GetMainWindow()->CreateVariableWatch(watch_string);
     }
 }
 
@@ -576,14 +605,18 @@ void CDebugWatchWin::NotifyBreakpointHit()
 		if (entry->mDebuggerEntry.mWatchRequestID > 0)
 		{
 			// -- send the request to the target
-			SocketManager::SendCommandf("DebuggerAddVariableWatch(%d, `%s`);", entry->mDebuggerEntry.mWatchRequestID, entry->mDebuggerEntry.mVarName);
+            // -- note:  we don't flag it for break unless the request hasn't yet been sent
+			SocketManager::SendCommandf("DebuggerAddVariableWatch(%d, `%s`, %s, %s);",
+                                        entry->mDebuggerEntry.mWatchRequestID, entry->mDebuggerEntry.mVarName,
+                                        entry->mIsObject ? "true" : "false",
+                                        !entry->mRequestSent && entry->mBreakOnWrite ? "true" : "false");
+            entry->mRequestSent = true;
 		}
 
 		// -- next entry
 		++entry_index;
 	}
 }
-
 
 // ====================================================================================================================
 // NotifyNewCallStack():  Called when the callstack has changed, so we can verify/purge invalid watches

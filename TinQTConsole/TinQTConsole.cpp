@@ -119,9 +119,13 @@ CConsoleWindow::CConsoleWindow()
     // -- create the toolbar components
     QToolBar* toolbar = new QToolBar();
 	toolbar->setWindowTitle("Debug Toolbar");
-    mFileLabel = new QLabel("File:");
+    QLabel* file_label = new QLabel("File:");
+    QWidget* spacer_0a = new QWidget();
+    spacer_0a->setFixedWidth(8);
     mFileLineEdit = new QLineEdit();
-    mFileLineEdit->setFixedWidth(300);
+    mFileLineEdit->setFixedWidth(200);
+    QWidget* spacer_0 = new QWidget();
+    spacer_0->setFixedWidth(16);
     mButtonRun = new QPushButton();
     mButtonRun->setText("Run");
     mButtonRun->setGeometry(0, 0, 32, 24); 
@@ -131,14 +135,32 @@ CConsoleWindow::CConsoleWindow()
     mButtonStepIn = new QPushButton();
     mButtonStepIn->setText("Step In");
     mButtonStepIn->setGeometry(0, 0, 32, 24);
-    mSpacer = new QWidget();
+    QWidget* spacer_1 = new QWidget();
+    spacer_1->setFixedWidth(16);
+    QLabel* find_label = new QLabel("Find:");
+    QWidget* spacer_1a = new QWidget();
+    spacer_1a->setFixedWidth(8);
+    mFindLineEdit = new QLineEdit();
+    mFindLineEdit->setFixedWidth(200);
+    QWidget* spacer_2 = new QWidget();
+    spacer_2->setFixedWidth(8);
+    mFindResult = new QLabel("Ctrl + F");
+    mFindResult->setFixedWidth(120);
+    mFindResult->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 
-    toolbar->addWidget(mFileLabel);
+    toolbar->addWidget(file_label);
+    toolbar->addWidget(spacer_0a);
     toolbar->addWidget(mFileLineEdit);
+    toolbar->addWidget(spacer_0);
     toolbar->addWidget(mButtonRun);
     toolbar->addWidget(mButtonStep);
     toolbar->addWidget(mButtonStepIn);
-    toolbar->addWidget(mSpacer);
+    toolbar->addWidget(spacer_1);
+    toolbar->addWidget(find_label);
+    toolbar->addWidget(spacer_1a);
+    toolbar->addWidget(mFindLineEdit);
+    toolbar->addWidget(spacer_2);
+    toolbar->addWidget(mFindResult);
     mMainWindow->addToolBar(toolbar);
 
     // -- create the source window
@@ -187,6 +209,9 @@ CConsoleWindow::CConsoleWindow()
     QObject::connect(mButtonStep, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonStepPressed()));
     QObject::connect(mButtonStepIn, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonStepInPressed()));
 
+    QObject::connect(mFindLineEdit, SIGNAL(returnPressed()), mConsoleInput,
+                                    SLOT(OnFindEditReturnPressed()));
+
     QObject::connect(mCallstackWin, SIGNAL(itemDoubleClicked(QListWidgetItem*)), mCallstackWin,
                                     SLOT(OnDoubleClicked(QListWidgetItem*)));
 
@@ -220,6 +245,22 @@ CConsoleWindow::CConsoleWindow()
     // Ctrl + w - Add variable watch
     QShortcut* shortcut_AddVar = new QShortcut(QKeySequence("Ctrl+W"), mMainWindow);
     QObject::connect(shortcut_AddVar, SIGNAL(activated()), mMainWindow, SLOT(menuAddVariableWatch()));
+
+    // Ctrl + Shift + w - Watch Variable
+    QShortcut* shortcut_WatchVar = new QShortcut(QKeySequence("Ctrl+Shift+W"), mMainWindow);
+    QObject::connect(shortcut_WatchVar, SIGNAL(activated()), mMainWindow, SLOT(menuCreateVariableWatch()));
+
+    // Ctrl + g - Go to line in the source view
+    QShortcut* shortcut_GotoLine = new QShortcut(QKeySequence("Ctrl+G"), mMainWindow);
+    QObject::connect(shortcut_GotoLine, SIGNAL(activated()), mMainWindow, SLOT(menuGoToLine()));
+
+    // Ctrl + f - Search
+    QShortcut* shortcut_Search = new QShortcut(QKeySequence("Ctrl+F"), mMainWindow);
+    QObject::connect(shortcut_Search, SIGNAL(activated()), mConsoleInput, SLOT(OnFindEditFocus()));
+
+    // F3 - Search again
+    QShortcut* shortcut_SearchAgain = new QShortcut(QKeySequence("F3"), mMainWindow);
+    QObject::connect(shortcut_SearchAgain, SIGNAL(activated()), mConsoleInput, SLOT(OnFindEditReturnPressed()));
 
     mMainWindow->addDockWidget(Qt::TopDockWidgetArea, sourceWinDockWidget);
     mMainWindow->addDockWidget(Qt::LeftDockWidgetArea, outputDockWidget);
@@ -405,12 +446,13 @@ void CConsoleWindow::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number,
 // ====================================================================================================================
 // NotifyBreakpointHit():  A breakpoint hit was found during processing of the data packets
 // ====================================================================================================================
-void CConsoleWindow::NotifyBreakpointHit(uint32 codeblock_hash, int32 line_number)
+void CConsoleWindow::NotifyBreakpointHit(int32 watch_request_id, uint32 codeblock_hash, int32 line_number)
 {
     // -- set the bool
     mBreakpointHit = true;
 
     // -- cache the breakpoint details
+    mBreakpointWatchRequestID = watch_request_id;
     mBreakpointCodeblockHash = codeblock_hash;
     mBreakpointLinenumber = line_number;
 }
@@ -418,13 +460,14 @@ void CConsoleWindow::NotifyBreakpointHit(uint32 codeblock_hash, int32 line_numbe
 // ====================================================================================================================
 // HasBreakpoint():  Returns true, if a breakpoint hit is pending, along with the specific codeblock / line number
 // ====================================================================================================================
-bool CConsoleWindow::HasBreakpoint(uint32& codeblock_hash, int32& line_number)
+bool CConsoleWindow::HasBreakpoint(int32& watch_request_id, uint32& codeblock_hash, int32& line_number)
 {
     // -- no breakpoint - return false
     if (!mBreakpointHit)
         return (false);
 
     // -- fill in the details
+    watch_request_id = mBreakpointWatchRequestID;
     codeblock_hash = mBreakpointCodeblockHash;
     line_number = mBreakpointLinenumber;
 
@@ -450,10 +493,16 @@ void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg)
 	mButtonRun->setPalette(myPalette);
 
     // -- set the status message
-    SetStatusMessage("Breakpoint");
+    if (mBreakpointWatchRequestID > 0)
+        SetStatusMessage("Break on watch");
+    else
+        SetStatusMessage("Breakpoint");
 
     // -- set the currently selected breakpoint
-    GetDebugBreakpointsWin()->SetCurrentBreakpoint(mBreakpointCodeblockHash, mBreakpointLinenumber);
+    if (mBreakpointWatchRequestID == 0)
+        GetDebugBreakpointsWin()->SetCurrentBreakpoint(mBreakpointCodeblockHash, mBreakpointLinenumber);
+    else
+        GetDebugBreakpointsWin()->SetCurrentVarWatch(mBreakpointWatchRequestID);
 
     while (SocketManager::IsConnected() && !mBreakpointRun &&
            !mBreakpointStep && !mBreakpointStepIn && !mBreakpointStepOut)
@@ -590,6 +639,16 @@ void DebuggerConfirmBreakpoint(int32 filename_hash, int32 line_number, int32 act
     // -- notify the breakpoints window
     CConsoleWindow::GetInstance()->GetDebugBreakpointsWin()->NotifyConfirmBreakpoint(filename_hash, line_number,
                                                                                      actual_line);
+}
+
+// ====================================================================================================================
+// DebuggerConfirmVarWatch():  Confirms the object ID and var_name_hash for a requested variable watch.
+// ====================================================================================================================
+void DebuggerConfirmVarWatch(int32 watch_request_id, uint32 watch_object_id, uint32 var_name_hash)
+{
+    // -- notify the breakpoints window
+    CConsoleWindow::GetInstance()->GetDebugBreakpointsWin()->NotifyConfirmVarWatch(watch_request_id, watch_object_id,
+                                                                                   var_name_hash);
 }
 
 // ====================================================================================================================
@@ -794,6 +853,19 @@ void CConsoleInput::OnButtonStepOutPressed()
     CConsoleWindow::GetInstance()->mBreakpointStepOut = true;
 }
 
+void CConsoleInput::OnFindEditFocus()
+{
+    QLineEdit* find_edit = CConsoleWindow::GetInstance()->GetFindLineEdit();
+    find_edit->setFocus();
+}
+
+void CConsoleInput::OnFindEditReturnPressed()
+{
+    QLineEdit* find_edit = CConsoleWindow::GetInstance()->GetFindLineEdit();
+    QString search_string = find_edit->text();
+    CConsoleWindow::GetInstance()->GetDebugSourceWin()->FindInFile(search_string.toUtf8());
+}
+
 // ------------------------------------------------------------------------------------------------
 void CConsoleInput::keyPressEvent(QKeyEvent * event)
 {
@@ -879,6 +951,7 @@ void CConsoleOutput::Update()
     ProcessDataPackets();
 
     // -- see if we an assert was triggered
+    int32 watch_request_id = 0;
     uint32 codeblock_hash = 0;
     int32 line_number = -1;
     const char* assert_msg = "";
@@ -900,7 +973,7 @@ void CConsoleOutput::Update()
     }
 
     // -- see if we have a breakpoint
-    bool hasBreakpoint = CConsoleWindow::GetInstance()->HasBreakpoint(codeblock_hash, line_number); 
+    bool hasBreakpoint = CConsoleWindow::GetInstance()->HasBreakpoint(watch_request_id, codeblock_hash, line_number);
     
     // -- this will notify all required windows, and loop until the the breakpoint has been handled
     if (hasBreakpoint)
@@ -982,6 +1055,10 @@ void CConsoleOutput::ProcessDataPackets()
                 HandlePacketBreakpointConfirm(dataPtr);
                 break;
 
+            case k_DebuggerVarWatchConfirmPacketID:
+                HandlePacketVarWatchConfirm(dataPtr);
+                break;
+
             case k_DebuggerCallstackPacketID:
                 HandlePacketCallstack(dataPtr);
                 break;
@@ -1047,6 +1124,9 @@ void CConsoleOutput::HandlePacketBreakpointHit(int32* dataPtr)
     // -- skip past the packet ID
     ++dataPtr;
 
+    // -- get the watch request id
+    uint32 watch_request_id = *dataPtr++;
+
     // -- get the codeblock has
     uint32 codeblock_hash = *dataPtr++;
 
@@ -1054,7 +1134,7 @@ void CConsoleOutput::HandlePacketBreakpointHit(int32* dataPtr)
     int32 line_number = *dataPtr++;
 
     // -- notify the debugger
-    CConsoleWindow::GetInstance()->NotifyBreakpointHit(codeblock_hash, line_number);
+    CConsoleWindow::GetInstance()->NotifyBreakpointHit(watch_request_id, codeblock_hash, line_number);
     CConsoleWindow::GetInstance()->GetDebugAutosWin()->NotifyBreakpointHit();
     CConsoleWindow::GetInstance()->GetDebugWatchesWin()->NotifyBreakpointHit();
 }
@@ -1078,6 +1158,27 @@ void CConsoleOutput::HandlePacketBreakpointConfirm(int32* dataPtr)
 
     // -- notifiy the debugger
     DebuggerConfirmBreakpoint(codeblock_hash, line_number, actual_line);
+}
+
+// ====================================================================================================================
+// HandlePacketVarWatchConfirm():  A callback handler for a packet of type "variable watch confirm"
+// ====================================================================================================================
+void CConsoleOutput::HandlePacketVarWatchConfirm(int32* dataPtr)
+{
+    // -- skip past the packet ID
+    ++dataPtr;
+
+    // -- get the watch request ID
+    int32 watch_request_id = *dataPtr++;
+
+    // -- get the watch object id
+    uint32 watch_object_id = *dataPtr++;
+
+    // -- get the watch var name hash
+    int32 var_name_hash = *dataPtr++;
+
+    // -- notifiy the debugger
+    DebuggerConfirmVarWatch(watch_request_id, watch_object_id, var_name_hash);
 }
 
 // ====================================================================================================================

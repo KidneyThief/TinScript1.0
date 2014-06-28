@@ -125,6 +125,24 @@ public:
     void SetValue(void* objaddr, void* value);
     void SetValueAddr(void* objaddr, void* value);
 
+	void SetBreakOnWrite(bool torf, int32 varWatchRequestID, int32 debugger_session)
+	{
+		mBreakOnWrite = torf;
+		mWatchRequestID = varWatchRequestID;
+		mDebuggerSession = debugger_session;
+	}
+
+    void NotifyWrite(CScriptContext* script_context)
+    {
+	    if (mBreakOnWrite)
+	    {
+		    int32 cur_debugger_session = 0;
+		    bool is_debugger_connected = script_context->IsDebuggerConnected(cur_debugger_session);
+		    if (is_debugger_connected && mDebuggerSession >= cur_debugger_session)
+			    script_context->SetForceBreak(mWatchRequestID);
+	    }
+    }
+
     void SetFunctionEntry(CFunctionEntry* _funcentry) {
         mFuncEntry = _funcentry;
     }
@@ -163,6 +181,11 @@ private:
     mutable uint32 mStringValueHash;
     uint32 mDispatchConvertFromObject;
     CFunctionEntry* mFuncEntry;
+
+	// -- a debugger hook to break if the variable changes
+	bool8 mBreakOnWrite;
+	int32 mWatchRequestID;
+	int32 mDebuggerSession;
 };
 
 // ------------------------------------------------------------------------------------------------

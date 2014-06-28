@@ -128,6 +128,30 @@ bool8 GetStackValue(CScriptContext* script_context, CExecStack& execstack,
                           "Error - Unable to find stack var\n");
             return false;
         }
+
+		// -- if we have a debugger attached, also find the variable entry associated with the stack var
+		int32 debugger_session = 0;
+		if (script_context->IsDebuggerConnected(debugger_session))
+		{
+			int32 stacktop = 0;
+			CObjectEntry* oe = NULL;
+			CFunctionEntry* fe = funccallstack.GetExecuting(oe, stacktop);
+			if (fe && fe->GetLocalVarTable())
+			{
+				// -- find the variable with the matching stackvaroffset
+				tVarTable* vartable = fe->GetLocalVarTable();
+				CVariableEntry* test_ve = vartable->First();
+				while (test_ve)
+				{
+					if (test_ve->GetStackOffset() == stackvaroffset)
+					{
+						ve = test_ve;
+						break;
+					}
+					test_ve = vartable->Next();
+				}
+			}
+		}
     }
 
     // -- if a POD member was pushed...
@@ -322,6 +346,11 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
         }
         memcpy(var, val1addr, gRegisteredTypeSize[varhashtype]);
         DebugTrace(op, is_stack_var ? "StackVar: %s" : "PODMember: %s", DebugPrintVar(var, varhashtype));
+
+       	// -- if we're connected to the debugger, then the variable entry associated with the stack var will be returned,
+		// -- notify we're breaking on it
+		if (ve0)
+			ve0->NotifyWrite(script_context);
     }
 
     // -- else set the value through the variable entry

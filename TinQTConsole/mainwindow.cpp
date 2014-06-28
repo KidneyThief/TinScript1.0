@@ -62,22 +62,29 @@
 #include <QComboBox>
 #include <QLabel>
 #include <QPushButton>
+#include <QCheckBox>
 #include <qdebug.h>
 
 #include "TinQTConsole.h"
 #include "TinQTSourceWin.h"
 #include "TinQTWatchWin.h"
 
+// ====================================================================================================================
+// -- class implementation for add variable watch dialog
 class CreateVarWatchDialog : public QDialog
 {
 public:
     CreateVarWatchDialog(QWidget *parent = 0);
 
+    void SetVariableName(const char* variable_name);
     QString GetVariableName() const;
-    Qt::DockWidgetArea location() const;
+    bool IsObject() const;
+    bool IsBreakOnWrite() const;
 
 private:
     QLineEdit *mVariableName;
+    QCheckBox* mIsObject;
+    QCheckBox* mBreakOnWrite;
 };
 
 CreateVarWatchDialog::CreateVarWatchDialog(QWidget *parent)
@@ -90,6 +97,72 @@ CreateVarWatchDialog::CreateVarWatchDialog(QWidget *parent)
     layout->addWidget(new QLabel(tr("Variable:")), 0, 0);
     mVariableName = new QLineEdit;
     layout->addWidget(mVariableName, 0, 1);
+
+    mIsObject = new QCheckBox;
+    layout->addWidget(mIsObject, 1, 0);
+    layout->addWidget(new QLabel(tr("Is Object")), 1, 1);
+    mBreakOnWrite = new QCheckBox;
+    layout->addWidget(mBreakOnWrite, 2, 0);
+    layout->addWidget(new QLabel(tr("Break On Write")), 2, 1);
+
+    QHBoxLayout *buttonLayout = new QHBoxLayout;
+    layout->addLayout(buttonLayout, 3, 0, 1, 2);
+    buttonLayout->addStretch();
+
+    QPushButton *cancelButton = new QPushButton(tr("Cancel"));
+    connect(cancelButton, SIGNAL(clicked()), this, SLOT(reject()));
+    buttonLayout->addWidget(cancelButton);
+    QPushButton *okButton = new QPushButton(tr("Ok"));
+    connect(okButton, SIGNAL(clicked()), this, SLOT(accept()));
+    buttonLayout->addWidget(okButton);
+
+    okButton->setDefault(true);
+}
+
+void CreateVarWatchDialog::SetVariableName(const char* variable_name)
+{
+    mVariableName->setText(QString(variable_name));
+}
+
+QString CreateVarWatchDialog::GetVariableName() const
+{
+    return (mVariableName->text());
+}
+
+bool CreateVarWatchDialog::IsObject() const
+{
+    return (mIsObject->isChecked());
+}
+
+bool CreateVarWatchDialog::IsBreakOnWrite() const
+{
+    return (mBreakOnWrite->isChecked());
+}
+
+
+// ====================================================================================================================
+// -- class implementation for the "go to line #" dialog
+class CreateGoToLineDialog : public QDialog
+{
+public:
+    CreateGoToLineDialog(QWidget *parent = 0);
+
+    int GetLineNumber() const;
+
+private:
+    QLineEdit *mGoToLineEdit;
+};
+
+CreateGoToLineDialog::CreateGoToLineDialog(QWidget *parent)
+    : QDialog(parent)
+{
+	setWindowTitle("Go To Line");
+	setMinimumWidth(280);
+    QGridLayout *layout = new QGridLayout(this);
+
+    layout->addWidget(new QLabel(tr("Line number:")), 0, 0);
+    mGoToLineEdit = new QLineEdit;
+    layout->addWidget(mGoToLineEdit, 0, 1);
 
     QHBoxLayout *buttonLayout = new QHBoxLayout;
     layout->addLayout(buttonLayout, 2, 0, 1, 2);
@@ -105,11 +178,12 @@ CreateVarWatchDialog::CreateVarWatchDialog(QWidget *parent)
     okButton->setDefault(true);
 }
 
-QString CreateVarWatchDialog::GetVariableName() const
+int CreateGoToLineDialog::GetLineNumber() const
 {
-    return (mVariableName->text());
+    return (atoi(mGoToLineEdit->text().toUtf8()));
 }
 
+// ====================================================================================================================
 void MainWindow::menuAddVariableWatch()
 {
     CreateVarWatchDialog dialog(this);
@@ -117,9 +191,28 @@ void MainWindow::menuAddVariableWatch()
     if (ret == QDialog::Rejected)
         return;
 
-	CConsoleWindow::GetInstance()->GetDebugWatchesWin()->AddVariableWatch(dialog.GetVariableName().toUtf8());
+	CConsoleWindow::GetInstance()->GetDebugWatchesWin()->
+                                  AddVariableWatch(dialog.GetVariableName().toUtf8(),
+                                                   dialog.IsObject(), dialog.IsBreakOnWrite());
 }
 
+void MainWindow::menuCreateVariableWatch()
+{
+    if (CConsoleWindow::GetInstance()->GetDebugWatchesWin()->hasFocus())
+	    CConsoleWindow::GetInstance()->GetDebugWatchesWin()->CreateSelectedWatch();
+    else if (CConsoleWindow::GetInstance()->GetDebugAutosWin()->hasFocus())
+	    CConsoleWindow::GetInstance()->GetDebugAutosWin()->CreateSelectedWatch();
+}
+
+void MainWindow::menuGoToLine()
+{
+    CreateGoToLineDialog dialog(this);
+    int ret = dialog.exec();
+    if (ret == QDialog::Rejected)
+        return;
+
+	CConsoleWindow::GetInstance()->GetDebugSourceWin()->GoToLineNumber(dialog.GetLineNumber());
+}
 // ====================================================================================================================
 
 Q_DECLARE_METATYPE(QDockWidget::DockWidgetFeatures)
@@ -182,6 +275,21 @@ void MainWindow::AddScriptOpenAction(const char* fullPath)
     CScriptOpenAction* scriptOpenAction = new CScriptOpenAction(fullPath, fileHash, actionWidget);
     mScriptOpenActionList.push_back(scriptOpenAction);
     connect(action, SIGNAL(triggered()), actionWidget, SLOT(menuOpenScriptAction()));
+}
+
+// ====================================================================================================================
+// CreateVariableWatch():  Called when using the dialog to create a watch, but with an initial string
+// ====================================================================================================================
+void MainWindow::CreateVariableWatch(const char* watch_string)
+{
+    CreateVarWatchDialog dialog(this);
+    dialog.SetVariableName(watch_string);
+    int ret = dialog.exec();
+    if (ret == QDialog::Rejected)
+        return;
+
+	CConsoleWindow::GetInstance()->GetDebugWatchesWin()->AddVariableWatch(dialog.GetVariableName().toUtf8(),
+                                                                          dialog.IsObject(), dialog.IsBreakOnWrite());
 }
 
 // ====================================================================================================================
@@ -259,28 +367,47 @@ void MainWindow::setupMenuBar()
     menuBar()->addSeparator();
 
     // -- Scripts menu
-    mScriptsMenu = menuBar()->addMenu(tr("&Debug"));
+    QMenu* debug_menu = menuBar()->addMenu(tr("&Debug"));
 
-    action = mScriptsMenu->addAction(tr("Stop  [Shift + F5]"));
+    action = debug_menu->addAction(tr("Stop  [Shift + F5]"));
     connect(action, SIGNAL(triggered()), this, SLOT(menuDebugStop()));
 
-    action = mScriptsMenu->addAction(tr("Run  [F5]"));
+    action = debug_menu->addAction(tr("Run  [F5]"));
     connect(action, SIGNAL(triggered()), this, SLOT(menuDebugRun()));
 
-    action = mScriptsMenu->addAction(tr("Step Over  [F10]"));
+    action = debug_menu->addAction(tr("Step Over  [F10]"));
     connect(action, SIGNAL(triggered()), this, SLOT(menuDebugStepOver()));
 
-    action = mScriptsMenu->addAction(tr("Step In  [F11]"));
+    action = debug_menu->addAction(tr("Step In  [F11]"));
     connect(action, SIGNAL(triggered()), this, SLOT(menuDebugStepIn()));
 
-    action = mScriptsMenu->addAction(tr("Step Out  [Shift + F11]"));
+    action = debug_menu->addAction(tr("Step Out  [Shift + F11]"));
     connect(action, SIGNAL(triggered()), this, SLOT(menuDebugStepOut()));
+
+    debug_menu->addSeparator();
+
+    action = debug_menu->addAction(tr("Add Watch  [Ctrl + W]"));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuAddVariableWatch()));
+
+    action = debug_menu->addAction(tr("Watch Var  [Ctrl + Shift + W]"));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuCreateVariableWatch()));
 
     // -- Scripts menu
     mScriptsMenu = menuBar()->addMenu(tr("&Scripts"));
 
     action = mScriptsMenu->addAction(tr("Open Script..."));
     connect(action, SIGNAL(triggered()), this, SLOT(menuOpenScript()));
+
+    mScriptsMenu->addSeparator();
+
+    action = mScriptsMenu->addAction(tr("Goto Line  [Ctrl + G]"));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuGoToLine()));
+
+    action = mScriptsMenu->addAction(tr("Search  [Ctrl + F]"));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuSearch()));
+
+    action = mScriptsMenu->addAction(tr("Search Again  [F3]"));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuSearchAgain()));
 
     mScriptsMenu->addSeparator();
 
@@ -497,7 +624,7 @@ void MainWindow::menuDebugStepOut()
 }
 
 // ====================================================================================================================
-// openScript():  Slot called when the menu option is selected.
+// menuOpenScript():  Slot called when the menu option is selected.
 // ====================================================================================================================
 void MainWindow::menuOpenScript()
 {
@@ -506,6 +633,24 @@ void MainWindow::menuOpenScript()
         return;
 
     CConsoleWindow::GetInstance()->GetDebugSourceWin()->OpenFullPathFile(fileName.toUtf8(), true);
+}
+
+// ====================================================================================================================
+// menuSearch():  Slot called when the menu option is selected.
+// ====================================================================================================================
+void MainWindow::menuSearch()
+{
+    CConsoleInput* console_input = CConsoleWindow::GetInstance()->GetInput();
+    console_input->OnFindEditFocus();
+}
+
+// ====================================================================================================================
+// menuSearch():  Slot called when the menu option is selected.
+// ====================================================================================================================
+void MainWindow::menuSearchAgain()
+{
+    CConsoleInput* console_input = CConsoleWindow::GetInstance()->GetInput();
+    console_input->OnFindEditReturnPressed();
 }
 
 // ====================================================================================================================

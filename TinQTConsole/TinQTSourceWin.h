@@ -34,14 +34,16 @@
 #include <qtoolbar.h>
 #include <qtoolbutton.h>
 
-class CSourceLine : public QListWidgetItem {
+class CSourceLine : public QListWidgetItem
+{
     public:
         CSourceLine(QByteArray& text, int line_number);
         int mLineNumber;
         bool mBreakpointSet;
 };
 
-class CDebugSourceWin : public QListWidget {
+class CDebugSourceWin : public QListWidget
+{
     Q_OBJECT
 
     public:
@@ -71,6 +73,8 @@ class CDebugSourceWin : public QListWidget {
         bool OpenFullPathFile(const char* fullPath, bool reload = false);
         bool SetSourceView(uint32 codeblock_hash, int32 line_number);
         void SetCurrentPC(uint32 codeblock_hash, int32 line_number);
+        void GoToLineNumber(int32 line_number);
+        void FindInFile(const char* search_string);
         void ToggleBreakpoint(uint32 codeblock_hash, int32 line_number, bool add, bool enable);
         void NotifyCodeblockLoaded(uint32 codeblock_hash);
         void NotifyCodeblockLoaded(const char* filename);
@@ -89,6 +93,8 @@ class CDebugSourceWin : public QListWidget {
         // -- we need to store the current working directory of our debug target
         char mDebuggerDir[kMaxArgLength];
 
+        // -- cache the current visible line (different from the current PC line)
+        int32 mViewLineNumber;
 };
 
 #endif

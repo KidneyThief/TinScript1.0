@@ -73,6 +73,8 @@ class CConsoleWindow
         QLineEdit* GetConnectIP() { return (mConnectIP); }
         QPushButton* GetConnectButton() { return (mButtonConnect); }
         QLineEdit* GetFileLineEdit() { return (mFileLineEdit); }
+        QLineEdit* GetFindLineEdit() { return (mFindLineEdit); }
+        QLabel* GetFindResult() { return (mFindResult); }
         CDebugSourceWin* GetDebugSourceWin() { return (mDebugSourceWin); }
         CDebugBreakpointsWin* GetDebugBreakpointsWin() { return (mBreakpointsWin); }
         CDebugCallstackWin* GetDebugCallstackWin() { return (mCallstackWin); }
@@ -107,12 +109,12 @@ class CConsoleWindow
         CDebugWatchWin* mWatchesWin;
 
         QHBoxLayout* mToolbarLayout;
-        QLabel* mFileLabel;
         QLineEdit* mFileLineEdit;
         QPushButton* mButtonRun;
         QPushButton* mButtonStep;
         QPushButton* mButtonStepIn;
-        QWidget* mSpacer;
+        QLineEdit* mFindLineEdit;
+        QLabel* mFindResult;
 
         // -- notifications
         bool8 IsConnected() const
@@ -130,8 +132,8 @@ class CConsoleWindow
 
         // -- notify breakpoint hit - allows the next update to execute the HandleBreakpointHit()
         // -- keeps the threads separate
-        void NotifyBreakpointHit(uint32 codeblock_hash, int32 line_number);
-        bool HasBreakpoint(uint32& codeblock_hash, int32& line_number);
+        void NotifyBreakpointHit(int32 watch_request_id, uint32 codeblock_hash, int32 line_number);
+        bool HasBreakpoint(int32& watch_request_id, uint32& codeblock_hash, int32& line_number);
         void HandleBreakpointHit(const char* breakpoint_msg);
 
         // -- not dissimilar to a breakpoint
@@ -141,6 +143,7 @@ class CConsoleWindow
 
         // -- breakpoint members
         bool mBreakpointHit;
+        int32 mBreakpointWatchRequestID;
         uint32 mBreakpointCodeblockHash;
         int32 mBreakpointLinenumber;
         bool mBreakpointRun;
@@ -180,6 +183,8 @@ class CConsoleInput : public QLineEdit
         void OnButtonStepPressed();
         void OnButtonStepInPressed();
         void OnButtonStepOutPressed();
+        void OnFindEditFocus();
+        void OnFindEditReturnPressed();
 
     protected:
         virtual void keyPressEvent(QKeyEvent * event);
@@ -257,6 +262,7 @@ class CConsoleOutput : public QListWidget {
         void HandlePacketCurrentWorkingDir(int32* dataPtr);
         void HandlePacketCodeblockLoaded(int32* dataPtr);
         void HandlePacketBreakpointConfirm(int32* dataPtr);
+        void HandlePacketVarWatchConfirm(int32* dataPtr);
         void HandlePacketBreakpointHit(int32* dataPtr);
         void HandlePacketCallstack(int32* dataPtr);
         void HandlePacketWatchVarEntry(int32* dataPtr);

@@ -932,7 +932,7 @@ bool CSocket::ProcessRecvPackets()
         // -- this is technically not thread safe, but it's the only way to break an infinite loop
         else if (recvPacket->mHeader.mType == tPacketHeader::DEBUGGER_BREAK)
         {
-            mScriptContext->SetForceBreak();
+            mScriptContext->SetForceBreak(0);
         }
 
         // -- else if the packet contains a disconnect command

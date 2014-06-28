@@ -98,6 +98,8 @@ CDebugSourceWin::CDebugSourceWin(QWidget* parent) : QListWidget(parent)
 
     // -- initalize the debugger directory
     mDebuggerDir[0] = '\0';
+
+    mViewLineNumber = 0;
 }
 
 CDebugSourceWin::~CDebugSourceWin() {
@@ -242,6 +244,9 @@ bool CDebugSourceWin::SetSourceView(uint32 codeblock_hash, int32 line_number) {
                     scrollToItem(mSourceText.at(0));
 
                 scrollToItem(mSourceText.at(line_number));
+
+                // -- cache the line we're viewing
+                mViewLineNumber = line_number;
             }
         }
         return (result);
@@ -281,6 +286,71 @@ void CDebugSourceWin::SetCurrentPC(uint32 codeblock_hash, int32 line_number) {
             }
         }
     }
+}
+
+// ------------------------------------------------------------------------------------------------
+void CDebugSourceWin::GoToLineNumber(int32 line_number)
+{
+    // -- validate the line number
+    // -- note:  in code lines are counted from 0, but when coming from the user, we count from 1
+    if (line_number < 1 || line_number >= mSourceText.size())
+        return;
+
+    // -- set the source view (line number - 1 to match the zero based array offset)
+    SetSourceView(mCurrentCodeblockHash, line_number - 1);
+}
+
+// ------------------------------------------------------------------------------------------------
+void CDebugSourceWin::FindInFile(const char* search_string)
+{
+    // -- ensure we have a valid search string
+    if (!search_string || !search_string[0])
+        return;
+
+    // -- ensure we have something to search
+    int32 line_count = mSourceText.size();
+    if (line_count <= 0)
+        return;
+
+    // -- we'll use the QString class to do the searchinh
+    QString search(search_string);
+
+    // -- start searching from the line after the current line
+    int found_index = -1;
+    int start_index = (mViewLineNumber + 1) % line_count;
+    for (int i = 0; i < line_count; ++i)
+    {
+        int line_index = (i + start_index) % line_count;
+        CSourceLine* line = mSourceText.at(line_index);
+        if (line->text().contains(search, Qt::CaseInsensitive))
+        {
+            found_index = line_index;
+            break;
+        }
+    }
+
+    // -- if we found our line, set the source view
+    char result_msg[64];
+    if (found_index >= 0)
+    {
+        SetSourceView(mCurrentCodeblockHash, found_index);
+        if (found_index < start_index)
+        {
+            sprintf_s(result_msg, "found: %d  wrapped", found_index + 1);
+        }
+        else
+        {
+            sprintf_s(result_msg, "found: %d", found_index + 1);
+        }
+    }
+    else
+    {
+        strcpy_s(result_msg, "not found");
+        CConsoleWindow::GetInstance()->GetFindResult()->setText("not found");
+    }
+
+    // -- set the result message
+    CConsoleWindow::GetInstance()->GetFindResult()->setText(result_msg);
 }
 
 // ------------------------------------------------------------------------------------------------

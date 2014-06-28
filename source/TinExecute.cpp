@@ -217,8 +217,10 @@ int32 CFunctionCallStack::DebuggerGetStackVarEntries(CScriptContext* script_cont
 }
 
 bool CFunctionCallStack::DebuggerFindStackTopVar(CScriptContext* script_context, CExecStack& execstack,
-                                                 uint32 var_hash, CDebuggerWatchVarEntry& var_entry)
+                                                 uint32 var_hash, CDebuggerWatchVarEntry& watch_entry,
+												 CVariableEntry*& found_ve)
 {
+	found_ve = NULL;
     int32 stack_index = stacktop - 1;
     while (stack_index >= 0)
     {
@@ -228,27 +230,27 @@ bool CFunctionCallStack::DebuggerFindStackTopVar(CScriptContext* script_context,
             if (funcentrystack[stack_index].objentry != NULL && var_hash == Hash("self"))
             {
 				// -- clear the dynamic watch request ID
-				var_entry.mWatchRequestID = 0;
+				watch_entry.mWatchRequestID = 0;
 
 				// -- copy the calling function info
-				var_entry.mFuncNamespaceHash = funcentrystack[stack_index].funcentry->GetNamespaceHash();
-				var_entry.mFunctionHash = funcentrystack[stack_index].funcentry->GetHash();
-				var_entry.mFunctionObjectID = funcentrystack[stack_index].objentry
+				watch_entry.mFuncNamespaceHash = funcentrystack[stack_index].funcentry->GetNamespaceHash();
+				watch_entry.mFunctionHash = funcentrystack[stack_index].funcentry->GetHash();
+				watch_entry.mFunctionObjectID = funcentrystack[stack_index].objentry
 												? funcentrystack[stack_index].objentry->GetID()
 												: 0;
 
 				// -- this isn't a member of an object
-				var_entry.mObjectID = 0;
-				var_entry.mNamespaceHash = 0;
+				watch_entry.mObjectID = 0;
+				watch_entry.mNamespaceHash = 0;
 
 				// -- copy the var type, name and value
-				var_entry.mType = TYPE_object;
-				strcpy_s(var_entry.mVarName, "self");
-				sprintf_s(var_entry.mValue, "%d", funcentrystack[stack_index].objentry->GetID());
+				watch_entry.mType = TYPE_object;
+				strcpy_s(watch_entry.mVarName, "self");
+				sprintf_s(watch_entry.mValue, "%d", funcentrystack[stack_index].objentry->GetID());
 
 				// -- copy the var type
-				var_entry.mVarHash = var_hash;
-				var_entry.mVarObjectID = funcentrystack[stack_index].objentry->GetID();
+				watch_entry.mVarHash = var_hash;
+				watch_entry.mVarObjectID = funcentrystack[stack_index].objentry->GetID();
 
 				return (true);
 			}
@@ -263,25 +265,28 @@ bool CFunctionCallStack::DebuggerFindStackTopVar(CScriptContext* script_context,
 				{
 					if (ve->GetHash() == var_hash)
 					{
+						// -- set the ve result
+						found_ve = ve;
+
 						// -- clear the dynamic watch request ID
-						var_entry.mWatchRequestID = 0;
+						watch_entry.mWatchRequestID = 0;
 
 						// -- copy the calling function info
-						var_entry.mFuncNamespaceHash = funcentrystack[stack_index].funcentry->GetNamespaceHash();
-						var_entry.mFunctionHash = funcentrystack[stack_index].funcentry->GetHash();
-						var_entry.mFunctionObjectID = funcentrystack[stack_index].objentry
+						watch_entry.mFuncNamespaceHash = funcentrystack[stack_index].funcentry->GetNamespaceHash();
+						watch_entry.mFunctionHash = funcentrystack[stack_index].funcentry->GetHash();
+						watch_entry.mFunctionObjectID = funcentrystack[stack_index].objentry
 														? funcentrystack[stack_index].objentry->GetID()
 														: 0;
 
 						// -- this isn't a member of an object
-						var_entry.mObjectID = 0;
-						var_entry.mNamespaceHash = 0;
+						watch_entry.mObjectID = 0;
+						watch_entry.mNamespaceHash = 0;
 
 						// -- copy the var type
-						var_entry.mType = ve->GetType();
+						watch_entry.mType = ve->GetType();
 
 						// -- copy the var name
-						SafeStrcpy(var_entry.mVarName, UnHash(ve->GetHash()), kMaxNameLength);
+						SafeStrcpy(watch_entry.mVarName, UnHash(ve->GetHash()), kMaxNameLength);
 
 						// -- get the address on the stack, where this local var is stored
 						int32 func_stacktop = funcentrystack[stack_index].stackvaroffset;
@@ -289,20 +294,20 @@ bool CFunctionCallStack::DebuggerFindStackTopVar(CScriptContext* script_context,
 						void* stack_var_addr = execstack.GetStackVarAddr(func_stacktop, var_stackoffset);
 
 						// -- copy the value, as a string (to a max length)
-              			gRegisteredTypeToString[ve->GetType()](stack_var_addr, var_entry.mValue, kMaxNameLength);
+              			gRegisteredTypeToString[ve->GetType()](stack_var_addr, watch_entry.mValue, kMaxNameLength);
 
 						// -- fill in the hash of the var name, and if applicable, the var object ID
-						var_entry.mVarHash = ve->GetHash();
-						var_entry.mVarObjectID = 0;
+						watch_entry.mVarHash = ve->GetHash();
+						watch_entry.mVarObjectID = 0;
 						if (ve->GetType() == TYPE_object)
 						{
-							var_entry.mVarObjectID = stack_var_addr ? *(uint32*)stack_var_addr : 0;
+							watch_entry.mVarObjectID = stack_var_addr ? *(uint32*)stack_var_addr : 0;
 
 							// -- ensure the object actually exists
-							if (script_context->FindObjectEntry(var_entry.mVarObjectID) == NULL)
+							if (script_context->FindObjectEntry(watch_entry.mVarObjectID) == NULL)
 							{
-								var_entry.mVarObjectID = 0;
-								var_entry.mValue[0] = '\0';
+								watch_entry.mVarObjectID = 0;
+								watch_entry.mValue[0] = '\0';
 							}
 						}
 
@@ -582,7 +587,8 @@ bool8 DebuggerBreakLoop(CCodeBlock* cb, const uint32* instrptr, CExecStack& exec
     // -- loop until the user makes choice.  Asserts have an additional message
 
     // -- if we're not able to handle the break loop, return false (possibly so an assert can trigger instead)
-    if (!cb || !cb->GetScriptContext() || !cb->GetScriptContext()->IsDebuggerConnected())
+	int32 debugger_session = 0;
+    if (!cb || !cb->GetScriptContext() || !cb->GetScriptContext()->IsDebuggerConnected(debugger_session))
         return (false);
 
     CScriptContext* script_context = cb->GetScriptContext();
@@ -655,7 +661,7 @@ bool8 DebuggerBreakLoop(CCodeBlock* cb, const uint32* instrptr, CExecStack& exec
     }
     else
     {
-        script_context->DebuggerBreakpointHit(codeblock_hash, cur_line);
+        script_context->DebuggerBreakpointHit(script_context->mDebuggerVarWatchRequestID, codeblock_hash, cur_line);
     }
 
     // -- wait for the debugger to either continue to step or run
@@ -716,7 +722,8 @@ bool8 DebuggerBreakLoop(CCodeBlock* cb, const uint32* instrptr, CExecStack& exec
     return (true);
 }
 
-bool8 DebuggerFindStackTopVar(CScriptContext* script_context, uint32 var_hash, CDebuggerWatchVarEntry& var_entry)
+bool8 DebuggerFindStackTopVar(CScriptContext* script_context, uint32 var_hash, CDebuggerWatchVarEntry& watch_entry,
+							  CVariableEntry*& ve)
 {
 	// -- this is only valid while we're broken in the debugger
 	if (!script_context || !script_context->mDebuggerConnected || !script_context->mDebuggerBreakLoopGuard)
@@ -728,7 +735,7 @@ bool8 DebuggerFindStackTopVar(CScriptContext* script_context, uint32 var_hash, C
 
 	return (script_context->mDebuggerBreakFuncCallStack->
 							DebuggerFindStackTopVar(script_context, *script_context->mDebuggerBreakExecStack,
-													var_hash, var_entry));
+													var_hash, watch_entry, ve));
 }
 
 bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
