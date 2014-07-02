@@ -163,6 +163,11 @@ class CFunctionEntry {
         uint32 GetCodeBlockOffset(CCodeBlock*& _codeblock) const;
         CFunctionContext* GetContext();
 
+        CCodeBlock* GetCodeBlock() const
+        {
+            return (mCodeblock);
+        }
+
         eVarType GetReturnType();
         tVarTable* GetLocalVarTable();
         CRegFunctionBase* GetRegObject();

@@ -250,6 +250,10 @@ CConsoleWindow::CConsoleWindow()
     QShortcut* shortcut_WatchVar = new QShortcut(QKeySequence("Ctrl+Shift+W"), mMainWindow);
     QObject::connect(shortcut_WatchVar, SIGNAL(activated()), mMainWindow, SLOT(menuCreateVariableWatch()));
 
+    // Ctrl + Shift + b - Break condition
+    QShortcut* shortcut_BreakCond = new QShortcut(QKeySequence("Ctrl+Shift+B"), mMainWindow);
+    QObject::connect(shortcut_BreakCond, SIGNAL(activated()), mMainWindow, SLOT(menuSetBreakCondition()));
+
     // Ctrl + g - Go to line in the source view
     QShortcut* shortcut_GotoLine = new QShortcut(QKeySequence("Ctrl+G"), mMainWindow);
     QObject::connect(shortcut_GotoLine, SIGNAL(activated()), mMainWindow, SLOT(menuGoToLine()));
@@ -423,18 +427,14 @@ void CConsoleWindow::NotifyOnClose()
     SocketManager::Disconnect();
 }
 
-// ------------------------------------------------------------------------------------------------
-void CConsoleWindow::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number,
-                                      bool add, bool enable) {
+// ====================================================================================================================
+// ToggleBreakpoint():  Central location to forward the request to both the source win and the breakpoints win
+// ====================================================================================================================
+void CConsoleWindow::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number, bool add, bool enable)
+{
     const char* filename = TinScript::UnHash(codeblock_hash);
     if (!filename)
         return;
-
-    // -- send the message
-    if (add && enable)
-        SocketManager::SendCommandf("DebuggerAddBreakpoint('%s', %d);", filename, line_number);
-    else
-        SocketManager::SendCommandf("DebuggerRemoveBreakpoint('%s', %d);", filename, line_number);
 
     // -- notify the Source Window
     GetDebugSourceWin()->ToggleBreakpoint(codeblock_hash, line_number, add, enable);

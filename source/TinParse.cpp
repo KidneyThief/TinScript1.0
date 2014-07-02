@@ -1019,8 +1019,6 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
     // -- a return statement, a create statement, or a destroy statement
 	// -- an expression followed by a semicolon
 	// -- an expression followed by a binary operator, followed by an expression
-	// -- an expression followed by a dereference operator, followed by a member/method
-    // -- a variable of a POD type, followed by a podmember ':' operator, followed by a POD member
 
 	tReadToken firsttoken(filebuf);
 	if(!GetToken(firsttoken))
@@ -1183,112 +1181,6 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 			    return false;
             }
         }
-
-        // -- if we're referencing the member of a POD type
-        else if (nexttoken.type == TOKEN_COLON) {
-
-            // -- we're committed
-            readexpr = nexttoken;
-
-            // -- cache the tree that resolves to a variable of a registered POD type
-            // -- note:  this could still be a function call - e.g.  "GetPosition():x"
-            CCompileTreeNode* templeftchild = *templink;
-
-            // -- ensure we've got an identifier for the member name next
-            tReadToken membertoken(readexpr);
-            if(!GetToken(membertoken) || membertoken.type != TOKEN_IDENTIFIER) {
-                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                              filebuf.linenumber, "Error - Expecting a POD member name\n");
-                return false;
-            }
-
-            // -- we're committed to a POD variable dereference at this point
-            readexpr = membertoken;
-
-            // -- create the member node
-		    CPODMemberNode* objmember = TinAlloc(ALLOC_TreeNode, CPODMemberNode, codeblock,
-                                                    *templink, readexpr.linenumber,
-                                                    membertoken.tokenptr, membertoken.length);
-
-            // -- the left child is the branch that resolves to an object
-            objmember->leftchild = templeftchild;
-
-            // -- successfully read the POD member dereferrence, get the next token
-            nexttoken = readexpr;
-            if(!GetToken(nexttoken)) {
-			    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                              readexpr.linenumber, "Error - expecting ';'\n");
-			    return false;
-            }
-        }
-
-        // -- see if we're dereferencing an object
-        else if(nexttoken.type == TOKEN_PERIOD) {
-
-            // -- we're committed
-            readexpr = nexttoken;
-
-            // -- cache the tree that resolves to an object ID
-            CCompileTreeNode* templeftchild = *templink;
-
-            // -- ensure we've got an identifier for the member name next
-            tReadToken membertoken(readexpr);
-            if(!GetToken(membertoken) || membertoken.type != TOKEN_IDENTIFIER) {
-                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                              filebuf.linenumber, "Error - Expecting a member name\n");
-                return false;
-            }
-
-            // -- determine if we actually have a method call, and not just a member
-            tReadToken methodcalltoken(readexpr);
-            if(TryParseFuncCall(codeblock, methodcalltoken, *templink, true)) {
-
-                // -- we're committed to a method call
-                readexpr = methodcalltoken;
-
-                // -- create an object method node, the left child will resolve to the objectID
-                // -- and the right child will be the tree handling the method call
-                CCompileTreeNode* temprightchild = *templink;
-		        CObjMethodNode* objmethod = TinAlloc(ALLOC_TreeNode, CObjMethodNode, codeblock,
-                                                     *templink, readexpr.linenumber,
-                                                     membertoken.tokenptr, membertoken.length);
-
-                // -- the left child is the branch that resolves to an object
-                objmethod->leftchild = templeftchild;
-                objmethod->rightchild = temprightchild;
-            }
-
-            // -- not a method - we've already read the member name
-            else {
-
-                // -- we're committed to an object dereference at this point
-                readexpr = membertoken;
-
-                // -- create the member node
-		        CObjMemberNode* objmember = TinAlloc(ALLOC_TreeNode, CObjMemberNode, codeblock,
-                                                     *templink, readexpr.linenumber,
-                                                     membertoken.tokenptr, membertoken.length);
-
-                // -- the left child is the branch that resolves to an object
-                objmember->leftchild = templeftchild;
-
-                // -- see if we've got a hashtable expression - the right child will resolve
-                // -- to a hash value
-                tReadToken arrayhashtoken(readexpr);
-                if(TryParseArrayHash(codeblock, arrayhashtoken, objmember->rightchild)) {
-                    // -- we're committed to a method hashtable lookup
-                    readexpr = methodcalltoken;
-                }
-            }
-
-            // -- successfully read the rhs, get the next token
-            nexttoken = readexpr;
-            if(!GetToken(nexttoken)) {
-			    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                              readexpr.linenumber, "Error - expecting ';'\n");
-			    return false;
-            }
-        }
         else {
 		    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           readexpr.linenumber, "Error - expecting ';'\n");
@@ -1301,162 +1193,69 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 }
 
 // ------------------------------------------------------------------------------------------------
-bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
-
-	// -- an expression is one of:
-    // -- a function call
+bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link)
+{
+	// -- an expression is:
     // -- a schedule call
     // -- a new object
-    // -- self
+    // -- a function call
+    // -- possibly a leading unary operator, followed by
+    // -- possibly a 'self' keyword,  or a value (integer, refering to an object)
+    // -- a chain of identifiers and method calls separated by dereference operators '.'
+    // -- a variable of a POD type, followed by a podmember ':' operator, followed by a POD member
 	// -- a var/value/hash table entry
     // -- basically anything that results in pushing a value onto the stack
 
-    // -- any expression can be preceeded by a unary op, which, because it has the highest
-    // -- precedence, is essentially part of the expression
-	tReadToken unarytoken(filebuf);
-	if(!GetToken(unarytoken, true))
+	// -- see if we've got a unary operator
+	tReadToken firsttoken(filebuf);
+	if (!GetToken(firsttoken, true))
 		return false;
 
     CUnaryOpNode* unarynode = NULL;
-    if(unarytoken.type == TOKEN_UNARY) {
-        eUnaryOpType unarytype = GetUnaryOpType(unarytoken.tokenptr, unarytoken.length);
+    if (firsttoken.type == TOKEN_UNARY)
+    {
+        eUnaryOpType unarytype = GetUnaryOpType(firsttoken.tokenptr, firsttoken.length);
 		unarynode = TinAlloc(ALLOC_TreeNode, CUnaryOpNode, codeblock, link, filebuf.linenumber,
                              unarytype);
 
         // -- committed
-        filebuf = unarytoken;
+        filebuf = firsttoken;
+
+        // -- read the next token  (an expression can't end after just a unary operator...)
+        if (!GetToken(firsttoken))
+            return (false);
     }
 
     // -- the new link to connect to is either the given, or the left child of the unary op
     CCompileTreeNode*& exprlink = (unarynode != NULL) ? unarynode->leftchild : link;
 
-    if(TryParseFuncCall(codeblock, filebuf, exprlink, false)) {
-        return true;
-    }
-
-    if(TryParseSchedule(codeblock, filebuf, exprlink)) {
-        return true;
-    }
-
-    if(TryParseCreateObject(codeblock, filebuf, exprlink)) {
-        return true;
-    }
-
-	// -- read the first token
-	tReadToken firsttoken(filebuf);
-	if(!GetToken(firsttoken))
-		return false;
-
-    // -- the only allowed keyword to serve as an expression is 'self'
-    if(firsttoken.type == TOKEN_KEYWORD) {
-	    int32 reservedwordtype = GetReservedKeywordType(firsttoken.tokenptr, firsttoken.length);
-	    if (reservedwordtype == KEYWORD_self) {
-            // -- committed to self
-            filebuf = firsttoken;
-		    CSelfNode* selfnode = TinAlloc(ALLOC_TreeNode, CSelfNode, codeblock, exprlink,
-                                           filebuf.linenumber);
-            Unused_(selfnode);
-            return true;
-        }
-        else
-            return false;
-    }
-
-	// -- ensure we didn't find a type
-	if(firsttoken.type == TOKEN_REGTYPE) {
-		return false;
-	}
-
-    // -- if we've got a first class value...
-    eVarType firstclassvartype;
-    if(IsFirstClassValue(firsttoken.type, firstclassvartype)) {
-        // -- committed to value
-        filebuf = firsttoken;
-
-		CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, exprlink, filebuf.linenumber,
-                                         firsttoken.tokenptr, firsttoken.length, false,
-                                         firstclassvartype);
-        Unused_(valuenode);
-        return true;
-    }
-
-    // -- if we've got an identifier, see if it's a variable
-	if(firsttoken.type == TOKEN_IDENTIFIER) {
-        int32 stacktopdummy = 0;
-        CObjectEntry* dummy = NULL;
-        CFunctionEntry* curfunction = codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
-		uint32 varhash = Hash(firsttoken.tokenptr, firsttoken.length);
-        uint32 funchash = curfunction ? curfunction->GetHash() : 0;
-        uint32 nshash = curfunction ? curfunction->GetNamespaceHash() : 0;
-        CVariableEntry* var = GetVariable(codeblock->GetScriptContext(),
-                                          codeblock->smCurrentGlobalVarTable, nshash, funchash,
-                                          varhash, 0);
-		if(var) {
-            filebuf = firsttoken;
-
-		    CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, exprlink, filebuf.linenumber,
-                                             firsttoken.tokenptr, firsttoken.length, true,
-                                             var->GetType());
-
-            // -- if the type is a hash table, try to parse a hash table lookup
-            tReadToken arrayhashtoken(filebuf);
-            if(TryParseArrayHash(codeblock, arrayhashtoken, valuenode->rightchild)) {
-                // -- we're committed to a method hashtable lookup
-                filebuf = arrayhashtoken;
-            }
-
-			return true;
-		}
-        // $$$TZA not currently able to provide this assumption for methods... questionable
-        // -- to allow the difference, so disabling for now...
-        // -- also...  during the conversion from TinScript to C, "self.member" will be useful
-        // -- to identify custom conversion requirements
-        /*
-        else if(funchash != 0 && nshash != 0) {
-            // -- if we're inside a namespaced function, assume this is a member.
-            // -- no way to verify, but it will assert on execution
-            filebuf = firsttoken;
-		    CObjMemberNode* objmember =
-                TinAlloc(ALLOC_TreeNode, CObjMemberNode, codeblock, exprlink, filebuf.linenumber,
-                                    firsttoken.tokenptr, firsttoken.length);
-
-            // -- push a 'self' node as the left child
-		    CSelfNode* selfnode = TinAlloc(ALLOC_TreeNode, CSelfNode, codeblock, objmember->leftchild, filebuf.linenumber);
-
-            return true;
-        }
-        */
-        else {
-            // -- identifier but not a keyword or type, and we're not inside a namespaced method,
-            // -- so this can't be a member
-            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                          firsttoken.linenumber,
-                          "Error - unknown identifier: %s\n", TokenPrint(firsttoken));
-            return false;
-        }
-    }
+    // -- use a temporary root to construct expression, before linking it to the rest of the tree
+    CCompileTreeNode* expression_root = NULL;
+    CCompileTreeNode** temp_link = &expression_root;
 
     // -- if the first token is an opening parenthesis, add the node to the tree and
     // -- parse the contained expression
-    if(firsttoken.type == TOKEN_PAREN_OPEN) {
+    if (firsttoken.type == TOKEN_PAREN_OPEN)
+    {
         filebuf = firsttoken;
-        CParenOpenNode* parenopennode = TinAlloc(ALLOC_TreeNode, CParenOpenNode, codeblock,
-                                                 exprlink, filebuf.linenumber);
+        CParenOpenNode* parenopennode = TinAlloc(ALLOC_TreeNode, CParenOpenNode, codeblock, *temp_link,
+                                                 filebuf.linenumber);
 
         // -- increment the parenthesis stack
         ++gGlobalExprParenDepth;
 
         // -- read the statement that should exist between the parenthesis
         int32 result = TryParseStatement(codeblock, filebuf, parenopennode->leftchild);
-        if(!result) {
-            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                          firsttoken.linenumber,
+        if (!result)
+        {
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), firsttoken.linenumber,
                           "Error - Unable to parse expression following '('\n");
             return false;
         }
 
         // -- read the closing parenthesis
-        if(!GetToken(filebuf) || filebuf.type != TOKEN_PAREN_CLOSE) {
+        if (!GetToken(filebuf) || filebuf.type != TOKEN_PAREN_CLOSE)
+        {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber, "Error - expecting ')'\n");
             return false;
@@ -1467,18 +1266,237 @@ bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
 
         // -- the leftchild of the parenopennode is our value, so we use it
         // -- hook up the link to the correct subtree, and delete the unneeded paren node
-        exprlink = parenopennode->leftchild;
+        *temp_link = parenopennode->leftchild;
         parenopennode->leftchild = NULL;
         TinFree(parenopennode);
 
         // -- override the binary op precedence, as we don't sort past a parenthesized sub-tree
-        if (exprlink->GetType() == eBinaryOp)
+        if ((*temp_link)->GetType() == eBinaryOp)
         {
-            static_cast<CBinaryOpNode*>(exprlink)->OverrideBinaryOpPrecedence(0);
+            static_cast<CBinaryOpNode*>(*temp_link)->OverrideBinaryOpPrecedence(0);
         }
+
+        // -- hook the parenthetical expression up to the actual tree (possibly as the child of the unary op)
+        exprlink = expression_root;
 
         // -- success
         return true;
+    }
+
+    // -- a schedule is completes an expression
+    if (TryParseSchedule(codeblock, filebuf, exprlink))
+        return true;
+
+    // -- a create object completes an expression
+    if (TryParseCreateObject(codeblock, filebuf, exprlink))
+        return true;
+
+    // -- a first class value that is *not* an integer completes an expression
+    // -- (an integer can be followed by a dereference operator, and then it becomes an object ID)
+    eVarType firstclassvartype;
+    if (IsFirstClassValue(firsttoken.type, firstclassvartype) && firstclassvartype != TYPE_int)
+    {
+        // -- committed to value
+        filebuf = firsttoken;
+
+		CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, exprlink, filebuf.linenumber,
+                                         firsttoken.tokenptr, firsttoken.length, false,
+                                         firstclassvartype);
+        return true;
+    }
+
+    // -- after the potential unary op, an expression may start with:
+    // -- a 'self'
+    // -- a function call (not a method)
+    // -- an identifier
+    // -- an integer
+    if (firsttoken.type == TOKEN_KEYWORD)
+    {
+	    int32 reservedwordtype = GetReservedKeywordType(firsttoken.tokenptr, firsttoken.length);
+	    if (reservedwordtype == KEYWORD_self)
+        {
+            // -- committed to self
+            filebuf = firsttoken;
+		    CSelfNode* selfnode = TinAlloc(ALLOC_TreeNode, CSelfNode, codeblock, *temp_link, filebuf.linenumber);
+        }
+        else
+            return false;
+    }
+
+    // -- function call
+    else if (TryParseFuncCall(codeblock, filebuf, *temp_link, false))
+    {
+        // -- committed to function call, filebuf will have already been updated
+    }
+
+    // -- if we've got a first class value... (we've already read the firsttoken in)
+    else if (IsFirstClassValue(firsttoken.type, firstclassvartype) && firstclassvartype == TYPE_int)
+    {
+        // -- committed to value
+        filebuf = firsttoken;
+
+		TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, *temp_link, filebuf.linenumber, firsttoken.tokenptr,
+                 firsttoken.length, false, firstclassvartype);
+    }
+
+    // -- if we've got an identifier, see if it's a variable
+	else if (firsttoken.type == TOKEN_IDENTIFIER)
+    {
+        int32 stacktopdummy = 0;
+        CObjectEntry* dummy = NULL;
+        CFunctionEntry* curfunction = codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
+		uint32 varhash = Hash(firsttoken.tokenptr, firsttoken.length);
+        uint32 funchash = curfunction ? curfunction->GetHash() : 0;
+        uint32 nshash = curfunction ? curfunction->GetNamespaceHash() : 0;
+        CVariableEntry* var = GetVariable(codeblock->GetScriptContext(),
+                                          codeblock->smCurrentGlobalVarTable, nshash, funchash,
+                                          varhash, 0);
+		if (var)
+        {
+            // -- we're committed to the variable
+            filebuf = firsttoken;
+
+		    CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, *temp_link, filebuf.linenumber,
+                                             firsttoken.tokenptr, firsttoken.length, true,
+                                             var->GetType());
+
+            // -- if the type is a hash table, try to parse a hash table lookup
+            tReadToken arrayhashtoken(filebuf);
+            if (TryParseArrayHash(codeblock, arrayhashtoken, valuenode->rightchild))
+            {
+                // -- we're committed to a method hashtable lookup
+                filebuf = arrayhashtoken;
+            }
+		}
+        else
+        {
+            // -- identifier, but at the start of an expression,
+            // -- this can only be a variable (not a member, type, keyword, etc...)
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), firsttoken.linenumber,
+                          "Error - unknown identifier: %s\n", TokenPrint(firsttoken));
+            return false;
+        }
+    }
+
+    // -- at this point, we have a valid expression, that is either complete, or can be a sequence of dereferences
+    while (true)
+    {
+	    // -- read the next token - an expression is not the end of a statement - if we have no next token,
+        // -- something is amiss
+	    tReadToken nexttoken(filebuf);
+	    if (!GetToken(nexttoken))
+		    return false;
+
+        // -- see if we're dereferencing an object, then our expression is not complete - we need a method or member
+        if (nexttoken.type == TOKEN_PERIOD)
+        {
+            // -- we're committed to a dereference operator
+            filebuf = nexttoken;
+
+            // -- either we have a member, or a method after the period
+            // -- cache the tree that resolves to an object ID
+            CCompileTreeNode* templeftchild = *temp_link;
+
+            // -- ensure we've got an identifier for the member name next
+            tReadToken membertoken(filebuf);
+            if (!GetToken(membertoken) || membertoken.type != TOKEN_IDENTIFIER)
+            {
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber, "Error - Expecting a member name\n");
+                return false;
+            }
+
+            // -- determine if we actually have a method call, and not just a member
+            tReadToken methodcalltoken(filebuf);
+            if (TryParseFuncCall(codeblock, methodcalltoken, *temp_link, true))
+            {
+                // -- we're committed to a method call
+                filebuf = methodcalltoken;
+
+                // -- create an object method node, the left child will resolve to the objectID
+                // -- and the right child will be the tree handling the method call
+                CCompileTreeNode* temprightchild = *temp_link;
+		        CObjMethodNode* objmethod = TinAlloc(ALLOC_TreeNode, CObjMethodNode, codeblock, *temp_link,
+                                                     membertoken.linenumber, membertoken.tokenptr, membertoken.length);
+
+                // -- the left child is the branch that resolves to an object
+                objmethod->leftchild = templeftchild;
+                objmethod->rightchild = temprightchild;
+            }
+
+            // -- not a method - we've already read the member name
+            else
+            {
+                // -- we're committed to an object dereference at this point
+                filebuf = membertoken;
+
+                // -- create the member node
+		        CObjMemberNode* objmember = TinAlloc(ALLOC_TreeNode, CObjMemberNode, codeblock, *temp_link,
+                                                     membertoken.linenumber, membertoken.tokenptr, membertoken.length);
+
+                // -- the left child is the branch that resolves to an object
+                objmember->leftchild = templeftchild;
+
+                // $$$TZA  hashtables can only be global variables, atm...  if we allow them
+                // -- to become members, then we'll re-enable this logic
+                /*
+                // -- see if we've got a hashtable expression - the right child will resolve
+                // -- to a hash value
+                tReadToken arrayhashtoken(filebuf);
+                if (TryParseArrayHash(codeblock, arrayhashtoken, objmember->rightchild))
+                {
+                    // -- we're committed to a method hashtable lookup
+                    filebuf = arrayhashtoken;
+                }
+                */
+            }
+        }
+
+        // -- else if we have a colon, we're dereferrencing a member of a registered POD type
+        else if (nexttoken.type == TOKEN_COLON)
+        {
+            // -- we're committed
+            filebuf = nexttoken;
+
+            // -- cache the tree that resolves to a variable of a registered POD type
+            // -- note:  this could still be a function call - e.g.  "GetPosition():x"
+            CCompileTreeNode* templeftchild = *temp_link;
+
+            // -- ensure we've got an identifier for the member name next
+            tReadToken membertoken(filebuf);
+            if (!GetToken(membertoken) || membertoken.type != TOKEN_IDENTIFIER)
+            {
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber, "Error - Expecting a POD member name\n");
+                return false;
+            }
+
+            // -- we're committed to a POD variable dereference at this point
+            filebuf = membertoken;
+
+            // -- create the member node
+		    CPODMemberNode* objmember = TinAlloc(ALLOC_TreeNode, CPODMemberNode, codeblock, *temp_link,
+                                                 membertoken.linenumber, membertoken.tokenptr, membertoken.length);
+
+            // -- the left child is the branch that resolves to an object
+            objmember->leftchild = templeftchild;
+
+            // -- and because POD members do not continue to be dereferenced, this is the end of the expression
+            exprlink = expression_root;
+
+            // -- and we're done
+            return (true);
+        }
+
+        // -- otherwise, we've hit the end of our expression
+        else
+        {
+            // -- hook up our expression sub-tree to the rest of the tree
+            exprlink = expression_root;
+
+            // -- and we're done
+            return (true);
+        }
     }
 
 	// -- not an expression
@@ -2755,16 +2773,12 @@ bool8 ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& link, tReadT
 		// -- parsing node priority
 		bool8 found = false;
 		found = found || TryParseVarDeclaration(codeblock, filetokenbuf, curroot->next);
+        found = found || TryParseFuncDefinition(codeblock, filetokenbuf, curroot->next);
 		found = found || TryParseStatement(codeblock, filetokenbuf, curroot->next);
 		found = found || TryParseIfStatement(codeblock, filetokenbuf, curroot->next);
 		found = found || TryParseWhileLoop(codeblock, filetokenbuf, curroot->next);
 		found = found || TryParseForLoop(codeblock, filetokenbuf, curroot->next);
 		found = found || TryParseDestroyObject(codeblock, filetokenbuf, curroot->next);
-
-        // -- the only time we're legitimately allowed to parse a function definition,
-        // -- is when we're not in the middle of some other statement block
-        // -- until we support anonymous functions
-        found = found || TryParseFuncDefinition(codeblock, filetokenbuf, curroot->next);
 
 		if(found) {
 			// -- always add to the end of the current root linked list

@@ -50,7 +50,6 @@ class CWatchEntry : public QTreeWidgetItem {
         void UpdateValue(const char* newValue);
 
         TinScript::CDebuggerWatchVarEntry mDebuggerEntry;
-        bool mIsObject;
         bool mBreakOnWrite;
         bool mRequestSent;
 };
@@ -90,10 +89,11 @@ class CDebugWatchWin : public QTreeWidget {
         CWatchEntry* FindWatchEntry(uint32 funcHash, uint32 objectID, uint32 nsHash, bool& foundNamespaceLabel);
         CWatchEntry* FindWatchEntry(uint32 funcHash, uint32 objectID, uint32 nsHash, uint32 memberHash, bool isMember);
 
+        void UpdateReturnValueEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry);
         void AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry);
         void AddObjectMemberEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry);
 
-		void AddVariableWatch(const char* variableWatch, bool isObject = false, bool breakOnWrite = false);
+		void AddVariableWatch(const char* variableWatch, bool breakOnWrite = false);
         void CreateSelectedWatch();
 
         void ClearWatchWin();

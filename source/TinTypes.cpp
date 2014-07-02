@@ -415,10 +415,9 @@ void* TypeConvert(CScriptContext* script_context, eVarType fromtype, void* froma
     return (NULL);
 }
 
-extern bool gDebugTrace;
 const char* DebugPrintVar(void* addr, eVarType vartype)
 {
-    if (!gDebugTrace)
+    if (!CScriptContext::gDebugTrace)
         return ("");
 
     static int32 bufferindex = 0;

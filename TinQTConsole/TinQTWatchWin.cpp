@@ -45,7 +45,6 @@ int CDebugWatchWin::gVariableWatchRequestID = 1;  // zero is "not a dynamic var 
 
 CWatchEntry::CWatchEntry(const TinScript::CDebuggerWatchVarEntry& debugger_entry, bool isObject, bool breakOnWrite)
     : QTreeWidgetItem()
-    , mIsObject(isObject)
     , mBreakOnWrite(breakOnWrite)
     , mRequestSent(false)
 {
@@ -133,6 +132,54 @@ CDebugWatchWin::~CDebugWatchWin()
     clear();
 }
 
+void CDebugWatchWin::UpdateReturnValueEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry)
+{
+    // -- find the current "return value" entry
+    static uint32 _return_hash = TinScript::Hash("_return");
+    int entry_index = 0;
+    while (entry_index < mWatchList.size())
+    {
+        CWatchEntry* entry = mWatchList.at(entry_index);
+        if (entry->mDebuggerEntry.mFuncNamespaceHash == 0 &&
+            entry->mDebuggerEntry.mFunctionHash == 0 &&
+            entry->mDebuggerEntry.mFunctionObjectID == 0 &&
+            entry->mDebuggerEntry.mVarHash == _return_hash)
+        {
+            // -- update the type and value, including clearing children if needed
+            if (entry->mDebuggerEntry.mType == TinScript::TYPE_object &&
+                watch_var_entry.mType != TinScript::TYPE_object)
+            {
+                RemoveWatchVarChildren(entry_index);
+            }
+
+            // -- update the type (it may have been undetermined)
+            entry->UpdateType(watch_var_entry.mType);
+
+            // -- if the type is a variable, copy the object ID as well
+            if (watch_var_entry.mType == TinScript::TYPE_object)
+            {
+                // -- if we're changing objects, we need to delete the children
+                if (entry->mDebuggerEntry.mVarObjectID != watch_var_entry.mVarObjectID)
+                    RemoveWatchVarChildren(entry_index);
+
+                // -- set the new object ID
+                entry->mDebuggerEntry.mVarObjectID = watch_var_entry.mVarObjectID;
+            }
+
+			// -- update the value
+			entry->UpdateValue(watch_var_entry.mValue);
+
+            // -- and we're done
+            return;
+        }
+    }
+
+    // -- we didn't already find it - add it
+    CWatchEntry* new_entry = new CWatchEntry(watch_var_entry);
+    addTopLevelItem(new_entry);
+    mWatchList.insert(0, new_entry);
+}
+
 void CDebugWatchWin::AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry)
 {
     // -- find out what function call is currently selected on the stack
@@ -144,6 +191,16 @@ void CDebugWatchWin::AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& w
                                                                                      cur_func_object_id);
     if (current_stack_index < 0)
     {
+        return;
+    }
+
+    // -- "_return" is special, as it's the value returned by th last function call, and not
+    // -- part of any individual stack
+    static uint32 _return_hash = TinScript::Hash("_return");
+    if (watch_var_entry.mFuncNamespaceHash == 0 && watch_var_entry.mFunctionHash == 0 && 
+        watch_var_entry.mFunctionObjectID == 0 && watch_var_entry.mVarHash == _return_hash)
+    {
+        UpdateReturnValueEntry(watch_var_entry);
         return;
     }
 
@@ -332,7 +389,7 @@ void CDebugWatchWin::AddObjectMemberEntry(const TinScript::CDebuggerWatchVarEntr
 // ====================================================================================================================
 // AddVariableWatch():  Dynamically add a watch to be updated by the debugger
 // ====================================================================================================================
-void CDebugWatchWin::AddVariableWatch(const char* variableWatch, bool isObject, bool breakOnWrite)
+void CDebugWatchWin::AddVariableWatch(const char* variableWatch, bool breakOnWrite)
 {
 	if (!variableWatch || !variableWatch[0])
 		return;
@@ -369,16 +426,15 @@ void CDebugWatchWin::AddVariableWatch(const char* variableWatch, bool isObject, 
     new_watch.mVarObjectID = 0;
 
 	// -- we're allowed *anything* including duplicates when adding variable watches
-	CWatchEntry* new_entry = new CWatchEntry(new_watch, isObject, breakOnWrite);
+	CWatchEntry* new_entry = new CWatchEntry(new_watch, breakOnWrite);
     addTopLevelItem(new_entry);
     mWatchList.append(new_entry);
 
 	// -- send the request to the target, if we're currently in a break point
     if (CConsoleWindow::GetInstance()->mBreakpointHit)
     {
-        SocketManager::SendCommandf("DebuggerAddVariableWatch(%d, `%s`, %s, %s);",
+        SocketManager::SendCommandf("DebuggerAddVariableWatch(%d, `%s`, %s);",
                                     new_watch.mWatchRequestID, variableWatch,
-                                    isObject ? "true" : "false",
                                     breakOnWrite ? "true" : "false");
         new_entry->mRequestSent = true;
     }
@@ -606,9 +662,8 @@ void CDebugWatchWin::NotifyBreakpointHit()
 		{
 			// -- send the request to the target
             // -- note:  we don't flag it for break unless the request hasn't yet been sent
-			SocketManager::SendCommandf("DebuggerAddVariableWatch(%d, `%s`, %s, %s);",
+			SocketManager::SendCommandf("DebuggerAddVariableWatch(%d, `%s`, %s);",
                                         entry->mDebuggerEntry.mWatchRequestID, entry->mDebuggerEntry.mVarName,
-                                        entry->mIsObject ? "true" : "false",
                                         !entry->mRequestSent && entry->mBreakOnWrite ? "true" : "false");
             entry->mRequestSent = true;
 		}

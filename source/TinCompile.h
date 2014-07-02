@@ -657,7 +657,7 @@ class CCodeBlock {
         // -- debugger interface
         bool8 HasBreakpoints();
         int32 AdjustLineNumber(int32 line_number);
-        int32 AddBreakpoint(int32 line_number);
+        int32 AddBreakpoint(int32 line_number, const char* condition);
         int32 RemoveBreakpoint(int32 line_number);
         void RemoveAllBreakpoints();
 
@@ -711,7 +711,7 @@ class CCodeBlock {
         tFuncTable* mFunctionList;
 
         // -- keep a list of all lines to be broken on, for this code block
-        CHashTable<int32>* mBreakpoints;
+        CHashTable<CDebuggerWatchExpression>* mBreakpoints;
 };
 
 // ------------------------------------------------------------------------------------------------

@@ -101,6 +101,7 @@ public slots:
 
 	void menuAddVariableWatch();
 	void menuCreateVariableWatch();
+    void menuSetBreakCondition();
     void menuGoToLine();
     void menuSearch();
     void menuSearchAgain();

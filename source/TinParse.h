@@ -274,7 +274,7 @@ const char* GetAssOperatorString(eAssignOpType assop);
 
 bool8 DumpFile(const char* filename);
 
-void DumpTree(const char* root, int32 indent);
+void DumpTree(const CCompileTreeNode* root, int32 indent, bool8 isleft, bool8 isright);
 void DestroyTree(CCompileTreeNode* root);
 
 int32 CalcVarTableSize(tVarTable* vartable);

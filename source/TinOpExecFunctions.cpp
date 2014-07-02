@@ -36,12 +36,9 @@
 
 namespace TinScript {
 
-// enable this for debug output while the executing the virtual machine
-bool8 gDebugTrace = false;
-
 void DebugTrace(eOpCode opcode, const char* fmt, ...) {
 #if DEBUG_TRACE
-    if(!gDebugTrace)
+    if(!CScriptContext::gDebugTrace)
         return;
     // -- expand the formated buffer
     va_list args;
@@ -1840,12 +1837,14 @@ bool8 OpExecEOF(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack&
 
 // ------------------------------------------------------------------------------------------------
 // Debug helper functions
-void SetDebugTrace(bool8 torf) {
-    gDebugTrace = torf;
+void SetDebugTrace(bool8 torf)
+{
+    CScriptContext::gDebugTrace = torf;
 }
 
-bool8 GetDebugParseTree() {
-    return gDebugTrace;
+bool8 GetDebugParseTree()
+{
+    return (CScriptContext::gDebugTrace);
 }
 
 REGISTER_FUNCTION_P1(SetDebugTrace, SetDebugTrace, void, bool8);

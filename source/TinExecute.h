@@ -253,7 +253,6 @@ class CFunctionCallStack {
 
 		bool DebuggerFindStackTopVar(CScriptContext* script_context, CExecStack& execstack, uint32 var_hash,
 								     CDebuggerWatchVarEntry& watch_entry, CVariableEntry*& ve);
-		bool DebuggerSetBreakOnWrite(int32 stack_offset, bool enabled);
 
         void BeginExecution(const uint32* instrptr);
         void BeginExecution();

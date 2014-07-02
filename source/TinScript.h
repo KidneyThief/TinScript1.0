@@ -239,6 +239,25 @@ class CDebuggerWatchVarEntry
         uint32 mVarObjectID;
 };
 
+// ====================================================================================================================
+// class CDebuggerWatchExpression:  Holds the string expression, and the codeblock and function entry
+// so repeated evaluation is efficient
+// ====================================================================================================================
+class CDebuggerWatchExpression
+{
+    public:
+        CDebuggerWatchExpression(const char* expression, bool8 isConditional);
+        ~CDebuggerWatchExpression();
+
+        void SetExpression(const char* new_expression);
+
+        static int gWatchExpressionID;
+        int32 mWatchID;
+        bool8 mIsConditional;
+        char mExpression[kMaxNameLength];
+        CFunctionEntry* mWatchFunctionEntry;
+};
+
 // ------------------------------------------------------------------------------------------------
 class CScriptContext {
 
@@ -344,7 +363,7 @@ class CScriptContext {
         void SetDebuggerConnected(bool8 connected);
         bool IsDebuggerConnected(int32& debugger_session);
         void DebuggerNotifyAssert();
-        void AddBreakpoint(const char* filename, int32 line_number);
+        void AddBreakpoint(const char* filename, int32 line_number, const char* conditional);
         void RemoveBreakpoint(const char* filename, int32 line_number);
         void RemoveAllBreakpoints(const char* filename);
         void SetForceBreak(int32 watch_var_request_id);
@@ -353,7 +372,15 @@ class CScriptContext {
 
 		void InitWatchEntryFromVarEntry(CVariableEntry& ve, void* obj_addr, CDebuggerWatchVarEntry& watch_entry,
 										CObjectEntry*& oe);
-		void AddVariableWatch(int32 request_id, const char* expression, bool isObject, bool breakOnWrite);
+		void AddVariableWatch(int32 request_id, const char* expression, bool breakOnWrite);
+
+        bool8 HasWatchExpression(CDebuggerWatchExpression& debugger_watch);
+        bool8 SetWatchExpression(CDebuggerWatchExpression& debugger_watch, const char* new_expression);
+        bool8 InitWatchExpression(CDebuggerWatchExpression& debugger_watch, CFunctionCallStack& call_stack);
+        bool8 EvalWatchExpression(CDebuggerWatchExpression& debugger_watch, CFunctionCallStack& cur_call_stack,
+                                  CExecStack& cur_exec_stack);
+
+        bool8 EvaluateWatchExpression(const char* expression, bool8 conditional);
 		void ToggleVarWatch(int32 watch_request_id, uint32 object_id, uint32 var_name_hash, bool breakOnWrite);
 
         // -- set the bool to indicate we're not stepping through each line in a debugger
@@ -385,6 +412,11 @@ class CScriptContext {
                                         tVarTable* var_table);
         void DebuggerSendAssert(const char* assert_msg, uint32 codeblock_hash, int32 line_number);
         void DebuggerSendPrint(const char* fmt, ...);
+
+        // -- useful debugging statics
+        static bool8 gDebugParseTree;
+        static bool8 gDebugCodeBlock;
+        static bool8 gDebugTrace;
         
         // -- Thread commands are only supported in WIN32
         #ifdef WIN32

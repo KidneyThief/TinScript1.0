@@ -68,6 +68,7 @@
 #include "TinQTConsole.h"
 #include "TinQTSourceWin.h"
 #include "TinQTWatchWin.h"
+#include "TinQTBreakpointsWin.h"
 
 // ====================================================================================================================
 // -- class implementation for add variable watch dialog
@@ -78,12 +79,10 @@ public:
 
     void SetVariableName(const char* variable_name);
     QString GetVariableName() const;
-    bool IsObject() const;
     bool IsBreakOnWrite() const;
 
 private:
     QLineEdit *mVariableName;
-    QCheckBox* mIsObject;
     QCheckBox* mBreakOnWrite;
 };
 
@@ -98,15 +97,12 @@ CreateVarWatchDialog::CreateVarWatchDialog(QWidget *parent)
     mVariableName = new QLineEdit;
     layout->addWidget(mVariableName, 0, 1);
 
-    mIsObject = new QCheckBox;
-    layout->addWidget(mIsObject, 1, 0);
-    layout->addWidget(new QLabel(tr("Is Object")), 1, 1);
     mBreakOnWrite = new QCheckBox;
-    layout->addWidget(mBreakOnWrite, 2, 0);
-    layout->addWidget(new QLabel(tr("Break On Write")), 2, 1);
+    layout->addWidget(mBreakOnWrite, 1, 0);
+    layout->addWidget(new QLabel(tr("Break On Write")), 1, 1);
 
     QHBoxLayout *buttonLayout = new QHBoxLayout;
-    layout->addLayout(buttonLayout, 3, 0, 1, 2);
+    layout->addLayout(buttonLayout, 2, 0, 1, 2);
     buttonLayout->addStretch();
 
     QPushButton *cancelButton = new QPushButton(tr("Cancel"));
@@ -129,16 +125,10 @@ QString CreateVarWatchDialog::GetVariableName() const
     return (mVariableName->text());
 }
 
-bool CreateVarWatchDialog::IsObject() const
-{
-    return (mIsObject->isChecked());
-}
-
 bool CreateVarWatchDialog::IsBreakOnWrite() const
 {
     return (mBreakOnWrite->isChecked());
 }
-
 
 // ====================================================================================================================
 // -- class implementation for the "go to line #" dialog
@@ -184,6 +174,67 @@ int CreateGoToLineDialog::GetLineNumber() const
 }
 
 // ====================================================================================================================
+// -- class implementation for add variable watch dialog
+class CreateBreakConditionDialog : public QDialog
+{
+public:
+    CreateBreakConditionDialog(QWidget *parent = 0);
+
+    void SetCondition(const char* variable_name);
+    QString GetCondition() const;
+    bool IsEnabled() const;
+
+private:
+    QLineEdit *mCondition;
+    QCheckBox* mIsEnabled;
+};
+
+CreateBreakConditionDialog::CreateBreakConditionDialog(QWidget *parent)
+    : QDialog(parent)
+{
+	setWindowTitle("Set Breakpoint Condition");
+	setMinimumWidth(280);
+    QGridLayout *layout = new QGridLayout(this);
+
+    layout->addWidget(new QLabel(tr("Condition:")), 0, 0);
+    mCondition = new QLineEdit;
+    layout->addWidget(mCondition, 0, 1);
+
+    mIsEnabled = new QCheckBox;
+    layout->addWidget(mIsEnabled, 1, 0);
+    layout->addWidget(new QLabel(tr("Enabled")), 1, 1);
+    mIsEnabled->setCheckState(Qt::Checked);
+
+    QHBoxLayout *buttonLayout = new QHBoxLayout;
+    layout->addLayout(buttonLayout, 2, 0, 1, 2);
+    buttonLayout->addStretch();
+
+    QPushButton *cancelButton = new QPushButton(tr("Cancel"));
+    connect(cancelButton, SIGNAL(clicked()), this, SLOT(reject()));
+    buttonLayout->addWidget(cancelButton);
+    QPushButton *okButton = new QPushButton(tr("Ok"));
+    connect(okButton, SIGNAL(clicked()), this, SLOT(accept()));
+    buttonLayout->addWidget(okButton);
+
+    okButton->setDefault(true);
+}
+
+void CreateBreakConditionDialog::SetCondition(const char* condition)
+{
+    mCondition->setText(QString(condition));
+}
+
+QString CreateBreakConditionDialog::GetCondition() const
+{
+    return (mCondition->text());
+}
+
+bool CreateBreakConditionDialog::IsEnabled() const
+{
+    return (mIsEnabled->isChecked());
+}
+
+// ====================================================================================================================
 void MainWindow::menuAddVariableWatch()
 {
     CreateVarWatchDialog dialog(this);
@@ -193,7 +244,7 @@ void MainWindow::menuAddVariableWatch()
 
 	CConsoleWindow::GetInstance()->GetDebugWatchesWin()->
                                   AddVariableWatch(dialog.GetVariableName().toUtf8(),
-                                                   dialog.IsObject(), dialog.IsBreakOnWrite());
+                                                   dialog.IsBreakOnWrite());
 }
 
 void MainWindow::menuCreateVariableWatch()
@@ -202,6 +253,25 @@ void MainWindow::menuCreateVariableWatch()
 	    CConsoleWindow::GetInstance()->GetDebugWatchesWin()->CreateSelectedWatch();
     else if (CConsoleWindow::GetInstance()->GetDebugAutosWin()->hasFocus())
 	    CConsoleWindow::GetInstance()->GetDebugAutosWin()->CreateSelectedWatch();
+}
+
+void MainWindow::menuSetBreakCondition()
+{
+    // -- we need to have a currently selected break condition, for this to be viable
+    bool8 enabled = false;
+    const char* condition = CConsoleWindow::GetInstance()->GetDebugBreakpointsWin()->GetBreakCondition(enabled);
+    if (!condition)
+        return;
+
+    CreateBreakConditionDialog dialog(this);
+    dialog.SetCondition(condition);
+    int ret = dialog.exec();
+    if (ret == QDialog::Rejected)
+        return;
+
+    enabled = dialog.IsEnabled();
+    CConsoleWindow::GetInstance()->GetDebugBreakpointsWin()->SetBreakCondition(dialog.GetCondition().toUtf8(),
+                                                                               enabled);
 }
 
 void MainWindow::menuGoToLine()
@@ -213,6 +283,7 @@ void MainWindow::menuGoToLine()
 
 	CConsoleWindow::GetInstance()->GetDebugSourceWin()->GoToLineNumber(dialog.GetLineNumber());
 }
+
 // ====================================================================================================================
 
 Q_DECLARE_METATYPE(QDockWidget::DockWidgetFeatures)
@@ -289,7 +360,7 @@ void MainWindow::CreateVariableWatch(const char* watch_string)
         return;
 
 	CConsoleWindow::GetInstance()->GetDebugWatchesWin()->AddVariableWatch(dialog.GetVariableName().toUtf8(),
-                                                                          dialog.IsObject(), dialog.IsBreakOnWrite());
+                                                                          dialog.IsBreakOnWrite());
 }
 
 // ====================================================================================================================
@@ -391,6 +462,9 @@ void MainWindow::setupMenuBar()
 
     action = debug_menu->addAction(tr("Watch Var  [Ctrl + Shift + W]"));
     connect(action, SIGNAL(triggered()), this, SLOT(menuCreateVariableWatch()));
+
+    action = debug_menu->addAction(tr("Break Condition  [Ctrl + Shift + B]"));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuSetBreakCondition()));
 
     // -- Scripts menu
     mScriptsMenu = menuBar()->addMenu(tr("&Scripts"));

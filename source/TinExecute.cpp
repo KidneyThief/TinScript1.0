@@ -113,6 +113,54 @@ int32 CFunctionCallStack::DebuggerGetStackVarEntries(CScriptContext* script_cont
                                                      CDebuggerWatchVarEntry* entry_array, int32 max_array_size)
 {
     int32 entry_count = 0;
+
+	// -- the first entry is always whatever is in the return buffer for the stack
+	void* funcReturnValue = NULL;
+	eVarType funcReturnType = TYPE_void;
+	script_context->GetFunctionReturnValue(funcReturnValue, funcReturnType);
+
+	// -- fill in the return value (which could be void)
+	CDebuggerWatchVarEntry* cur_entry = &entry_array[entry_count++];
+
+	// -- debugger stack dumps are well defined and aren't a response to a dynamic request
+	cur_entry->mWatchRequestID = 0;
+
+	// -- copy the calling function info
+	// -- use the top level function being called, since it's the only function that can use
+	// -- the return value from the last function executed
+	cur_entry->mFuncNamespaceHash = 0;
+	cur_entry->mFunctionHash = 0;
+	cur_entry->mFunctionObjectID = 0;
+
+	// -- this isn't a member of an object
+	cur_entry->mObjectID = 0;
+	cur_entry->mNamespaceHash = 0;
+
+	// -- copy the var type, name and value
+	cur_entry->mType = funcReturnType;
+	strcpy_s(cur_entry->mVarName, "_return");
+
+    // -- copy the value, as a string (to a max length)
+	if (funcReturnType >= FIRST_VALID_TYPE)
+        gRegisteredTypeToString[funcReturnType](funcReturnValue, cur_entry->mValue, kMaxNameLength);
+	else
+		cur_entry->mValue[0] = '\0';
+
+	// -- fill in the cached members
+	cur_entry->mVarHash = Hash("_return");
+	cur_entry->mVarObjectID = 0;
+    if (funcReturnType == TYPE_object)
+    {
+        cur_entry->mVarObjectID = funcReturnValue ? *(uint32*)funcReturnValue : 0;
+
+        // -- ensure the object actually exists
+        if (script_context->FindObjectEntry(cur_entry->mVarObjectID) == NULL)
+        {
+            cur_entry->mVarObjectID = 0;
+			cur_entry->mValue[0] = '\0';
+        }
+    }
+
     int32 stack_index = stacktop - 1;
     while (stack_index >= 0 && entry_count < max_array_size)
     {
@@ -335,6 +383,7 @@ bool CFunctionCallStack::DebuggerFindStackTopVar(CScriptContext* script_context,
 	return (false);
 }
 
+// ------------------------------------------------------------------------------------------------
 void CFunctionCallStack::BeginExecution(const uint32* instrptr) {
     // -- the top entry on the function stack is what we're about to call...
     // -- the stacktop - 2, therefore, is the calling function (if it exists)...
@@ -543,6 +592,9 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
 
     // -- copy the stack contents into the return address of the scheduled function call
     return_ve->ResolveValueType(contenttype, contentptr);
+
+    // -- also copy them into the script context's return value
+    script_context->SetFunctionReturnValue(contentptr, contenttype);
 
     return (true);
 }
@@ -780,13 +832,41 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
             // -- if we're forcing a debugger break
             // -- if we're stepping, and we're on a different line, or if
             // -- we're not stepping, and on a different line, and this new line has a breakpoint
-            if (script_context->mDebuggerActionForceBreak || 
-                (funccallstack.mDebuggerBreakStep && funccallstack.mDebuggerLastBreak != cur_line &&
-                 break_at_stack_depth) ||
-                (!funccallstack.mDebuggerBreakStep && (isNewLine || cur_line != funccallstack.mDebuggerLastBreak) &&
-                 mBreakpoints->FindItem(cur_line)))
-            {
+            bool force_break = script_context->mDebuggerActionForceBreak;
+            bool step_new_line = funccallstack.mDebuggerBreakStep && funccallstack.mDebuggerLastBreak != cur_line &&
+                                 break_at_stack_depth;
+            bool found_break = (!funccallstack.mDebuggerBreakStep &&
+                                (isNewLine || cur_line != funccallstack.mDebuggerLastBreak) &&
+                                mBreakpoints->FindItem(cur_line));
 
+            // -- if we aren't forcing a break, and not stepping to a new line, and we found a break,
+            // -- then evaluate the break conditional
+            if (!force_break && !step_new_line && found_break)
+            {
+                // -- note:  if we do have an expression, that can't be evaluated, then found_break will still be true
+                CDebuggerWatchExpression* break_condition = mBreakpoints->FindItem(cur_line);
+                if (script_context->HasWatchExpression(*break_condition) &&
+                    script_context->InitWatchExpression(*break_condition, funccallstack) &&
+                    script_context->EvalWatchExpression(*break_condition, funccallstack, execstack))
+                {
+                    // -- if we're unable to retrieve the result, then found_break
+                    eVarType return_type = TYPE_void;
+                    void* return_value = NULL;
+                    if (script_context->GetFunctionReturnValue(return_value, return_type))
+                    {
+                        // -- if this is false, then we *do not* break
+                        void* bool_result = TypeConvert(script_context, return_type, return_value, TYPE_bool);
+                        if (!(*(bool8*)bool_result))
+                        {
+                            found_break = false;
+                        }
+                    }
+                }
+            }
+
+            // -- now see if we should break
+            if (force_break || step_new_line || found_break)
+            {
                 DebuggerBreakLoop(this, instrptr, execstack, funccallstack);
             }
         }

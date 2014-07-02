@@ -33,26 +33,15 @@
 class CBreakpointEntry;
 class QKeyEvent;
 
-class CBreakpointCheck : public QCheckBox {
-    Q_OBJECT
-
-    public:
-
-        CBreakpointCheck(CBreakpointEntry* breakpoint);
-        virtual ~CBreakpointCheck() { }
-
-    public slots:
-        void OnCheckBoxClicked();
-
-    private:
-        CBreakpointEntry* mBreakpoint;
-};
-
 class CBreakpointEntry : public QListWidgetItem {
     public:
         CBreakpointEntry(uint32 codeblock_hash, int32 line_number, QListWidget* owner);
         CBreakpointEntry(int32 watch_request_id, uint32 var_object_id, uint32 var_name_hash, QListWidget* owner);
         virtual ~CBreakpointEntry();
+
+        // -- manually manage the "enabled" check
+        bool8 mChecked;
+        void SetCheckedState(bool8 enabled, bool8 hasCondition);
 
         // -- breakpoint based on a file/line
         uint32 mCodeblockHash;
@@ -63,8 +52,13 @@ class CBreakpointEntry : public QListWidgetItem {
         uint32 mWatchVarObjectID;
         uint32 mWatchVarNameHash;
 
-        // -- if the actual breakable line is corrected by the executable, we need to update the label to match
-        void UpdateLabel(uint32 codeblock_hash, int32 line_number);
+        // -- update the label to match when line number is confirmed, or condition changes, etc...
+        void UpdateLabel(uint32 codeblock_hash, int32 line_number, const char* condition);
+        void UpdateLabel(int32 watch_request_id, uint32 var_object_id, uint32 var_name_hash, const char* condition);
+
+        // -- conditional members
+        char mCondition[TinScript::kMaxNameLength];
+        bool8 mConditionEnabled;
 };
 
 class CDebugBreakpointsWin : public QListWidget
@@ -101,6 +95,12 @@ class CDebugBreakpointsWin : public QListWidget
 
         // -- set the current variable watch break, when a variable watch has been triggered
         void SetCurrentVarWatch(int32 watch_request_id);
+
+        // -- set/modify/disable a condition on the the currently selected break
+        void SetBreakCondition(const char* expression, bool8 enabled);
+
+        // -- get the break condition for the currently selected break
+        const char* GetBreakCondition(bool8& enabled);
 
         void NotifyCodeblockLoaded(uint32 codeblock_hash);
 

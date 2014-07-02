@@ -39,9 +39,6 @@
 // -- name of the global namespace
 static const char* kGlobalNamespace = "_global";
 
-// enable this for debug output while the byte code is generated
-bool8 gDebugCodeBlock = false;
-
 namespace TinScript {
 
 // ------------------------------------------------------------------------------------------------
@@ -139,7 +136,7 @@ int32 PushInstructionRaw(bool8 countonly, uint32*& instrptr, void* content, int3
 	}
 
 #if DEBUG_CODEBLOCK
-    if(gDebugCodeBlock && !countonly) {
+    if(CScriptContext::gDebugCodeBlock && !countonly) {
 	    for(int32 i = 0; i < wordcount; ++i) {
 		    if (i == 0) {
 			    const char* debugtypeinfo = NULL;
@@ -178,7 +175,7 @@ int32 PushInstruction(bool8 countonly, uint32*& instrptr, uint32 content,
 
 void DebugEvaluateNode(const CCompileTreeNode& node, bool8 countonly, uint32* instrptr) {
 #if DEBUG_CODEBLOCK
-    if(gDebugCodeBlock && !countonly)
+    if (CScriptContext::gDebugCodeBlock && !countonly)
 	    printf("\n--- Eval: %s\n", GetNodeTypeString(node.GetType()));
 
     // if we're debugging, add 
@@ -189,7 +186,8 @@ void DebugEvaluateNode(const CCompileTreeNode& node, bool8 countonly, uint32* in
 
 void DebugEvaluateBinOpNode(const CBinaryOpNode& binopnode, bool8 countonly) {
 #if DEBUG_CODEBLOCK
-    if(gDebugCodeBlock && !countonly) {
+    if (CScriptContext::gDebugCodeBlock && !countonly)
+    {
 	    printf("\n--- Eval: %s [%s]\n", GetNodeTypeString(binopnode.GetType()),
                                         GetOperationString(binopnode.GetOpCode()));
     }
@@ -1547,7 +1545,7 @@ CCodeBlock::CCodeBlock(CScriptContext* script_context, const char* _filename) {
     smFuncDefinitionStack = TinAlloc(ALLOC_FuncCallStack, CFunctionCallStack, kFunctionCallStackSize);
     smCurrentGlobalVarTable = TinAlloc(ALLOC_VarTable, tVarTable, kLocalVarTableSize);
     mFunctionList = TinAlloc(ALLOC_FuncTable, tFuncTable, kLocalFuncTableSize);
-    mBreakpoints = TinAlloc(ALLOC_Debugger, CHashTable<int32>, kBreakpointTableSize);
+    mBreakpoints = TinAlloc(ALLOC_Debugger, CHashTable<CDebuggerWatchExpression>, kBreakpointTableSize);
 
     // -- add to the resident list of codeblocks, if a name was given
     mFileName[0] = '\0';
@@ -1576,7 +1574,7 @@ CCodeBlock::~CCodeBlock() {
         TinFreeArray(mLineNumbers);
 
     // -- clear out the breakpoints list
-    mBreakpoints->RemoveAll();
+    mBreakpoints->DestroyAll();
     TinFree(mBreakpoints);
 }
 
@@ -1640,7 +1638,8 @@ bool8 CCodeBlock::CompileTree(const CCompileTreeNode& root) {
 
 // ------------------------------------------------------------------------------------------------
 // -- debugger interface
-bool8 CCodeBlock::HasBreakpoints() {
+bool8 CCodeBlock::HasBreakpoints()
+{
     return (mBreakpoints->Used() > 0);
 }
 
@@ -1663,33 +1662,54 @@ int32 CCodeBlock::AdjustLineNumber(int32 line_number) {
     return (mLineNumbers[mLineNumberCount - 1] & 0xffff);
 }
 
-int32 CCodeBlock::AddBreakpoint(int32 line_number) {
+int32 CCodeBlock::AddBreakpoint(int32 line_number, const char* conditional)
+{
     int32 adjusted_line_number = AdjustLineNumber(line_number);
-    if(!mBreakpoints->FindItem(adjusted_line_number)) {
-        mBreakpoints->AddItem(adjusted_line_number, adjusted_line_number);
+    CDebuggerWatchExpression* watch = mBreakpoints->FindItem(adjusted_line_number);
+    if (!watch)
+    {
+        CDebuggerWatchExpression *new_break = TinAlloc(ALLOC_Debugger, CDebuggerWatchExpression, conditional, true);
+        mBreakpoints->AddItem(*new_break, adjusted_line_number);
     }
+
+    // -- othwerwise, just set the expression
+    else
+    {
+        watch->SetExpression(conditional);
+    }
+
     return (adjusted_line_number);
 }
 
-int32 CCodeBlock::RemoveBreakpoint(int32 line_number) {
+int32 CCodeBlock::RemoveBreakpoint(int32 line_number)
+{
     int32 adjusted_line_number = AdjustLineNumber(line_number);
-    mBreakpoints->RemoveItem(adjusted_line_number);
+    CDebuggerWatchExpression* watch = mBreakpoints->FindItem(adjusted_line_number);
+    if (watch)
+    {
+        mBreakpoints->RemoveItem(adjusted_line_number);
+        TinFree(watch);
+    }
+
     return (adjusted_line_number);
 }
 
-void CCodeBlock::RemoveAllBreakpoints() {
-    mBreakpoints->RemoveAll();
+void CCodeBlock::RemoveAllBreakpoints()
+{
+    mBreakpoints->DestroyAll();
 }
 
 // ------------------------------------------------------------------------------------------------
 // -- debugging suppport
 
-void SetDebugCodeBlock(bool8 torf) {
-    gDebugCodeBlock = torf;
+void SetDebugCodeBlock(bool8 torf)
+{
+    CScriptContext::gDebugCodeBlock = torf;
 }
 
-bool8 GetDebugCodeBlock() {
-    return gDebugCodeBlock;
+bool8 GetDebugCodeBlock()
+{
+    return (CScriptContext::gDebugCodeBlock);
 }
 
 REGISTER_FUNCTION_P1(SetDebugCodeBlock, SetDebugCodeBlock, void, bool8);
