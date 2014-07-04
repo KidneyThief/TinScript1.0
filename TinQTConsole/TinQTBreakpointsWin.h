@@ -53,12 +53,16 @@ class CBreakpointEntry : public QListWidgetItem {
         uint32 mWatchVarNameHash;
 
         // -- update the label to match when line number is confirmed, or condition changes, etc...
-        void UpdateLabel(uint32 codeblock_hash, int32 line_number, const char* condition);
-        void UpdateLabel(int32 watch_request_id, uint32 var_object_id, uint32 var_name_hash, const char* condition);
+        void UpdateLabel(uint32 codeblock_hash, int32 line_number);
+        void UpdateLabel(int32 watch_request_id, uint32 var_object_id, uint32 var_name_hash);
 
         // -- conditional members
         char mCondition[TinScript::kMaxNameLength];
         bool8 mConditionEnabled;
+
+        char mTracePoint[TinScript::kMaxNameLength];
+        bool8 mTraceEnabled;
+        bool8 mTraceOnCondition;
 };
 
 class CDebugBreakpointsWin : public QListWidget
@@ -87,8 +91,8 @@ class CDebugBreakpointsWin : public QListWidget
             updateGeometry();
         }
 
-        // -- toggle the breakpoint for a file/line
-        void ToggleBreakpoint(uint32 codeblock_hash, int32 line_number, bool add, bool enable);
+        // -- Toggle the breakpoint for a file/line
+        void ToggleBreakpoint(uint32 codeblock_hash, int32 line_number, bool add);
 
         // -- set the current breakpoint, when a file/line break has been triggered
         void SetCurrentBreakpoint(uint32 codeblock_hash, int32 line_number);
@@ -97,10 +101,16 @@ class CDebugBreakpointsWin : public QListWidget
         void SetCurrentVarWatch(int32 watch_request_id);
 
         // -- set/modify/disable a condition on the the currently selected break
-        void SetBreakCondition(const char* expression, bool8 enabled);
+        void SetBreakCondition(const char* expression, bool8 cond_enabled);
+
+        // -- set/modify/disable a tracepoint on the currently selected break
+        void SetTraceExpression(const char* expression, bool8 trace_enabled, bool8 trace_on_condition);
 
         // -- get the break condition for the currently selected break
         const char* GetBreakCondition(bool8& enabled);
+
+        // -- get the trace expression for the currently selected break
+        const char* GetTraceExpression(bool8& trace_enabled, bool8& trace_on_condition);
 
         void NotifyCodeblockLoaded(uint32 codeblock_hash);
 

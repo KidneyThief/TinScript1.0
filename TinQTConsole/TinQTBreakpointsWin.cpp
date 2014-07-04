@@ -53,6 +53,11 @@ CBreakpointEntry::CBreakpointEntry(uint32 codeblock_hash, int32 line_number, QLi
     mCondition[0] = '\0';
     mConditionEnabled = false;
 
+    // -- clear the trace members
+    mTracePoint[0] = '\0';
+    mTraceEnabled = false;
+    mTraceOnCondition = false;
+
     setFlags(flags() | Qt::ItemIsUserCheckable);
 
     // -- we're manually managing the checked state
@@ -75,6 +80,11 @@ CBreakpointEntry::CBreakpointEntry(int32 watch_request_id, uint32 var_object_id,
     // -- clear the condition members
     mCondition[0] = '\0';
     mConditionEnabled = false;
+
+    // -- clear the trace members
+    mTracePoint[0] = '\0';
+    mTraceEnabled = false;
+    mTraceOnCondition = false;
 
     setFlags(flags() | Qt::ItemIsUserCheckable);
 
@@ -100,7 +110,7 @@ void CBreakpointEntry::SetCheckedState(bool8 enabled, bool8 hasCondition)
         setCheckState(Qt::Unchecked);
 }
 
-void CBreakpointEntry::UpdateLabel(uint32 codeblock_hash, int32 line_number, const char* condition)
+void CBreakpointEntry::UpdateLabel(uint32 codeblock_hash, int32 line_number)
 {
     // -- ensure we're not updating the label for a variable watch
     if (mWatchRequestID > 0)
@@ -115,33 +125,60 @@ void CBreakpointEntry::UpdateLabel(uint32 codeblock_hash, int32 line_number, con
                         line_number >= 1e1 ? 4 : 5;
     spaces[space_count] = '\0';
 
-    // -- note:  all line numbers are stored accurately (0 based), but displayed +1, to match text editors
-    if (!condition || !condition[0])
-        sprintf_s(linebuf, 256, "%s : %s%d", TinScript::UnHash(codeblock_hash), spaces, line_number + 1);
+    // -- fill in the condition and trace lables
+    bool condition_enabled = mConditionEnabled && mCondition[0];
+    char condition_buf[TinScript::kMaxNameLength];
+    if (condition_enabled)
+        sprintf_s(condition_buf, "cond: [ %s ]", condition_enabled ? mCondition : "");
     else
-        sprintf_s(linebuf, 256, "%s : %s%d   cond: [ %s ]", TinScript::UnHash(codeblock_hash), spaces, line_number + 1,
-                  condition);
+        condition_buf[0] = '\0';
+
+    bool trace_enabled = mTraceEnabled && mTracePoint[0];
+    bool trace_on_condition = condition_enabled && trace_enabled && mTraceOnCondition;
+    char tracepoint_buf[TinScript::kMaxNameLength];
+    if (trace_on_condition)
+        sprintf_s(tracepoint_buf, "c-trace: [ %s ]", mTracePoint);
+    else if (trace_enabled)
+        sprintf_s(tracepoint_buf, "trace: [ %s ]", mTracePoint);
+    else
+        tracepoint_buf[0] = '\0';
+
+    // -- note:  all line numbers are stored accurately (0 based), but displayed +1, to match text editors
+    sprintf_s(linebuf, 256, "%s : %s%d    %s    %s", TinScript::UnHash(codeblock_hash), spaces, line_number + 1,
+              condition_buf, tracepoint_buf);
 
     // -- set the text in the QWidget
     setText(linebuf);
 }
 
-void CBreakpointEntry::UpdateLabel(int32 watch_request_id, uint32 var_object_id, uint32 var_name_hash,
-                                   const char* condition)
+void CBreakpointEntry::UpdateLabel(int32 watch_request_id, uint32 var_object_id, uint32 var_name_hash)
 {
+    // -- fill in the condition and trace lables
+    bool condition_enabled = mConditionEnabled && mCondition[0];
     char condition_buf[TinScript::kMaxNameLength];
-    if (!condition || !condition[0])
-        condition_buf[0] = '\0';
+    if (condition_enabled)
+        sprintf_s(condition_buf, "cond: [ %s ]", condition_enabled ? mCondition : "");
     else
-        sprintf_s(condition_buf, "cond: [ %s ]", condition);
+        condition_buf[0] = '\0';
+
+    bool trace_enabled = mTraceEnabled && mTracePoint[0];
+    bool trace_on_condition = condition_enabled && trace_enabled && mTraceOnCondition;
+    char tracepoint_buf[TinScript::kMaxNameLength];
+    if (trace_on_condition)
+        sprintf_s(tracepoint_buf, "c-trace: [ %s ]", mTracePoint);
+    else if (trace_enabled)
+        sprintf_s(tracepoint_buf, "trace: [ %s ]", mTracePoint);
+    else
+        tracepoint_buf[0] = '\0';
 
     // -- set the text in the QWidget
     char label_buf[TinScript::kMaxNameLength];
     if (mWatchVarObjectID > 0)
-        sprintf_s(label_buf, 256, "_watch:  %d.%s   %s", mWatchVarObjectID, TinScript::UnHash(mWatchVarNameHash),
-                  condition_buf);
+        sprintf_s(label_buf, 256, "_watch:  %d.%s    %s    %s", mWatchVarObjectID, TinScript::UnHash(mWatchVarNameHash),
+                  condition_buf, tracepoint_buf);
     else
-        sprintf_s(label_buf, 256, "_watch:  %s   %s", TinScript::UnHash(mWatchVarNameHash), condition_buf);
+        sprintf_s(label_buf, 256, "_watch:  %s   %s    %s", TinScript::UnHash(mWatchVarNameHash), condition_buf,
+                  tracepoint_buf);
 
     // -- set the text in the QWidget
     setText(label_buf);
@@ -234,9 +271,9 @@ CDebugBreakpointsWin::~CDebugBreakpointsWin() {
     }
 }
 
-void CDebugBreakpointsWin::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number,
-                                            bool add, bool enable) {
-
+void CDebugBreakpointsWin::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number, bool addOrRemove)
+{
+    // -- see if the breakpoint already exists
     int found_index = -1;
     CBreakpointEntry* breakpoint = NULL;
     for(int i = 0; i < mBreakpoints.size(); ++i)
@@ -250,27 +287,45 @@ void CDebugBreakpointsWin::ToggleBreakpoint(uint32 codeblock_hash, int32 line_nu
         }
     }
 
+    // -- if we found it, but we're supposed to delete it...
+    const char* filename = TinScript::UnHash(codeblock_hash);
+    if (!addOrRemove && breakpoint)
+    {
+        mBreakpoints.removeAt(found_index);
+        delete breakpoint;
+
+        // -- send the remove command as well
+        SocketManager::SendCommandf("DebuggerRemoveBreakpoint('%s', %d);", filename, line_number);
+
+        // -- and we're done
+        return;
+    }
+
     // -- not found - create it
-    if (add && !breakpoint)
+    if (addOrRemove && !breakpoint)
     {
         breakpoint = new CBreakpointEntry(codeblock_hash, line_number, this);
-        breakpoint->UpdateLabel(codeblock_hash, line_number, NULL);
+        breakpoint->UpdateLabel(codeblock_hash, line_number);
         mBreakpoints.append(breakpoint);
         sortItems();
     }
 
-    // -- else delete it
-    else if (!add && breakpoint)
-    {
-        mBreakpoints.removeAt(found_index);
-        delete breakpoint;
-    }
-
     // -- send the message
-    const char* filename = TinScript::UnHash(codeblock_hash);
-    if (add && enable)
-        SocketManager::SendCommandf("DebuggerAddBreakpoint('%s', %d, '%s');", filename, line_number,
-                                    breakpoint->mConditionEnabled ? breakpoint->mCondition : "");
+    // -- fill in the condition and trace lables
+    bool condition_enabled = breakpoint->mConditionEnabled && breakpoint->mCondition[0];
+    bool trace_enabled = breakpoint->mTraceEnabled && breakpoint->mTracePoint[0];
+    bool trace_on_condition = condition_enabled && trace_enabled && breakpoint->mTraceOnCondition;
+
+    // -- note:  If the trace is enabled, then we don't *break* on hitting the breakpoint, but we do
+    // -- execute the trace expression
+    if (breakpoint->mChecked || trace_enabled)
+    {
+        SocketManager::SendCommandf("DebuggerAddBreakpoint('%s', %d, '%s', '%s', '%s', '%s');", filename, line_number,
+                                    breakpoint->mChecked ? "true" : "false",
+                                    condition_enabled ? breakpoint->mCondition : "",
+                                    trace_enabled ? breakpoint->mTracePoint : "",
+                                    trace_on_condition ? "true" : "false");
+    }
     else
         SocketManager::SendCommandf("DebuggerRemoveBreakpoint('%s', %d);", filename, line_number);
 }
@@ -322,7 +377,7 @@ void CDebugBreakpointsWin::SetCurrentVarWatch(int32 watch_request_id)
 // ====================================================================================================================
 // SetBreakCondition():  Set/modify/disable a condition on the the currently selected break.
 // ====================================================================================================================
-void CDebugBreakpointsWin::SetBreakCondition(const char* expression, bool8 enabled)
+void CDebugBreakpointsWin::SetBreakCondition(const char* expression, bool8 cond_enabled)
 {
     // -- sanity check
     if (!expression)
@@ -333,22 +388,22 @@ void CDebugBreakpointsWin::SetBreakCondition(const char* expression, bool8 enabl
     if (cur_entry)
     {
         TinScript::SafeStrcpy(cur_entry->mCondition, expression, TinScript::kMaxNameLength);
-        cur_entry->mConditionEnabled = enabled;
+        cur_entry->mConditionEnabled = cond_enabled;
 
         // -- update the label
         if (cur_entry->mWatchRequestID == 0)
-            cur_entry->UpdateLabel(cur_entry->mCodeblockHash, cur_entry->mLineNumber, enabled ? expression : NULL);
+            cur_entry->UpdateLabel(cur_entry->mCodeblockHash, cur_entry->mLineNumber);
         else
         {
             cur_entry->UpdateLabel(cur_entry->mWatchRequestID, cur_entry->mWatchVarObjectID,
-                                   cur_entry->mWatchVarNameHash, enabled ? expression : NULL);
+                                   cur_entry->mWatchVarNameHash);
         }
 
         // -- update the check box
         cur_entry->SetCheckedState(cur_entry->mChecked, cur_entry->mConditionEnabled);
 
         // -- toggle the breakpoint (which sends the message to the target)
-        ToggleBreakpoint(cur_entry->mCodeblockHash, cur_entry->mLineNumber, true, cur_entry->mChecked);
+        ToggleBreakpoint(cur_entry->mCodeblockHash, cur_entry->mLineNumber, true);
     }
 }
 
@@ -359,11 +414,57 @@ const char* CDebugBreakpointsWin::GetBreakCondition(bool8& enabled)
 {
     // -- get the current entry, update the expression and enabled members
     CBreakpointEntry* cur_entry = static_cast<CBreakpointEntry*>(currentItem());
-    if (!cur_entry)
+    if (!cur_entry || cur_entry->mWatchRequestID > 0)
         return (NULL);
 
     enabled = cur_entry->mConditionEnabled;
     return (cur_entry->mCondition);
+}
+
+// ====================================================================================================================
+// SetTraceExpression():  Set/modify/disable a tracepoint on the currently selected break.
+// ====================================================================================================================
+void CDebugBreakpointsWin::SetTraceExpression(const char* expression, bool8 trace_enabled, bool8 trace_on_condition)
+{
+    // -- sanity check
+    if (!expression)
+        expression = "";
+
+    // -- get the current entry, update the expression and enabled members
+    CBreakpointEntry* cur_entry = static_cast<CBreakpointEntry*>(currentItem());
+    if (cur_entry)
+    {
+        TinScript::SafeStrcpy(cur_entry->mTracePoint, expression, TinScript::kMaxNameLength);
+        cur_entry->mTraceEnabled = trace_enabled;
+        cur_entry->mTraceOnCondition = trace_on_condition;
+
+        // -- update the label
+        if (cur_entry->mWatchRequestID == 0)
+            cur_entry->UpdateLabel(cur_entry->mCodeblockHash, cur_entry->mLineNumber);
+        else
+        {
+            cur_entry->UpdateLabel(cur_entry->mWatchRequestID, cur_entry->mWatchVarObjectID,
+                                   cur_entry->mWatchVarNameHash);
+        }
+
+        // -- toggle the breakpoint (which sends the message to the target)
+        ToggleBreakpoint(cur_entry->mCodeblockHash, cur_entry->mLineNumber, true);
+    }
+}
+
+// ====================================================================================================================
+// GetTraceExpression(): Get the tracepoint expression for the currently selected break
+// ====================================================================================================================
+const char* CDebugBreakpointsWin::GetTraceExpression(bool8& trace_enabled, bool8& trace_on_condition)
+{
+    // -- get the current entry, update the expression and enabled members
+    CBreakpointEntry* cur_entry = static_cast<CBreakpointEntry*>(currentItem());
+    if (!cur_entry)
+        return (NULL);
+
+    trace_enabled = cur_entry->mTraceEnabled;
+    trace_on_condition = cur_entry->mTraceOnCondition;
+    return (cur_entry->mTracePoint);
 }
 
 void CDebugBreakpointsWin::NotifyCodeblockLoaded(uint32 codeblock_hash)
@@ -385,11 +486,18 @@ void CDebugBreakpointsWin::NotifyCodeblockLoaded(uint32 codeblock_hash)
                                                                                  breakpoint->mLineNumber, true,
                                                                                  breakpoint_enabled);
 
-            // -- also notify the target, if the breakpoint is enabled
-            if (breakpoint_enabled)
+            // -- notify the target, if the breakpoint is enabled
+            bool condition_enabled = breakpoint->mConditionEnabled && breakpoint->mCondition[0];
+            bool trace_enabled = breakpoint->mTraceEnabled && breakpoint->mTracePoint[0];
+            bool trace_on_condition = condition_enabled && trace_enabled && breakpoint->mTraceOnCondition;
+            if (breakpoint_enabled || trace_enabled)
             {
-                SocketManager::SendCommandf("DebuggerAddBreakpoint('%s', %d, '%s');", filename, breakpoint->mLineNumber,
-                                            breakpoint->mConditionEnabled ? breakpoint->mCondition : "");
+                SocketManager::SendCommandf("DebuggerAddBreakpoint('%s', %d, '%s', '%s', '%s', '%s');", filename,
+                                            breakpoint->mLineNumber,
+                                            breakpoint->mChecked ? "true" : "false",
+                                            condition_enabled ? breakpoint->mCondition : "",
+                                            trace_enabled ? breakpoint->mTracePoint : "",
+                                            trace_on_condition ? "true" : "false");
             }
         }
     }
@@ -434,7 +542,7 @@ void CDebugBreakpointsWin::NotifyConfirmBreakpoint(uint32 codeblock_hash, int32 
         if (!alreadyExists)
         {
             found->mLineNumber = actual_line;
-            found->UpdateLabel(codeblock_hash, actual_line, found->mConditionEnabled ? found->mCondition : NULL);
+            found->UpdateLabel(codeblock_hash, actual_line);
 
             // -- update the source window with the new breakpoint location
             CConsoleWindow::GetInstance()->GetDebugSourceWin()->ToggleBreakpoint(codeblock_hash, actual_line,
@@ -483,7 +591,7 @@ void CDebugBreakpointsWin::NotifyConfirmVarWatch(int32 watch_request_id, uint32 
     else
     {
         CBreakpointEntry* breakpoint = new CBreakpointEntry(watch_request_id, watch_object_id, var_name_hash, this);
-        breakpoint->UpdateLabel(watch_request_id, watch_object_id, var_name_hash, NULL);
+        breakpoint->UpdateLabel(watch_request_id, watch_object_id, var_name_hash);
         mBreakpoints.append(breakpoint);
         sortItems();
     }
@@ -515,14 +623,20 @@ void CDebugBreakpointsWin::NotifyOnConnect()
     for (int i = 0; i < mBreakpoints.size(); ++i)
     {
         CBreakpointEntry* breakpoint = mBreakpoints.at(i);
-        bool breakpoint_enabled = breakpoint->mChecked;
 
-        // -- resend the breakpoint, if it's enabled, and a file/line breakpoint
-        if (breakpoint_enabled && breakpoint->mWatchRequestID == 0)
+        bool breakpoint_enabled = breakpoint->mChecked;
+        bool condition_enabled = breakpoint->mConditionEnabled && breakpoint->mCondition[0];
+        bool trace_enabled = breakpoint->mTraceEnabled && breakpoint->mTracePoint[0];
+        bool trace_on_condition = condition_enabled && trace_enabled && breakpoint->mTraceOnCondition;
+        if ((breakpoint_enabled || trace_enabled) && breakpoint->mWatchRequestID == 0)
         {
             const char* filename = TinScript::UnHash(breakpoint->mCodeblockHash);
-            SocketManager::SendCommandf("DebuggerAddBreakpoint('%s', %d, '%s');", filename, breakpoint->mLineNumber,
-                                        breakpoint->mConditionEnabled ? breakpoint->mCondition : "");
+            SocketManager::SendCommandf("DebuggerAddBreakpoint('%s', %d, '%s', '%s', '%s', '%s');", filename,
+                                        breakpoint->mLineNumber,
+                                        breakpoint->mChecked ? "true" : "false",
+                                        condition_enabled ? breakpoint->mCondition : "",
+                                        trace_enabled ? breakpoint->mTracePoint : "",
+                                        trace_on_condition ? "true" : "false");
         }
 
         // -- otherwise, variable watches are disabled

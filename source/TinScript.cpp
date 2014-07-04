@@ -978,7 +978,8 @@ bool CScriptContext::IsDebuggerConnected(int32& cur_debugger_session)
 // ====================================================================================================================
 // AddBreakpoint():  Method to find a codeblock, and set a line to notify the debugger, if executed
 // ====================================================================================================================
-void CScriptContext::AddBreakpoint(const char* filename, int32 line_number, const char* conditional)
+void CScriptContext::AddBreakpoint(const char* filename, int32 line_number, bool8 break_enabled,
+                                   const char* conditional, const char* trace, bool8 trace_on_condition)
 {
     // -- sanity check
     if (!filename || !filename[0])
@@ -991,7 +992,7 @@ void CScriptContext::AddBreakpoint(const char* filename, int32 line_number, cons
         return;
 
     // -- add the breakpoint
-    int32 actual_line = code_block->AddBreakpoint(line_number, conditional);
+    int32 actual_line = code_block->AddBreakpoint(line_number, break_enabled, conditional, trace, trace_on_condition);
 
     // -- if the actual breakable line doesn't match the request, notify the debugger
     if (actual_line != line_number)
@@ -1305,14 +1306,14 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
 		return;
 
     // -- watch expressions can handle a the complete syntax, but are unable to set a break on a variable entry
-    CDebuggerWatchExpression watch_expression(variable_watch, false);
-    bool result = InitWatchExpression(watch_expression, *mDebuggerBreakFuncCallStack);
+    CDebuggerWatchExpression watch_expression(false, false, variable_watch, NULL, false);
+    bool result = InitWatchExpression(watch_expression, false, *mDebuggerBreakFuncCallStack);
 
     // -- if we were successful initializing the expression (e.g. a codeblock and function were created
     if (result)
     {
         // -- if evaluating the watch was successful
-        result = EvalWatchExpression(watch_expression, *mDebuggerBreakFuncCallStack, *mDebuggerBreakExecStack);
+        result = EvalWatchExpression(watch_expression, false, *mDebuggerBreakFuncCallStack, *mDebuggerBreakExecStack);
         if (result)
         {
             // -- if we're able to retrieve the return value
@@ -1362,24 +1363,38 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
 }
 
 // ====================================================================================================================
-// HasWatchExpression():  Given a watch structure, return true if we actually have something to evaluate.
+// HasWatchExpression():  Given a watch structure, return true if we actually have a conditional to evaluate.
 // ====================================================================================================================
 bool8 CScriptContext::HasWatchExpression(CDebuggerWatchExpression& debugger_watch)
 {
-    return (debugger_watch.mExpression[0] != '\0');
+    return (debugger_watch.mConditional[0] != '\0');
+}
+
+// ====================================================================================================================
+// HasTraceExpression():  Given a watch structure, return true if we actually have a trace expression to evaluate.
+// ====================================================================================================================
+bool8 CScriptContext::HasTraceExpression(CDebuggerWatchExpression& debugger_watch)
+{
+    return (debugger_watch.mTrace[0] != '\0');
 }
 
 // ====================================================================================================================
 // InitWatchExpression():  Given a watch structure, create and compile a codeblock that can be stored and evaluated.
 // ====================================================================================================================
-bool8 CScriptContext::InitWatchExpression(CDebuggerWatchExpression& debugger_watch, CFunctionCallStack& call_stack)
+bool8 CScriptContext::InitWatchExpression(CDebuggerWatchExpression& debugger_watch, bool use_trace,
+                                          CFunctionCallStack& call_stack)
 {
+    // -- depending on whether we're initializing the trace expression or the conditional, set the local vars
+    const char* expression = use_trace ? debugger_watch.mTrace : debugger_watch.mConditional;
+    CFunctionEntry*& watch_function = use_trace ? debugger_watch.mTraceFunctionEntry
+                                                : debugger_watch.mWatchFunctionEntry;
+
     // -- if we have no expression, or we've already initialized, then we're done
-    if (!debugger_watch.mExpression[0] || debugger_watch.mWatchFunctionEntry != NULL)
+    if (!expression[0] || watch_function != NULL)
         return (true);
 
     // -- every time a watch is initialized, we bump the ID to ensure a 100% unique name
-    debugger_watch.mWatchID = CDebuggerWatchExpression::gWatchExpressionID++;
+    int32 watch_id = CDebuggerWatchExpression::gWatchExpressionID++;
 
     // -- find the function we're currently executing
     int32 stacktop = 0;
@@ -1393,7 +1408,7 @@ bool8 CScriptContext::InitWatchExpression(CDebuggerWatchExpression& debugger_wat
 
     // -- create the name to uniquely identify both the codeblock and the associated function
     char watch_name[kMaxNameLength];
-    sprintf_s(watch_name, "_%s_expr_%d_", debugger_watch.mIsConditional ? "cond" : "watch", debugger_watch.mWatchID);
+    sprintf_s(watch_name, "_%s_expr_%d_", use_trace ? "trace" : debugger_watch.mIsConditional ? "cond" : "watch", watch_id);
     uint32 watch_name_hash = Hash(watch_name);
 
 	// create the code block and the starting root node
@@ -1434,12 +1449,16 @@ bool8 CScriptContext::InitWatchExpression(CDebuggerWatchExpression& debugger_wat
     // -- add a funcdecl node, and set its left child to be the statement block
     // -- for fun, use the watch_id as the line number - to find it while debugging
     CFuncDeclNode* funcdeclnode = TinAlloc(ALLOC_TreeNode, CFuncDeclNode, codeblock, root->next,
-                                           debugger_watch.mWatchID, watch_name, strlen(watch_name), "", 0);
+                                           watch_id, watch_name, strlen(watch_name), "", 0);
 
     // -- the body of our watch function, is to simply return the given expression
     // -- parsing and returning the expression will also identify the type for us
+    // -- note:  trace expressions are evaluated verbatim
     char expr_result[kMaxTokenLength];
-    sprintf_s(expr_result, "return (%s);", debugger_watch.mExpression, watch_name);
+    if (use_trace)
+        SafeStrcpy(expr_result, expression, kMaxTokenLength);
+    else
+        sprintf_s(expr_result, "return (%s);", expression);
 
     // -- several steps to go through - any failures will require us to clean up and return false
     bool8 success = true;
@@ -1484,22 +1503,27 @@ bool8 CScriptContext::InitWatchExpression(CDebuggerWatchExpression& debugger_wat
     }
 
     // -- we were successful - set the function entry, and return success
-    debugger_watch.mWatchFunctionEntry = fe;
+    watch_function = fe;
     return (true);
 }
 
 // ====================================================================================================================
 // EvaluateWatchExpression():  Used by the debugger for watches and breakpoints conditionals.
 // ====================================================================================================================
-bool8 CScriptContext::EvalWatchExpression(CDebuggerWatchExpression& debugger_watch, CFunctionCallStack& cur_call_stack,
-                                          CExecStack& cur_exec_stack) 
+bool8 CScriptContext::EvalWatchExpression(CDebuggerWatchExpression& debugger_watch, bool use_trace,
+                                          CFunctionCallStack& cur_call_stack, CExecStack& cur_exec_stack) 
 {
-    // -- if we have no expression, we've successfully evaluated (to 'true')
-    if (!debugger_watch.mExpression[0])
+    // -- depending on whether we're initializing the trace expression or the conditional, set the local vars
+    const char* expression = use_trace ? debugger_watch.mTrace : debugger_watch.mConditional;
+    CFunctionEntry*& watch_function = use_trace ? debugger_watch.mTraceFunctionEntry
+                                                : debugger_watch.mWatchFunctionEntry;
+
+    // -- if we have no expression, we've successfully evaluated
+    if (!expression[0])
         return (true);
 
     // -- if we have no function entry, we're done
-    if (!debugger_watch.mWatchFunctionEntry)
+    if (!watch_function)
         return (false);
 
     // -- find the function we're currently executing
@@ -1517,10 +1541,10 @@ bool8 CScriptContext::EvalWatchExpression(CDebuggerWatchExpression& debugger_wat
     CFunctionCallStack funccallstack(kExecFuncCallDepth);
 
     // -- push the function entry onto the call stack
-    funccallstack.Push(debugger_watch.mWatchFunctionEntry, NULL, 0);
+    funccallstack.Push(watch_function, NULL, 0);
     
     // -- create space on the execstack for the local variables
-    int32 localvarcount = debugger_watch.mWatchFunctionEntry->GetLocalVarTable()->Used();
+    int32 localvarcount = watch_function->GetLocalVarTable()->Used();
     execstack.Reserve(localvarcount * MAX_TYPE_SIZE);
 
     // -- copy the local values from the currently executing function, to stack
@@ -1537,7 +1561,7 @@ bool8 CScriptContext::EvalWatchExpression(CDebuggerWatchExpression& debugger_wat
 
     // -- call the function
     funccallstack.BeginExecution();
-    bool8 result = CodeBlockCallFunction(debugger_watch.mWatchFunctionEntry, NULL, execstack, funccallstack);
+    bool8 result = CodeBlockCallFunction(watch_function, NULL, execstack, funccallstack);
 
     // -- if we executed succesfully...
     if (result)
@@ -1561,7 +1585,7 @@ bool8 CScriptContext::EvalWatchExpression(CDebuggerWatchExpression& debugger_wat
 }
 
 // ====================================================================================================================
-// EvaluateWatchExpression():  Used by the debugger for watches and breakpoints conditionals.
+// EvaluateWatchExpression():  Used by the debugger for variable watches.
 // ====================================================================================================================
 bool8 CScriptContext::EvaluateWatchExpression(const char* expression, bool8 conditional)
 {
@@ -1636,8 +1660,7 @@ bool8 CScriptContext::EvaluateWatchExpression(const char* expression, bool8 cond
     // -- now we've got a temporary function with exactly the same set of local variables
     // -- see if we can parse the expression
 	tReadToken parsetoken(expr_result, 0);
-    if (ParseStatementBlock(codeblock, funcdeclnode->leftchild, parsetoken, false)) // && 
-        //TryParseStatement(codeblock, parsetoken, root->next->next))
+    if (ParseStatementBlock(codeblock, funcdeclnode->leftchild, parsetoken, false))
     {
         // -- if we made it this far, execute the function
         DumpTree(root, 0, false, false);
@@ -2489,7 +2512,8 @@ void DebuggerSetConnected(bool8 connected)
 // --------------------------------------------------------------------------------------------------------------------
 // DebuggerAddBreakpoint():  Add a breakpoint for the given file/line
 // --------------------------------------------------------------------------------------------------------------------
-void DebuggerAddBreakpoint(const char* filename, int32 line_number, const char* condition)
+void DebuggerAddBreakpoint(const char* filename, int32 line_number, bool8 break_enabled, const char* condition,
+                           const char* trace, bool8 trace_on_cond)
 {
     // -- ensure we have a script context
     CScriptContext* script_context = GetContext();
@@ -2497,7 +2521,7 @@ void DebuggerAddBreakpoint(const char* filename, int32 line_number, const char* 
         return;
 
     // -- this must be threadsafe - only ProcessThreadCommands should ever lead to this function
-    script_context->AddBreakpoint(filename, line_number, condition);
+    script_context->AddBreakpoint(filename, line_number, break_enabled, condition, trace, trace_on_cond);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2609,7 +2633,7 @@ void DebuggerToggleVarWatch(int32 watch_request_id, uint32 object_id, int32 var_
 // -------------------------------------------------------------------------------------------------------------------
 // -- Registration
 REGISTER_FUNCTION_P1(DebuggerSetConnected, DebuggerSetConnected, void, bool8);
-REGISTER_FUNCTION_P3(DebuggerAddBreakpoint, DebuggerAddBreakpoint, void, const char*, int32, const char*);
+REGISTER_FUNCTION_P6(DebuggerAddBreakpoint, DebuggerAddBreakpoint, void, const char*, int32, bool8, const char*, const char*, bool8);
 REGISTER_FUNCTION_P2(DebuggerRemoveBreakpoint, DebuggerRemoveBreakpoint, void, const char*, int32);
 REGISTER_FUNCTION_P1(DebuggerRemoveAllBreakpoints, DebuggerRemoveAllBreakpoints, void, const char*);
 
@@ -2663,12 +2687,16 @@ int CDebuggerWatchExpression::gWatchExpressionID = 1;
 // ====================================================================================================================
 // Constructor
 // ====================================================================================================================
-CDebuggerWatchExpression::CDebuggerWatchExpression(const char* expression, bool8 isConditional)
+CDebuggerWatchExpression::CDebuggerWatchExpression(bool8 isConditional, bool8 break_enabled, const char* condition,
+                                                   const char* trace, bool8 trace_on_condition)
 {
-	mWatchID = -1;
+    mIsEnabled = break_enabled;
     mIsConditional = isConditional;
-    SafeStrcpy(mExpression, expression, kMaxNameLength);
+    SafeStrcpy(mConditional, condition, kMaxNameLength);
+    SafeStrcpy(mTrace, trace, kMaxNameLength);
+    mTraceOnCondition = trace_on_condition;
     mWatchFunctionEntry = NULL;
+    mTraceFunctionEntry = NULL;
 }
 
 // ====================================================================================================================
@@ -2678,20 +2706,27 @@ CDebuggerWatchExpression::~CDebuggerWatchExpression()
 {
     // -- if we had been initialized, we need to destroy the function entry and codeblock
     // -- which will happen, by clearing the expression
-    SetExpression("");
+    SetAttributes(false, "", "", false);
 }
 
 // ====================================================================================================================
 // SetExpression():  Given a watch structure, return true if we actually have something to evaluate.
 // ====================================================================================================================
-void CDebuggerWatchExpression::SetExpression(const char* new_expression)
+void CDebuggerWatchExpression::SetAttributes(bool break_enabled, const char* new_conditional, const char* new_trace,
+                                             bool trace_on_condition)
 {
     // -- no empty strings
-    if (!new_expression)
-        new_expression = "";
+    if (!new_conditional)
+        new_conditional = "";
+    if (!new_trace)
+        new_trace = "";
 
-    // -- if the expression has changed, and the previous had been compiled, we need to delete it
-    if (strcmp(mExpression, new_expression) != 0)
+    // -- set the bools
+    mIsEnabled = break_enabled;
+    mTraceOnCondition = trace_on_condition;
+
+    // -- if the conditional has changed, and the previous had been compiled, we need to delete it
+    if (strcmp(mConditional, new_conditional) != 0)
     {
         if (mWatchFunctionEntry)
         {
@@ -2703,7 +2738,23 @@ void CDebuggerWatchExpression::SetExpression(const char* new_expression)
         }
 
         // -- the first time this is needed, it'll be evaluated
-        SafeStrcpy(mExpression, new_expression, kMaxNameLength);
+        SafeStrcpy(mConditional, new_conditional, kMaxNameLength);
+    }
+
+    // -- same for the trace
+    if (strcmp(mTrace, new_trace) != 0)
+    {
+        if (mTraceFunctionEntry)
+        {
+            CCodeBlock* codeblock = mTraceFunctionEntry->GetCodeBlock();
+            codeblock->RemoveFunction(mTraceFunctionEntry);
+            TinFree(mTraceFunctionEntry);
+            CCodeBlock::DestroyCodeBlock(codeblock);
+            mTraceFunctionEntry = NULL;
+        }
+
+        // -- the first time this is needed, it'll be evaluated
+        SafeStrcpy(mTrace, new_trace, kMaxNameLength);
     }
 }
 

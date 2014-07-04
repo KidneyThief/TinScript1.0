@@ -180,13 +180,22 @@ class CreateBreakConditionDialog : public QDialog
 public:
     CreateBreakConditionDialog(QWidget *parent = 0);
 
-    void SetCondition(const char* variable_name);
+    void SetCondition(const char* variable_name, bool cond_enabled);
     QString GetCondition() const;
     bool IsEnabled() const;
+
+    void SetTraceExpression(const char* trace_expr, bool trace_enabled, bool trace_on_cond);
+    QString GetTraceExpression() const;
+    bool IsTraceEnabled() const;
+
+    bool IsTraceOnCondition() const;
 
 private:
     QLineEdit *mCondition;
     QCheckBox* mIsEnabled;
+    QLineEdit *mTracePoint;
+    QCheckBox* mTraceEnabled;
+    QCheckBox* mTraceOnCondition;
 };
 
 CreateBreakConditionDialog::CreateBreakConditionDialog(QWidget *parent)
@@ -196,17 +205,32 @@ CreateBreakConditionDialog::CreateBreakConditionDialog(QWidget *parent)
 	setMinimumWidth(280);
     QGridLayout *layout = new QGridLayout(this);
 
-    layout->addWidget(new QLabel(tr("Condition:")), 0, 0);
-    mCondition = new QLineEdit;
-    layout->addWidget(mCondition, 0, 1);
-
     mIsEnabled = new QCheckBox;
-    layout->addWidget(mIsEnabled, 1, 0);
-    layout->addWidget(new QLabel(tr("Enabled")), 1, 1);
+    layout->addWidget(mIsEnabled, 0, 0);
     mIsEnabled->setCheckState(Qt::Checked);
 
+    layout->addWidget(new QLabel(tr("Condition:")), 0, 1);
+    mCondition = new QLineEdit;
+    layout->addWidget(mCondition, 0, 2);
+
+    mTraceEnabled = new QCheckBox;
+    layout->addWidget(mTraceEnabled, 1, 0);
+    mTraceEnabled->setCheckState(Qt::Unchecked);
+
+    layout->addWidget(new QLabel(tr("Trace:")), 1, 1);
+    mTracePoint = new QLineEdit;
+    layout->addWidget(mTracePoint, 1, 2);
+
+    QHBoxLayout *traceLayout = new QHBoxLayout;
+    mTraceOnCondition = new QCheckBox;
+    traceLayout->addWidget(mTraceOnCondition);
+    traceLayout->addWidget(new QLabel("Trace On Condition"));
+    traceLayout->addWidget(new QWidget(), 1);
+    layout->addLayout(traceLayout, 2, 2, 1, 1);
+    mTraceOnCondition->setCheckState(Qt::Unchecked);
+
     QHBoxLayout *buttonLayout = new QHBoxLayout;
-    layout->addLayout(buttonLayout, 2, 0, 1, 2);
+    layout->addLayout(buttonLayout, 3, 0, 1, 3);
     buttonLayout->addStretch();
 
     QPushButton *cancelButton = new QPushButton(tr("Cancel"));
@@ -219,9 +243,10 @@ CreateBreakConditionDialog::CreateBreakConditionDialog(QWidget *parent)
     okButton->setDefault(true);
 }
 
-void CreateBreakConditionDialog::SetCondition(const char* condition)
+void CreateBreakConditionDialog::SetCondition(const char* condition, bool cond_enabled)
 {
     mCondition->setText(QString(condition));
+    mIsEnabled->setChecked(cond_enabled);
 }
 
 QString CreateBreakConditionDialog::GetCondition() const
@@ -232,6 +257,28 @@ QString CreateBreakConditionDialog::GetCondition() const
 bool CreateBreakConditionDialog::IsEnabled() const
 {
     return (mIsEnabled->isChecked());
+}
+
+void CreateBreakConditionDialog::SetTraceExpression(const char* expression, bool trace_enabled, bool trace_on_cond)
+{
+    mTracePoint->setText(QString(expression));
+    mTraceEnabled->setChecked(trace_enabled);
+    mTraceOnCondition->setChecked(trace_on_cond);
+}
+
+QString CreateBreakConditionDialog::GetTraceExpression() const
+{
+    return (mTracePoint->text());
+}
+
+bool CreateBreakConditionDialog::IsTraceEnabled() const
+{
+    return (mTraceEnabled->isChecked());
+}
+
+bool CreateBreakConditionDialog::IsTraceOnCondition() const
+{
+    return (mTraceOnCondition->isChecked());
 }
 
 // ====================================================================================================================
@@ -263,8 +310,14 @@ void MainWindow::menuSetBreakCondition()
     if (!condition)
         return;
 
+    bool8 trace_enabled = false;
+    bool8 trace_on_expr = false;
+    const char* trace_expr = CConsoleWindow::GetInstance()->GetDebugBreakpointsWin()->
+                                                            GetTraceExpression(trace_enabled, trace_on_expr);
+
     CreateBreakConditionDialog dialog(this);
-    dialog.SetCondition(condition);
+    dialog.SetCondition(condition, enabled);
+    dialog.SetTraceExpression(trace_expr, trace_enabled, trace_on_expr);
     int ret = dialog.exec();
     if (ret == QDialog::Rejected)
         return;
@@ -272,6 +325,11 @@ void MainWindow::menuSetBreakCondition()
     enabled = dialog.IsEnabled();
     CConsoleWindow::GetInstance()->GetDebugBreakpointsWin()->SetBreakCondition(dialog.GetCondition().toUtf8(),
                                                                                enabled);
+
+    trace_enabled = dialog.IsTraceEnabled();
+    trace_on_expr = dialog.IsTraceOnCondition();
+    CConsoleWindow::GetInstance()->GetDebugBreakpointsWin()->SetTraceExpression(dialog.GetTraceExpression().toUtf8(),
+                                                                                trace_enabled, trace_on_expr);
 }
 
 void MainWindow::menuGoToLine()

@@ -657,7 +657,8 @@ class CCodeBlock {
         // -- debugger interface
         bool8 HasBreakpoints();
         int32 AdjustLineNumber(int32 line_number);
-        int32 AddBreakpoint(int32 line_number, const char* condition);
+        int32 AddBreakpoint(int32 line_number, bool8 break_enabled, const char* conditional, const char* trace,
+                            bool8 trace_on_condition);
         int32 RemoveBreakpoint(int32 line_number);
         void RemoveAllBreakpoints();
 

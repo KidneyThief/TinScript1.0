@@ -832,22 +832,25 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
             // -- if we're forcing a debugger break
             // -- if we're stepping, and we're on a different line, or if
             // -- we're not stepping, and on a different line, and this new line has a breakpoint
+            CDebuggerWatchExpression* break_condition = mBreakpoints->FindItem(cur_line);
             bool force_break = script_context->mDebuggerActionForceBreak;
             bool step_new_line = funccallstack.mDebuggerBreakStep && funccallstack.mDebuggerLastBreak != cur_line &&
                                  break_at_stack_depth;
             bool found_break = (!funccallstack.mDebuggerBreakStep &&
-                                (isNewLine || cur_line != funccallstack.mDebuggerLastBreak) &&
-                                mBreakpoints->FindItem(cur_line));
+                               (isNewLine || cur_line != funccallstack.mDebuggerLastBreak) && break_condition);
 
             // -- if we aren't forcing a break, and not stepping to a new line, and we found a break,
             // -- then evaluate the break conditional
             if (!force_break && !step_new_line && found_break)
             {
-                // -- note:  if we do have an expression, that can't be evaluated, then found_break will still be true
-                CDebuggerWatchExpression* break_condition = mBreakpoints->FindItem(cur_line);
+                // -- when looking to see if we have a breakpoint on this line,
+                // -- we may have a condition and/or a trace expression
+                bool condition_result = true;
+
+                // -- note:  if we do have an expression, that can't be evaluated, assume true
                 if (script_context->HasWatchExpression(*break_condition) &&
-                    script_context->InitWatchExpression(*break_condition, funccallstack) &&
-                    script_context->EvalWatchExpression(*break_condition, funccallstack, execstack))
+                    script_context->InitWatchExpression(*break_condition, false, funccallstack) &&
+                    script_context->EvalWatchExpression(*break_condition, false, funccallstack, execstack))
                 {
                     // -- if we're unable to retrieve the result, then found_break
                     eVarType return_type = TYPE_void;
@@ -858,10 +861,26 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
                         void* bool_result = TypeConvert(script_context, return_type, return_value, TYPE_bool);
                         if (!(*(bool8*)bool_result))
                         {
-                            found_break = false;
+                            condition_result = false;
                         }
                     }
                 }
+
+                // -- regardless of whether we break, we execute the trace expression, but only at the start of the line
+                if (isNewLine && break_condition && script_context->HasTraceExpression(*break_condition))
+                {
+                    if (!break_condition->mTraceOnCondition || condition_result)
+                    {
+                        if (script_context->InitWatchExpression(*break_condition, true, funccallstack))
+                        {
+                            // -- the trace expression has no result
+                            script_context->EvalWatchExpression(*break_condition, true, funccallstack, execstack);
+                        }
+                    }
+                }
+
+                // -- we want to break only if the break is enabled, and the condition is true
+                found_break = break_condition->mIsEnabled && condition_result;
             }
 
             // -- now see if we should break

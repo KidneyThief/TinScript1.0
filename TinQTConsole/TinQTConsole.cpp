@@ -440,7 +440,7 @@ void CConsoleWindow::ToggleBreakpoint(uint32 codeblock_hash, int32 line_number, 
     GetDebugSourceWin()->ToggleBreakpoint(codeblock_hash, line_number, add, enable);
 
     // -- notify the Breakpoints Window
-    GetDebugBreakpointsWin()->ToggleBreakpoint(codeblock_hash, line_number, add, enable);
+    GetDebugBreakpointsWin()->ToggleBreakpoint(codeblock_hash, line_number, add);
 }
 
 // ====================================================================================================================

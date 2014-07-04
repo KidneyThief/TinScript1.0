@@ -246,16 +246,20 @@ class CDebuggerWatchVarEntry
 class CDebuggerWatchExpression
 {
     public:
-        CDebuggerWatchExpression(const char* expression, bool8 isConditional);
+        CDebuggerWatchExpression(bool8 isConditional, bool break_enabled, const char* expression, const char* trace,
+                                 bool8 trace_on_condition);
         ~CDebuggerWatchExpression();
 
-        void SetExpression(const char* new_expression);
+        void SetAttributes(bool8 break_enabled, const char* conditional, const char* trace, bool8 trace_on_condition);
 
         static int gWatchExpressionID;
-        int32 mWatchID;
+        bool8 mIsEnabled;
         bool8 mIsConditional;
-        char mExpression[kMaxNameLength];
+        char mConditional[kMaxNameLength];
+        char mTrace[kMaxNameLength];
+        bool8 mTraceOnCondition;
         CFunctionEntry* mWatchFunctionEntry;
+        CFunctionEntry* mTraceFunctionEntry;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -363,7 +367,8 @@ class CScriptContext {
         void SetDebuggerConnected(bool8 connected);
         bool IsDebuggerConnected(int32& debugger_session);
         void DebuggerNotifyAssert();
-        void AddBreakpoint(const char* filename, int32 line_number, const char* conditional);
+        void AddBreakpoint(const char* filename, int32 line_number, bool8 break_enabled, const char* conditional,
+                           const char* trace, bool8 trace_on_condition);
         void RemoveBreakpoint(const char* filename, int32 line_number);
         void RemoveAllBreakpoints(const char* filename);
         void SetForceBreak(int32 watch_var_request_id);
@@ -375,10 +380,11 @@ class CScriptContext {
 		void AddVariableWatch(int32 request_id, const char* expression, bool breakOnWrite);
 
         bool8 HasWatchExpression(CDebuggerWatchExpression& debugger_watch);
-        bool8 SetWatchExpression(CDebuggerWatchExpression& debugger_watch, const char* new_expression);
-        bool8 InitWatchExpression(CDebuggerWatchExpression& debugger_watch, CFunctionCallStack& call_stack);
-        bool8 EvalWatchExpression(CDebuggerWatchExpression& debugger_watch, CFunctionCallStack& cur_call_stack,
-                                  CExecStack& cur_exec_stack);
+        bool8 HasTraceExpression(CDebuggerWatchExpression& debugger_watch);
+        bool8 InitWatchExpression(CDebuggerWatchExpression& debugger_watch, bool use_trace,
+                                  CFunctionCallStack& call_stack);
+        bool8 EvalWatchExpression(CDebuggerWatchExpression& debugger_watch, bool use_trace,
+                                  CFunctionCallStack& cur_call_stack, CExecStack& cur_exec_stack);
 
         bool8 EvaluateWatchExpression(const char* expression, bool8 conditional);
 		void ToggleVarWatch(int32 watch_request_id, uint32 object_id, uint32 var_name_hash, bool breakOnWrite);

@@ -1662,20 +1662,22 @@ int32 CCodeBlock::AdjustLineNumber(int32 line_number) {
     return (mLineNumbers[mLineNumberCount - 1] & 0xffff);
 }
 
-int32 CCodeBlock::AddBreakpoint(int32 line_number, const char* conditional)
+int32 CCodeBlock::AddBreakpoint(int32 line_number, bool8 break_enabled, const char* conditional, const char* trace,
+                                bool8 trace_on_condition)
 {
     int32 adjusted_line_number = AdjustLineNumber(line_number);
     CDebuggerWatchExpression* watch = mBreakpoints->FindItem(adjusted_line_number);
     if (!watch)
     {
-        CDebuggerWatchExpression *new_break = TinAlloc(ALLOC_Debugger, CDebuggerWatchExpression, conditional, true);
+        CDebuggerWatchExpression *new_break = TinAlloc(ALLOC_Debugger, CDebuggerWatchExpression, true, break_enabled,
+                                                       conditional, trace, trace_on_condition);
         mBreakpoints->AddItem(*new_break, adjusted_line_number);
     }
 
     // -- othwerwise, just set the expression
     else
     {
-        watch->SetExpression(conditional);
+        watch->SetAttributes(break_enabled, conditional, trace, trace_on_condition);
     }
 
     return (adjusted_line_number);
