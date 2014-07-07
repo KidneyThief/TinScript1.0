@@ -122,24 +122,89 @@ public:
         return mOffset;
     }
 
-    void SetValue(void* objaddr, void* value);
+    void SetValue(void* objaddr, void* value, CExecStack* execstack = NULL, CFunctionCallStack* funccallstack = NULL);
     void SetValueAddr(void* objaddr, void* value);
 
-	void SetBreakOnWrite(bool torf, int32 varWatchRequestID, int32 debugger_session)
+	void SetBreakOnWrite(int32 varWatchRequestID, int32 debugger_session, bool8 break_on_write, const char* condition,
+                         const char* trace, bool8 trace_on_cond)
 	{
-		mBreakOnWrite = torf;
+        // -- see if we need to remove an existing break
+        if (mBreakOnWrite != NULL && !break_on_write && (!trace || !trace[0]))
+        {
+            TinFree(mBreakOnWrite);
+            mBreakOnWrite = NULL;
+		    mWatchRequestID = 0;
+		    mDebuggerSession = 0;
+        }
+
+        else if (!mBreakOnWrite)
+        {
+            mBreakOnWrite = TinAlloc(ALLOC_Debugger, CDebuggerWatchExpression, true, break_on_write, condition,
+                                     trace, trace_on_cond);
+        }
+        else
+        {
+            mBreakOnWrite->SetAttributes(break_on_write, condition, trace, trace_on_cond);
+        }
+
 		mWatchRequestID = varWatchRequestID;
 		mDebuggerSession = debugger_session;
 	}
 
-    void NotifyWrite(CScriptContext* script_context)
+    void NotifyWrite(CScriptContext* script_context, CExecStack* execstack, CFunctionCallStack* funccallstack)
     {
 	    if (mBreakOnWrite)
 	    {
 		    int32 cur_debugger_session = 0;
 		    bool is_debugger_connected = script_context->IsDebuggerConnected(cur_debugger_session);
-		    if (is_debugger_connected && mDebuggerSession >= cur_debugger_session)
+		    if (!is_debugger_connected || mDebuggerSession < cur_debugger_session)
+                return;
+
+            // -- evaluate any condition we might have (by default, the condition is true)
+            bool condition_result = true;
+
+            // -- we can only evaluate conditions and trace points, if the variable is modified while
+            // -- we have access to the stack
+            if (execstack && funccallstack)
+            {
+                // -- note:  if we do have an expression, that can't be evaluated, assume true
+                if (script_context->HasWatchExpression(*mBreakOnWrite) &&
+                    script_context->InitWatchExpression(*mBreakOnWrite, false, *funccallstack) &&
+                    script_context->EvalWatchExpression(*mBreakOnWrite, false, *funccallstack, *execstack))
+                {
+                    // -- if we're unable to retrieve the result, then found_break
+                    eVarType return_type = TYPE_void;
+                    void* return_value = NULL;
+                    if (script_context->GetFunctionReturnValue(return_value, return_type))
+                    {
+                        // -- if this is false, then we *do not* break
+                        void* bool_result = TypeConvert(script_context, return_type, return_value, TYPE_bool);
+                        if (!(*(bool8*)bool_result))
+                        {
+                            condition_result = false;
+                        }
+                    }
+                }
+
+                // -- regardless of whether we break, we execute the trace expression, but only at the start of the line
+                if (script_context->HasTraceExpression(*mBreakOnWrite))
+                {
+                    if (!mBreakOnWrite->mTraceOnCondition || condition_result)
+                    {
+                        if (script_context->InitWatchExpression(*mBreakOnWrite, true, *funccallstack))
+                        {
+                            // -- the trace expression has no result
+                            script_context->EvalWatchExpression(*mBreakOnWrite, true, *funccallstack, *execstack);
+                        }
+                    }
+                }
+            }
+
+            // -- we want to break only if the break is enabled, and the condition is true
+            if (mBreakOnWrite->mIsEnabled && condition_result)
+            {
 			    script_context->SetForceBreak(mWatchRequestID);
+            }
 	    }
     }
 
@@ -183,7 +248,7 @@ private:
     CFunctionEntry* mFuncEntry;
 
 	// -- a debugger hook to break if the variable changes
-	bool8 mBreakOnWrite;
+	CDebuggerWatchExpression* mBreakOnWrite;
 	int32 mWatchRequestID;
 	int32 mDebuggerSession;
 };

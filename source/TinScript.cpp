@@ -1283,7 +1283,7 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
 			    // -- if we've been requested to break on write, set the flag on the variable entry
 			    if (ve && breakOnWrite)
 			    {
-				    ve->SetBreakOnWrite(true, request_id, mDebuggerSessionNumber);
+				    ve->SetBreakOnWrite(request_id, mDebuggerSessionNumber, true, NULL, NULL, false);
 
 				    // -- confirm the variable watch
 				    DebuggerVarWatchConfirm(request_id, parent_oe ? parent_oe->GetID() : 0, ve->GetHash());
@@ -1444,7 +1444,7 @@ bool8 CScriptContext::InitWatchExpression(CDebuggerWatchExpression& debugger_wat
     }
 
     // -- push the temporary function entry onto the temp code block, so we can compile our watch function
-    codeblock->smFuncDefinitionStack->Push(fe, NULL, 0);
+    codeblock->smFuncDefinitionStack->Push(fe, cur_object, 0);
 
     // -- add a funcdecl node, and set its left child to be the statement block
     // -- for fun, use the watch_id as the line number - to find it while debugging
@@ -1541,7 +1541,7 @@ bool8 CScriptContext::EvalWatchExpression(CDebuggerWatchExpression& debugger_wat
     CFunctionCallStack funccallstack(kExecFuncCallDepth);
 
     // -- push the function entry onto the call stack
-    funccallstack.Push(watch_function, NULL, 0);
+    funccallstack.Push(watch_function, cur_object, 0);
     
     // -- create space on the execstack for the local variables
     int32 localvarcount = watch_function->GetLocalVarTable()->Used();
@@ -1731,7 +1731,8 @@ bool8 CScriptContext::EvaluateWatchExpression(const char* expression, bool8 cond
 // ====================================================================================================================
 // ToggleVarWatch():  Find the given variable and toggle whether we break on write.
 // ====================================================================================================================
-void CScriptContext::ToggleVarWatch(int32 watch_request_id, uint32 object_id, uint32 var_name_hash, bool breakOnWrite)
+void CScriptContext::ToggleVarWatch(int32 watch_request_id, uint32 object_id, uint32 var_name_hash, bool breakOnWrite,
+                                    const char* condition, const char* trace, bool8 trace_on_cond)
 {
 	CVariableEntry* ve = NULL;
 	if (object_id > 0)
@@ -1755,7 +1756,7 @@ void CScriptContext::ToggleVarWatch(int32 watch_request_id, uint32 object_id, ui
 
 	// -- if we found our variable, toggle the break
 	if (ve)
-		ve->SetBreakOnWrite(breakOnWrite, watch_request_id, mDebuggerSessionNumber);
+		ve->SetBreakOnWrite(watch_request_id, mDebuggerSessionNumber, breakOnWrite, condition, trace, trace_on_cond);
 }
 
 // ====================================================================================================================
@@ -2615,7 +2616,8 @@ void DebuggerAddVariableWatch(int32 request_id, const char* variable_watch, bool
 // --------------------------------------------------------------------------------------------------------------------
 // DebuggerToggleVarWatch():  Toggle whether we break on write for a given variable
 // --------------------------------------------------------------------------------------------------------------------
-void DebuggerToggleVarWatch(int32 watch_request_id, uint32 object_id, int32 var_name_hash, bool breakOnWrite)
+void DebuggerToggleVarWatch(int32 watch_request_id, uint32 object_id, int32 var_name_hash, bool8 breakOnWrite,
+                            const char* condition, const char* trace, bool8 trace_on_cond)
 {
     // -- ensure we have a script context
     CScriptContext* script_context = GetContext();
@@ -2627,7 +2629,8 @@ void DebuggerToggleVarWatch(int32 watch_request_id, uint32 object_id, int32 var_
 		return;
 
     // -- this must be threadsafe - only ProcessThreadCommands should ever lead to this function
-    script_context->ToggleVarWatch(watch_request_id, object_id, var_name_hash, breakOnWrite);
+    script_context->ToggleVarWatch(watch_request_id, object_id, var_name_hash, breakOnWrite, condition, trace,
+                                   trace_on_cond);
 }
 
 // -------------------------------------------------------------------------------------------------------------------
@@ -2642,7 +2645,7 @@ REGISTER_FUNCTION_P2(DebuggerBreakStep, DebuggerBreakStep, void, bool8, bool8);
 REGISTER_FUNCTION_P0(DebuggerBreakRun, DebuggerBreakRun, void);
 
 REGISTER_FUNCTION_P3(DebuggerAddVariableWatch, DebuggerAddVariableWatch, void, int32, const char*, bool8);
-REGISTER_FUNCTION_P4(DebuggerToggleVarWatch, DebuggerToggleVarWatch, void, int32, uint32, int32, bool8);
+REGISTER_FUNCTION_P7(DebuggerToggleVarWatch, DebuggerToggleVarWatch, void, int32, uint32, int32, bool8, const char*, const char*, bool8);
 
 // == class CThreadMutex ==============================================================================================
 // -- CThreadMutex is only functional in WIN32
@@ -2730,8 +2733,10 @@ void CDebuggerWatchExpression::SetAttributes(bool break_enabled, const char* new
     {
         if (mWatchFunctionEntry)
         {
+            // -- to delete a function, remove it from it's namespace, and then deleting it will automatically
+            // -- remove it from whatever codeblock owned it...
             CCodeBlock* codeblock = mWatchFunctionEntry->GetCodeBlock();
-            codeblock->RemoveFunction(mWatchFunctionEntry);
+            TinScript::GetContext()->GetGlobalNamespace()->GetFuncTable()->RemoveItem(mWatchFunctionEntry->GetHash());
             TinFree(mWatchFunctionEntry);
             CCodeBlock::DestroyCodeBlock(codeblock);
             mWatchFunctionEntry = NULL;
@@ -2747,7 +2752,7 @@ void CDebuggerWatchExpression::SetAttributes(bool break_enabled, const char* new
         if (mTraceFunctionEntry)
         {
             CCodeBlock* codeblock = mTraceFunctionEntry->GetCodeBlock();
-            codeblock->RemoveFunction(mTraceFunctionEntry);
+            TinScript::GetContext()->GetGlobalNamespace()->GetFuncTable()->RemoveItem(mTraceFunctionEntry->GetHash());
             TinFree(mTraceFunctionEntry);
             CCodeBlock::DestroyCodeBlock(codeblock);
             mTraceFunctionEntry = NULL;

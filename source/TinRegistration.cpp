@@ -46,8 +46,9 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
     mStackOffset = -1;
     mDispatchConvertFromObject = 0;
     mFuncEntry = NULL;
-	mBreakOnWrite = false;
+	mBreakOnWrite = NULL;
     mWatchRequestID = 0;
+    mDebuggerSession = 0;
 }
 
 CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name, uint32 _hash,
@@ -63,8 +64,9 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
     mStackOffset = -1;
     mDispatchConvertFromObject = 0;
     mFuncEntry = NULL;
-	mBreakOnWrite = false;
+	mBreakOnWrite = NULL;
     mWatchRequestID = 0;
+    mDebuggerSession = 0;
 
     // -- hashtables are tables of variable entries...
     // -- they can only be created from script
@@ -89,7 +91,14 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
     }
 }
 
-CVariableEntry::~CVariableEntry() {
+CVariableEntry::~CVariableEntry()
+{
+    // -- if we have a debugger watch, delete it
+    if (mBreakOnWrite)
+    {
+        TinFree(mBreakOnWrite);
+    }
+
     // -- if the value is a string, update the string table
     if (mType == TYPE_string)
     {
@@ -113,7 +122,7 @@ CVariableEntry::~CVariableEntry() {
 }
 
 // -- if the value type is a TYPE_string, then the void* value contains a hash value
-void CVariableEntry::SetValue(void* objaddr, void* value)
+void CVariableEntry::SetValue(void* objaddr, void* value, CExecStack* execstack, CFunctionCallStack* funccallstack)
 {
 	assert(value);
 	int32 size = gRegisteredTypeSize[mType];
@@ -149,7 +158,7 @@ void CVariableEntry::SetValue(void* objaddr, void* value)
     }
 
 	// -- if we've been requested to break on write
-    NotifyWrite(GetScriptContext());
+    NotifyWrite(GetScriptContext(), execstack, funccallstack);
 }
 
 // -- for this method, if the value type is a TYPE_string, then the void* value
@@ -181,8 +190,10 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value)
     else
         memcpy(varaddr, value, size);
 
-	// -- if we've been requested to break on write (in a current session
-    NotifyWrite(GetScriptContext());
+	// -- if we've been requested to break on write
+    // -- note:  SetValueAddr() is the external access (from code), and is never part 
+    // -- of executing the VM... therefore, we have no stack
+    NotifyWrite(GetScriptContext(), NULL, NULL);
 }
 
 // -- this is only used to copy the contents of an execstack, to return a value from a

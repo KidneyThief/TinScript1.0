@@ -1120,7 +1120,10 @@ int32 CFuncCallNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
     size += PushInstruction(countonly, instrptr, funchash, DBG_func);
 
     // -- then evaluate all the argument assignments
-    size += leftchild->Eval(instrptr, TYPE_void, countonly);
+    int32 tree_size = leftchild->Eval(instrptr, TYPE_void, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
 
     // -- then call the function
     size += PushInstruction(countonly, instrptr, OP_FuncCall, DBG_instr);

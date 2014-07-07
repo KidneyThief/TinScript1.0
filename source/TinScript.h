@@ -387,7 +387,8 @@ class CScriptContext {
                                   CFunctionCallStack& cur_call_stack, CExecStack& cur_exec_stack);
 
         bool8 EvaluateWatchExpression(const char* expression, bool8 conditional);
-		void ToggleVarWatch(int32 watch_request_id, uint32 object_id, uint32 var_name_hash, bool breakOnWrite);
+		void ToggleVarWatch(int32 watch_request_id, uint32 object_id, uint32 var_name_hash, bool breakOnWrite,
+                            const char* condition, const char* trace, bool8 trace_on_cond);
 
         // -- set the bool to indicate we're not stepping through each line in a debugger
 		int32 mDebuggerSessionNumber;

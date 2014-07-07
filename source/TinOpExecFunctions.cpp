@@ -347,7 +347,7 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
        	// -- if we're connected to the debugger, then the variable entry associated with the stack var will be returned,
 		// -- notify we're breaking on it
 		if (ve0)
-			ve0->NotifyWrite(script_context);
+			ve0->NotifyWrite(script_context, &execstack, &funccallstack);
     }
 
     // -- else set the value through the variable entry
@@ -362,7 +362,7 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
             return (false);
         }
 
-    	ve0->SetValue(oe0 ? oe0->GetAddr() : NULL, val1addr);
+    	ve0->SetValue(oe0 ? oe0->GetAddr() : NULL, val1addr, &execstack, &funccallstack);
         DebugTrace(op, "Var %s: %s", UnHash(ve0->GetHash()),
                     DebugPrintVar(val1addr, ve0->GetType()));
     }

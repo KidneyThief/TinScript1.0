@@ -211,10 +211,19 @@ void CDebugBreakpointsWin::OnClicked(QListWidgetItem* item)
     // -- otherwise, send the toggle message directly
     else
     {
-        SocketManager::SendCommandf("DebuggerToggleVarWatch(%d, %d, %d, %s);", breakpoint->mWatchRequestID,
-                                                                               breakpoint->mWatchVarObjectID,
-                                                                               breakpoint->mWatchVarNameHash,
-                                                                               enabled ? "true" : "false");
+        // -- fill in the condition and trace lables
+        bool condition_enabled = breakpoint->mConditionEnabled && breakpoint->mCondition[0];
+        bool trace_enabled = breakpoint->mTraceEnabled && breakpoint->mTracePoint[0];
+        bool trace_on_condition = condition_enabled && trace_enabled && breakpoint->mTraceOnCondition;
+
+        // -- note:  If the trace is enabled, then we don't *break* on the variable being written, but we do
+        // -- execute the trace expression
+        SocketManager::SendCommandf("DebuggerToggleVarWatch(%d, %d, %d, %s, '%s', '%s', %s);",
+                                    breakpoint->mWatchRequestID, breakpoint->mWatchVarObjectID,
+                                    breakpoint->mWatchVarNameHash, breakpoint->mChecked ? "true" : "false",
+                                    condition_enabled ? breakpoint->mCondition : "",
+                                    trace_enabled ? breakpoint->mTracePoint : "",
+                                    trace_on_condition ? "true" : "false");
     }
 }
 
@@ -248,9 +257,9 @@ void CDebugBreakpointsWin::keyPressEvent(QKeyEvent* event)
             }
             else
             {
-                SocketManager::SendCommandf("DebuggerToggleVarWatch(%d, %d, %d, false);", cur_item->mWatchRequestID,
-                                                                                          cur_item->mWatchVarObjectID,
-                                                                                          cur_item->mWatchVarNameHash);
+                SocketManager::SendCommandf("DebuggerToggleVarWatch(%d, %d, %d, false, ``, ``, false);",
+                                            cur_item->mWatchRequestID, cur_item->mWatchVarObjectID,
+                                            cur_item->mWatchVarNameHash);
             }
         }
         return;
@@ -402,8 +411,29 @@ void CDebugBreakpointsWin::SetBreakCondition(const char* expression, bool8 cond_
         // -- update the check box
         cur_entry->SetCheckedState(cur_entry->mChecked, cur_entry->mConditionEnabled);
 
-        // -- toggle the breakpoint (which sends the message to the target)
-        ToggleBreakpoint(cur_entry->mCodeblockHash, cur_entry->mLineNumber, true);
+        // -- if this is a file/line breakpoint...
+        if (cur_entry->mWatchRequestID == 0)
+        {
+            // -- toggle the breakpoint (which sends the message to the target)
+            ToggleBreakpoint(cur_entry->mCodeblockHash, cur_entry->mLineNumber, true);
+        }
+        // -- otherwise, send the toggle message directly
+        else
+        {
+            // -- fill in the condition and trace lables
+            bool condition_enabled = cur_entry->mConditionEnabled && cur_entry->mCondition[0];
+            bool trace_enabled = cur_entry->mTraceEnabled && cur_entry->mTracePoint[0];
+            bool trace_on_condition = condition_enabled && trace_enabled && cur_entry->mTraceOnCondition;
+
+            // -- note:  If the trace is enabled, then we don't *break* on the variable being written, but we do
+            // -- execute the trace expression
+            SocketManager::SendCommandf("DebuggerToggleVarWatch(%d, %d, %d, %s, '%s', '%s', %s);",
+                                        cur_entry->mWatchRequestID, cur_entry->mWatchVarObjectID,
+                                        cur_entry->mWatchVarNameHash, cur_entry->mChecked ? "true" : "false",
+                                        condition_enabled ? cur_entry->mCondition : "",
+                                        trace_enabled ? cur_entry->mTracePoint : "",
+                                        trace_on_condition ? "true" : "false");
+        }
     }
 }
 
@@ -414,7 +444,7 @@ const char* CDebugBreakpointsWin::GetBreakCondition(bool8& enabled)
 {
     // -- get the current entry, update the expression and enabled members
     CBreakpointEntry* cur_entry = static_cast<CBreakpointEntry*>(currentItem());
-    if (!cur_entry || cur_entry->mWatchRequestID > 0)
+    if (!cur_entry)
         return (NULL);
 
     enabled = cur_entry->mConditionEnabled;
@@ -447,8 +477,29 @@ void CDebugBreakpointsWin::SetTraceExpression(const char* expression, bool8 trac
                                    cur_entry->mWatchVarNameHash);
         }
 
-        // -- toggle the breakpoint (which sends the message to the target)
-        ToggleBreakpoint(cur_entry->mCodeblockHash, cur_entry->mLineNumber, true);
+        // -- if this is a file/line breakpoint...
+        if (cur_entry->mWatchRequestID == 0)
+        {
+            // -- toggle the breakpoint (which sends the message to the target)
+            ToggleBreakpoint(cur_entry->mCodeblockHash, cur_entry->mLineNumber, true);
+        }
+        // -- otherwise, send the toggle message directly
+        else
+        {
+            // -- fill in the condition and trace lables
+            bool condition_enabled = cur_entry->mConditionEnabled && cur_entry->mCondition[0];
+            bool trace_enabled = cur_entry->mTraceEnabled && cur_entry->mTracePoint[0];
+            bool trace_on_condition = condition_enabled && trace_enabled && cur_entry->mTraceOnCondition;
+
+            // -- note:  If the trace is enabled, then we don't *break* on the variable being written, but we do
+            // -- execute the trace expression
+            SocketManager::SendCommandf("DebuggerToggleVarWatch(%d, %d, %d, %s, '%s', '%s', %s);",
+                                        cur_entry->mWatchRequestID, cur_entry->mWatchVarObjectID,
+                                        cur_entry->mWatchVarNameHash, cur_entry->mChecked ? "true" : "false",
+                                        condition_enabled ? cur_entry->mCondition : "",
+                                        trace_enabled ? cur_entry->mTracePoint : "",
+                                        trace_on_condition ? "true" : "false");
+        }
     }
 }
 
