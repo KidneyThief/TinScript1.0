@@ -861,8 +861,88 @@ int32 CCondBranchNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counto
 }
 
 // ------------------------------------------------------------------------------------------------
+CLoopJumpNode::CLoopJumpNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
+                             CWhileLoopNode* loop_node, bool8 is_break)
+    : CCompileTreeNode(_codeblock, _link, eLoopJump, _linenumber)
+{
+    mIsBreak = is_break;
+    mJumpInstr = NULL;
+    mJumpOffset = NULL;
+
+    // -- notify the loop node that this node is jumping within
+    loop_node->AddLoopJumpNode(this);
+}
+
+int32 CLoopJumpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
+    Unused_(pushresult);
+
+	DebugEvaluateNode(*this, countonly, instrptr);
+	int32 size = 0;
+
+    // -- we'll need to calculate the offset, based on where we are now
+    // -- push the branch instruction
+    if (!countonly)
+        mJumpInstr = instrptr;
+	size += PushInstruction(countonly, instrptr, OP_Branch, DBG_instr);
+
+    // -- cache the location of the offset - we'll fill it in after the while node has finished compiling
+	// -- push a placeholder in the meantime
+    if (!countonly)
+        mJumpOffset = instrptr;
+	uint32 empty = 0;
+	size += PushInstructionRaw(countonly, instrptr, (void*)&empty, 1, DBG_NULL,
+							   "placeholder for branch");
+	return size;
+}
+
+void CLoopJumpNode::NotifyLoopInstr(uint32* continue_instr, uint32* break_instr)
+{
+    // -- ensure we have valid loop start and end instructions
+    if (!continue_instr || !break_instr || !mJumpInstr || !mJumpOffset)
+    {
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
+                        "Error - NotifyLoopInstr(): invalid offsets\n");
+        return;
+    }
+
+    // -- pick which instruction we're jumping to
+    uint32* next_instr = mIsBreak ? break_instr : continue_instr;
+
+    // -- if the instruction we're jumping to is *before* our current instruction, we'll have a negative jump,
+    // -- and we'll add 2, to jump before the OP_BRANCH itself.
+    if (kPointerToUInt32(next_instr) <=  kPointerToUInt32(mJumpInstr))
+    {
+        int32 jump_offset = (int32)(kPointerDiffUInt32(mJumpInstr, next_instr)) >> 2;
+        jump_offset += 2;
+
+        // -- fill in the offset
+        *mJumpOffset = -jump_offset;
+    }
+    else
+    {
+        int32 jump_offset = (int32)(kPointerDiffUInt32(next_instr, mJumpInstr)) >> 2;
+        jump_offset -= 2;
+        if (jump_offset < 0)
+        {
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
+                          "Error - NotifyLoopInstr(): invalid offsets\n");
+            return;
+        }
+
+        // -- fill in the offset
+        *mJumpOffset = jump_offset;
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
 CWhileLoopNode::CWhileLoopNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber) :
-                               CCompileTreeNode(_codeblock, _link, eWhileLoop, _linenumber) {
+                               CCompileTreeNode(_codeblock, _link, eWhileLoop, _linenumber)
+{
+    mEndOfLoopNode = NULL;
+    mContinueHereInstr = NULL;
+    mBreakHereInstr = NULL;
+    mLoopJumpNodeCount = 0;
 }
 
 int32 CWhileLoopNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
@@ -872,16 +952,27 @@ int32 CWhileLoopNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 	int32 size = 0;
 
 	// -- ensure we have a left child
-	if(!leftchild) {
+	if(!leftchild)
+    {
 		printf("Error - CWhileLoopNode with no left child\n");
 		return (-1);
 	}
 
 	// -- ensure we have a left child
-	if(!rightchild) {
+	if (!rightchild)
+    {
 		printf("Error - CWhileLoopNode with no right child\n");
 		return (-1);
 	}
+
+    // -- this is the start of the condition for the loop - mark the instruction pointer
+    // -- so continue and break nodes can jump correctly
+    if (!countonly)
+    {
+        // -- if we don't have an end of loop node, then if we hit a "continue" statement, we jump here
+        if (!mEndOfLoopNode)
+            mContinueHereInstr = instrptr;
+    }
 
 	// the instruction at the start of the leftchild is where we begin each loop
 	// -- evaluate the left child, which is the condition
@@ -904,20 +995,65 @@ int32 CWhileLoopNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
         return (-1);
     size += tree_size;
 
+    // -- continue statemtents need to jump to the end of the loop body, but still evaluate the end of loop statement
+    // -- e.g.  continuing within a 'for' loop, skips the body, but executes the end of loop statement(s)
+    if (!countonly)
+    {
+        // -- a "continue" statement jumps to the end of loop node
+        if (mEndOfLoopNode)
+            mContinueHereInstr = instrptr;
+    }
+
+    // -- there may be an end of loop node (for loops use this, for example)
+    if (mEndOfLoopNode)
+    {
+        tree_size = mEndOfLoopNode->Eval(instrptr, TYPE_void, countonly);
+        if (tree_size < 0)
+            return (-1);
+        size += tree_size;
+    }
+
 	// -- after the body of the while loop has been executed, we want to jump back
 	// -- to the top and evaluate the condition again
 	int32 jumpcount = -(size + 2);  // note + 2 is to account for the actual jump itself
 	size += PushInstruction(countonly, instrptr, OP_Branch, DBG_instr);
 	size += PushInstruction(countonly, instrptr, (uint32)jumpcount, DBG_NULL);
 
-
 	// fill in the top jumpcount, which is to skip the while loop body if the condition is false
-    if(!countonly) {
+    if (!countonly)
+    {
 	    jumpcount = size - cursize;
 	    *branchwordcount = jumpcount;
     }
 
+    // -- this is the end of body of the loop - mark the instruction pointer
+    // -- so continue and break nodes can jump correctly
+    if (!countonly)
+    {
+        // -- break instructions jump to the very end, past the end of loop 
+        mBreakHereInstr = instrptr;
+
+        // -- now that we've completed compiling the while loop, go through all break/continue
+        // -- nodes that jump out of this loop
+        for (int32 i = 0; i < mLoopJumpNodeCount; ++i)
+        {
+            mLoopJumpNodeList[i]->NotifyLoopInstr(mContinueHereInstr, mBreakHereInstr);
+        }
+    }
+
 	return size;
+}
+
+bool8 CWhileLoopNode::AddLoopJumpNode(CLoopJumpNode* jump_node)
+{
+    if (mLoopJumpNodeCount >= kMaxLoopJumpCount || !jump_node)
+    {
+        ScriptAssert_(codeblock->GetScriptContext(), 0, "<internal>", -1,
+                        "Error - AddLoopJumpNode() in file: %s\n", codeblock->GetFileName());
+        return (false);
+    }
+    mLoopJumpNodeList[mLoopJumpNodeCount++] = jump_node;
+    return (true);
 }
 
 // ------------------------------------------------------------------------------------------------

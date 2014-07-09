@@ -51,6 +51,11 @@ static bool8 gGlobalReturnStatement = false;
 static bool8 gGlobalDestroyStatement = false;
 static bool8 gGlobalCreateStatement = false;
 
+// -- max stack level of 32 - should be enough...
+static const int32 gMaxWhileLoopDepth = 32;
+static int32 gWhileLoopDepth = 0;
+static CWhileLoopNode* gWhileLoopStack[gMaxWhileLoopDepth];
+
 // ------------------------------------------------------------------------------------------------
 // binary operators
 static const char* gBinOperatorString[] = {
@@ -611,6 +616,15 @@ void DumpTree(const CCompileTreeNode* root, int32 indent, bool8 isleft, bool8 is
 		if (root->rightchild)
 			DumpTree(root->rightchild, indent + 1, false, true);
 
+        // -- special case for while loops - we need to dump the end of loop statmements
+        if (root->GetType() == eWhileLoop)
+        {
+            const CWhileLoopNode* while_loop = static_cast<const CWhileLoopNode*>(root);
+            const CCompileTreeNode* end_of_loop = while_loop->GetEndOfLoopNode();
+            if (end_of_loop)
+                DumpTree(end_of_loop,indent + 1, false, false);
+        }
+
         // -- next root, and clear the left/right flags
 		root = root->next;
         isleft = false;
@@ -1031,6 +1045,12 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
             return false;
         filebuf = firsttoken;
         return true;
+    }
+
+    // -- check for a break or continue statement
+    if (TryParseBreakContinue(codeblock, filebuf, link))
+    {
+        return (true);
     }
 
     // -- check for a return statement
@@ -1685,12 +1705,25 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 	CWhileLoopNode* whileloopnode = TinAlloc(ALLOC_TreeNode, CWhileLoopNode, codeblock, link,
                                              filebuf.linenumber);
 
+    // -- push the while loop onto the stack
+    if (gWhileLoopDepth >= gMaxWhileLoopDepth)
+    {
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber,
+                      "Error - 'while loop' depth of %d exceeded\n", gMaxWhileLoopDepth);
+        return (false);
+    }
+
+    // -- push the while node onto the stack (used so break and continue know which loop they're affecting)
+    gWhileLoopStack[gWhileLoopDepth++] = whileloopnode;
+
 	// we need to have a valid expression for the left hand child
 	bool8 result = TryParseStatement(codeblock, filebuf, whileloopnode->leftchild);
 	if(!result) {
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - 'while loop' without a conditional expression\n");
+        --gWhileLoopDepth;
 		return false;
 	}
 
@@ -1698,6 +1731,7 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
     if(!GetToken(filebuf) || filebuf.type != TOKEN_PAREN_CLOSE) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), filebuf.linenumber,
                       "Error - expecting ')'\n");
+        --gWhileLoopDepth;
         return false;
     }
 
@@ -1709,6 +1743,7 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 	if(!GetToken(peektoken)) {
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), filebuf.linenumber,
                       "Error - 'while loop' without a body\n");
+        --gWhileLoopDepth;
 		return false;
 	}
 	if(peektoken.type == TOKEN_BRACE_OPEN) {
@@ -1718,8 +1753,12 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
                           "Error - unable to parse the while loop statmentblock\n");
+            --gWhileLoopDepth;
 			return false;
 		}
+
+        // -- success - pop the while node off the stack
+        --gWhileLoopDepth;
 		return true;
 	}
 	// -- else it's a single expression
@@ -1729,8 +1768,12 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
                           "Error - unable to parse the while loop body\n");
+            --gWhileLoopDepth;
 			return false;
 		}
+
+        // -- success - pop the while node off the stack
+        --gWhileLoopDepth;
 		return true;
 	}
 }
@@ -1796,12 +1839,25 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	CWhileLoopNode* whileloopnode = TinAlloc(ALLOC_TreeNode, CWhileLoopNode, codeblock,
                                              AppendToRoot(*forlooproot), filebuf.linenumber);
 
+    // -- push the while loop onto the stack
+    if (gWhileLoopDepth >= gMaxWhileLoopDepth)
+    {
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                      filebuf.linenumber,
+                      "Error - 'while loop' depth of %d exceeded\n", gMaxWhileLoopDepth);
+        return (false);
+    }
+
+    // -- push the while node onto the stack (used so break and continue know which loop they're affecting)
+    gWhileLoopStack[gWhileLoopDepth++] = whileloopnode;
+
 	// -- the for loop condition is the left child of the while loop node
 	result = TryParseStatement(codeblock, filebuf, whileloopnode->leftchild);
 	if(!result) {
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - unable to parse the conditional expression\n"); 
+        --gWhileLoopDepth;
 		return false;
 	}
 
@@ -1810,6 +1866,7 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	{
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber, "Error - expecting ';'\n");
+        --gWhileLoopDepth;
 		return false;
 	}
 
@@ -1820,6 +1877,7 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - unable to parse the end of loop expression\n");
+        --gWhileLoopDepth;
 		return false;
 	}
 
@@ -1828,6 +1886,7 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	{
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber, "Error - expecting ')'\n");
+        --gWhileLoopDepth;
 		return false;
 	}
 
@@ -1843,6 +1902,7 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - unable to parse the for loop body\n");
+        --gWhileLoopDepth;
 		return false;
 	}
 	if(peektoken.type == TOKEN_BRACE_OPEN) {
@@ -1854,6 +1914,7 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
                           "Error - failed to read statement block\n");
+            --gWhileLoopDepth;
 			return false;
 		}
 	}
@@ -1865,13 +1926,16 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
                           "Error - failed to read statement block\n");
+            --gWhileLoopDepth;
 			return false;
 		}
 	}
 
-	// now append the end of loop expression to the body of the for loop
-	CCompileTreeNode*& whileloopbodylink = AppendToRoot(*whileloopnode->rightchild);
-	whileloopbodylink = tempendofloop;
+	// notify the while node of the end of the loop statements
+    whileloopnode->SetEndOfLoopNode(tempendofloop);
+
+    // -- success - pop the while node off the stack
+    --gWhileLoopDepth;
 
 	// -- success
 	return true;
@@ -2269,6 +2333,42 @@ bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 
 	// -- success
 	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+bool8 TryParseBreakContinue(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link)
+{
+
+    // -- disallow break/continue statments while in the middle of parenthetical expressions
+    // -- (at least until I can think of a valid example)
+    if (gGlobalExprParenDepth > 0)
+        return (false);
+
+    // -- ensure the next token is the 'return' keyword
+    tReadToken peektoken(filebuf);
+    if(!GetToken(peektoken) || peektoken.type != TOKEN_KEYWORD)
+        return false;
+	int32 reservedwordtype = GetReservedKeywordType(peektoken.tokenptr, peektoken.length);
+    if(reservedwordtype != KEYWORD_break && reservedwordtype != KEYWORD_continue)
+        return false;
+
+    // -- ensure we're in the middle of compiling a loop
+    if (gWhileLoopDepth < 1)
+    {
+		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), filebuf.linenumber,
+                      "Error - trying parse continue / break, outside of a loop\n");
+        return (false);
+    }
+
+    // -- committed
+    filebuf = peektoken;
+
+    // -- add a return node to the tree, and parse the return expression
+    CLoopJumpNode* loopJumpNode = TinAlloc(ALLOC_TreeNode, CLoopJumpNode, codeblock, link, filebuf.linenumber,
+                                           gWhileLoopStack[gWhileLoopDepth - 1], reservedwordtype == KEYWORD_break);
+
+    // -- success
+    return true;
 }
 
 // ------------------------------------------------------------------------------------------------

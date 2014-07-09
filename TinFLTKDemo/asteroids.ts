@@ -390,9 +390,8 @@ void AsteroidsGame::OnUpdate()
     while (IsObject(bullet))
     {
         // -- loop through all the asteroids
-        bool finished = false;
         object asteroid = self.asteroid_set.First();
-        while (!finished && IsObject(asteroid))
+        while (IsObject(asteroid))
         {
             // -- if the bullet is within radius of the asteroid, it's a collision
             float distance = V3fLength(bullet.position - asteroid.position);
@@ -404,8 +403,8 @@ void AsteroidsGame::OnUpdate()
                 // -- add the bullet to the delete set and break
                 self.delete_set.AddObject(bullet);
                 
-                // $$$TZA break doesn't compile??
-                finished = true;
+                // -- no need to keep colliding with this asteroid
+                break;
             }
             
             // -- otherwise, get the next asteroid
@@ -420,9 +419,8 @@ void AsteroidsGame::OnUpdate()
     }
     
     // -- look for asteroid collisions with the ship
-    bool finished = false;
     object asteroid = self.asteroid_set.First();
-    while (!finished && IsObject(asteroid))
+    while (IsObject(asteroid))
     {
         // -- if the distance to from the ship to the asteroid < sum of their radii
         float distance = V3fLength(asteroid.position - self.ship.position);
@@ -435,9 +433,9 @@ void AsteroidsGame::OnUpdate()
             // -- also split the asteroid
             asteroid.OnCollision();
             
-            // -- note - the asteroid could have been deleted, so the loop should exist without
+            // -- note - the asteroid could have been deleted, so the loop should exit without
             // -- continuing to iterate
-            finished = true;
+            break;
         }
         
         // -- else check the next asteroid

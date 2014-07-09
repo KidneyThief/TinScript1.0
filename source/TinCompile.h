@@ -39,6 +39,7 @@ class CFunctionContext;
 class CFunctionEntry;
 class CExecStack;
 class CFunctionCallStack;
+class CWhileLoopNode;
 
 // ------------------------------------------------------------------------------------------------
 // compile tree node types
@@ -55,6 +56,7 @@ class CFunctionCallStack;
 	CompileNodeTypeEntry(CondBranch)			\
 	CompileNodeTypeEntry(WhileLoop)				\
 	CompileNodeTypeEntry(ForLoop)				\
+	CompileNodeTypeEntry(LoopJump)        		\
 	CompileNodeTypeEntry(FuncDecl)				\
 	CompileNodeTypeEntry(FuncCall)				\
 	CompileNodeTypeEntry(FuncReturn)			\
@@ -325,15 +327,54 @@ class CCondBranchNode : public CCompileTreeNode
 		CCondBranchNode() { }
 };
 
+class CLoopJumpNode : public CCompileTreeNode
+{
+	public:
+		CLoopJumpNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int _linenumber, CWhileLoopNode* loop_node,
+                      bool is_break);
+
+		virtual int Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const;
+        void NotifyLoopInstr(uint32* continue_instr, uint32* break_instr);
+
+	protected:
+		CLoopJumpNode() { }
+        bool8 mIsBreak;
+        mutable uint32* mJumpInstr;
+        mutable uint32* mJumpOffset;
+};
+
 class CWhileLoopNode : public CCompileTreeNode
 {
 	public:
 		CWhileLoopNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int _linenumber);
 
 		virtual int Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const;
+        bool8 AddLoopJumpNode(CLoopJumpNode* jump_node);
+
+        void SetEndOfLoopNode(CCompileTreeNode* node)
+        {
+            mEndOfLoopNode = node;
+        }
+
+        const CCompileTreeNode* GetEndOfLoopNode() const
+        {
+            return (mEndOfLoopNode);
+        }
 
 	protected:
 		CWhileLoopNode() { }
+
+        CCompileTreeNode* mEndOfLoopNode;
+
+        // -- we're also going to keep a list of break and continue nodes that need to jump
+        // -- to the beginning / end of this loop
+        enum { kMaxLoopJumpCount = 128 };
+
+        mutable uint32* mContinueHereInstr;
+        mutable uint32* mBreakHereInstr;
+
+        int32 mLoopJumpNodeCount;
+        CLoopJumpNode* mLoopJumpNodeList[kMaxLoopJumpCount];
 };
 
 class CParenOpenNode : public CCompileTreeNode
