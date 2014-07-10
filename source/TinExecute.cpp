@@ -459,7 +459,8 @@ bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
         fe->GetScriptContext()->GetStringTable()->RemoveUnreferencedStrings();
         
         // -- since we called a 'C' function, there's no OP_FuncReturn - pop the function call stack
-        funccallstack.Pop(oe);
+        int32 var_offset = 0;
+        funccallstack.Pop(oe, var_offset);
     }
 
     return true;

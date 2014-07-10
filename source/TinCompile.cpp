@@ -1191,7 +1191,8 @@ int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 
     // -- clear the current function definition
     CObjectEntry* dummy = NULL;
-    codeblock->smFuncDefinitionStack->Pop(dummy);
+    int32 var_offset = 0;
+    codeblock->smFuncDefinitionStack->Pop(dummy, var_offset);
 
 	return size;
 }

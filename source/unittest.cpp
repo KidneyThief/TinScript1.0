@@ -918,6 +918,16 @@ void BeginMultiThreadTest()
 REGISTER_FUNCTION_P2(BeginUnitTests, BeginUnitTests, void, bool8, const char*);
 REGISTER_FUNCTION_P0(BeginMultiThreadTest, BeginMultiThreadTest, void);
 
+// -- useful for profiling
+#ifdef WIN32
+	#include "windows.h"
+	int32 GetTimeMS()
+	{
+	    return (GetTickCount());
+	}
+	REGISTER_FUNCTION_P0(GetTimeMS, GetTimeMS, int32);
+#endif
+
 // ------------------------------------------------------------------------------------------------
 // eof
 // ------------------------------------------------------------------------------------------------

@@ -564,6 +564,8 @@ bool8 OpExecAssignBitXor(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
 bool8 OpExecUnaryPreInc(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                         CFunctionCallStack& funccallstack)
 {
+    // $$$TZA For now, we do not allow chaining of assignments, which includes
+    // -- int x = ++y;
     // -- unary preinc is the same as "x += 1", except we also push the variable back onto the stack
     // -- as it's also used as a value
 
@@ -590,8 +592,10 @@ bool8 OpExecUnaryPreInc(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
         return (false);
     }
 
+    // $$$TZA For now, we do not allow chaining of assignments, which includes
+    // -- int x = ++y;
     // -- push the variable back onto the stack
-    execstack.Push((void*)assign_buf, assign_type);
+    //execstack.Push((void*)assign_buf, assign_type);
 
     // -- success
     return (true);
@@ -600,6 +604,8 @@ bool8 OpExecUnaryPreInc(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
 bool8 OpExecUnaryPreDec(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                         CFunctionCallStack& funccallstack)
 {
+    // $$$TZA For now, we do not allow chaining of assignments, which includes
+    // -- int x = ++y;
     // -- unary predec is the same as "x += -1", except we also push the variable back onto the stack
     // -- as it's also used as a value
 
@@ -627,7 +633,9 @@ bool8 OpExecUnaryPreDec(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     }
 
     // -- push the variable back onto the stack
-    execstack.Push((void*)assign_buf, assign_type);
+    // $$$TZA For now, we do not allow chaining of assignments, which includes
+    // -- int x = ++y;
+    //execstack.Push((void*)assign_buf, assign_type);
 
     // -- success
     return (true);
@@ -1309,7 +1317,8 @@ bool8 OpExecFuncDeclEnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
                         CFunctionCallStack& funccallstack) {
     // -- push the function stack
     CObjectEntry* oe = NULL;
-    CFunctionEntry* fe = funccallstack.Pop(oe);
+    int32 var_offset = 0;
+    CFunctionEntry* fe = funccallstack.Pop(oe, var_offset);
     fe->GetContext()->InitStackVarOffsets();
     DebugTrace(op, "%s", UnHash(fe->GetHash()));
     return (true);
@@ -1502,7 +1511,8 @@ bool8 OpExecFuncReturn(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
                        CFunctionCallStack& funccallstack) {
     // -- pop the function entry from the stack
     CObjectEntry* oe = NULL;
-    CFunctionEntry* fe = funccallstack.Pop(oe);
+    int32 var_offset = 0;
+    CFunctionEntry* fe = funccallstack.Pop(oe, var_offset);
     if(!fe) {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - return with no function\n");
@@ -1512,7 +1522,7 @@ bool8 OpExecFuncReturn(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     // -- pop the return value while we unreserve the local var space on the stack
     uint32 stacktopcontent[MAX_TYPE_SIZE];
 
-    // -- pop the value of the next string to append to the hash
+    // -- pop the return value off the stack
     eVarType contenttype;
     void* content = execstack.Pop(contenttype);
     memcpy(stacktopcontent, content, MAX_TYPE_SIZE * sizeof(uint32));
@@ -1520,6 +1530,19 @@ bool8 OpExecFuncReturn(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     // -- unreserve space from the exec stack
     int32 localvarcount = fe->GetLocalVarTable()->Used();
     execstack.UnReserve(localvarcount * MAX_TYPE_SIZE);
+
+    // -- ensure our current stack top is what it was before we reserved
+    int32 cur_stack_top = execstack.GetStackTop();
+    if (cur_stack_top != var_offset)
+    {
+        // -- this is somewhat bad - it means there's a leak - some combination of
+        // -- operations is pushing without matching pops.
+        // -- however, forcing the "excess" to be popped to reset the stack to the state it
+        // -- was when the function was called is relatively safe.
+        ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                      "Error - The stack has not been balanced - forcing Pops\n");
+        execstack.ForceStackTop(var_offset);
+    }
 
     // -- re-push the stack top contents
     execstack.Push((void*)stacktopcontent, contenttype);

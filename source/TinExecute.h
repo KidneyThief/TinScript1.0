@@ -53,6 +53,15 @@ class CExecStack {
 		{
 			assert(content != NULL);
 			uint32 contentsize = kBytesToWordCount(gRegisteredTypeSize[contenttype]);
+
+            uint32 stacksize = kPointerDiffUInt32(mStackTop, mStack) / sizeof(uint32);
+            if (stacksize + contentsize > kExecStackSize)
+            {
+                ScriptAssert_(TinScript::GetContext(), 0, "<internal>", -1,
+                              "Error - stack overflow (size: %d) - unrecoverable\n", kExecStackSize);
+                return;
+            }
+
 			uint32* contentptr = (uint32*)content;
 			for(uint32 i = 0; i < contentsize; ++i)
 				*mStackTop++ = *contentptr++;
@@ -144,6 +153,21 @@ class CExecStack {
             mStackTop -= wordcount;
         }
 
+        // -- this method is for recovery only...  the VM will probably continue correctly,
+        // -- and this will prevent the stack from leaking, assuming the leak is within a
+        // -- function call
+        void ForceStackTop(int32 new_stack_top)
+        {
+            int32 cur_stack_top = (kPointerDiffUInt32(mStackTop, mStack) / sizeof(uint32));
+            if (new_stack_top < cur_stack_top)
+            {
+                ScriptAssert_(TinScript::GetContext(), 0, "<internal>", -1,
+                              "Error - attempting to *increase* the stack top, which creates garbage.\n");
+                return;
+            }
+            mStackTop = mStack + new_stack_top;
+        }
+
         int32 GetStackTop() {
             return (kPointerDiffUInt32(mStackTop, mStack) / sizeof(uint32));
         }
@@ -220,9 +244,10 @@ class CFunctionCallStack {
             ++stacktop;
 		}
 
-		CFunctionEntry* Pop(CObjectEntry*& objentry) {
+		CFunctionEntry* Pop(CObjectEntry*& objentry, int32& var_offset) {
 			assert(stacktop > 0);
             objentry = funcentrystack[stacktop - 1].objentry;
+            var_offset = funcentrystack[stacktop - 1].stackvaroffset;
             return funcentrystack[--stacktop].funcentry;
 		}
 

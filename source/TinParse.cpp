@@ -2164,7 +2164,8 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
         // -- clear the active function definition
         CObjectEntry* dummy = NULL;
-        codeblock->smFuncDefinitionStack->Pop(dummy);
+        int32 dumm_offset;
+        codeblock->smFuncDefinitionStack->Pop(dummy, dumm_offset);
 
         // -- and we're done
         return true;
@@ -2210,7 +2211,8 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
     // -- clear the active function definition
     CObjectEntry* dummy = NULL;
-    codeblock->smFuncDefinitionStack->Pop(dummy);
+    int32 dummy_offset = 0;
+    codeblock->smFuncDefinitionStack->Pop(dummy, dummy_offset);
 
 	// -- success
 	return true;
