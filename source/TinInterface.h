@@ -215,6 +215,12 @@ bool8 ReturnExecfResult(CScriptContext* script_context, T& code_return_value)
 }
 
 // ====================================================================================================================
+// !!! NOTE !!! The following methods have a simpler implementation, but for performance, consider using the
+// -- templated methods in registeredexecs.h, especially those that take an object_id and a function_hash
+// -- over raw strings.
+// ====================================================================================================================
+
+// ====================================================================================================================
 // ObjExecF():  From code, Executed a method, either registered or scripted for an object
 // Used when the actual object address is provided
 // ====================================================================================================================

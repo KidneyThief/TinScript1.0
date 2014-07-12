@@ -66,7 +66,7 @@ def GenerateMacros(maxparamcount, outputfilename):
     #open the output file
     outputfile = open(outputfilename, 'w');
 
-	# -- add the MIT license to the top of the output file
+    # -- add the MIT license to the top of the output file
     OutputLicense(outputfile);
     
     outputfile.write("// ------------------------------------------------------------------------------------------------\n");
@@ -145,14 +145,14 @@ def GenerateClasses(maxparamcount, outputfilename):
     #open the output file
     outputfile = open(outputfilename, 'w');
 
-	# -- add the MIT license to the top of the output file
+    # -- add the MIT license to the top of the output file
     OutputLicense(outputfile);
 
     outputfile.write("// ------------------------------------------------------------------------------------------------\n");
     outputfile.write("// Generated classes for function registration\n");
     outputfile.write("// ------------------------------------------------------------------------------------------------\n");
     outputfile.write("\n");
-	
+    
     outputfile.write('#include "TinVariableEntry.h"\n');
 
     paramcount = 0;
@@ -589,12 +589,287 @@ def GenerateClasses(maxparamcount, outputfilename):
         outputfile.write("};\n");
         outputfile.write("\n");
 
-		# -----------------------------------------------------------------------------------------
+        # -----------------------------------------------------------------------------------------
         # next class definition
         paramcount = paramcount + 1;
         
     outputfile.close();
 
+# -----------------------------------------------------------------------------
+def GenerateExecs(maxparamcount, outputfilename):
+    
+    print("GenerateMacros - Output: %s" % outputfilename);
+
+    #open the output file
+    outputfile = open(outputfilename, 'w');
+
+    # -- add the MIT license to the top of the output file
+    OutputLicense(outputfile);
+    
+    outputfile.write("// ------------------------------------------------------------------------------------------------\n");
+    outputfile.write("// Generated interface for calling scripted functions from code\n");
+    outputfile.write("// ------------------------------------------------------------------------------------------------\n\n");
+
+    outputfile.write("#ifndef __REGISTRATIONEXECS_H\n");
+    outputfile.write("#define __REGISTRATIONEXECS_H\n\n");
+
+    outputfile.write('#include "TinVariableEntry.h"\n\n');
+
+    outputfile.write("namespace TinScript\n");
+    outputfile.write("{\n");
+
+    paramcount = 0;
+    while (paramcount <= maxparamcount):
+        outputfile.write("\n\n// -- Parameter count: %d\n" % paramcount);
+
+        # -- function wrapper, given the unhashed function name
+        template_string = "template<typename R";
+        i = 1;
+        while (i <= paramcount):
+            template_string = template_string + ", typename T%d" % i;
+            i = i + 1;
+        template_string = template_string + ">\n";
+        outputfile.write(template_string);
+
+        function_string = "inline bool8 ExecFunction(R& return_value, const char* func_name"
+        i = 1;
+        while (i <= paramcount):
+            function_string = function_string + ", T%d p%d" % (i, i);
+            i = i + 1;
+        function_string = function_string + ")\n";
+        outputfile.write(function_string);
+        outputfile.write("{\n");
+        outputfile.write("    CScriptContext* script_context = GetContext();\n");
+        outputfile.write("    if (!script_context->GetGlobalNamespace() || !func_name || !func_name[0])\n");
+        outputfile.write("        return false;\n\n");
+
+        call_string = "    return (ExecFunctionImpl<R>(return_value, 0, Hash(func_name)"
+        i = 1;
+        while (i <= paramcount):
+            call_string = call_string + ", p%d" % i;
+            i = i + 1;
+        call_string = call_string + "));\n";
+        outputfile.write(call_string);
+        outputfile.write("}\n\n");
+
+        # -- function wrapper, given the function hash
+        template_string = "template<typename R";
+        i = 1;
+        while (i <= paramcount):
+            template_string = template_string + ", typename T%d" % i;
+            i = i + 1;
+        template_string = template_string + ">\n";
+        outputfile.write(template_string);
+
+        function_string = "inline bool8 ExecFunction(R& return_value, uint32 func_hash"
+        i = 1;
+        while (i <= paramcount):
+            function_string = function_string + ", T%d p%d" % (i, i);
+            i = i + 1;
+        function_string = function_string + ")\n";
+        outputfile.write(function_string);
+        outputfile.write("{\n");
+        outputfile.write("    CScriptContext* script_context = GetContext();\n");
+        outputfile.write("    if (!script_context->GetGlobalNamespace())\n");
+        outputfile.write("        return false;\n\n");
+        call_string = "    return (ExecFunctionImpl<R>(return_value, 0, func_hash"
+        i = 1;
+        while (i <= paramcount):
+            call_string = call_string + ", p%d" % i;
+            i = i + 1;
+        call_string = call_string + "));\n";
+        outputfile.write(call_string);
+        outputfile.write("}\n\n");
+
+        # -- object method wrapper, given the object address, and the unhashed method name
+        template_string = "template<typename R";
+        i = 1;
+        while (i <= paramcount):
+            template_string = template_string + ", typename T%d" % i;
+            i = i + 1;
+        template_string = template_string + ">\n";
+        outputfile.write(template_string);
+
+        function_string = "inline bool8 ObjExecMethod(void* obj_addr, R& return_value, const char* method_name"
+        i = 1;
+        while (i <= paramcount):
+            function_string = function_string + ", T%d p%d" % (i, i);
+            i = i + 1;
+        function_string = function_string + ")\n";
+        outputfile.write(function_string);
+        outputfile.write("{\n");
+        outputfile.write("    CScriptContext* script_context = GetContext();\n");
+        outputfile.write("    if (!script_context->GetGlobalNamespace() || !method_name || !method_name[0])\n");
+        outputfile.write("        return false;\n\n");
+        outputfile.write("    uint32 object_id = script_context->FindIDByAddress(obj_addr);\n");
+        outputfile.write("    if (object_id == 0)\n");
+        outputfile.write("    {\n");
+        outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\\n", kPointerToUInt32(objaddr));\n');
+        outputfile.write("        return false;\n");
+        outputfile.write("    }\n\n");
+        call_string = "    return (ExecFunctionImpl<R>(return_value, object_id, Hash(method_name)"
+        i = 1;
+        while (i <= paramcount):
+            call_string = call_string + ", p%d" % i;
+            i = i + 1;
+        call_string = call_string + "));\n";
+        outputfile.write(call_string);
+        outputfile.write("}\n\n");
+
+        # -- object method wrapper, given the object address, and the method hash
+        template_string = "template<typename R";
+        i = 1;
+        while (i <= paramcount):
+            template_string = template_string + ", typename T%d" % i;
+            i = i + 1;
+        template_string = template_string + ">\n";
+        outputfile.write(template_string);
+
+        function_string = "inline bool8 ObjExecMethod(void* obj_addr, R& return_value, uint32 method_hash"
+        i = 1;
+        while (i <= paramcount):
+            function_string = function_string + ", T%d p%d" % (i, i);
+            i = i + 1;
+        function_string = function_string + ")\n";
+        outputfile.write(function_string);
+        outputfile.write("{\n");
+        outputfile.write("    CScriptContext* script_context = GetContext();\n");
+        outputfile.write("    if (!script_context->GetGlobalNamespace())\n");
+        outputfile.write("        return false;\n\n");
+        outputfile.write("    uint32 object_id = script_context->FindIDByAddress(obj_addr);\n");
+        outputfile.write("    if (object_id == 0)\n");
+        outputfile.write("    {\n");
+        outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\\n", kPointerToUInt32(objaddr));\n');
+        outputfile.write("        return false;\n");
+        outputfile.write("    }\n\n");
+        call_string = "    return (ExecFunctionImpl<R>(return_value, object_id, method_hash"
+        i = 1;
+        while (i <= paramcount):
+            call_string = call_string + ", p%d" % i;
+            i = i + 1;
+        call_string = call_string + "));\n";
+        outputfile.write(call_string);
+        outputfile.write("}\n\n");
+
+        # -- object method wrapper, given the object ID, and the unhashed method name
+        template_string = "template<typename R";
+        i = 1;
+        while (i <= paramcount):
+            template_string = template_string + ", typename T%d" % i;
+            i = i + 1;
+        template_string = template_string + ">\n";
+        outputfile.write(template_string);
+
+        function_string = "inline bool8 ObjExecMethod(uint32 object_id, R& return_value, const char* method_name"
+        i = 1;
+        while (i <= paramcount):
+            function_string = function_string + ", T%d p%d" % (i, i);
+            i = i + 1;
+        function_string = function_string + ")\n";
+        outputfile.write(function_string);
+        outputfile.write("{\n");
+        outputfile.write("    CScriptContext* script_context = GetContext();\n");
+        outputfile.write("    if (!script_context->GetGlobalNamespace() || !method_name || !method_name[0])\n");
+        outputfile.write("        return false;\n\n");
+        call_string = "    return (ExecFunctionImpl<R>(return_value, object_id, Hash(method_name)"
+        i = 1;
+        while (i <= paramcount):
+            call_string = call_string + ", p%d" % i;
+            i = i + 1;
+        call_string = call_string + "));\n";
+        outputfile.write(call_string);
+        outputfile.write("}\n\n");
+
+        # -- the actual implmenentation
+        template_string = "template<typename R";
+        i = 1;
+        while (i <= paramcount):
+            template_string = template_string + ", typename T%d" % i;
+            i = i + 1;
+        template_string = template_string + ">\n";
+        outputfile.write(template_string);
+
+        function_string = "inline bool8 ExecFunctionImpl(R& return_value, uint32 object_id, uint32 func_hash"
+        i = 1;
+        while (i <= paramcount):
+            function_string = function_string + ", T%d p%d" % (i, i);
+            i = i + 1;
+        function_string = function_string + ")\n";
+        outputfile.write(function_string);
+        outputfile.write("{\n");
+
+        outputfile.write("    CScriptContext* script_context = GetContext();\n");
+        outputfile.write("    if (!script_context->GetGlobalNamespace())\n");
+        outputfile.write("        return false;\n\n");
+
+        outputfile.write("    CFunctionEntry* fe = script_context->GetGlobalNamespace()->GetFuncTable()->FindItem(func_hash);\n");
+        outputfile.write("    CVariableEntry* return_ve = fe ? fe->GetContext()->GetParameter(0) : NULL;\n");
+        outputfile.write("    if (!fe || !return_ve)\n");
+        outputfile.write("    {\n");
+        outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - function %s() not found\\n", UnHash(func_hash));\n');
+        outputfile.write("        return false;\n");
+        outputfile.write("    }\n\n");
+
+        outputfile.write("    // -- get the object, if one was required\n");
+        outputfile.write("    CObjectEntry* oe = object_id > 0 ? script_context->FindObjectEntry(object_id) : NULL;\n");
+        outputfile.write("    if (!oe && object_id > 0)\n");
+        outputfile.write("    {\n");
+        outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object %d not found\\n", object_id);\n');
+        outputfile.write("        return false;\n");
+        outputfile.write("    }\n\n");
+
+        outputfile.write("    // -- see if we can recognize an appropriate type\n");
+        outputfile.write("    eVarType returntype = GetRegisteredType(GetTypeID<R>());\n");
+        outputfile.write("    if (returntype == TYPE_NULL)\n");
+        outputfile.write("    {\n");
+        outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - invalid return type (use an int32 if void)\\n");\n');
+        outputfile.write("        return false;\n");
+        outputfile.write("    }\n\n");
+
+
+        outputfile.write("    // -- fill in the parameters\n");
+        outputfile.write("    if (fe->GetContext()->GetParameterCount() < %d)\n" % paramcount);
+        outputfile.write("    {\n");
+        outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - function %s() expects %d parameters\\n", UnHash(func_hash), fe->GetContext()->GetParameterCount());\n');
+        outputfile.write("        return (false);\n");
+        outputfile.write("    }\n\n");
+
+        i = 1;
+        while (i <= paramcount):
+            outputfile.write("    CVariableEntry* ve_p%d = fe->GetContext()->GetParameter(%d);\n" % (i, i));
+            outputfile.write("    void* p%d_convert_addr = NULL;\n" % i);
+            outputfile.write("    if (GetRegisteredType(GetTypeID<T%d>()) == TYPE_string)\n" % i);
+            outputfile.write("        p%d_convert_addr = TypeConvert(script_context, TYPE_string, (void*)p%d, ve_p%d->GetType());\n" % (i, i, i));
+            outputfile.write("    else\n");
+            outputfile.write("        p%d_convert_addr = TypeConvert(script_context, GetRegisteredType(GetTypeID<T%d>()), (void*)&p%d, ve_p%d->GetType());\n" % (i, i, i, i));
+            outputfile.write("    if (!p%d_convert_addr)\n" % i);
+            outputfile.write("    {\n");
+            outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - function %%s() unable to convert parameter %d\\n", UnHash(func_hash));\n' % i);
+            outputfile.write("        return false;\n");
+            outputfile.write("    }\n\n");
+            outputfile.write("    ve_p%d->SetValueAddr(oe ? oe->GetAddr() : NULL, p%d_convert_addr);\n\n" % (i, i));
+            i = i + 1;
+
+        outputfile.write("    // -- execute the function\n");
+        outputfile.write("    if (!ExecuteScheduledFunction(GetContext(), object_id, func_hash, fe->GetContext()))\n");
+        outputfile.write("    {\n");
+        outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to exec function %s()\\n", UnHash(func_hash));\n');
+        outputfile.write("        return false;\n");
+        outputfile.write("    }\n\n");
+
+        outputfile.write("    // -- return true if we're able to convert to the return type requested\n");
+        outputfile.write("    return (ReturnExecfResult(script_context, return_value));\n");
+        outputfile.write("}\n");
+
+        # -----------------------------------------------------------------------------------------
+        # next class definition
+        paramcount = paramcount + 1;
+        
+    # -- close the file
+    outputfile.write("} // TinScript\n\n");
+    outputfile.write("#endif // __REGISTRATIONEXECS_H\n");
+    outputfile.close();
+        
 # -----------------------------------------------------------------------------
 def main():
 
@@ -604,6 +879,7 @@ def main():
     
     classesfilename = "registrationclasses.h";
     macrosfilename = "registrationmacros.h";
+    execsfilename = "registrationexecs.h";
     maxparamcount = 8;
     
     # parse the command line arguments
@@ -649,11 +925,13 @@ def main():
         print (str("-maxparam <count>").rjust(help_width) + " :  " + str("maximum number or parameters"));
         print (str("-oc | -outputclasses <filename>").rjust(help_width) + " :  " + str("templated classes output file."));
         print (str("-om | -outputmacros <filename>").rjust(help_width) + " :  " + str("macros output file."));
+        print (str("-oe | -outputexecs <filename>").rjust(help_width) + " :  " + str("execs output file."));
         exit(0);
         
     else:
         GenerateClasses(maxparamcount, classesfilename);
         GenerateMacros(maxparamcount, macrosfilename);
+        GenerateExecs(maxparamcount, execsfilename);
         
     print ("\n**********************************");
     print ("*  Finished generating classes.  *");

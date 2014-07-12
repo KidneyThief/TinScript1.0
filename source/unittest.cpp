@@ -921,11 +921,27 @@ REGISTER_FUNCTION_P0(BeginMultiThreadTest, BeginMultiThreadTest, void);
 // -- useful for profiling
 #ifdef WIN32
 	#include "windows.h"
-	int32 GetTimeMS()
+    #include "TinExecute.h"
+	void BeginProfilingTests()
 	{
-	    return (GetTickCount());
+        TinScript::ExecScript("tintest.ts");
+
+        uint32 func_hash = TinScript::Hash("CallFromCode");
+
+        printf("TinScript Start CallMe()\n");
+        int count = 10000;
+        int32 cur_time = GetTickCount();
+        for (int i = 0; i < count; ++i)
+        {
+            int32 result = 0;
+            //TinScript::ExecF(result, "CallMe();", 56, 24);
+            TinScript::ExecFunction(result, func_hash, 56, 24, "cat ");
+        }
+        int32 elapsed = GetTickCount() - cur_time;
+        printf("TinScript time: %d\n", elapsed);
 	}
-	REGISTER_FUNCTION_P0(GetTimeMS, GetTimeMS, int32);
+
+	REGISTER_FUNCTION_P0(BeginProfilingTests, BeginProfilingTests, void);
 #endif
 
 // ------------------------------------------------------------------------------------------------

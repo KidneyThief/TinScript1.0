@@ -193,7 +193,7 @@ class CFunctionEntry {
 // registration classes
 // ------------------------------------------------------------------------------------------------
 #include "registrationclasses.h"
-#include "TinInterface.h"
+//#include "registrationexecs.h"
 
 }  // TinScript
 

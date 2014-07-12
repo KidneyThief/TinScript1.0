@@ -584,15 +584,26 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
 
     // -- get the return variable
     CVariableEntry* return_ve = parameters->GetParameter(0);
-    if(!return_ve || return_ve->GetType() != TYPE__resolve) {
+    if (!return_ve && return_ve->GetType() != TYPE_void)
+    {
         ScriptAssert_(script_context, 0, "<internal>", -1,
                      "Error - invalid return parameter for scheduled func: %s()\n",
                      UnHash(fe->GetHash()));
         return (false);
     }
 
-    // -- copy the stack contents into the return address of the scheduled function call
-    return_ve->ResolveValueType(contenttype, contentptr);
+    // -- if we do have a return value, try to convert the stack content to the right value
+    if (return_ve && return_ve->GetType() >= FIRST_VALID_TYPE)
+    {
+        void* converted_addr = TypeConvert(script_context, contenttype, contentptr, return_ve->GetType());
+        if (!converted_addr)
+        {
+            ScriptAssert_(script_context, 0, "<internal>", -1,
+                          "Error - invalid return parameter for func: %s()\n", UnHash(fe->GetHash()));
+            return (false);
+        }
+        return_ve->SetValue(oe ? oe->GetAddr() : NULL, converted_addr, NULL, NULL);
+    }
 
     // -- also copy them into the script context's return value
     script_context->SetFunctionReturnValue(contentptr, contenttype);

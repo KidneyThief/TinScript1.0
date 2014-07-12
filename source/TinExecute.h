@@ -376,6 +376,8 @@ bool8 DebuggerFindStackTopVar(CScriptContext* script_context, uint32 var_hash, C
 
 #endif // __TINEXECUTE_H
 
+#include "registrationexecs.h"
+
 // ------------------------------------------------------------------------------------------------
 // eof
 // ------------------------------------------------------------------------------------------------
