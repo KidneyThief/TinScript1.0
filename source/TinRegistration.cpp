@@ -44,6 +44,7 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
     mScriptVar = false;
     mStringValueHash = 0;
     mStackOffset = -1;
+    mIsParameter = false;
     mDispatchConvertFromObject = 0;
     mFuncEntry = NULL;
 	mBreakOnWrite = NULL;
@@ -52,7 +53,8 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
 }
 
 CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name, uint32 _hash,
-                               eVarType _type, bool8 isoffset, uint32 _offset, bool8 _isdynamic) {
+                               eVarType _type, bool8 isoffset, uint32 _offset, bool8 _isdynamic, bool8 is_param)
+{
     mContextOwner = script_context;
 	SafeStrcpy(mName, _name, kMaxNameLength);
 	mType = _type;
@@ -62,6 +64,7 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
     mScriptVar = false;
     mStringValueHash = 0;
     mStackOffset = -1;
+    mIsParameter = is_param;
     mDispatchConvertFromObject = 0;
     mFuncEntry = NULL;
 	mBreakOnWrite = NULL;
@@ -70,21 +73,34 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
 
     // -- hashtables are tables of variable entries...
     // -- they can only be created from script
-    if(mType == TYPE_hashtable) {
+    if (mType == TYPE_hashtable)
+    {
         mScriptVar = true;
-        // -- setting allocation type as a VarTable, although this may be an exception:
-        // -- since it's actually a script variable allocation...  it's size is not
-        // -- consistent with the normal size of variable storage
-        mAddr = (void*)TinAlloc(ALLOC_VarTable, tVarTable, kLocalVarTableSize);
+
+        // -- in the context of hash tables, parameters are *passed* the hash table,
+        // -- and do not actually own it
+        if (!mIsParameter)
+        {
+            // -- setting allocation type as a VarTable, although this may be an exception:
+            // -- since it's actually a script variable allocation...  it's size is not
+            // -- consistent with the normal size of variable storage
+            mAddr = (void*)TinAlloc(ALLOC_VarTable, tVarTable, kLocalVarTableSize);
+        }
+        else
+        {
+            mAddr = NULL;
+        }
     }
-    else if(isoffset) {
+    else if (isoffset)
+    {
         mAddr = NULL;
         mOffset = _offset;
     }
 
     // -- not an offset (e.g not a class member)
     // -- globals are constructed above, so this is a script var, requiring us to allocate
-    else {
+    else
+    {
 		mScriptVar = true;
 		mAddr = (void*)TinAllocArray(ALLOC_VarStorage, char, gRegisteredTypeSize[_type]);
 		memset(mAddr, 0, gRegisteredTypeSize[_type]);
@@ -95,9 +111,7 @@ CVariableEntry::~CVariableEntry()
 {
     // -- if we have a debugger watch, delete it
     if (mBreakOnWrite)
-    {
         TinFree(mBreakOnWrite);
-    }
 
     // -- if the value is a string, update the string table
     if (mType == TYPE_string)
@@ -106,17 +120,24 @@ CVariableEntry::~CVariableEntry()
         GetScriptContext()->GetStringTable()->RefCountDecrement(mStringValueHash);
     }
 
-	if(mScriptVar) {
-        if(mType != TYPE_hashtable) {
+	if (mScriptVar)
+    {
+        if (mType != TYPE_hashtable)
+        {
 		    TinFreeArray((char*)mAddr);
         }
         // -- if this is a hashtable, need to destroy all of its entries
-        else {
-            tVarTable* ht = static_cast<tVarTable*>(mAddr);
-            ht->DestroyAll();
+        else
+        {
+            // -- if this variable actually *owns* the hashtable, then we destroy it
+            if (!mIsParameter)
+            {
+                tVarTable* ht = static_cast<tVarTable*>(mAddr);
+                ht->DestroyAll();
 
-            // -- now delete the hashtable itself
-            TinFree(ht);
+                // -- now delete the hashtable itself
+                TinFree(ht);
+            }
         }
 	}
 }
@@ -124,7 +145,6 @@ CVariableEntry::~CVariableEntry()
 // -- if the value type is a TYPE_string, then the void* value contains a hash value
 void CVariableEntry::SetValue(void* objaddr, void* value, CExecStack* execstack, CFunctionCallStack* funccallstack)
 {
-	assert(value);
 	int32 size = gRegisteredTypeSize[mType];
 
     // -- if we're providing an objaddr, this variable is actually a member
@@ -151,6 +171,24 @@ void CVariableEntry::SetValue(void* objaddr, void* value, CExecStack* execstack,
 
         GetScriptContext()->GetStringTable()->RefCountIncrement(mStringValueHash);
     }
+
+    // -- if this variable is TYPE_hashtable, then we need to deliberately know we're
+    // -- setting the entire HashTable and not just an entry
+    else if (mType == TYPE_hashtable)
+    {
+        if (!mIsParameter)
+        {
+            ScriptAssert_(GetScriptContext(), false, "<internal>", -1,
+                            "Error - calling SetValue() on a non-parameter HashTable variable (%s)\n",
+                            UnHash(GetHash()));
+        }
+
+        // -- otherwise simply assign the new hash table
+        else
+            mAddr = value;
+    }
+    
+    // -- otherwise simply copy the new value 
     else
     {
         // -- copy the new value
@@ -187,6 +225,24 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value)
             *(const char**)(mAddr) = GetScriptContext()->GetStringTable()->FindString(mStringValueHash);
         }
     }
+
+    // -- if this variable is TYPE_hashtable, then we're stomping the entire hash table - only permitted
+    // -- if the variable is a parameter
+    else if (mType == TYPE_hashtable)
+    {
+        if (!mIsParameter)
+        {
+            ScriptAssert_(GetScriptContext(), false, "<internal>", -1,
+                            "Error - calling SetValue() on a non-parameter HashTable variable (%s)\n",
+                            UnHash(GetHash()));
+        }
+
+        // -- otherwise simply assign the new hash table
+        else
+            mAddr = value;
+    }
+    
+    // -- otherwise simply copy the new value 
     else
         memcpy(varaddr, value, size);
 
@@ -194,21 +250,6 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value)
     // -- note:  SetValueAddr() is the external access (from code), and is never part 
     // -- of executing the VM... therefore, we have no stack
     NotifyWrite(GetScriptContext(), NULL, NULL);
-}
-
-// -- this is only used to copy the contents of an execstack, to return a value from a
-// -- scheduled function
-void CVariableEntry::ResolveValueType(eVarType new_type, void* value) {
-    if(mType != TYPE__resolve || !value) {
-        ScriptAssert_(GetScriptContext(), false, "<internal>", -1,
-            "Error - trying to call ResolveValueType() on var: %s\n",
-            UnHash(GetHash()));
-        return;
-    }
-
-    mType = new_type;
-    int32 size = gRegisteredTypeSize[mType];
-    memcpy(mAddr, value, size);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -257,7 +298,7 @@ bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarTy
     }
 
     // -- create the Variable entry
-    CVariableEntry* ve = AddLocalVar(varname, varhash, type);
+    CVariableEntry* ve = AddLocalVar(varname, varhash, type, true);
     if(! ve) {
         return false;
     }
@@ -286,8 +327,8 @@ bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarTy
     return true;
 }
 
-CVariableEntry* CFunctionContext::AddLocalVar(const char* varname, uint32 varhash,
-                                              eVarType type) {
+CVariableEntry* CFunctionContext::AddLocalVar(const char* varname, uint32 varhash, eVarType type, bool8 is_param)
+{
 
     // -- ensure the variable doesn't already exist
     CVariableEntry* exists = localvartable->FindItem(varhash);
@@ -298,7 +339,7 @@ CVariableEntry* CFunctionContext::AddLocalVar(const char* varname, uint32 varhas
 
     // -- create the Variable entry
     CVariableEntry* ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, GetScriptContext(), varname,
-                                                                  varhash, type, false, 0, false);
+                                                                  varhash, type, false, 0, false, is_param);
 	uint32 hash = ve->GetHash();
 	localvartable->AddItem(*ve, hash);
 
@@ -333,18 +374,40 @@ bool8 CFunctionContext::IsParameter(CVariableEntry* ve) {
     return false;
 }
 
-void CFunctionContext::ClearParameters() {
-    for(int32 i = 0; i < paramcount; ++i) {
+void CFunctionContext::ClearParameters()
+{
+    // -- first, clear the parameters
+    const int32 max_size = MAX_TYPE_SIZE * (int32)sizeof(uint32);
+    char buf[max_size];
+    memset(buf, 0, max_size);
+    for (int32 i = 0; i < paramcount; ++i)
+    {
         CVariableEntry* ve = parameterlist[i];
-        const int32 max_size = MAX_TYPE_SIZE * (int32)sizeof(uint32);
-        char buf[max_size];
-        memset(buf, 0, max_size);
-        ve->SetValue(NULL, (void*)&buf);
+        if (ve->GetType() == TYPE_hashtable)
+            ve->SetValue(NULL, NULL);
+        else
+            ve->SetValue(NULL, (void*)&buf);
+    }
+
+    // -- next, we want to ensure any local variables (not parameters) belonging to this function
+    // -- which are of TYPE_hashtable, are *empty* tables, to ensure clean execution
+    // -- as well as no memory leaks
+    tVarTable* local_vars = GetLocalVarTable();
+    CVariableEntry* ve = local_vars->First();
+    while (ve)
+    {
+        if (!ve->IsParameter() && ve->GetType() == TYPE_hashtable)
+        {
+            tVarTable* hashtable = (tVarTable*)ve->GetAddr(NULL);
+            hashtable->DestroyAll();
+        }
+        ve = local_vars->Next();
     }
 }
 
 // ------------------------------------------------------------------------------------------------
-void CFunctionContext::InitStackVarOffsets() {
+void CFunctionContext::InitStackVarOffsets(CFunctionEntry* fe)
+{
     int32 stackoffset = 0;
 
     // -- loop the parameters
@@ -354,7 +417,10 @@ void CFunctionContext::InitStackVarOffsets() {
         assert(ve);
         // -- set the stackoffset
         if(ve->GetStackOffset() < 0)
+        {
             ve->SetStackOffset(stackoffset);
+            ve->SetFunctionEntry(fe);
+        }
         ++stackoffset;
     }
 
@@ -368,7 +434,10 @@ void CFunctionContext::InitStackVarOffsets() {
                 if(!IsParameter(ve)) {
                     // -- set the stackoffset
                     if(ve->GetStackOffset() < 0)
+                    {
                         ve->SetStackOffset(stackoffset);
+                        ve->SetFunctionEntry(fe);
+                    }
                     ++stackoffset;
                 }
 				ve = vartable->GetNextItemInBucket(i);

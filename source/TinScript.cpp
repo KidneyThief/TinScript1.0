@@ -59,6 +59,10 @@ bool8 CScriptContext::gDebugParseTree = false;
 bool8 CScriptContext::gDebugCodeBlock = false;
 bool8 CScriptContext::gDebugTrace = false;
 
+const char* CScriptContext::kGlobalNamespace = "_global";
+uint32 CScriptContext::kGlobalNamespaceHash = Hash(CScriptContext::kGlobalNamespace);
+
+
 // -- this is a *thread* variable, each thread can reference a separate context
 _declspec(thread) CScriptContext* gThreadContext = NULL;
 
@@ -1436,7 +1440,7 @@ bool8 CScriptContext::InitWatchExpression(CDebuggerWatchExpression& debugger_wat
         else
         {
             // -- create a cloned local variable
-            temp_context->AddLocalVar(cur_ve->GetName(), cur_ve->GetHash(), cur_ve->GetType());
+            temp_context->AddLocalVar(cur_ve->GetName(), cur_ve->GetHash(), cur_ve->GetType(), true);
         }
 
         // -- get the next local var
@@ -1637,7 +1641,7 @@ bool8 CScriptContext::EvaluateWatchExpression(const char* expression, bool8 cond
         else
         {
             // -- create a copy, and set the same value - value lives on the stack
-            CVariableEntry* temp_ve = temp_context->AddLocalVar(cur_ve->GetName(), cur_ve->GetHash(), cur_ve->GetType());
+            CVariableEntry* temp_ve = temp_context->AddLocalVar(cur_ve->GetName(), cur_ve->GetHash(), cur_ve->GetType(), true);
             void* varaddr = mDebuggerBreakExecStack->GetStackVarAddr(stacktop, cur_ve->GetStackOffset());
             temp_ve->SetValue(NULL, varaddr);
         }

@@ -724,11 +724,11 @@ void DumpFuncTable(CScriptContext* script_context, const tFuncTable* functable) 
 // ------------------------------------------------------------------------------------------------
 
 // ------------------------------------------------------------------------------------------------
-bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
-
+bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link)
+{
 	// -- use temporary vars, to ensure we dont' change the actual bufptr, unless successful
 	tReadToken nexttoken(filebuf);
-	if(!GetToken(nexttoken))
+	if (!GetToken(nexttoken))
 		return false;
 
 	// -- see if we found a registered type
@@ -741,7 +741,7 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 	if(!GetToken(idtoken))
 		return false;
 
-    // -- the only allowed keyword to serve as an expression is 'self'
+    // -- a variable declaration including the keyword 'self' obviously affects its scope
     bool8 selfvardecl = false;
     tReadToken selftoken(nexttoken);
     if(idtoken.type == TOKEN_KEYWORD) {
@@ -778,7 +778,12 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     tReadToken finaltoken = idtoken;
 
     // -- if this is a self variable, we don't create it until runtime
-    if(selfvardecl) {
+    // -- if this is a self array var (self.foo["bar"]), we won't know that
+    // -- until after we parse for the '[]', however, an array var decl is the parent node,
+    // -- and the left child is the obj mem node, so hold on to the link until we're sure
+    // -- which order to parent them
+    if (selfvardecl)
+    {
         // -- committed to a self.var decl
         filebuf = idtoken;
 
@@ -787,74 +792,81 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         CObjectEntry* dummy = NULL;
         CFunctionEntry* curfunction = codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
         uint32 funchash = curfunction ? curfunction->GetHash() : 0;
-        uint32 nshash = curfunction ? curfunction->GetNamespaceHash() : 0;
-        if(funchash == 0 || nshash == 0) {
-            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                          idtoken.linenumber,
-                          "Error - attempting to declare self.%s var outside a method\n",
-                          TokenPrint(idtoken));
+        uint32 nshash = curfunction ? curfunction->GetNamespaceHash() : CScriptContext::kGlobalNamespaceHash;
+        if (funchash == 0 || nshash == 0)
+        {
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), idtoken.linenumber,
+                          "Error - attempting to declare self.%s var outside a method\n", TokenPrint(idtoken));
             return false;
         }
-
-        // $$$TZA ensure we're not trying to declare a self.hashtable
-        if(registeredtype == TYPE_hashtable) {
-            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                          idtoken.linenumber,
-                          "Error - hashtable variables are only valid for global variables\n");
-            return false;
-        }
-
-        // -- create the node
-        CSelfVarDeclNode* valuenode = TinAlloc(ALLOC_TreeNode, CSelfVarDeclNode, codeblock, link,
-                                               idtoken.linenumber, idtoken.tokenptr,
-                                               idtoken.length, registeredtype);
-        Unused_(valuenode);
 
         // -- reset the nexttoken to be at the start of "self.*", in case we find an assign op
         nexttoken = selftoken;
 
-   	    // -- get the final token
-        finaltoken = idtoken;
-	    if(!GetToken(finaltoken))
-		    return false;
+        // -- set the peek token to be the one following the var id
+        peektoken = idtoken;
+        if (!GetToken(peektoken))
+            return false;
     }
 
     // -- if the next token is the beginning of an array variable, we also can't continue,
     // -- as the hash value to dereference the array entry isn't known until runtime
-    else if(peektoken.type == TOKEN_SQUARE_OPEN) {
+    if (peektoken.type == TOKEN_SQUARE_OPEN)
+    {
         // -- committed to a hashtable dereference
         filebuf = idtoken;
 
-        // -- the hashtable would have already had to have been declared
-        // $$$TZA except self.hashtable declarations
         int32 stacktopdummy = 0;
         CObjectEntry* dummy = NULL;
         CFunctionEntry* curfunction = codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
 		uint32 varhash = Hash(idtoken.tokenptr, idtoken.length);
         uint32 funchash = curfunction ? curfunction->GetHash() : 0;
-        uint32 nshash = curfunction ? curfunction->GetNamespaceHash() : 0;
-        CVariableEntry* var = GetVariable(codeblock->GetScriptContext(),
-                                          codeblock->smCurrentGlobalVarTable, nshash, funchash,
-                                          varhash, 0);
-        if(!var || var->GetType() != TYPE_hashtable) {
-            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                          filebuf.linenumber,
-                          "Error - variable %s is not of type hashtable\n", UnHash(varhash));
-			return false;
+        uint32 nshash = curfunction ? curfunction->GetNamespaceHash() : CScriptContext::kGlobalNamespaceHash;
+        CVariableEntry* var = NULL;
+
+        // -- the hashtable would have already had to have been declared, unless it's a self.hashtable
+        if (!selfvardecl)
+        {
+            var = GetVariable(codeblock->GetScriptContext(), codeblock->smCurrentGlobalVarTable, nshash, funchash,
+                              varhash, 0);
+            if(!var || var->GetType() != TYPE_hashtable) {
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber,
+                              "Error - variable %s is not of type hashtable\n", UnHash(varhash));
+			    return false;
+            }
         }
 
         // -- create the ArrayVarDeclNode, leftchild is the hashtable var, right is the hash value
         CArrayVarDeclNode* arrayvarnode = TinAlloc(ALLOC_TreeNode, CArrayVarDeclNode, codeblock,
                                                    link, filebuf.linenumber, registeredtype);
 
-        // -- left child is the variable
-        CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock,
-                                         arrayvarnode->leftchild, filebuf.linenumber,
-                                         idtoken.tokenptr, idtoken.length, true, var->GetType());
-        Unused_(valuenode);
+        // -- if we're declaring an array variable belonging to a self.hashtable, then
+        // -- the left child is an ObjMemberNode, not a ValueNode
+        if (selfvardecl)
+        {
+		    CObjMemberNode* objmember = TinAlloc(ALLOC_TreeNode, CObjMemberNode, codeblock, arrayvarnode->leftchild,
+                                                 idtoken.linenumber, idtoken.tokenptr, idtoken.length);
+            Unused_(objmember);
+
+            // -- the left child is the branch that resolves to an object (self, in this case)
+            CSelfNode* selfnode = TinAlloc(ALLOC_TreeNode, CSelfNode, codeblock, objmember->leftchild,
+                                           idtoken.linenumber);
+            Unused_(selfnode);
+        }
+
+        // -- otherwise, the left child is the value node, specifying the var name
+        else
+        {
+            // -- left child is the variable (which is obviously a hashtable)
+            CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock,
+                                             arrayvarnode->leftchild, filebuf.linenumber,
+                                             idtoken.tokenptr, idtoken.length, true, TYPE_hashtable);
+            Unused_(valuenode);
+        }
 
         // -- the right child is the hash value
-        if(!TryParseArrayHash(codeblock, filebuf, arrayvarnode->rightchild))
+        if (!TryParseArrayHash(codeblock, filebuf, arrayvarnode->rightchild))
         {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
@@ -864,33 +876,44 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
    	    // -- get the final token
 	    finaltoken = filebuf;
-	    if(!GetToken(finaltoken))
+	    if (!GetToken(finaltoken))
 		    return false;
+
+        // -- see if this is a declaration, or if there's an assignment following
+        if (finaltoken.type == TOKEN_SEMICOLON)
+        {
+		    // -- we've successfully created a var declaration
+		    filebuf = finaltoken;
+	    }
+
+	    // -- else if the next token is an operator, we're going to
+	    else if (finaltoken.type == TOKEN_ASSOP)
+        {
+		    // -- we're going to update the input buf ptr to just after having read the type
+		    // -- and allow the assignment to be ready as an assignment
+		    filebuf = nexttoken;
+	    }
+
+        // -- we're done
+        return (true);
+    }
+
+    // -- otherwise, not a hash table entry - if it we were declaring a self variable, we can
+    // -- now create the node
+    else if (selfvardecl)
+    {
+        // -- create the node
+        CSelfVarDeclNode* self_var_node = TinAlloc(ALLOC_TreeNode, CSelfVarDeclNode, codeblock, link,
+                                                   idtoken.linenumber, idtoken.tokenptr, idtoken.length,
+                                                   registeredtype);
+        Unused_(self_var_node);
     }
 
     // -- not a self var, not a hash table entry, it's either global or a local function var
-    else {
-        // $$$TZA ensure we're not trying to declare a hashtable var inside a function (not yet supported)
-        int32 stacktopdummy = 0;
-        CObjectEntry* dummy = NULL;
-        CFunctionEntry* curfunction =
-            codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
-
-        if(curfunction != NULL && registeredtype == TYPE_hashtable) {
-            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                          idtoken.linenumber,
-                          "Error - hashtable variables are only valid for global variables\n");
-            return false;
-        }
-
-        //AddVariable(codeblock->GetScriptContext(), codeblock->smCurrentGlobalVarTable, curfunction,
-        //            TokenPrint(idtoken), Hash(TokenPrint(idtoken)), registeredtype);
-
-	    // -- get the final token
-	    finaltoken = idtoken;
-	    if(!GetToken(finaltoken))
-		    return false;
-    }
+	// -- get the final token
+	finaltoken = idtoken;
+	if (!GetToken(finaltoken))
+		return false;
 
 	// -- see if the last token was a semicolon, marking the end of a var declaration
     bool is_var_decl = false;
@@ -901,8 +924,8 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 	}
 
 	// -- else if the next token is an operator, we're going to
-	else if(finaltoken.type == TOKEN_ASSOP) {
-
+	else if (finaltoken.type == TOKEN_ASSOP)
+    {
 		// -- we're going to update the input buf ptr to just after having read the type
 		// -- and allow the assignment to be ready as an assignment
 		filebuf = nexttoken;
@@ -910,7 +933,7 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 	}
 
     // -- if we found a variable declaration, add the variable
-    if (is_var_decl)
+    if (is_var_decl && !selfvardecl)
     {
         int32 stacktopdummy = 0;
         CObjectEntry* dummy = NULL;
@@ -1169,8 +1192,6 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
         // -- see if we've got an assignment op
         else if(nexttoken.type == TOKEN_ASSOP) {
 
-		    // $$$TZA any way to verify the left branch resolves to a variable?
-
             // -- we're committed to a statement at this point
             readexpr = nexttoken;
 
@@ -1367,25 +1388,44 @@ bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
         CFunctionEntry* curfunction = codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
 		uint32 varhash = Hash(firsttoken.tokenptr, firsttoken.length);
         uint32 funchash = curfunction ? curfunction->GetHash() : 0;
-        uint32 nshash = curfunction ? curfunction->GetNamespaceHash() : 0;
-        CVariableEntry* var = GetVariable(codeblock->GetScriptContext(),
-                                          codeblock->smCurrentGlobalVarTable, nshash, funchash,
-                                          varhash, 0);
+        uint32 nshash = curfunction ? curfunction->GetNamespaceHash() : CScriptContext::kGlobalNamespaceHash;
+        CVariableEntry* var = GetVariable(codeblock->GetScriptContext(), codeblock->smCurrentGlobalVarTable, nshash,
+                                          funchash, varhash, 0);
 		if (var)
         {
             // -- we're committed to the variable
             filebuf = firsttoken;
 
-		    CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, *temp_link, filebuf.linenumber,
-                                             firsttoken.tokenptr, firsttoken.length, true,
-                                             var->GetType());
-
             // -- if the type is a hash table, try to parse a hash table lookup
+            CCompileTreeNode* array_root = NULL;
+            CCompileTreeNode** temp_root = &array_root;
             tReadToken arrayhashtoken(filebuf);
-            if (TryParseArrayHash(codeblock, arrayhashtoken, valuenode->rightchild))
+            if (TryParseArrayHash(codeblock, arrayhashtoken, *temp_root))
             {
                 // -- we're committed to a method hashtable lookup
                 filebuf = arrayhashtoken;
+
+                // -- create the ArrayVarNode, leftchild is the hashtable var, right is the hash value
+                CArrayVarNode* arrayvarnode = TinAlloc(ALLOC_TreeNode, CArrayVarNode, codeblock, *temp_link,
+                                                       filebuf.linenumber);
+
+                // -- create the variable node
+		        CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, arrayvarnode->leftchild,
+                                                 filebuf.linenumber, firsttoken.tokenptr, firsttoken.length, true,
+                                                 TYPE_hashtable);
+
+                // the right child of the array is the array hash
+                arrayvarnode->rightchild = *temp_root;
+
+                // -- we're committed to a method hashtable lookup
+                filebuf = arrayhashtoken;
+            }
+
+            // -- not a hash table - create the value node
+            else
+            {
+		        CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, *temp_link, filebuf.linenumber,
+                                                 firsttoken.tokenptr, firsttoken.length, true, var->GetType());
             }
 		}
         else
@@ -1450,25 +1490,40 @@ bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
                 // -- we're committed to an object dereference at this point
                 filebuf = membertoken;
 
-                // -- create the member node
-		        CObjMemberNode* objmember = TinAlloc(ALLOC_TreeNode, CObjMemberNode, codeblock, *temp_link,
-                                                     membertoken.linenumber, membertoken.tokenptr, membertoken.length);
-
-                // -- the left child is the branch that resolves to an object
-                objmember->leftchild = templeftchild;
-
-                // $$$TZA  hashtables can only be global variables, atm...  if we allow them
-                // -- to become members, then we'll re-enable this logic
-                /*
-                // -- see if we've got a hashtable expression - the right child will resolve
-                // -- to a hash value
+                // -- see if we've got a hashtable expression - the right child will resolve to a hash value
+                CCompileTreeNode* array_root = NULL;
+                CCompileTreeNode** temp_root = &array_root;
                 tReadToken arrayhashtoken(filebuf);
-                if (TryParseArrayHash(codeblock, arrayhashtoken, objmember->rightchild))
+                if (TryParseArrayHash(codeblock, arrayhashtoken, *temp_root))
                 {
                     // -- we're committed to a method hashtable lookup
                     filebuf = arrayhashtoken;
+
+                    // -- create the ArrayVarNode, leftchild is the hashtable var, right is the hash value
+                    CArrayVarNode* arrayvarnode = TinAlloc(ALLOC_TreeNode, CArrayVarNode, codeblock,
+                                                           *temp_link, filebuf.linenumber);
+
+                    // -- create the member node
+		            CObjMemberNode* objmember = TinAlloc(ALLOC_TreeNode, CObjMemberNode, codeblock, arrayvarnode->leftchild,
+                                                         membertoken.linenumber, membertoken.tokenptr, membertoken.length);
+
+                    // -- the left child is the branch that resolves to an object
+                    objmember->leftchild = templeftchild;
+
+                    // the right child of the array is the array hash
+                    arrayvarnode->rightchild = *temp_root;
                 }
-                */
+
+                // -- else not an array, just an object member
+                else
+                {
+                    // -- create the member node
+		            CObjMemberNode* objmember = TinAlloc(ALLOC_TreeNode, CObjMemberNode, codeblock, *temp_link,
+                                                         membertoken.linenumber, membertoken.tokenptr, membertoken.length);
+
+                    // -- the left child is the branch that resolves to an object
+                    objmember->leftchild = templeftchild;
+                }
             }
         }
 
@@ -2073,9 +2128,10 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
         // -- ensure we read a valid type (also, no void parameters)
         eVarType paramtype = GetRegisteredType(paramtypetoken.tokenptr, paramtypetoken.length);
-        if(paramtype == TYPE_NULL || paramtype == TYPE_void) {
+        if (paramtype < FIRST_VALID_TYPE)
+        {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                          filebuf.linenumber, "Error - parameter type\n");
+                          filebuf.linenumber, "Error - invalid parameter type\n");
             return false;
         }
 
@@ -2083,7 +2139,7 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         tReadToken paramname(paramtypetoken);
         if(!GetToken(paramname) || paramname.type != TOKEN_IDENTIFIER) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                          filebuf.linenumber, "Error - parameter identifier\n");
+                          filebuf.linenumber, "Error - invalid parameter identifier\n");
             return false;
         }
 
@@ -2317,7 +2373,7 @@ bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
    		// -- create the (parameter) value node, add it to the assignment node
 		CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock,
                                          binopnode->leftchild, filebuf.linenumber, paramindex,
-                                         TYPE__resolve);
+                                         TYPE__var);
         Unused_(valuenode);
 
         bool8 result = TryParseStatement(codeblock, filebuf, binopnode->rightchild);
@@ -2431,7 +2487,6 @@ bool8 TryParseReturn(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNod
 }
 
 // ------------------------------------------------------------------------------------------------
-// $$$TZA - only global variable hashtables are currently supported
 bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
     tReadToken nexttoken(filebuf);
     if(!GetToken(nexttoken) || nexttoken.type != TOKEN_SQUARE_OPEN)
@@ -2940,7 +2995,8 @@ if(GetDebugCodeBlock()) {
 	}
 
 	// dump the tree
-    if(gDebugParseTree) {
+    if (gDebugParseTree)
+    {
 	    DumpTree(root, 0, false, false);
     }
 
@@ -3187,7 +3243,7 @@ CVariableEntry* AddVariable(CScriptContext* script_context, tVarTable* curglobal
         // -- search the local var table for the executing function
         ve = curfuncdefinition->GetContext()->GetLocalVar(varhash);
         if(!ve) {
-            ve = curfuncdefinition->GetContext()->AddLocalVar(varname, varhash, vartype);
+            ve = curfuncdefinition->GetContext()->AddLocalVar(varname, varhash, vartype, false);
         }
     }
     // -- not defining a function - see if we're compiling
@@ -3215,73 +3271,115 @@ CVariableEntry* AddVariable(CScriptContext* script_context, tVarTable* curglobal
     return ve;
 }
 
-// ------------------------------------------------------------------------------------------------
-CVariableEntry* GetVariable(CScriptContext* script_context, tVarTable* globalVarTable,
-                            uint32 nshash, uint32 funchash, uint32 varhash, uint32 arrayvarhash) {
+// ====================================================================================================================
+// GetVariable():  Given a NS hash, function or object ID, Var Hash, and an array hash, find the variable entry
+// ====================================================================================================================
+CVariableEntry* GetVariable(CScriptContext* script_context, tVarTable* globalVarTable, uint32 ns_hash,
+                            uint32 func_or_obj, uint32 var_hash, uint32 array_hash)
+{
 
-    // --if we've been given a non-zero nshash, the function belongs to that namespace,
-    // -- and the variable is a local, to that function
+    // -- to retrieve the variable:
+    // -- if the ns hash is zero, then the next word is the object ID
+    // -- if the ns hash is non-zero, then
+    // --    the next word is non-zero means the var is a local var in a function
+    // --    (note:  the ns hash could be "_global" for global functions)
+    // --    else if the next word is zero, it's a global variable
+    // -- the last two words are, the hash table variable name, and the hash value of the entry
+
     CFunctionEntry* fe = NULL;
-    CNamespace* nsentry = NULL;
-    if(nshash != 0) {
-        nsentry = script_context->FindNamespace(nshash);
-        if(!nsentry) {
+    CObjectEntry* oe = NULL;
+    CNamespace* ns_entry = NULL;
+    if (ns_hash != 0)
+    {
+        ns_entry = script_context->FindNamespace(ns_hash);
+        if (!ns_entry)
+        {
             ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - Unable to find resolve variable with namespace: %s\n", UnHash(nshash));
+                          "Error - Unable to find resolve variable with namespace: %s\n", UnHash(ns_hash));
             return NULL;
         }
 
-        fe = nsentry->GetFuncTable()->FindItem(funchash);
-        if(!fe) {
-            ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - Unable to find function: %s:() in namespace: %s\n",
-                          UnHash(funchash), UnHash(nshash));
+        // -- if the func is non-zero, then the variable is the local variable of a function
+        if (func_or_obj != 0)
+        {
+            fe = ns_entry->GetFuncTable()->FindItem(func_or_obj);
+
+            if (!fe)
+            {
+                ScriptAssert_(script_context, 0, "<internal>", -1,
+                              "Error - Unable to find function: %s:() in namespace: %s\n",
+                              UnHash(func_or_obj), UnHash(ns_hash));
+                return NULL;
+            }
+        }
+    }
+
+    // -- otherwise, if we have a '0' namespace, the next word is an object ID
+    else if (func_or_obj != 0)
+    {
+        oe = script_context->FindObjectEntry(func_or_obj);
+        if (!oe)
+        {
+            ScriptAssert_(script_context, 0, "<internal>", -1, "Error - Unable to find object: %d\n");
             return NULL;
         }
     }
-    else if(funchash != 0) {
-        fe = script_context->GetGlobalNamespace()->GetFuncTable()->FindItem(funchash);
-    }
 
-    // -- get the currently executing function
+    // -- now we find the variable entry
     CVariableEntry* ve = NULL;
-    if(fe) {
-        // -- search the local var table for the executing function
-        assert(fe->GetContext() != NULL);
-        ve = fe->GetContext()->GetLocalVar(varhash);
+
+    // -- if we found an object, we need to find the member
+    if (oe)
+        ve = oe->GetVariableEntry(var_hash);
+    
+    // -- else if were given a function, find the local variable
+    else if (fe)
+    {
+        ve = fe->GetContext()->GetLocalVar(var_hash);
 
         // -- mark the variable entry with the owning function
         if(ve)
             ve->SetFunctionEntry(fe);
     }
-    // -- not found in the local function - try the codeblock global vartable
-    if(!ve && globalVarTable) {
-        ve = globalVarTable->FindItem(varhash);
+
+    // -- if we haven't found the variable yet, and if we were given a specific variable table,
+    // -- find the variable there (
+    if (!ve && globalVarTable)
+        ve = globalVarTable->FindItem(var_hash);
+
+    // -- if still not found - look in the context global variable table
+    if (!ve)
+    {
+        ve = script_context->GetGlobalNamespace()->GetVarTable()->FindItem(var_hash);
     }
 
-    // -- still not found - try the actual global vartable
-    if(!ve && script_context->GetGlobalNamespace()->GetVarTable()) {
-        ve = script_context->GetGlobalNamespace()->GetVarTable()->FindItem(varhash);
+    // -- if we did not find the variable entry, fail
+    if (!ve)
+    {
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - Unable to find variable: %s\n",
+                      UnHash(var_hash));
+        return NULL;
     }
 
-    // -- if we found a variable, and we're expecting it to be a hashtable,
-    // -- look up the variable within that table
-    if(ve && arrayvarhash != 0) {
-        if(ve->GetType() != TYPE_hashtable) {
+    // -- if we did find the variable, but were given an array hash, we need to go one step deeper
+    if (array_hash != 0)
+    {
+        if (ve->GetType() != TYPE_hashtable)
+        {
             ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - expecting variable %s to be a hashtable\n",
-                          UnHash(ve->GetHash()));
+                          "Error - expecting variable %s to be a hashtable\n", UnHash(ve->GetHash()));
             return NULL;
         }
 
-    	tVarTable* vartable = (tVarTable*)ve->GetAddr(NULL);
+        // -- get the var table
+        tVarTable* vartable = (tVarTable*)ve->GetAddr(oe ? oe->GetAddr() : NULL);
 
         // -- look for the entry in the vartable
-        CVariableEntry* vte = vartable->FindItem(arrayvarhash);
+        CVariableEntry* vte = vartable->FindItem(array_hash);
         if(!vte) {
             ScriptAssert_(script_context, 0, "<internal>", -1,
                           "Error - HashTable Variable %s: unable to find entry: %d\n",
-                          UnHash(ve->GetHash()), arrayvarhash);
+                          UnHash(ve->GetHash()), UnHash(array_hash));
             return NULL;
         }
 

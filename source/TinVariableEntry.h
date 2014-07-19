@@ -32,11 +32,10 @@ namespace TinScript {
 class CVariableEntry {
 
 public:
-    CVariableEntry(CScriptContext* script_context, const char* _name = NULL,
-                    eVarType _type = TYPE_NULL, void* _addr = NULL);
-    CVariableEntry(CScriptContext* script_context, const char* _name, uint32 _hash,
-                    eVarType _type, bool isoffset, uint32 _offset,
-                    bool _isdynamic = false);
+    CVariableEntry(CScriptContext* script_context, const char* _name = NULL, eVarType _type = TYPE_NULL,
+                   void* _addr = NULL);
+    CVariableEntry(CScriptContext* script_context, const char* _name, uint32 _hash, eVarType _type,
+                   bool isoffset, uint32 _offset, bool _isdynamic = false, bool _isparam = false);
 
     virtual ~CVariableEntry();
 
@@ -120,6 +119,11 @@ public:
 
     uint32 GetOffset() const {
         return mOffset;
+    }
+
+    bool8 IsParameter() const
+    {
+        return (mIsParameter);
     }
 
     void SetValue(void* objaddr, void* value, CExecStack* execstack = NULL, CFunctionCallStack* funccallstack = NULL);
@@ -215,9 +219,6 @@ public:
         return mFuncEntry;
     }
 
-    // -- this is used to pass return values from scheduled functions
-    void ResolveValueType(eVarType new_type, void* value);
-
     // -- if true, and this is the parameter of a registered function,
     // -- then instead of passing a uint32 to code, we'll
     // -- look up the object, verify it exists, verify it's namespace type matches
@@ -241,6 +242,7 @@ private:
     void* mAddr;
     uint32 mOffset;
     int32 mStackOffset;
+    bool8 mIsParameter;
     bool8 mIsDynamic;
     bool8 mScriptVar;
     mutable uint32 mStringValueHash;

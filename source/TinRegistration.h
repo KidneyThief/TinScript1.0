@@ -54,15 +54,14 @@ class CFunctionContext {
 
         bool8 AddParameter(const char* varname, uint32 varhash, eVarType type, uint32 convert_type_from_object = 0);
         bool8 AddParameter(const char* varname, uint32 varhash, eVarType type, int32 paramindex, uint32 convert_type_from_object = 0);
-        CVariableEntry* AddLocalVar(const char* varname, uint32 varhash,
-                                    eVarType type);
+        CVariableEntry* AddLocalVar(const char* varname, uint32 varhash, eVarType type, bool is_param);
         int32 GetParameterCount();
         CVariableEntry* GetParameter(int index);
         CVariableEntry* GetLocalVar(uint32 varhash);
         tVarTable* GetLocalVarTable();
         bool8 IsParameter(CVariableEntry* ve);
         void ClearParameters();
-        void InitStackVarOffsets();
+        void InitStackVarOffsets(CFunctionEntry* fe);
 
     private:
         CScriptContext* mContextOwner;
@@ -149,8 +148,12 @@ class CFunctionEntry {
 			return (mType);
 		}
 
-		uint32 GetNamespaceHash() const {
-			return (mNamespaceHash);
+		uint32 GetNamespaceHash() const
+        {
+            if (mNamespaceHash == 0)
+                return (CScriptContext::kGlobalNamespaceHash);
+            else
+			    return (mNamespaceHash);
 		}
 
 		uint32 GetHash() const {

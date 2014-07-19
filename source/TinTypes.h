@@ -191,7 +191,7 @@ struct sHashVar {
 // -- for example if one of the values is a float, and one is an int, the float version of the operation
 // -- will be chosen.  E.g. (3.5f * 10) is 35 using a float op, whereas (3.5f * 10) is 30 in integer math
 
-#define FIRST_VALID_TYPE TYPE_object
+#define FIRST_VALID_TYPE TYPE_hashtable
 #define VarTypeTuple \
 	VarTypeEntry(NULL,		    0,		VoidToString,		StringToVoid,       uint8,          NULL)               \
 	VarTypeEntry(void,		    0,		VoidToString,		StringToVoid,       uint8,          NULL)   	        \

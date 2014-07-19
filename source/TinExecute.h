@@ -62,9 +62,18 @@ class CExecStack {
                 return;
             }
 
-			uint32* contentptr = (uint32*)content;
-			for(uint32 i = 0; i < contentsize; ++i)
-				*mStackTop++ = *contentptr++;
+            // -- if we're pushing a hash table, we don't want to dereference the pointer
+            if (contenttype == TYPE_hashtable)
+            {
+			    uint32* contentptr = (uint32*)content;
+                *mStackTop++ = (uint32)contentptr;
+            }
+            else
+            {
+			    uint32* contentptr = (uint32*)content;
+			    for(uint32 i = 0; i < contentsize; ++i)
+				    *mStackTop++ = *contentptr++;
+            }
 
 			// -- push the type of the content as well, so we know what to pull
 			*mStackTop++ = (uint32)contenttype;
@@ -106,6 +115,12 @@ class CExecStack {
             {
                 uint32 string_hash = *(uint32*)mStackTop;
                 mContextOwner->GetStringTable()->RefCountDecrement(string_hash);
+            }
+
+            // -- for hashtables, match the Push(), where the address was assigned directly to the contents
+            else if (contenttype == TYPE_hashtable)
+            {
+                return (void*)(*mStackTop);
             }
 
 			return (void*)mStackTop;

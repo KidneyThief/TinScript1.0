@@ -295,6 +295,9 @@ class CScriptContext {
         void SetAssertStackSkipped(bool8 torf) { mAssertStackSkipped = torf; }
         void ResetAssertStack();
 
+        static const char* kGlobalNamespace;
+        static uint32 kGlobalNamespaceHash;
+
         CNamespace* GetGlobalNamespace() {
             return (mGlobalNamespace);
         }

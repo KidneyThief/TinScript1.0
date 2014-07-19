@@ -65,6 +65,7 @@ class CWhileLoopNode;
     CompileNodeTypeEntry(SchedParam)    		\
     CompileNodeTypeEntry(SchedFunc)     		\
 	CompileNodeTypeEntry(ArrayHash) 			\
+	CompileNodeTypeEntry(ArrayVar)			    \
 	CompileNodeTypeEntry(ArrayVarDecl)			\
 	CompileNodeTypeEntry(SelfVarDecl)			\
 	CompileNodeTypeEntry(Schedule)			    \
@@ -462,6 +463,16 @@ class CArrayHashNode : public CCompileTreeNode
 		CArrayHashNode() { }
 };
 
+class CArrayVarNode : public CCompileTreeNode
+{
+	public:
+		CArrayVarNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int _linenumber);
+		virtual int Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const;
+
+	protected:
+		CArrayVarNode() { }
+};
+
 class CArrayVarDeclNode : public CCompileTreeNode
 {
 	public:
@@ -482,6 +493,7 @@ class CSelfVarDeclNode : public CCompileTreeNode
                          const char* _varname, int _varnamelength, eVarType _type);
 
 		virtual int Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const;
+        virtual void Dump(char*& output, int32& length) const;
 
 	protected:
 		CSelfVarDeclNode() { }

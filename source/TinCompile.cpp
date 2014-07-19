@@ -36,9 +36,6 @@
 #include "TinExecute.h"
 #include "TinNamespace.h"
 
-// -- name of the global namespace
-static const char* kGlobalNamespace = "_global";
-
 namespace TinScript {
 
 // ------------------------------------------------------------------------------------------------
@@ -214,10 +211,11 @@ int32 CompileVarTable(tVarTable* vartable, uint32*& instrptr, bool8 countonly) {
 }
 
 // ------------------------------------------------------------------------------------------------
-int32 CompileFunctionContext(CFunctionContext* funccontext, uint32*& instrptr,
-                           bool8 countonly) {
+int32 CompileFunctionContext(CFunctionEntry* fe, uint32*& instrptr, bool8 countonly)
+{
+    // -- get the context for the function
+    CFunctionContext* funccontext = fe->GetContext();
     int32 size = 0;
-    assert(funccontext);
 
     // -- push the parameters
     int32 paramcount = funccontext->GetParameterCount();
@@ -248,7 +246,7 @@ int32 CompileFunctionContext(CFunctionContext* funccontext, uint32*& instrptr,
 
     // -- initialize the stack var offsets
     if(!countonly)
-        funccontext->InitStackVarOffsets();
+        funccontext->InitStackVarOffsets(fe);
 
     return size;
 }
@@ -326,9 +324,10 @@ CValueNode::CValueNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _
     valtype = _valtype;
 }
 
-CValueNode::CValueNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
-                       int32 _paramindex, eVarType _valtype) :
-                       CCompileTreeNode(_codeblock, _link, eValue, _linenumber) {
+CValueNode::CValueNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber, int32 _paramindex,
+                       eVarType _valtype)
+    : CCompileTreeNode(_codeblock, _link, eValue, _linenumber)
+{
     value[0] = '\0';
 	isvariable = false;
     isparam = true;
@@ -336,129 +335,73 @@ CValueNode::CValueNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _
     valtype = _valtype;
 }
 
-int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-	
+int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
 	// if the value is being used, push it on the stack
-	if(pushresult > TYPE_void) {
-        if(isparam) {
+	if (pushresult > TYPE_void)
+    {
+        if (isparam)
+        {
 			size += PushInstruction(countonly, instrptr, OP_PushParam, DBG_instr);
 			size += PushInstruction(countonly, instrptr, paramindex, DBG_hash);
         }
-		else if(isvariable) {
+		else if (isvariable)
+        {
             int32 stacktopdummy = 0;
             CObjectEntry* dummy = NULL;
             CFunctionEntry* curfunction = codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
+
 			// -- ensure we can find the variable
 			uint32 varhash = Hash(value);
             uint32 funchash = curfunction ? curfunction->GetHash() : 0;
-            uint32 nshash = curfunction ? curfunction->GetNamespaceHash() : 0;
-            CVariableEntry* var = GetVariable(codeblock->GetScriptContext(),
-                                              codeblock->smCurrentGlobalVarTable, nshash, funchash,
-                                              varhash, 0);
-			if(!var) {
+            uint32 nshash = curfunction ? curfunction->GetNamespaceHash() : CScriptContext::kGlobalNamespaceHash;
+            CVariableEntry* var = GetVariable(codeblock->GetScriptContext(), codeblock->smCurrentGlobalVarTable,
+                                              nshash, funchash, varhash, 0);
+			if (!var)
+            {
                 ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
                               "Error - undefined variable: %s\n", value);
 				return (-1);
 			}
 			eVarType vartype = var->GetType();
 
-            // -- if this variable is a hash table, but we're supposed to push a non-hashtable
-            // -- result, then we'd better have a hash value to dereference the table
-            if(vartype == TYPE_hashtable && pushresult != TYPE_hashtable) {
-                if(!rightchild) {
-                    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                                  linenumber,
-                                  "Error - hashtable variable %s missing a rightchild\n",
-                                  UnHash(var->GetHash()));
-				    return (-1);
-                }
-
-                // -- the right child will be an ArrayHashNode (tree), to resolve to a hash value
-                // -- used to index into the hashtable
-                int32 tree_size = rightchild->Eval(instrptr, TYPE_int, countonly);
-                if (tree_size < 0)
-                    return (-1);
-                size += tree_size;
-            }
-
 			// -- if we're supposed to be pushing a var (e.g. for an assign...)
-            // -- or a hashtable, to declare an array entry...
-            // -- or a pod member, to dereference a registered POD variable
-			if(pushresult == TYPE__var || pushresult == TYPE_hashtable) {
-                // -- if we want the hash table entry, or the variable to assign
-                if(vartype == TYPE_hashtable && pushresult != TYPE_hashtable) {
-    				size += PushInstruction(countonly, instrptr, OP_PushArrayVar, DBG_instr);
-				    size += PushInstruction(countonly, instrptr, 0, DBG_hash);
-				    size += PushInstruction(countonly, instrptr, funchash, DBG_func);
-        			size += PushInstruction(countonly, instrptr, var->GetHash(), DBG_var);
-                }
-                // -- else we want the hashtable variable
-                else {
-                    // -- if this isn't a func var, make sure we push ns 0 for a global variable
-                    if(var->GetFunctionEntry() == NULL) {
-				        size += PushInstruction(countonly, instrptr, OP_PushGlobalVar, DBG_instr);
-				        size += PushInstruction(countonly, instrptr, 0, DBG_hash);
-				        size += PushInstruction(countonly, instrptr, funchash, DBG_func);
-        				size += PushInstruction(countonly, instrptr, var->GetHash(), DBG_var);
-                    }
-                    else {
-				        size += PushInstruction(countonly, instrptr, OP_PushLocalVar, DBG_instr);
-				        size += PushInstruction(countonly, instrptr, var->GetType(), DBG_vartype);
+            // -- (note:  there is no such thing as the "value" of a hashtable)
+            bool8 push_value = (pushresult != TYPE__var && pushresult != TYPE_hashtable && var->GetType() != TYPE_hashtable);
 
-                        // -- for local vars, it's the offset on the stack we need to push
-                        int32 stackoffset = var->GetStackOffset();
-                        if(!countonly && stackoffset < 0) {
-                            ScriptAssert_(codeblock->GetScriptContext(), 0,
-                                          codeblock->GetFileName(), linenumber,
-                                          "Error - invalid stack offset for local var: %s\n",
-                                          UnHash(var->GetHash()));
-                            return (-1);
-                        }
-        				size += PushInstruction(countonly, instrptr, stackoffset, DBG_var);
-                    }
-                }
-			}
+            // -- if this isn't a func var, make sure we push the global namespace
+            if(var->GetFunctionEntry() == NULL)
+            {
+				size += PushInstruction(countonly, instrptr, push_value ? OP_PushGlobalValue : OP_PushGlobalVar,
+                                        DBG_instr);
+				size += PushInstruction(countonly, instrptr, CScriptContext::kGlobalNamespaceHash, DBG_hash);
+				size += PushInstruction(countonly, instrptr, 0, DBG_func);
+        		size += PushInstruction(countonly, instrptr, var->GetHash(), DBG_var);
+            }
+            else
+            {
+				size += PushInstruction(countonly, instrptr, push_value ? OP_PushLocalValue : OP_PushLocalVar,
+                                        DBG_instr);
+				size += PushInstruction(countonly, instrptr, var->GetType(), DBG_vartype);
 
-			// -- otherwise we push the hash, but the instruction is to get the value
-			else {
-                if(vartype == TYPE_hashtable) {
-    				size += PushInstruction(countonly, instrptr, OP_PushArrayValue, DBG_instr);
-				    size += PushInstruction(countonly, instrptr, 0, DBG_hash);
-				    size += PushInstruction(countonly, instrptr, funchash, DBG_func);
-        			size += PushInstruction(countonly, instrptr, var->GetHash(), DBG_var);
+                // -- for local vars, it's the offset on the stack we need to push
+                int32 stackoffset = var->GetStackOffset();
+                if (!countonly && stackoffset < 0)
+                {
+                    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
+                                    "Error - invalid stack offset for local var: %s\n", UnHash(var->GetHash()));
+                    return (-1);
                 }
-                else {
-                    // -- if this isn't a func var, make sure we push ns 0 for a global variable
-                    if(var->GetFunctionEntry() == NULL) {
-					    size += PushInstruction(countonly, instrptr, OP_PushGlobalValue, DBG_instr);
-    			        size += PushInstruction(countonly, instrptr, 0, DBG_hash);
-				        size += PushInstruction(countonly, instrptr, funchash, DBG_func);
-				        size += PushInstruction(countonly, instrptr, var->GetHash(), DBG_var);
-                    }
-                    else {
-					    size += PushInstruction(countonly, instrptr, OP_PushLocalValue, DBG_instr);
-    			        size += PushInstruction(countonly, instrptr, var->GetType(), DBG_vartype);
-
-                        // -- for local vars, it's the offset on the stack we need to push
-                        int32 stackoffset = var->GetStackOffset();
-                        if(!countonly && stackoffset < 0) {
-                            ScriptAssert_(codeblock->GetScriptContext(), 0,
-                                          codeblock->GetFileName(), linenumber,
-                                          "Error - invalid stack offset for local var: %s\n",
-                                          UnHash(var->GetHash()));
-                            return (-1);
-                        }
-				        size += PushInstruction(countonly, instrptr, stackoffset, DBG_var);
-                    }
-                }
-			}
+        		size += PushInstruction(countonly, instrptr, stackoffset, DBG_var);
+            }
 		}
 
 		// -- else we're pushing an actual value
-		else {
+		else
+        {
 			size += PushInstruction(countonly, instrptr, OP_Push, DBG_instr);
 
 			// -- the next instruction is the type to be pushed
@@ -468,18 +411,18 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
 			// convert the value string to the appropriate type
 			// increment the instrptr by the number of 4-byte instructions
 			char valuebuf[kMaxTokenLength];
-			if(gRegisteredStringToType[pushtype]((void*)valuebuf, (char*)value)) {
+			if (gRegisteredStringToType[pushtype]((void*)valuebuf, (char*)value))
+            {
 				int32 resultsize = kBytesToWordCount(gRegisteredTypeSize[pushtype]);
     		    size += PushInstructionRaw(countonly, instrptr, (void*)valuebuf, resultsize,
 										   DBG_value);
 
                 // -- if the value type is a string, we need to ensure it's added to the dictionary
                 if (pushtype == TYPE_string)
-                {
                     codeblock->GetScriptContext()->GetStringTable()->RefCountIncrement(*(uint32*)valuebuf);
-                }
     		}
-			else {
+			else
+            {
                 ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
                               "Error - unable to convert value %s to type %s\n", value,
                               gRegisteredTypeNames[pushtype]);
@@ -550,27 +493,30 @@ int32 CObjMemberNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
     size += tree_size;
 
 	// -- if the value is being used, push it on the stack
-	if(pushresult > TYPE_void) {
-
+	if (pushresult > TYPE_void)
+    {
         // -- get the hash of the member
 		uint32 memberhash = Hash(membername);
 
 		// -- if we're supposed to be pushing a var (for an assign...), we actually push
         // -- a member (still a variable, but the lookup is different)
-		if(pushresult == TYPE__var) {
+		if (pushresult == TYPE__var || pushresult == TYPE_hashtable)
+        {
 			size += PushInstruction(countonly, instrptr, OP_PushMember, DBG_instr);
 			size += PushInstruction(countonly, instrptr, memberhash, DBG_var);
 		}
 
 		// -- otherwise we push the hash, but the instruction is to get the value
-		else {
+		else
+        {
 			size += PushInstruction(countonly, instrptr, OP_PushMemberVal, DBG_instr);
 			size += PushInstruction(countonly, instrptr, memberhash, DBG_var);
 		}
 	}
 
     // -- otherwise, we're referencing a member without actually doing anything - pop the stack
-    else {
+    else
+    {
         size += PushInstruction(countonly, instrptr, OP_Pop, DBG_instr);
     }
 
@@ -1138,7 +1084,7 @@ int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 							   "placeholder for func offset");
 
     // -- function context - parameters + local vartable
-    size += CompileFunctionContext(fe->GetContext(), instrptr, countonly);
+    size += CompileFunctionContext(fe, instrptr, countonly);
 
     // -- need to complete the function declaration
     size += PushInstruction(countonly, instrptr, OP_FuncDeclEnd, DBG_instr);
@@ -1416,10 +1362,57 @@ int32 CArrayHashNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 }
 
 // ------------------------------------------------------------------------------------------------
-CArrayVarDeclNode::CArrayVarDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
-                                     int32 _linenumber, eVarType _type) :
-                                     CCompileTreeNode(_codeblock, _link,
-                                                      eArrayVarDecl, _linenumber) {
+CArrayVarNode::CArrayVarNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber)
+    : CCompileTreeNode(_codeblock, _link, eArrayVar, _linenumber)
+{
+}
+
+int32 CArrayVarNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
+    Unused_(pushresult);
+
+	DebugEvaluateNode(*this, countonly, instrptr);
+	int32 size = 0;
+
+    if (!leftchild)
+    {
+        ScriptAssert_(codeblock->GetScriptContext(), leftchild != NULL, codeblock->GetFileName(),
+                      linenumber,
+                      "Error - CArrayVarNode::Eval() - missing leftchild\n");
+        return (-1);
+    }
+
+    if (!rightchild)
+    {
+        ScriptAssert_(codeblock->GetScriptContext(), rightchild != NULL, codeblock->GetFileName(),
+                      linenumber,
+                      "Error - CArrayVarNode::Eval() - missing rightchild\n");
+        return (-1);
+    }
+
+   	// -- left child will have pushed the hashtable variable
+    int32 tree_size = leftchild->Eval(instrptr, TYPE_hashtable, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
+
+   	// -- right child will contain the hash value for the entry we're declaring
+    tree_size = rightchild->Eval(instrptr, TYPE_int, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
+
+	// -- see if we're supposed to be pushing a var (e.g. for an assign...)
+    bool8 push_value = (pushresult != TYPE__var && pushresult != TYPE_hashtable);
+	size += PushInstruction(countonly, instrptr, push_value ? OP_PushArrayValue : OP_PushArrayVar, DBG_instr);
+
+	return size;
+}
+
+// ------------------------------------------------------------------------------------------------
+CArrayVarDeclNode::CArrayVarDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber, eVarType _type)
+    : CCompileTreeNode(_codeblock, _link, eArrayVarDecl, _linenumber)
+{
     type = _type;
 }
 
@@ -1432,14 +1425,14 @@ int32 CArrayVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 coun
     if(!leftchild) {
         ScriptAssert_(codeblock->GetScriptContext(), leftchild != NULL, codeblock->GetFileName(),
                       linenumber,
-                      "Error - CArrayHashNode::Eval() - missing leftchild\n");
+                      "Error - CArrayVarDeclNode::Eval() - missing leftchild\n");
         return (-1);
     }
 
     if(!rightchild) {
         ScriptAssert_(codeblock->GetScriptContext(), rightchild != NULL, codeblock->GetFileName(),
                       linenumber,
-                      "Error - CArrayHashNode::Eval() - missing rightchild\n");
+                      "Error - CArrayVarDeclNode::Eval() - missing rightchild\n");
         return (-1);
     }
 
@@ -1482,6 +1475,14 @@ int32 CSelfVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 count
 	size += PushInstruction(countonly, instrptr, type, DBG_vartype);
 
 	return size;
+}
+
+void CSelfVarDeclNode::Dump(char*& output, int32& length) const
+{
+	sprintf_s(output, length, "type: %s, var: %s", gCompileNodeTypes[GetType()], varname);
+	int32 debuglength = (int32)strlen(output);
+	output += debuglength;
+	length -= debuglength;
 }
 
 // ------------------------------------------------------------------------------------------------
