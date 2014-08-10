@@ -52,13 +52,17 @@ class CFunctionContext {
             return mContextOwner;
         }
 
-        bool8 AddParameter(const char* varname, uint32 varhash, eVarType type, uint32 convert_type_from_object = 0);
-        bool8 AddParameter(const char* varname, uint32 varhash, eVarType type, int32 paramindex, uint32 convert_type_from_object = 0);
-        CVariableEntry* AddLocalVar(const char* varname, uint32 varhash, eVarType type, bool is_param);
+        bool8 AddParameter(const char* varname, uint32 varhash, eVarType type, int32 array_size,
+                           uint32 convert_type_from_object);
+        bool8 AddParameter(const char* varname, uint32 varhash, eVarType type, int32 array_size, int32 paramindex,
+                           uint32 convert_type_from_object);
+        CVariableEntry* AddLocalVar(const char* varname, uint32 varhash, eVarType type, int32 array_size,
+                                    bool is_param);
         int32 GetParameterCount();
         CVariableEntry* GetParameter(int index);
         CVariableEntry* GetLocalVar(uint32 varhash);
         tVarTable* GetLocalVarTable();
+        int32 CalculateLocalVarStackSize();
         bool8 IsParameter(CVariableEntry* ve);
         void ClearParameters();
         void InitStackVarOffsets(CFunctionEntry* fe);
@@ -76,43 +80,52 @@ class CFunctionContext {
         CVariableEntry* parameterlist[eMaxParameterCount];
 };
 
-class CRegFunctionBase {
+class CRegFunctionBase
+{
     public:
-
-        CRegFunctionBase(const char* _funcname = "") {
+        CRegFunctionBase(const char* _funcname = "")
+        {
             funcname = _funcname;
             next = gRegistrationList;
             gRegistrationList = this;
         }
 
-        virtual ~CRegFunctionBase() {
+        virtual ~CRegFunctionBase()
+        {
         }
 
-        const char* GetName() {
+        const char* GetName()
+        {
             return funcname;
         }
 
-        void SetScriptContext(CScriptContext* script_context) {
+        void SetScriptContext(CScriptContext* script_context)
+        {
             mScriptContext = script_context;
         }
 
-        CScriptContext* GetScriptContext() {
+        CScriptContext* GetScriptContext()
+        {
             return (mScriptContext);
         }
 
-        void SetContext(CFunctionContext* fe) {
+        void SetContext(CFunctionContext* fe)
+        {
             funccontext = fe;
         }
 
-        CFunctionContext* GetContext() {
+        CFunctionContext* GetContext()
+        {
             return funccontext;
         }
 
-        virtual void DispatchFunction(void*) {
+        virtual void DispatchFunction(void*)
+        {
         }
 
         virtual void Register(CScriptContext* script_context) = 0;
-        CRegFunctionBase* GetNext() {
+        CRegFunctionBase* GetNext()
+        {
             return next;
         }
 

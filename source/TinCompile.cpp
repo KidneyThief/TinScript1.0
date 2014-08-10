@@ -194,17 +194,18 @@ void DebugEvaluateBinOpNode(const CBinaryOpNode& binopnode, bool8 countonly) {
 // ------------------------------------------------------------------------------------------------
 int32 CompileVarTable(tVarTable* vartable, uint32*& instrptr, bool8 countonly) {
     int32 size = 0;
-	if(vartable) {
-		// -- create instructions to declare each variable
-		for(int32 i = 0; i < vartable->Size(); ++i) {
-			CVariableEntry* ve = vartable->FindItemByBucket(i);
-			while (ve) {
-                size += PushInstruction(countonly, instrptr, OP_VarDecl, DBG_instr);
-                size += PushInstruction(countonly, instrptr, ve->GetHash(), DBG_var);
-                size += PushInstruction(countonly, instrptr, ve->GetType(), DBG_vartype);
+	if (vartable)
+    {
+		CVariableEntry* ve = vartable->First();
+        while (ve)
+        {
+		    // -- create instructions to declare each variable
+            size += PushInstruction(countonly, instrptr, OP_VarDecl, DBG_instr);
+            size += PushInstruction(countonly, instrptr, ve->GetHash(), DBG_var);
+            size += PushInstruction(countonly, instrptr, ve->GetType(), DBG_vartype);
+            size += PushInstruction(countonly, instrptr, ve->GetArraySize(), DBG_value);
 
-				ve = vartable->GetNextItemInBucket(i);
-			}
+			ve = vartable->Next();
 		}
 	}
     return size;
@@ -219,33 +220,37 @@ int32 CompileFunctionContext(CFunctionEntry* fe, uint32*& instrptr, bool8 counto
 
     // -- push the parameters
     int32 paramcount = funccontext->GetParameterCount();
-    for(int32 i = 0; i < paramcount; ++i) {
+    for (int32 i = 0; i < paramcount; ++i)
+    {
         CVariableEntry* ve = funccontext->GetParameter(i);
         assert(ve);
         size += PushInstruction(countonly, instrptr, OP_ParamDecl, DBG_instr);
         size += PushInstruction(countonly, instrptr, ve->GetHash(), DBG_var);
         size += PushInstruction(countonly, instrptr, ve->GetType(), DBG_vartype);
+        size += PushInstruction(countonly, instrptr, ve->GetArraySize(), DBG_value);
     }
 
     // -- now declare the rest of the local vars
     tVarTable* vartable = funccontext->GetLocalVarTable();
     assert(vartable);
-	if(vartable) {
-		for(int32 i = 0; i < vartable->Size(); ++i) {
-			CVariableEntry* ve = vartable->FindItemByBucket(i);
-			while (ve) {
-                if(! funccontext->IsParameter(ve)) {
-                    size += PushInstruction(countonly, instrptr, OP_VarDecl, DBG_instr);
-                    size += PushInstruction(countonly, instrptr, ve->GetHash(), DBG_var);
-                    size += PushInstruction(countonly, instrptr, ve->GetType(), DBG_vartype);
-                }
-				ve = vartable->GetNextItemInBucket(i);
-			}
+	if (vartable)
+    {
+	    CVariableEntry* ve = vartable->First();
+        while (ve)
+        {
+            if (! ve->IsParameter())
+            {
+                size += PushInstruction(countonly, instrptr, OP_VarDecl, DBG_instr);
+                size += PushInstruction(countonly, instrptr, ve->GetHash(), DBG_var);
+                size += PushInstruction(countonly, instrptr, ve->GetType(), DBG_vartype);
+                size += PushInstruction(countonly, instrptr, ve->GetArraySize(), DBG_value);
+            }
+		    ve = vartable->Next();
 		}
 	}
 
     // -- initialize the stack var offsets
-    if(!countonly)
+    if (!countonly)
         funccontext->InitStackVarOffsets(fe);
 
     return size;
@@ -370,10 +375,11 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
 
 			// -- if we're supposed to be pushing a var (e.g. for an assign...)
             // -- (note:  there is no such thing as the "value" of a hashtable)
-            bool8 push_value = (pushresult != TYPE__var && pushresult != TYPE_hashtable && var->GetType() != TYPE_hashtable);
+            bool8 push_value = (pushresult != TYPE__var && pushresult != TYPE_hashtable &&
+                                var->GetType() != TYPE_hashtable && !var->IsArray());
 
             // -- if this isn't a func var, make sure we push the global namespace
-            if(var->GetFunctionEntry() == NULL)
+            if (var->GetFunctionEntry() == NULL)
             {
 				size += PushInstruction(countonly, instrptr, push_value ? OP_PushGlobalValue : OP_PushGlobalVar,
                                         DBG_instr);
@@ -396,6 +402,16 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
                     return (-1);
                 }
         		size += PushInstruction(countonly, instrptr, stackoffset, DBG_var);
+
+                // -- push the local var index as well
+                int32 var_index = 0;
+                CVariableEntry* local_ve = var->GetFunctionEntry()->GetLocalVarTable()->First();
+                while (local_ve && local_ve != var)
+                {
+                    local_ve = var->GetFunctionEntry()->GetLocalVarTable()->Next();
+                    ++var_index;
+                }
+        		size += PushInstruction(countonly, instrptr, var_index, DBG_var);
             }
 		}
 
@@ -482,7 +498,8 @@ int32 CObjMemberNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 
 	// -- ensure we have a left child
 	if(!leftchild) {
-		printf("Error - CObjMemberNode with no left child\n");
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
+                        "Error - CObjMemberNode with no left child\n");
 		return (-1);
 	}
 
@@ -1455,12 +1472,74 @@ int32 CArrayVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 coun
 }
 
 // ------------------------------------------------------------------------------------------------
+CArrayDeclNode::CArrayDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int _linenumber, int32 _size)
+    : CCompileTreeNode(_codeblock, _link, eArrayDecl, _linenumber)
+{
+    mSize = _size;
+    if (mSize < 1)
+        mSize = 1;
+}
+
+int32 CArrayDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const
+{
+	DebugEvaluateNode(*this, countonly, instrptr);
+	int32 size = 0;
+
+    if (!leftchild)
+    {
+        ScriptAssert_(codeblock->GetScriptContext(), leftchild != NULL, codeblock->GetFileName(),
+                      linenumber,
+                      "Error - CArrayDeclNode::Eval() - missing leftchild\n");
+        return (-1);
+    }
+
+    // $$$TZA Eventually, we may want dynamically sized arrays, in which case, the size is the right child
+    /*
+    if (!rightchild)
+    {
+        ScriptAssert_(codeblock->GetScriptContext(), rightchild != NULL, codeblock->GetFileName(),
+                      linenumber,
+                      "Error - CArrayDeclNode::Eval() - missing rightchild\n");
+        return (-1);
+    }
+    */
+
+   	// -- left child will have pushed the variable that is to become an array
+    int32 tree_size = leftchild->Eval(instrptr, TYPE__var, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
+
+   	// -- right child will contain the size of the array
+    /*
+    tree_size = rightchild->Eval(instrptr, TYPE_int, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
+    */
+
+    // -- push the size
+	size += PushInstruction(countonly, instrptr, OP_Push, DBG_instr);
+    size += PushInstruction(countonly, instrptr, TYPE_int, DBG_vartype);
+	size += PushInstruction(countonly, instrptr, mSize, DBG_value);
+
+    // -- push the instruction to convert the given variable to an array
+    // -- note:  the variable will have been created, with a NULL mAddr, to be when this instruction is executed
+	size += PushInstruction(countonly, instrptr, OP_ArrayDecl, DBG_instr);
+
+    // -- success
+    return (size);
+}
+
+// ------------------------------------------------------------------------------------------------
 CSelfVarDeclNode::CSelfVarDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
                                    int32 _linenumber, const char* _varname, int32 _varnamelength,
-                                   eVarType _type) : CCompileTreeNode(_codeblock, _link,
-                                                                      eSelfVarDecl, _linenumber) {
+                                   eVarType _type, int32 _array_size)
+    : CCompileTreeNode(_codeblock, _link, eSelfVarDecl, _linenumber)
+{
 	SafeStrcpy(varname, _varname, _varnamelength + 1);
     type = _type;
+    mArraySize = _array_size;
 }
 
 int32 CSelfVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
@@ -1473,13 +1552,68 @@ int32 CSelfVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 count
 	size += PushInstruction(countonly, instrptr, OP_SelfVarDecl, DBG_instr);
 	size += PushInstruction(countonly, instrptr, varhash, DBG_var);
 	size += PushInstruction(countonly, instrptr, type, DBG_vartype);
+	size += PushInstruction(countonly, instrptr, mArraySize, DBG_value);
 
 	return size;
 }
 
 void CSelfVarDeclNode::Dump(char*& output, int32& length) const
 {
-	sprintf_s(output, length, "type: %s, var: %s", gCompileNodeTypes[GetType()], varname);
+    if (mArraySize > 1)
+	    sprintf_s(output, length, "type: %s, var[%d]: %s", gCompileNodeTypes[GetType()], mArraySize, varname);
+    else
+	    sprintf_s(output, length, "type: %s, var: %s", gCompileNodeTypes[GetType()], varname);
+	int32 debuglength = (int32)strlen(output);
+	output += debuglength;
+	length -= debuglength;
+}
+
+// ------------------------------------------------------------------------------------------------
+CObjMemberDeclNode::CObjMemberDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
+                                       int32 _linenumber, const char* _varname, int32 _varnamelength,
+                                       eVarType _type, int32 _array_size)
+    : CCompileTreeNode(_codeblock, _link, eObjMemberDecl, _linenumber)
+{
+	SafeStrcpy(varname, _varname, _varnamelength + 1);
+    type = _type;
+    mArraySize = _array_size;
+}
+
+int32 CObjMemberDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
+
+	DebugEvaluateNode(*this, countonly, instrptr);
+	int32 size = 0;
+
+    // -- left child resolves to an object
+    if (!leftchild)
+    {
+        ScriptAssert_(codeblock->GetScriptContext(), leftchild != NULL, codeblock->GetFileName(),
+                      linenumber,
+                      "Error - CObjMemberDeclNode::Eval() - missing leftchild\n");
+        return (-1);
+    }
+
+   	// -- left child will have pushed the variable that is to become an array
+    int32 tree_size = leftchild->Eval(instrptr, TYPE_object, countonly);
+    if (tree_size < 0)
+        return (-1);
+    size += tree_size;
+
+	uint32 varhash = Hash(varname);
+	size += PushInstruction(countonly, instrptr, OP_ObjMemberDecl, DBG_instr);
+	size += PushInstruction(countonly, instrptr, varhash, DBG_var);
+	size += PushInstruction(countonly, instrptr, type, DBG_vartype);
+	size += PushInstruction(countonly, instrptr, mArraySize, DBG_value);
+
+	return size;
+}
+
+void CObjMemberDeclNode::Dump(char*& output, int32& length) const
+{
+    if (mArraySize > 1)
+	    sprintf_s(output, length, "type: %s, var[%d]: %s", gCompileNodeTypes[GetType()], mArraySize, varname);
+    else
+	    sprintf_s(output, length, "type: %s, var: %s", gCompileNodeTypes[GetType()], varname);
 	int32 debuglength = (int32)strlen(output);
 	output += debuglength;
 	length -= debuglength;

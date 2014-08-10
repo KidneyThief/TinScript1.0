@@ -99,7 +99,8 @@ TypeOpOverride gRegisteredTypeOpTable[OP_COUNT][TYPE_COUNT];
 TypeConvertFunction gRegisteredTypeConvertTable[TYPE_COUNT][TYPE_COUNT];
 
 // --------------------------------------------------------------------------------------------------------------------
-eVarType GetRegisteredType(uint32 id) {
+eVarType GetRegisteredType(uint32 id)
+{
     // -- if this array is declared in the global scope, GetTypeID<>() initializes
     // -- the entire array to 0s...
     static uint32 gRegisteredTypeID[TYPE_COUNT] = {
@@ -116,15 +117,18 @@ eVarType GetRegisteredType(uint32 id) {
 
     // -- not found - see if this type is a registered class
     CScriptContext* script_context = GetContext();
-    CHashTable<CNamespace>* ns_dictionary = script_context->GetNamespaceDictionary();
-    CNamespace* ns_entry = ns_dictionary->First();
-    while (ns_entry)
+    if (script_context)
     {
-        if (ns_entry->GetTypeID() == id)
+        CHashTable<CNamespace>* ns_dictionary = script_context->GetNamespaceDictionary();
+        CNamespace* ns_entry = ns_dictionary->First();
+        while (ns_entry)
         {
-            return (TYPE_object);
+            if (ns_entry->GetTypeID() == id)
+            {
+                return (TYPE_object);
+            }
+            ns_entry = ns_dictionary->Next();
         }
-        ns_entry = ns_dictionary->Next();
     }
     
 	return TYPE_NULL;

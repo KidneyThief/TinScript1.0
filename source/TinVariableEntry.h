@@ -29,55 +29,110 @@ namespace TinScript {
 
 // ------------------------------------------------------------------------------------------------
 // variable table
-class CVariableEntry {
-
+class CVariableEntry
+{
 public:
     CVariableEntry(CScriptContext* script_context, const char* _name = NULL, eVarType _type = TYPE_NULL,
-                   void* _addr = NULL);
+                   int32 array_size = 1, void* _addr = NULL);
     CVariableEntry(CScriptContext* script_context, const char* _name, uint32 _hash, eVarType _type,
-                   bool isoffset, uint32 _offset, bool _isdynamic = false, bool _isparam = false);
+                   int32 array_size, bool isoffset, uint32 _offset, bool _isdynamic = false, bool _isparam = false);
 
     virtual ~CVariableEntry();
 
-    CScriptContext* GetScriptContext() {
+    CScriptContext* GetScriptContext() const
+    {
         return (mContextOwner);
     }
 
-    const char* GetName() const {
+    const char* GetName() const
+    {
         return mName;
     }
 
-    eVarType GetType() const {
+    eVarType GetType() const
+    {
         return mType;
     }
 
-    uint32 GetHash() const {
+    uint32 GetHash() const
+    {
         return mHash;
     }
 
-    int GetStackOffset() const {
+    int GetStackOffset() const
+    {
         return mStackOffset;
     }
 
-    void SetStackOffset(int _stackoffset) {
+    void SetStackOffset(int32 _stackoffset)
+    {
         mStackOffset = _stackoffset;
+    }
+
+    int32 GetArraySize() const
+    {
+        // -- note:  0 or 1 means this is not an array...
+        // -- postive value < kMaxVariableArraySize is the size, and -1 is an array, but an undetermined size
+        return (mArraySize);
+    }
+
+    bool8 IsArray() const
+    {
+        return ((mArraySize != 0 && mArraySize != 1) || (mArraySize == -1 && mIsParameter));
+    }
+
+    // -- strings being special...
+    uint32* GetStringHashArray() const
+    {
+        return (mStringHashArray);
+    }
+
+    bool8 ConvertToArray(int32 array_size);
+    void ClearArrayParameter();
+    void InitializeArrayParameter(CVariableEntry* assign_from_ve, CObjectEntry* assign_from_oe);
+
+    // -- this method is used only for registered arrays of const char*
+    // -- the address is actually a const char*[], and there's a parallel
+    // -- array of hash values, to keep the string table up to date
+    void* GetStringArrayHashAddr(void* objaddr, int32 array_index) const
+    {
+        // -- sanity check
+        if (GetType() != TYPE_string || array_index < 0 || (array_index > 0 && !IsArray()) ||
+            (mArraySize >= 0 && array_index > mArraySize))
+        {
+            ScriptAssert_(GetScriptContext(), false, "<internal>", -1,
+                          "Error - GetStringAddr() called with an invalid array index: %s\n", UnHash(GetHash()));
+            return (NULL);
+        }
+
+        // -- if this is an array with a size > 1, then mStringValueHash is actually an array of hashes
+        if (mArraySize > 1)
+            return (void*)(&mStringHashArray[array_index]);
+        else
+            return (void*)(&mStringValueHash);
     }
 
     // -- this method is called by registered methods (dispatch templated implementation),
     // -- and as it is used to cross into cpp, it returns a const char* for strings
-    void* GetValueAddr(void* objaddr) const {
-        void* valueaddr = NULL;
+    void* GetValueAddr(void* objaddr) const
+    {
+        // -- strings are special
+        if (mType == TYPE_string)
+        {
+            return (void*)mContextOwner->GetStringTable()->FindString(mStringValueHash);
+        }
+
         // -- if we're providing an object address, this var is a member
         // -- if it's a dynamic var, it belongs to the object,
         // -- but lives in a local dyanmic hashtable
+        void* valueaddr = NULL;
         if(objaddr && !mIsDynamic)
             valueaddr = (void*)((char*)objaddr + mOffset);
         else
             valueaddr = mAddr;
-        if(mType == TYPE_string)
-            return (void*)mContextOwner->GetStringTable()->FindString(mStringValueHash);
-        else
-            return valueaddr;
+
+        // -- return the value address
+        return valueaddr;
     }
 
     // -- this method is used only on the script side.  The address it returns must *never*
@@ -85,6 +140,12 @@ public:
     // -- for strings, this returns the address of the hash value found in the string dictionary
     void* GetAddr(void* objaddr) const
     {
+        // -- strings are special...
+        if (mType == TYPE_string)
+        {
+            return (GetStringArrayHashAddr(objaddr, 0));
+        }
+
         // -- find the value address
         void* valueaddr = NULL;
 
@@ -94,30 +155,52 @@ public:
         else
             valueaddr = mAddr;
 
-        // -- if the value is not a string, then simply return it
-        if (mType != TYPE_string)
-            return (valueaddr);
-        else
-        {
-            // -- if the variable is not a global registered const char*, then it
-            // -- lives in the string table and is already a hash value
-            if (mScriptVar)
-                return (valueaddr);
-
-            // -- and here's where things get sticky - global registered strings contain
-            // -- const char* values, *however*, as they're global, they could be modified
-            // -- in code... so we need to re-hash the string every time we access it
-            else
-            {
-                const char* global_string_value = *(const char**)(valueaddr);
-                mContextOwner->GetStringTable()->RefCountDecrement(mStringValueHash);
-                mStringValueHash = Hash(global_string_value, -1, true);
-                return (void*)(&mStringValueHash);
-            }
-        }
+        // -- return the address
+        return (valueaddr);
     }
 
-    uint32 GetOffset() const {
+    void* GetArrayVarAddr(void* objaddr, int32 array_index) const
+    {
+        // -- strings are special
+        if (mType == TYPE_string)
+        {
+            return  (GetStringArrayHashAddr(objaddr, array_index));
+        }
+
+        // -- can only call this if this actually is an array
+        if (!IsArray())
+        {
+            ScriptAssert_(GetScriptContext(), false, "<internal>", -1,
+                          "Error - GetArrayVarAddr() called on a non-array variable: %s\n", UnHash(GetHash()));
+            return (NULL);
+        }
+
+        // -- if the array hasn't yet been allocated (e.g. during declaration), return NULL
+        if (mArraySize < 0)
+        {
+            // -- this had better be a parameter, otherwise we're trying to access an uninitialized array
+            ScriptAssert_(GetScriptContext(), mIsParameter, "<internal>", -1,
+                          "Error - GetArrayVarAddr() called on an uninitialized array variable: %s\n",
+                          UnHash(GetHash()));
+            return (NULL);
+        }
+
+        // -- ensure we're within range
+        if (array_index < 0 || array_index >= mArraySize)
+        {
+            ScriptAssert_(GetScriptContext(), false, "<internal>", -1,
+                          "Error - GetArrayVarAddr() index %d out of range [%d],\nvariable: %s\n", array_index,
+                          mArraySize, UnHash(GetHash()));
+            return (NULL);
+        } 
+
+        // -- get the base address for this variable
+        void* addr = (void*)((char*)GetAddr(objaddr) + (gRegisteredTypeSize[mType] * array_index));
+        return (addr);
+    }
+
+    uint32 GetOffset() const
+    {
         return mOffset;
     }
 
@@ -126,8 +209,14 @@ public:
         return (mIsParameter);
     }
 
-    void SetValue(void* objaddr, void* value, CExecStack* execstack = NULL, CFunctionCallStack* funccallstack = NULL);
-    void SetValueAddr(void* objaddr, void* value);
+    void SetValue(void* objaddr, void* value, CExecStack* execstack = NULL, CFunctionCallStack* funccallstack = NULL,
+                  int32 array_index = 0);
+    void SetValueAddr(void* objaddr, void* value, int32 array_index = 0);
+
+    // -- the equivalent of SetValue and SetValueAddr, but for variable (arrays) of Type_string
+    void SetStringArrayHashValue(void* objaddr, void* value, CExecStack* execstack = NULL,
+                                 CFunctionCallStack* funccallstack = NULL, int32 array_index = 0);
+    void SetStringArrayLiteralValue(void* objaddr, void* value, int32 array_index = 0);
 
 	void SetBreakOnWrite(int32 varWatchRequestID, int32 debugger_session, bool8 break_on_write, const char* condition,
                          const char* trace, bool8 trace_on_cond)
@@ -212,10 +301,13 @@ public:
 	    }
     }
 
-    void SetFunctionEntry(CFunctionEntry* _funcentry) {
+    void SetFunctionEntry(CFunctionEntry* _funcentry)
+    {
         mFuncEntry = _funcentry;
     }
-    CFunctionEntry* GetFunctionEntry() {
+
+    CFunctionEntry* GetFunctionEntry()
+    {
         return mFuncEntry;
     }
 
@@ -239,6 +331,7 @@ private:
     char mName[kMaxNameLength];
     uint32 mHash;
     eVarType mType;
+    int32 mArraySize;
     void* mAddr;
     uint32 mOffset;
     int32 mStackOffset;
@@ -246,6 +339,7 @@ private:
     bool8 mIsDynamic;
     bool8 mScriptVar;
     mutable uint32 mStringValueHash;
+    mutable uint32* mStringHashArray; // used only for registered string *arrays*
     uint32 mDispatchConvertFromObject;
     CFunctionEntry* mFuncEntry;
 

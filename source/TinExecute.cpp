@@ -45,11 +45,11 @@ OpExecuteFunction gOpExecFunctions[OP_COUNT] = {
     #undef OperationEntry
 };
 
-bool8 CopyStackParameters(CFunctionEntry* fe, CExecStack& execstack,
-                          CFunctionCallStack& funccallstack) {
-
+bool8 CopyStackParameters(CFunctionEntry* fe, CExecStack& execstack, CFunctionCallStack& funccallstack)
+{
     // -- sanity check
-    if(fe == NULL || !fe->GetContext()) {
+    if (fe == NULL || !fe->GetContext())
+    {
         ScriptAssert_(fe->GetScriptContext(), 0, "<internal>", -1,
                       "Error - invalid function entry\n");
         return false;
@@ -58,37 +58,44 @@ bool8 CopyStackParameters(CFunctionEntry* fe, CExecStack& execstack,
     // -- initialize the parameters of our fe with the function context
     CFunctionContext* parameters = fe->GetContext();
     int32 srcparamcount = parameters->GetParameterCount();
-    for(int32 i = 0; i < srcparamcount; ++i) {
+    for (int32 i = 0; i < srcparamcount; ++i)
+    {
         CVariableEntry* src = parameters->GetParameter(i);
         void* dst = GetStackVarAddr(fe->GetScriptContext(), execstack, funccallstack,
                                     src->GetStackOffset());
-        if(!dst) {
+        if (!dst)
+        {
             ScriptAssert_(fe->GetScriptContext(), 0, "<internal>", -1,
                           "Error - unable to assign parameter %d, calling function %s()\n",
                           i, UnHash(fe->GetHash()));
             return false;
         }
 
-        // -- set the value - note, parameters in a function context are never
+        // -- set the value - note, parameters in a function context are never full arrays, just references
         // -- CVariableEntry's with object offsets
-        if(src) {
-            memcpy(dst, src->GetAddr(NULL), MAX_TYPE_SIZE * sizeof(uint32));
+        if (src)
+        {
+            void* src_addr = src->GetAddr(NULL);
+            if (src_addr)
+                memcpy(dst, src->GetAddr(NULL), MAX_TYPE_SIZE * sizeof(uint32));
         }
         else
             memset(dst, 0, MAX_TYPE_SIZE * sizeof(uint32));
     }
 
-    return true;
+    return (true);
 }
 
 int32 CFunctionCallStack::DebuggerGetCallstack(uint32* codeblock_array, uint32* objid_array,
                                                uint32* namespace_array, uint32* func_array,
-                                               uint32* linenumber_array, int32 max_array_size) {
-
+                                               uint32* linenumber_array, int32 max_array_size)
+{
     int32 entry_count = 0;
     int32 temp = stacktop - 1;
-    while(temp >= 0 && entry_count < max_array_size) {
-        if(funcentrystack[temp].isexecuting) {
+    while(temp >= 0 && entry_count < max_array_size)
+    {
+        if (funcentrystack[temp].isexecuting)
+        {
             CCodeBlock* codeblock = NULL;
             funcentrystack[temp].funcentry->GetCodeBlockOffset(codeblock);
             uint32 codeblock_hash = codeblock->GetFilenameHash();
@@ -411,14 +418,16 @@ bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
     // -- for registered 'C' functions, or to the execstack for scripted functions
 
     // -- scripted function
-    if(fe->GetType() == eFuncTypeScript) {
+    if (fe->GetType() == eFuncTypeScript)
+    {
         // -- for scripted functions, we need to copy the localvartable onto the stack,
         // -- to ensure threaded or recursive function calls don't stomp each other
         CopyStackParameters(fe, execstack, funccallstack);
 
         CCodeBlock* funccb = NULL;
         uint32 funcoffset = fe->GetCodeBlockOffset(funccb);
-        if(!funccb) {
+        if (!funccb)
+        {
             ScriptAssert_(fe->GetScriptContext(), 0, "<internal>", -1,
                           "Error - Undefined function: %s()\n", UnHash(fe->GetHash()));
             return false;
@@ -427,7 +436,8 @@ bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
         // -- execute the function via codeblock/offset
         bool8 success = funccb->Execute(funcoffset, execstack, funccallstack);
 
-        if(!success) {
+        if (!success)
+        {
             ScriptAssert_(fe->GetScriptContext(), 0, "<internal>", -1,
                           "Error - error executing function: %s()\n",
                           UnHash(fe->GetHash()));
@@ -436,11 +446,13 @@ bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
     }
 
     // -- registered 'C' function
-    else if(fe->GetType() == eFuncTypeGlobal) {
+    else if (fe->GetType() == eFuncTypeGlobal)
+    {
         fe->GetRegObject()->DispatchFunction(oe ? oe->GetAddr() : NULL);
 
         // -- if the function has a return type, push it on the stack
-        if(fe->GetReturnType() > TYPE_void) {
+        if (fe->GetReturnType() > TYPE_void)
+        {
             assert(fe->GetContext() && fe->GetContext()->GetParameterCount() > 0);
             CVariableEntry* returnval = fe->GetContext()->GetParameter(0);
             assert(returnval);
@@ -448,7 +460,8 @@ bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
         }
 
         // -- all functions must push a return value
-        else {
+        else
+        {
             int32 empty = 0;
             execstack.Push(&empty, TYPE_int);
         }
@@ -466,8 +479,8 @@ bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
     return true;
 }
 
-bool8 ExecuteCodeBlock(CCodeBlock& codeblock) {
-
+bool8 ExecuteCodeBlock(CCodeBlock& codeblock)
+{
 	// -- create the stack to use for the execution
 	CExecStack execstack(codeblock.GetScriptContext(), kExecStackSize);
     CFunctionCallStack funccallstack(kExecFuncCallDepth);
@@ -476,10 +489,11 @@ bool8 ExecuteCodeBlock(CCodeBlock& codeblock) {
 }
 
 bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, uint32 funchash,
-                               CFunctionContext* parameters) {
-
+                               CFunctionContext* parameters)
+{
     // -- sanity check
-    if(funchash == 0 && parameters == NULL) {
+    if (funchash == 0 && parameters == NULL)
+    {
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - invalid funchash/parameters\n");
         return false;
@@ -488,10 +502,12 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
     // -- see if this is a method or a function
     CObjectEntry* oe = NULL;
     CFunctionEntry* fe = NULL;
-    if(objectid != 0) {
+    if (objectid != 0)
+    {
         // -- find the object
         oe = script_context->FindObjectEntry(objectid);
-        if(!oe) {
+        if (!oe)
+        {
             ScriptAssert_(script_context, 0, "<internal>", -1,
                           "Error - unable to find object: %d\n", objectid);
             return false;
@@ -500,12 +516,14 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
         // -- get the namespace, then the function
         fe = oe->GetFunctionEntry(0, funchash);
     }
-    else {
+    else
+    {
         fe = script_context->GetGlobalNamespace()->GetFuncTable()->FindItem(funchash);
     }
 
     // -- ensure we found our function
-    if(!fe) {
+    if (!fe)
+    {
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - unable to find function: %s\n", UnHash(funchash));
         return false;
@@ -553,8 +571,9 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
     funccallstack.Push(fe, oe, 0);
     
     // -- create space on the execstack, if this is a script function
-    if(fe->GetType() != eFuncTypeGlobal) {
-        int32 localvarcount = fe->GetLocalVarTable()->Used();
+    if (fe->GetType() != eFuncTypeGlobal)
+    {
+        int32 localvarcount = fe->GetContext()->CalculateLocalVarStackSize();
         execstack.Reserve(localvarcount * MAX_TYPE_SIZE);
     }
 

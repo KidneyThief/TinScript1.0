@@ -217,7 +217,7 @@ CScheduler::CCommand* CScheduler::ScheduleCreate(uint32 objectid, int32 delay,
                                     objectid, dispatchtime, funchash, immediate);
 
     // -- add space to store a return value
-    newcommand->mFuncContext->AddParameter("_return", Hash("_return"), TYPE__resolve, 0);
+    newcommand->mFuncContext->AddParameter("_return", Hash("_return"), TYPE__resolve, 1, 0);
 
     // -- see if it goes at the front of the list
     if(!mHead || dispatchtime <= mHead->mDispatchTime) {

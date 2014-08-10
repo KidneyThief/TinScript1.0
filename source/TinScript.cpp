@@ -1431,16 +1431,17 @@ bool8 CScriptContext::InitWatchExpression(CDebuggerWatchExpression& debugger_wat
     CVariableEntry* cur_ve = cur_var_table->First();
     while (cur_ve)
     {
+        // $$$TZA TYPE__array
         // -- first variable is always the "__return" parameter
         if (!returnAdded)
         {
             returnAdded = true;
-            temp_context->AddParameter("__return", Hash("__return"), TYPE__resolve);
+            temp_context->AddParameter("__return", Hash("__return"), TYPE__resolve, 1, 0);
         }
         else
         {
             // -- create a cloned local variable
-            temp_context->AddLocalVar(cur_ve->GetName(), cur_ve->GetHash(), cur_ve->GetType(), true);
+            temp_context->AddLocalVar(cur_ve->GetName(), cur_ve->GetHash(), cur_ve->GetType(), 1, true);
         }
 
         // -- get the next local var
@@ -1548,7 +1549,7 @@ bool8 CScriptContext::EvalWatchExpression(CDebuggerWatchExpression& debugger_wat
     funccallstack.Push(watch_function, cur_object, 0);
     
     // -- create space on the execstack for the local variables
-    int32 localvarcount = watch_function->GetLocalVarTable()->Used();
+    int32 localvarcount = watch_function->GetContext()->CalculateLocalVarStackSize();
     execstack.Reserve(localvarcount * MAX_TYPE_SIZE);
 
     // -- copy the local values from the currently executing function, to stack
@@ -1635,13 +1636,15 @@ bool8 CScriptContext::EvaluateWatchExpression(const char* expression, bool8 cond
     {
         if (!returnAdded)
         {
+            // $$$TZA TYPE__array
             returnAdded = true;
-            temp_context->AddParameter("__return", Hash("__return"), TYPE__resolve);
+            temp_context->AddParameter("__return", Hash("__return"), TYPE__resolve, 1, 0);
         }
         else
         {
             // -- create a copy, and set the same value - value lives on the stack
-            CVariableEntry* temp_ve = temp_context->AddLocalVar(cur_ve->GetName(), cur_ve->GetHash(), cur_ve->GetType(), true);
+            CVariableEntry* temp_ve = temp_context->AddLocalVar(cur_ve->GetName(), cur_ve->GetHash(),
+                                                                cur_ve->GetType(), 1, true);
             void* varaddr = mDebuggerBreakExecStack->GetStackVarAddr(stacktop, cur_ve->GetStackOffset());
             temp_ve->SetValue(NULL, varaddr);
         }
@@ -1689,7 +1692,7 @@ bool8 CScriptContext::EvaluateWatchExpression(const char* expression, bool8 cond
                 funccallstack.Push(fe, NULL, 0);
     
                 // -- create space on the execstack, if this is a script function
-                int32 localvarcount = fe->GetLocalVarTable()->Used();
+                int32 localvarcount = fe->GetContext()->CalculateLocalVarStackSize();
                 execstack.Reserve(localvarcount * MAX_TYPE_SIZE);
 
                 // -- copy the local values onto the stack

@@ -102,6 +102,9 @@ class CBase {
         // -- additional members, using non-standard registration types
         CVector3f v3member;
         CBase* objmember;
+
+        int32 intArray[20];
+        const char* stringArray[20];
 };
 
 IMPLEMENT_SCRIPT_CLASS_BEGIN(CBase, VOID)
@@ -110,6 +113,8 @@ IMPLEMENT_SCRIPT_CLASS_BEGIN(CBase, VOID)
     REGISTER_MEMBER(CBase, boolvalue, boolvalue);
     REGISTER_MEMBER(CBase, v3member, v3member);
     REGISTER_MEMBER(CBase, objmember, objmember);
+    REGISTER_MEMBER(CBase, intArray, intArray);
+    REGISTER_MEMBER(CBase, stringArray, stringArray);
 IMPLEMENT_SCRIPT_CLASS_END()
 
 REGISTER_METHOD_P0(CBase, GetFloatValue, GetFloatValue, float32);
@@ -194,6 +199,12 @@ REGISTER_GLOBAL_VAR(gUnitTestScriptResult, CUnitTest::gScriptResult);
 // -- GLOBAL VARIABLES ----------------------------------------------------------------------------
 int32 gUnitTestRegisteredInt = 17;
 REGISTER_GLOBAL_VAR(gUnitTestRegisteredInt, gUnitTestRegisteredInt);
+
+static int32 gUnitTestIntArray[17];
+REGISTER_GLOBAL_VAR(gUnitTestIntArray, gUnitTestIntArray);
+
+static const char* gUnitTestStringArray[17];
+REGISTER_GLOBAL_VAR(gUnitTestStringArray, gUnitTestStringArray);
 
 // -- GLOBAL FUNCTIONS ----------------------------------------------------------------------------
 // -- these are registered, and called from script for unit testing
@@ -570,6 +581,16 @@ void UnitTest_ScriptIntModify()
     TinScript::SetGlobalVar(TinScript::GetContext(), "gUnitTestScriptInt", 23);
 }
 
+void UnitTest_RegisteredIntArrayModify()
+{
+    sprintf_s(CUnitTest::gCodeResult, "%d %d", gUnitTestIntArray[3], gUnitTestIntArray[5]);
+}
+
+void UnitTest_RegisteredStringArrayModify()
+{
+    sprintf_s(CUnitTest::gCodeResult, "%s %s", gUnitTestStringArray[4], gUnitTestStringArray[9]);
+}
+
 bool8 CreateUnitTests()
 {
     // -- initialize the result
@@ -683,9 +704,6 @@ bool8 CreateUnitTests()
         success = success && AddUnitTest("vector3f_dot", "(1, 2, 3) dot (4 5 6)", "vector3f v0 = '1, 2, 3'; vector3f v1 = '4 5 6'; gUnitTestScriptResult = StringCat(V3fDot(v0, v1));", "32.0000");
         success = success && AddUnitTest("vector3f_norm", "(1, 2, 3) normalized", "vector3f v0 = '1, 2, 3'; gUnitTestScriptResult = StringCat(V3fNormalized(v0));", "0.2673 0.5345 0.8018");
 
-        // -- hashtable test
-        success = success && AddUnitTest("hashtable", "Associative array example", "UnitTest_AssociativeArray();", "goodbye hello goodbye 3.1416");
-
         // -- script access to registered variables -------------------------------------------------------------------
         success = success && AddUnitTest("scriptaccess_regint", "gUnitTestRegisteredInt, value 17 read from script", "UnitTest_RegisteredIntAccess();", "17", UnitTest_RegisteredIntAccess);
         success = success && AddUnitTest("scriptmodify_regint", "Modify gUnitTestRegisteredInt set to 23 from script", "UnitTest_RegisteredIntModify();", "", UnitTest_RegisteredIntModify, "23", true);
@@ -733,7 +751,21 @@ bool8 CreateUnitTests()
         success = success && AddUnitTest("object_testns", "Create a Namespaced object", "UnitTest_CreateTestNSObject();", "TestNSObject 55.3000 198 foobar");
         success = success && AddUnitTest("objexecf", "Call a scripted object method", "", "", UnitTest_CallScriptedMethod, "TestCodeNSObject foobar Moooo");
 
-        
+        // -- array tests
+        success = success && AddUnitTest("global_hashtable", "Global hashtable", "UnitTest_GlobalHashtable();", "goodbye hello goodbye 3.1416");
+        success = success && AddUnitTest("param_hashtable", "Hashtable passes as a parameter", "UnitTest_ParameterHashtable();", "Chakakah");
+        success = success && AddUnitTest("local_hashtable", "Function hashtable local variable", "UnitTest_LocalHashtable();", "white Chakakah");
+        success = success && AddUnitTest("member_hashtable", "Object hashtable member variable", "UnitTest_MemberHashtable();", "Bar Chakakah");
+        success = success && AddUnitTest("script_int_array", "Scripted global int[15]", "UnitTest_ScriptIntArray();", "17 67");
+        success = success && AddUnitTest("script_string_array", "Scripted global string[15]", "UnitTest_ScriptStringArray();", "Hello Goodbye");
+        success = success && AddUnitTest("local_int_array", "Scripted local int[15]", "UnitTest_ScriptLocalIntArray();", "21 67");
+        success = success && AddUnitTest("local_string_array", "Scripted local string[15]", "UnitTest_ScriptLocalStringArray();", "Foobar Goodbye");
+        success = success && AddUnitTest("member_int_array", "Scripted member int[15]", "UnitTest_ScriptMemberIntArray();", "16 67");
+        success = success && AddUnitTest("member_string_array", "Scripted member string[15]", "UnitTest_ScriptMemberStringArray();", "Never say Goodbye");
+        success = success && AddUnitTest("registered_int_array", "Registered int[15]", "UnitTest_CodeIntArray();", "", UnitTest_RegisteredIntArrayModify, "67 39", true);
+        success = success && AddUnitTest("registered_string_array", "Registered string[15]", "UnitTest_CodeStringArray();", "", UnitTest_RegisteredStringArrayModify, "Winter Goodbye", true);
+        success = success && AddUnitTest("registered_member_int_array", "Registered int[15]", "UnitTest_CodeMemberIntArray();", "19 67");
+        success = success && AddUnitTest("registered_member_string_array", "Registered int[15]", "UnitTest_CodeMemberStringArray();", "Foobar Goodbye");
     }
 
     // -- return success

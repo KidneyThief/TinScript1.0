@@ -62,18 +62,6 @@ void TestParenthesis()
     gUnitTestScriptResult = StringCat(result);
 }
 
-hashtable gHashTable;
-string gHashTable["hello"] = "goodbye";
-string gHashTable["goodbye"] = "hello";
-float gHashTable["hello", "goodbye"] = 3.1416f;
-void UnitTest_AssociativeArray()
-{
-    gUnitTestScriptResult = StringCat(gHashTable["hello"]);
-    gUnitTestScriptResult = StringCat(gUnitTestScriptResult, " ", gHashTable["goodbye"]);
-    gUnitTestScriptResult = StringCat(gUnitTestScriptResult, " ", gHashTable[gHashTable["goodbye"]]);
-    gUnitTestScriptResult = StringCat(gUnitTestScriptResult, " ", gHashTable[gHashTable["goodbye"], gHashTable["hello"]]);
-}
-
 // -- Registered function return types --------------------------------------------------------------------------------
 void UnitTest_ReturnTypeInt(int number)
 {
@@ -266,6 +254,149 @@ string TestCodeNSObject::ModifyTestMember(string append_value)
     // -- append to our test member
     self.testmember = StringCat(self.GetObjectName(), " ", self.testmember, " ", append_value);
     return (self.testmember);
+}
+
+// -- Array tests -----------------------------------------------------------------------------
+
+hashtable gHashTable;
+string gHashTable["hello"] = "goodbye";
+string gHashTable["goodbye"] = "hello";
+float gHashTable["hello", "goodbye"] = 3.1416f;
+void UnitTest_GlobalHashtable()
+{
+    gUnitTestScriptResult = StringCat(gHashTable["hello"]);
+    gUnitTestScriptResult = StringCat(gUnitTestScriptResult, " ", gHashTable["goodbye"]);
+    gUnitTestScriptResult = StringCat(gUnitTestScriptResult, " ", gHashTable[gHashTable["goodbye"]]);
+    gUnitTestScriptResult = StringCat(gUnitTestScriptResult, " ", gHashTable[gHashTable["goodbye"], gHashTable["hello"]]);
+}
+
+void TestParameterHashtable(hashtable test_hashtable)
+{
+    string test_hashtable["ParamTest"] = "Chakakah";
+}
+
+void UnitTest_ParameterHashtable()
+{
+    TestParameterHashtable(gHashTable);
+    gUnitTestScriptResult = StringCat(gHashTable["ParamTest"]);
+}
+
+void UnitTest_LocalHashtable()
+{
+    hashtable local_hashtable;
+    string local_hashtable["black"] = "white";
+    TestParameterHashtable(local_hashtable);
+    gUnitTestScriptResult = StringCat(local_hashtable["black"], " ", local_hashtable["ParamTest"]);
+}
+
+void ObjHashMember::OnCreate()
+{
+    hashtable self.memberHashtable;
+}
+
+void UnitTest_MemberHashtable()
+{
+    object test_obj = create CScriptObject("ObjHashMember");
+    string test_obj.memberHashtable["Foo"] = "Bar";
+    TestParameterHashtable(test_obj.memberHashtable);
+    gUnitTestScriptResult = StringCat(test_obj.memberHashtable["Foo"], " ", test_obj.memberHashtable["ParamTest"]);
+    destroy test_obj;
+}
+
+void TestParameterIntArray(int[] int_array)
+{
+    int_array[3] = 67;
+}
+
+int[15] gScriptIntArray;
+void UnitTest_ScriptIntArray()
+{
+    gScriptIntArray[5] = 17;
+    TestParameterIntArray(gScriptIntArray);
+    gUnitTestScriptResult = StringCat(gScriptIntArray[5], " ", gScriptIntArray[3]);
+}
+
+void TestParameterStringArray(string[] string_array)
+{
+    string_array[9] = "Goodbye";
+}
+
+string[15] gScriptStringArray;
+void UnitTest_ScriptStringArray()
+{
+    gScriptStringArray[12] = "Hello";
+    TestParameterStringArray(gScriptStringArray);
+    gUnitTestScriptResult = StringCat(gScriptStringArray[12], " ", gScriptStringArray[9]);
+}
+
+void UnitTest_ScriptLocalIntArray()
+{
+    int[15] local_array;
+    local_array[7] = 21;
+    TestParameterIntArray(local_array);
+    gUnitTestScriptResult = StringCat(local_array[7], " ", local_array[3]);
+}
+
+void UnitTest_ScriptLocalStringArray()
+{
+    string[15] local_array;
+    local_array[7] = "Foobar";
+    TestParameterStringArray(local_array);
+    gUnitTestScriptResult = StringCat(local_array[7], " ", local_array[9]);
+}
+
+void ObjArrayMember::OnCreate()
+{
+    int[15] self.int_array_mem;
+    string[15] self.string_array_mem;
+}
+
+void UnitTest_ScriptMemberIntArray()
+{
+    object test_obj = create CScriptObject("ObjArrayMember");
+    test_obj.int_array_mem[4] = 16;
+    TestParameterIntArray(test_obj.int_array_mem);
+    gUnitTestScriptResult = StringCat(test_obj.int_array_mem[4], " ", test_obj.int_array_mem[3]);
+    destroy test_obj;
+}
+
+void UnitTest_ScriptMemberStringArray()
+{
+    object test_obj = create CScriptObject("ObjArrayMember");
+    test_obj.string_array_mem[4] = "Never say";
+    TestParameterStringArray(test_obj.string_array_mem);
+    gUnitTestScriptResult = StringCat(test_obj.string_array_mem[4], " ", test_obj.string_array_mem[9]);
+    destroy test_obj;
+}
+
+void UnitTest_CodeIntArray()
+{
+    gUnitTestIntArray[5] = 39;
+    TestParameterIntArray(gUnitTestIntArray);
+}
+
+void UnitTest_CodeStringArray()
+{
+    gUnitTestStringArray[4] = "Winter";
+    TestParameterStringArray(gUnitTestStringArray);
+}
+
+void UnitTest_CodeMemberIntArray()
+{
+    object test_obj = create CBase();
+    test_obj.intArray[2] = 19;
+    TestParameterIntArray(test_obj.intArray);
+    gUnitTestScriptResult = StringCat(test_obj.intArray[2], " ", test_obj.intArray[3]);
+    destroy test_obj;
+}
+
+void UnitTest_CodeMemberStringArray()
+{
+    object test_obj = create CBase();
+    test_obj.stringArray[8] = "Foobar";
+    TestParameterStringArray(test_obj.stringArray);
+    gUnitTestScriptResult = StringCat(test_obj.stringArray[8], " ", test_obj.stringArray[9]);
+    destroy test_obj;
 }
 
 // -- MultiThread test -----------------------------------------------------------------------------

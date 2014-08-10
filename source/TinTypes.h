@@ -35,22 +35,149 @@ const int32 kMaxTokenLength = 2048;
 const int32 kMaxTypeSize = 16;
 
 // ------------------------------------------------------------------------------------------------
+// -- for all non-first class types, declare a struct so GetTypeID<type> will be unique
+struct sPODMember {
+    typedef uint32 type;
+};
+
+struct sMember {
+    typedef uint32 type;
+};
+
+struct sHashTable {
+    typedef uint32 type;
+};
+
+struct sHashVarIndex {
+    typedef uint32 type;
+};
+
+// ------------------------------------------------------------------------------------------------
 // ghetto type manipulation templates
 
 template <typename T>
-uint32 GetTypeID() {
+inline uint32 GetTypeID()
+{
     static T* t = NULL;
     void* ptr = (void*)&t;
     return kPointerToUInt32(ptr);
 }
 
 template <typename T>
-uint32 GetTypeID(T&) {
+uint32 GetTypeID(T&)
+{
     return GetTypeID<T>();
 }
 
+inline uint32 GetTypeID(sHashTable*)
+{
+    return GetTypeID<sHashTable>();
+}
+
+inline uint32 GetTypeID(uint32*)
+{
+    return GetTypeID<uint32>();
+}
+
+inline uint32 GetTypeID(const char*)
+{
+    return GetTypeID<const char*>();
+}
+
+inline uint32 GetTypeID(const char**)
+{
+    return GetTypeID<const char*>();
+}
+
+inline uint32 GetTypeID(float32*)
+{
+    return GetTypeID<float32>();
+}
+
+inline uint32 GetTypeID(int32*)
+{
+    return GetTypeID<int32>();
+}
+
+inline uint32 GetTypeID(bool8*)
+{
+    return GetTypeID<bool8>();
+}
+
+/*
+inline uint32 GetTypeID(CVector3f*)
+{
+    return GetTypeID<CVector3f>();
+}
+*/
+
+// --------------------------------------------------------------------------------------------------------------------
+template <typename T>
+inline bool8 IsArray(T&)
+{
+    return (false);
+}
+
+inline uint32 IsArray(sHashTable*)
+{
+    return (true);
+}
+
+inline uint32 IsArray(uint32*)
+{
+    return (true);
+}
+
+// -- const char* is still considered a single value, but an array of strings is
+inline uint32 IsArray(const char*)
+{
+    return (false);
+}
+
+inline uint32 IsArray(const char**)
+{
+    return (true);
+}
+
+inline uint32 IsArray(float32*)
+{
+    return (true);
+}
+
+inline uint32 IsArray(int32*)
+{
+    return (true);
+}
+
+inline uint32 IsArray(bool8*)
+{
+    return (true);
+}
+
+/*
+inline uint32 IsArray(CVector3f*)
+{
+    return (true);
+}
+*/
+
+// ------------------------------------------------------------------------------------------------
+template <typename T>
+inline int32 GetTypeSize(T&)
+{
+    return (sizeof(T));
+}
+
+template <typename T>
+inline int32 GetTypeSize(T*)
+{
+    return (sizeof(T));
+}
+
+// ------------------------------------------------------------------------------------------------
 template <typename T0, typename T1>
-bool8 CompareTypes() {
+bool8 CompareTypes()
+{
     return GetTypeID<T0>() == GetTypeID<T1>();
 }
 
@@ -66,12 +193,21 @@ struct is_pointer<T*> {
 };
 
 template<typename T>
-struct remove_ptr {
+struct remove_ptr
+{
    typedef T type;
 };
+
 template<typename T>
-struct remove_ptr<T*> {
+struct remove_ptr<T*>
+{
    typedef T type;
+};
+
+template <>
+struct remove_ptr<const char*>
+{
+    typedef const char* type;
 };
 
 template<typename T>
@@ -164,23 +300,6 @@ typedef void* (*TypeConvertFunction)(CScriptContext* script_context, eVarType fr
                                      void* to_buffer);
 
 // ------------------------------------------------------------------------------------------------
-// -- for all non-first class types, declare a struct so GetTypeID<type> will be unique
-struct sPODMember {
-    typedef uint32 type;
-};
-
-struct sMember {
-    typedef uint32 type;
-};
-
-struct sHashTable {
-    typedef uint32 type;
-};
-
-struct sHashVar {
-    typedef uint32 type;
-};
-
 // -- use a tuple to define the token types:
 // -- type, byte size, type-to-string, string-to-type, registered C++ equivalent, custom config function
 // -- FIRST_VALID_TYPE is defined to identify the first type valid for use with a registered C++ method
@@ -192,15 +311,16 @@ struct sHashVar {
 // -- will be chosen.  E.g. (3.5f * 10) is 35 using a float op, whereas (3.5f * 10) is 30 in integer math
 
 #define FIRST_VALID_TYPE TYPE_hashtable
+#define LAST_VALID_TYPE TYPE_vector3f
 #define VarTypeTuple \
 	VarTypeEntry(NULL,		    0,		VoidToString,		StringToVoid,       uint8,          NULL)               \
 	VarTypeEntry(void,		    0,		VoidToString,		StringToVoid,       uint8,          NULL)   	        \
 	VarTypeEntry(_resolve,	    16,		VoidToString,		StringToVoid,       uint8,          NULL)   	        \
-	VarTypeEntry(_stackvar,     8,		IntToString,		StringToInt,        uint8,          NULL)   	        \
+	VarTypeEntry(_stackvar,     12,		IntToString,		StringToInt,        uint8,          NULL)   	        \
 	VarTypeEntry(_var,          12,		IntToString,		StringToInt,        uint8,          NULL)   	        \
 	VarTypeEntry(_member,       8,		IntToString,		StringToInt,        sMember,        NULL)           	\
 	VarTypeEntry(_podmember,    8,		IntToString,		StringToInt,        sPODMember,     NULL)           	\
-	VarTypeEntry(_hashvar,      16,		IntToString,		StringToInt,        sHashVar,       NULL)           	\
+	VarTypeEntry(_hashvarindex, 16,		IntToString,		StringToInt,        sHashVarIndex,  NULL)           	\
     VarTypeEntry(hashtable,     4,      IntToString,        StringToInt,        sHashTable,     NULL)               \
 	VarTypeEntry(object,        4,		IntToString,		StringToInt,        uint32,         ObjectConfig)       \
     VarTypeEntry(string,        4,      STEToString,        StringToSTE,        const char*,    StringConfig)       \

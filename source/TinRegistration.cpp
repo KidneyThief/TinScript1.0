@@ -33,16 +33,19 @@ namespace TinScript {
 // variable entry
 
 CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name, eVarType _type,
-                               void* _addr) {
+                               int32 _array_size, void* _addr)
+{
     mContextOwner = script_context;
 	SafeStrcpy(mName, _name, kMaxNameLength);
 	mType = _type;
+    mArraySize = _array_size;
 	mHash = Hash(_name);
     mOffset = 0;
     mAddr = _addr;
     mIsDynamic = false;
     mScriptVar = false;
     mStringValueHash = 0;
+    mStringHashArray = NULL;
     mStackOffset = -1;
     mIsParameter = false;
     mDispatchConvertFromObject = 0;
@@ -50,19 +53,33 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
 	mBreakOnWrite = NULL;
     mWatchRequestID = 0;
     mDebuggerSession = 0;
+
+    // -- validate the array size
+    if (mArraySize == 0)
+        mArraySize = 1;
+
+    // -- a special case for arrays of strings - they have to have a matching array of hashes
+    if (mArraySize > 1 && mType == TYPE_string)
+    {
+        mStringHashArray = (uint32*)TinAllocArray(ALLOC_VarStorage, char,
+                                                    sizeof(const char*) * mArraySize);
+    	memset(mStringHashArray, 0, sizeof(const char*) * mArraySize);
+    }
 }
 
-CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name, uint32 _hash,
-                               eVarType _type, bool8 isoffset, uint32 _offset, bool8 _isdynamic, bool8 is_param)
+CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name, uint32 _hash, eVarType _type,
+                               int32 _array_size, bool8 isoffset, uint32 _offset, bool8 _isdynamic, bool8 is_param)
 {
     mContextOwner = script_context;
 	SafeStrcpy(mName, _name, kMaxNameLength);
 	mType = _type;
+    mArraySize = _array_size;
 	mHash = _hash;
     mOffset = 0;
     mIsDynamic = _isdynamic;
     mScriptVar = false;
     mStringValueHash = 0;
+    mStringHashArray = NULL;
     mStackOffset = -1;
     mIsParameter = is_param;
     mDispatchConvertFromObject = 0;
@@ -76,6 +93,9 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
     if (mType == TYPE_hashtable)
     {
         mScriptVar = true;
+		
+		// -- no supporting arrays of hashtables
+		mArraySize = 1;
 
         // -- in the context of hash tables, parameters are *passed* the hash table,
         // -- and do not actually own it
@@ -91,6 +111,7 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
             mAddr = NULL;
         }
     }
+
     else if (isoffset)
     {
         mAddr = NULL;
@@ -98,12 +119,45 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
     }
 
     // -- not an offset (e.g not a class member)
-    // -- globals are constructed above, so this is a script var, requiring us to allocate
+    // -- registered variables are constructed above, so this is a script var, requiring us to allocate
     else
     {
 		mScriptVar = true;
-		mAddr = (void*)TinAllocArray(ALLOC_VarStorage, char, gRegisteredTypeSize[_type]);
-		memset(mAddr, 0, gRegisteredTypeSize[_type]);
+		
+		// -- a negative array size means this had better be a paramter,
+        // -- which has no size of its own, but refers to the array passed
+		if (mArraySize < 0)
+		{
+            ScriptAssert_(GetScriptContext(), mIsParameter, "<internal>", -1,
+                          "Error - creating an array reference\non a non-parameter (%s)\n", UnHash(GetHash()));
+			mAddr = NULL;
+		}
+		else
+		{
+			if (mArraySize == 0)
+				mArraySize = 1;
+		
+            // -- if we know the size of the array already, we can allocate it now
+            if (mArraySize > 0)
+            {
+			    mAddr = (void*)TinAllocArray(ALLOC_VarStorage, char, gRegisteredTypeSize[_type] * mArraySize);
+			    memset(mAddr, 0, gRegisteredTypeSize[_type] * mArraySize);
+
+            }
+
+            // -- otherwise the size is being determined dynamically - we'll allocate when we execute an OP_ArrayDecl
+            else
+            {
+                mAddr = NULL;
+            }
+		}
+    }
+
+    // -- a special case for registered arrays of strings - they have to have a matching array of hashes
+    if (mArraySize > 1 && mType == TYPE_string)
+    {
+        mStringHashArray = (uint32*)TinAllocArray(ALLOC_VarStorage, char, sizeof(const char*) * mArraySize);
+    	memset(mStringHashArray, 0, sizeof(const char*) * mArraySize);
     }
 }
 
@@ -122,75 +176,157 @@ CVariableEntry::~CVariableEntry()
 
 	if (mScriptVar)
     {
-        if (mType != TYPE_hashtable)
+        // -- if this isn't a hashtable, and it isn't a parameter array
+        if (mType != TYPE_hashtable && (!mIsParameter || !IsArray()))
         {
 		    TinFreeArray((char*)mAddr);
         }
-        // -- if this is a hashtable, need to destroy all of its entries
-        else
-        {
-            // -- if this variable actually *owns* the hashtable, then we destroy it
-            if (!mIsParameter)
-            {
-                tVarTable* ht = static_cast<tVarTable*>(mAddr);
-                ht->DestroyAll();
 
-                // -- now delete the hashtable itself
-                TinFree(ht);
-            }
+        // -- if this is a non-paramter hashtable, need to destroy all of its entries
+        else if (mType == TYPE_hashtable && !mIsParameter)
+        {
+            tVarTable* ht = static_cast<tVarTable*>(mAddr);
+            ht->DestroyAll();
+
+            // -- now delete the hashtable itself
+            TinFree(ht);
         }
 	}
+
+    // -- delete the hash array, if this happened to have been a registered const char*[]
+    if (mStringHashArray)
+    {
+        TinFreeArray(mStringHashArray);
+    }
 }
 
-// -- if the value type is a TYPE_string, then the void* value contains a hash value
-void CVariableEntry::SetValue(void* objaddr, void* value, CExecStack* execstack, CFunctionCallStack* funccallstack)
+// -- variables that are actually arrays, are allocated once the array size is actually known
+bool8 CVariableEntry::ConvertToArray(int32 array_size)
 {
+    if (!mScriptVar || mIsParameter || mOffset != 0)
+    {
+        ScriptAssert_(GetScriptContext(), false, "<internal>", -1,
+                        "Error - calling ConvertToArray() on an\ninvalid variable (%s)\n", UnHash(GetHash()));
+        return (false);
+    }
+
+    // -- validate the array size
+    if (array_size < 1 || array_size > kMaxVariableArraySize)
+    {
+        ScriptAssert_(GetScriptContext(), false, "<internal>", -1,
+                      "Error - calling ConvertToArray() with an\ninvalid size %d, variable (%s)\n", array_size,
+                      UnHash(GetHash()));
+        return (false);
+    }
+
+    // -- see if the conversion has already happened - if we already have an allocated 
+    if (mAddr)
+    {
+        if (mArraySize != array_size)
+        {
+            ScriptAssert_(GetScriptContext(), false, "<internal>", -1,
+                          "Error - calling ConvertToArray() on a variable\nthat has already been allocated (%s)\n",
+                          UnHash(GetHash()));
+            return (false);
+        }
+    }
+
+    // -- this only works with *certain* types of variables
+    else
+    {
+        // -- set the size and allocate
+        mArraySize = array_size;
+    	mAddr = (void*)TinAllocArray(ALLOC_VarStorage, char, gRegisteredTypeSize[mType] * mArraySize);
+		memset(mAddr, 0, gRegisteredTypeSize[mType] * mArraySize);
+    }
+
+    // -- success
+    return (true);
+}
+
+void CVariableEntry::ClearArrayParameter()
+{
+    // -- ensure we have an array parameter
+    ScriptAssert_(GetScriptContext(), mIsParameter, "<internal>", -1,
+                    "Error - calling ClearArrayParameter() on an invalid variable (%s)\n",
+                    UnHash(GetHash()));
+    mArraySize = -1;
+    mAddr = NULL;
+    mStringHashArray = NULL;
+}
+
+void CVariableEntry::InitializeArrayParameter(CVariableEntry* assign_from_ve, CObjectEntry* assign_from_oe)
+{
+    // -- ensure we have an array parameter
+    if (!mIsParameter || mArraySize != -1 || !assign_from_ve)
+    {
+        ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
+                      "Error - calling InitializeArrayParameter() on an invalid variable (%s)\n",
+                      UnHash(GetHash()));
+        return;
+    }
+
+    // -- we basically duplicate the internals of the variable entry, allowing the parameter to act as a reference
+	mOffset = assign_from_ve->mOffset;
+    mIsDynamic = assign_from_ve->mIsDynamic;
+    mScriptVar = assign_from_ve->mScriptVar;
+    mArraySize = assign_from_ve->mArraySize;
+    mStringHashArray = assign_from_ve->mStringHashArray;
+
+    // -- the address is the usual complication, based on object member, dynamic var, global, registered, ...
+    void* valueaddr = NULL;
+    if (assign_from_oe && !assign_from_ve->mIsDynamic)
+        valueaddr = (void*)((char*)assign_from_oe->GetAddr() + assign_from_ve->mOffset);
+    else
+        valueaddr = assign_from_ve->mAddr;
+    mAddr = valueaddr;
+}
+
+void CVariableEntry::SetValue(void* objaddr, void* value, CExecStack* execstack, CFunctionCallStack* funccallstack,
+                              int32 array_index)
+{
+    // -- strings have their own implementation, as they have to manage both the hash value of the string
+    // -- (essentially the script value), and the const char*, the actual string, only used by code
+    if (mType == TYPE_string)
+    {
+        SetStringArrayHashValue(objaddr, value, execstack, funccallstack, array_index);
+        return;
+    }
+
 	int32 size = gRegisteredTypeSize[mType];
 
     // -- if we're providing an objaddr, this variable is actually a member
-    void* varaddr = GetAddr(objaddr);
-
-    // -- if this variable is a string, we need to decrement the current value string table entry
-    if (mType == TYPE_string)
-    {
-        // -- keep the string table up to date
-        GetScriptContext()->GetStringTable()->RefCountDecrement(mStringValueHash);
-
-        // -- script variables store strings as hash values, but registered code variables
-        // -- of type const char* need to actually point to a valid stirng
-        mStringValueHash = *(uint32*)value;
-        if (mScriptVar)
-            memcpy(varaddr, &mStringValueHash, size);
-        else
-        {
-            const char* string_value = GetScriptContext()->GetStringTable()->FindString(mStringValueHash);
-
-            // - the mAddr member of a registered global string, is the address of the actual const char*
-            *(const char**)(mAddr) = string_value;
-        }
-
-        GetScriptContext()->GetStringTable()->RefCountIncrement(mStringValueHash);
-    }
+    void* varaddr = IsArray() ? GetArrayVarAddr(objaddr, array_index) : GetAddr(objaddr);
 
     // -- if this variable is TYPE_hashtable, then we need to deliberately know we're
     // -- setting the entire HashTable and not just an entry
-    else if (mType == TYPE_hashtable)
+    if (mType == TYPE_hashtable)
     {
         if (!mIsParameter)
         {
             ScriptAssert_(GetScriptContext(), false, "<internal>", -1,
-                            "Error - calling SetValue() on a non-parameter HashTable variable (%s)\n",
+                            "Error - calling SetValue() on a non-parameter HashTable/Array variable (%s)\n",
                             UnHash(GetHash()));
         }
 
         // -- otherwise simply assign the new hash table
         else
+        {
             mAddr = value;
+        }
     }
-    
+
     // -- otherwise simply copy the new value 
     else
     {
+        // -- ensure we're not assigning to an uninitialized paramter array
+        if (IsParameter() && IsArray() && GetArraySize() < 0)
+        {
+            ScriptAssert_(GetScriptContext(), false, "<internal>", -1,
+                            "Error - calling SetValue() on an uninitialized array parameter (%s)\n",
+                            UnHash(GetHash()));
+        }
+
         // -- copy the new value
 	    memcpy(varaddr, value, size);
     }
@@ -201,34 +337,23 @@ void CVariableEntry::SetValue(void* objaddr, void* value, CExecStack* execstack,
 
 // -- for this method, if the value type is a TYPE_string, then the void* value
 // -- contains an actual const char* string...
-void CVariableEntry::SetValueAddr(void* objaddr, void* value)
+void CVariableEntry::SetValueAddr(void* objaddr, void* value, int32 array_index)
 {
+    // -- strings have their own implementation, as they have to manage both the hash value of the string
+    // -- (essentially the script value), and the const char*, the actual string, only used by code
+    if (mType == TYPE_string)
+    {
+        SetStringArrayLiteralValue(objaddr, value, array_index);
+        return;
+    }
+
     assert(value);
 	int32 size = gRegisteredTypeSize[mType];
-
-    void* varaddr = GetAddr(objaddr);
-    if(mType == TYPE_string)
-    {
-        // -- keep the string table up to date
-        GetScriptContext()->GetStringTable()->RefCountDecrement(mStringValueHash);
-
-        // -- hash the new value (which includes a ref count)
-        mStringValueHash = Hash((const char*)value, -1, true);
-
-        // -- script variables store strings as hash values, but registered const char*
-        // -- code variables need to actually point to a valid stirng
-        if (mScriptVar)
-            memcpy(varaddr, &mStringValueHash, size);
-        else
-        {
-            // - the mAddr member of a registered global string, is the address of the actual const char*
-            *(const char**)(mAddr) = GetScriptContext()->GetStringTable()->FindString(mStringValueHash);
-        }
-    }
+    void* varaddr = IsArray() ? GetArrayVarAddr(objaddr, array_index) : GetAddr(objaddr);
 
     // -- if this variable is TYPE_hashtable, then we're stomping the entire hash table - only permitted
     // -- if the variable is a parameter
-    else if (mType == TYPE_hashtable)
+    if (mType == TYPE_hashtable)
     {
         if (!mIsParameter)
         {
@@ -250,6 +375,96 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value)
     // -- note:  SetValueAddr() is the external access (from code), and is never part 
     // -- of executing the VM... therefore, we have no stack
     NotifyWrite(GetScriptContext(), NULL, NULL);
+}
+
+ // -------------------------------------------------------------------------------------------------------------------
+ // -- Type_string implementations
+ // -- Here the void* is a hash value, called while processing the VM
+ void CVariableEntry::SetStringArrayHashValue(void* objaddr, void* value, CExecStack* execstack,
+                                              CFunctionCallStack* funccallstack, int32 array_index)
+{
+    // -- ensure we have type string, etc...
+    if (!value || mType != TYPE_string)
+    {
+        ScriptAssert_(GetScriptContext(), false, "<internal>", -1,
+                      "Error - call to SetStringArrayValue() is invalid for variable %s\n",
+                      UnHash(GetHash()));
+        return;
+    }
+
+    // -- if the value type is a TYPE_string, then the void* value contains a hash value
+	int32 size = gRegisteredTypeSize[mType];
+    void* hash_addr = GetStringArrayHashAddr(objaddr, array_index);
+
+    // -- if this is a script variable, we simply store the hash value at the address
+    uint32 string_hash_value = *(uint32*)value;
+    *(uint32*)hash_addr = string_hash_value;
+
+    // -- if this is not a script variable, then in addition to setting the hash, the mAddr must be
+    // -- set to the actual string
+    if (!mScriptVar)
+    {
+        // -- get the current value of the string (which may have been changed in code
+        const char* string_value = GetScriptContext()->GetStringTable()->FindString(string_hash_value);
+
+        void* valueaddr = NULL;
+        if(objaddr && !mIsDynamic)
+            valueaddr = (void*)((char*)objaddr + mOffset);
+        else
+            valueaddr = mAddr;
+
+        ((const char**)(valueaddr))[array_index] = string_value;
+    } 
+
+    // -- the act of assigning a string value means incrementing the reference int the string dictionary
+    GetScriptContext()->GetStringTable()->RefCountIncrement(string_hash_value);
+
+    // -- if we've been requested to break on write
+    NotifyWrite(GetScriptContext(), execstack, funccallstack);
+}
+
+ // -- Here the void* is const char*, called when setting the value externally (from code)
+ void CVariableEntry::SetStringArrayLiteralValue(void* objaddr, void* value, int32 array_index)
+{
+    // -- ensure we have type string, etc...
+    if (!value || mType != TYPE_string)
+    {
+        ScriptAssert_(GetScriptContext(), false, "<internal>", -1,
+                      "Error - call to SetStringArrayValue() is invalid for variable %s\n",
+                      UnHash(GetHash()));
+        return;
+    }
+
+    // -- if the value type is a TYPE_string, then the void* value contains a hash value
+	int32 size = gRegisteredTypeSize[mType];
+    void* hash_addr = GetStringArrayHashAddr(objaddr, array_index);
+
+    // -- decrement the ref count for the current value
+    uint32 current_hash_value = *(uint32*)hash_addr;
+    GetScriptContext()->GetStringTable()->RefCountDecrement(current_hash_value);
+
+    // -- hash the new value (which includes a ref count)
+    uint32 string_hash_value = Hash((const char*)value, -1, true);
+    *(uint32*)hash_addr = string_hash_value;
+
+    // -- if this is not a script variable, then in addition to setting the hash, the mAddr must be
+    // -- set to the actual string
+    if (!mScriptVar)
+    {
+        // -- get the current value of the string (which may have been changed in code
+        const char* string_value = GetScriptContext()->GetStringTable()->FindString(string_hash_value);
+
+        void* valueaddr = NULL;
+        if(objaddr && !mIsDynamic)
+            valueaddr = (void*)((char*)objaddr + mOffset);
+        else
+            valueaddr = mAddr;
+
+        ((const char**)(valueaddr))[array_index] = string_value;
+    } 
+
+    // -- the act of assigning a string value means incrementing the reference int the string dictionary
+    GetScriptContext()->GetStringTable()->RefCountIncrement(string_hash_value);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -281,27 +496,29 @@ CFunctionContext::~CFunctionContext() {
     TinFree(localvartable);
 }
 
-bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type,
-                                    int32 paramindex, uint32 actual_type_id) {
+bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type, int32 array_size,
+                                     int32 paramindex, uint32 actual_type_id)
+{
     assert(varname != NULL);
 
     // add the entry to the parameter list as well
     assert(paramindex >= 0 && paramindex < eMaxParameterCount);
-    if(paramindex >= eMaxParameterCount) {
+    if (paramindex >= eMaxParameterCount)
+    {
         printf("Error - Max parameter count %d exceeded, parameter: %s\n",
                 eMaxParameterCount, varname);
         return false;
     }
-    if(parameterlist[paramindex] != NULL) {
+    if (parameterlist[paramindex] != NULL)
+    {
         printf("Error - parameter %d has already been added\n", paramindex);
         return false;
     }
 
     // -- create the Variable entry
-    CVariableEntry* ve = AddLocalVar(varname, varhash, type, true);
-    if(! ve) {
+    CVariableEntry* ve = AddLocalVar(varname, varhash, type, array_size, true);
+    if (!ve)
         return false;
-    }
 
     // -- parameters that are registered as TYPE_object, but are actually
     // -- pointers to registered classes, can be automatically
@@ -319,15 +536,17 @@ bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarTy
     return true;
 }
 
-bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type, uint32 actual_type_id) {
+bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type, int32 array_size, uint32 actual_type_id)
+{
     assert(varname != NULL);
 
     // -- adding automatically increments the paramcount if needed
-    AddParameter(varname, varhash, type, paramcount, actual_type_id);
+    AddParameter(varname, varhash, type, array_size, paramcount, actual_type_id);
     return true;
 }
 
-CVariableEntry* CFunctionContext::AddLocalVar(const char* varname, uint32 varhash, eVarType type, bool8 is_param)
+CVariableEntry* CFunctionContext::AddLocalVar(const char* varname, uint32 varhash, eVarType type, int array_size,
+                                              bool8 is_param)
 {
 
     // -- ensure the variable doesn't already exist
@@ -338,8 +557,8 @@ CVariableEntry* CFunctionContext::AddLocalVar(const char* varname, uint32 varhas
     }
 
     // -- create the Variable entry
-    CVariableEntry* ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, GetScriptContext(), varname,
-                                                                  varhash, type, false, 0, false, is_param);
+    CVariableEntry* ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, GetScriptContext(), varname, varhash, type,
+                                  array_size, false, 0, false, is_param);
 	uint32 hash = ve->GetHash();
 	localvartable->AddItem(*ve, hash);
 
@@ -363,6 +582,23 @@ tVarTable* CFunctionContext::GetLocalVarTable() {
     return localvartable;
 }
 
+int32 CFunctionContext::CalculateLocalVarStackSize()
+{
+    int32 count = 0;
+    CVariableEntry* ve = localvartable->First();
+    while (ve)
+    {
+        if (ve->IsArray() && !ve->IsParameter())
+            count += ve->GetArraySize();
+        else
+            ++count;
+        ve = localvartable->Next();
+    }
+
+    // -- return the result
+    return (count);
+}
+
 bool8 CFunctionContext::IsParameter(CVariableEntry* ve) {
     if(!ve)
         return false;
@@ -383,8 +619,8 @@ void CFunctionContext::ClearParameters()
     for (int32 i = 0; i < paramcount; ++i)
     {
         CVariableEntry* ve = parameterlist[i];
-        if (ve->GetType() == TYPE_hashtable)
-            ve->SetValue(NULL, NULL);
+        if (ve->GetType() == TYPE_hashtable || ve->IsArray())
+            ve->ClearArrayParameter();
         else
             ve->SetValue(NULL, (void*)&buf);
     }
@@ -415,8 +651,10 @@ void CFunctionContext::InitStackVarOffsets(CFunctionEntry* fe)
     for(int32 i = 0; i < paramcount; ++i) {
         CVariableEntry* ve = GetParameter(i);
         assert(ve);
-        // -- set the stackoffset
-        if(ve->GetStackOffset() < 0)
+
+        // -- set the stackoffset (note:  parameters are never entire arrays, just references to them)
+        // -- so the stack offset can simply be incremented
+        if (ve->GetStackOffset() < 0)
         {
             ve->SetStackOffset(stackoffset);
             ve->SetFunctionEntry(fe);
@@ -427,21 +665,27 @@ void CFunctionContext::InitStackVarOffsets(CFunctionEntry* fe)
     // -- now declare the rest of the local vars
     tVarTable* vartable = GetLocalVarTable();
     assert(vartable);
-	if(vartable) {
-		for(int32 i = 0; i < vartable->Size(); ++i) {
-			CVariableEntry* ve = vartable->FindItemByBucket(i);
-			while (ve) {
-                if(!IsParameter(ve)) {
-                    // -- set the stackoffset
-                    if(ve->GetStackOffset() < 0)
-                    {
-                        ve->SetStackOffset(stackoffset);
-                        ve->SetFunctionEntry(fe);
-                    }
-                    ++stackoffset;
+	if (vartable)
+    {
+		CVariableEntry* ve = vartable->First();
+        while (ve)
+        {
+            if (!ve->IsParameter())
+            {
+                // -- set the stackoffset
+                if (ve->GetStackOffset() < 0)
+                {
+                    ve->SetStackOffset(stackoffset);
+                    ve->SetFunctionEntry(fe);
                 }
-				ve = vartable->GetNextItemInBucket(i);
-			}
+
+                // -- if the variable is an array, we need to account for the size
+                if (ve->IsArray())
+                    stackoffset += ve->GetArraySize();
+                else
+                    ++stackoffset;
+            }
+		    ve = vartable->Next();
 		}
 	}
 }

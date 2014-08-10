@@ -82,14 +82,17 @@
         uint32 varhash = ::TinScript::Hash(#scriptname);                                                \
         ::TinScript::CVariableEntry* ve =                                                               \
             TinAlloc(ALLOC_VarEntry, ::TinScript::CVariableEntry, script_context, #scriptname, varhash, \
-            ::TinScript::GetRegisteredType(::TinScript::GetTypeID(classptr->membername)), true,         \
+            ::TinScript::GetRegisteredType(::TinScript::GetTypeID(classptr->membername)),               \
+            ::TinScript::IsArray(classptr->membername) ?                                                \
+            (sizeof(classptr->membername) / ::TinScript::GetTypeSize(classptr->membername)) : 1, true,  \
             Offsetof_(classname, membername));                                                          \
         classnamespace->GetVarTable()->AddItem(*ve, varhash);                                           \
     }
 
-#define REGISTER_GLOBAL_VAR(scriptname, var)                                                 \
-    ::TinScript::CRegisterGlobal _reg_gv_##scriptname(#scriptname,                           \
-        ::TinScript::GetRegisteredType(::TinScript::GetTypeID(var)), (void*)&var);
+#define REGISTER_GLOBAL_VAR(scriptname, var)                                                        \
+    ::TinScript::CRegisterGlobal _reg_gv_##scriptname(#scriptname,                                  \
+        ::TinScript::GetRegisteredType(::TinScript::GetTypeID(var)), (void*)&var,                   \
+        ::TinScript::IsArray(var) ? (sizeof(var) / ::TinScript::GetTypeSize(var)) : 1)
 
 #define DECLARE_FILE(filename) \
     bool8 g_##filename##_registered = false;
@@ -106,6 +109,8 @@ const int32 kCompilerVersion = 1;
 
 const int32 kMaxArgs = 256;
 const int32 kMaxArgLength = 256;
+
+const int32 kMaxVariableArraySize = 256;
 
 const int32 kScriptContextThreadSize = 7;
 
@@ -193,7 +198,8 @@ class CThreadMutex
 // --Global Var Registration-----------------------------------------------------------------------
 class CRegisterGlobal {
     public:
-        CRegisterGlobal(const char* _name = NULL, eVarType _type = TYPE_NULL, void* _addr = NULL);
+        CRegisterGlobal(const char* _name = NULL, eVarType _type = TYPE_NULL, void* _addr = NULL,
+                        int32 _array_size = 1);
         virtual ~CRegisterGlobal() { }
 
         static void RegisterGlobals(CScriptContext* script_context);
@@ -203,6 +209,7 @@ class CRegisterGlobal {
         const char* name;
         TinScript::eVarType type;
         void* addr;
+        int32 array_size;
 };
 
 bool8 AssertHandled(const char* condition, const char* file, int32 linenumber,
@@ -356,8 +363,8 @@ class CScriptContext {
         bool8 HasMethod(void* addr, const char* method_name);
         bool8 HasMethod(uint32 objectid, const char* method_name);
 
-        bool8 AddDynamicVariable(uint32 objectid, uint32 varhash, eVarType vartype);
-        bool8 AddDynamicVariable(uint32 objectid, const char* varname, const char* vartypename);
+        bool8 AddDynamicVariable(uint32 objectid, uint32 varhash, eVarType vartype, int32 array_size = 1);
+        bool8 AddDynamicVariable(uint32 objectid, const char* varname, const char* vartypename, int32 array_size = 1);
         bool8 SetMemberVar(uint32 objectid, const char* varname, void* value);
 
         void PrintObject(CObjectEntry* oe, int32 indent = 0);

@@ -69,7 +69,7 @@ eBinaryOpType GetBinaryOpType(const char* token, int32 length) {
 		int32 comparelength = int32(strlen(gBinOperatorString[i])) > length
                               ? (int32)strlen(gBinOperatorString[i])
                               : length;
-		if(!Strncmp_(token, gBinOperatorString[i], comparelength)) {
+		if (!Strncmp_(token, gBinOperatorString[i], comparelength)) {
 			return i;
 		}
 	}
@@ -93,7 +93,7 @@ eAssignOpType GetAssignOpType(const char* token, int32 length) {
 		int32 comparelength = int32(strlen(gAssOperatorString[i])) > length
                               ? (int32)strlen(gAssOperatorString[i])
                               : length;
-		if(!Strncmp_(token, gAssOperatorString[i], comparelength)) {
+		if (!Strncmp_(token, gAssOperatorString[i], comparelength)) {
 			return i;
 		}
 	}
@@ -117,7 +117,7 @@ eUnaryOpType GetUnaryOpType(const char* token, int32 length) {
 		int32 comparelength = int32(strlen(gUnaryOperatorString[i])) > length
                             ? (int32)strlen(gAssOperatorString[i])
                             : length;
-		if(!Strncmp_(token, gUnaryOperatorString[i], comparelength)) {
+		if (!Strncmp_(token, gUnaryOperatorString[i], comparelength)) {
 			return i;
 		}
 	}
@@ -137,7 +137,7 @@ eReservedKeyword GetReservedKeywordType(const char* token, int32 length) {
 		int32 comparelength = int32(strlen(gReservedKeywords[i])) > length
                               ? (int32)strlen(gReservedKeywords[i])
                               : length;
-		if(!Strncmp_(token, gReservedKeywords[i], comparelength)) {
+		if (!Strncmp_(token, gReservedKeywords[i], comparelength)) {
 			return i;
 		}
 	}
@@ -146,19 +146,19 @@ eReservedKeyword GetReservedKeywordType(const char* token, int32 length) {
 
 // ------------------------------------------------------------------------------------------------
 bool8 IsFirstClassValue(eTokenType type, eVarType& vartype) {
-    if(type == TOKEN_FLOAT) {
+    if (type == TOKEN_FLOAT) {
         vartype = TYPE_float;
         return true;
     }
-    if(type == TOKEN_INTEGER) {
+    if (type == TOKEN_INTEGER) {
         vartype = TYPE_int;
         return true;
     }
-    if(type == TOKEN_BOOL) {
+    if (type == TOKEN_BOOL) {
         vartype = TYPE_bool;
         return true;
     }
-    if(type == TOKEN_STRING) {
+    if (type == TOKEN_STRING) {
         vartype = TYPE_string;
         return true;
     }
@@ -173,7 +173,7 @@ bool8 IsAssignBinOp(eOpCode optype) {
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 const char* TokenPrint(tReadToken& token) {
-    if(!token.tokenptr || token.length <= 0)
+    if (!token.tokenptr || token.length <= 0)
         return "";
 
     char* bufferptr = TinScript::GetContext()->GetScratchBuffer();
@@ -184,7 +184,7 @@ const char* TokenPrint(tReadToken& token) {
 bool8 SkipWhiteSpace(tReadToken& token) {
     const char*& inbuf = token.inbufptr;
     int32& linenumber = token.linenumber;
-	if(!inbuf)
+	if (!inbuf)
 		return false;
 
     // -- we're going to count comments as whitespace
@@ -193,28 +193,28 @@ bool8 SkipWhiteSpace(tReadToken& token) {
         foundcomment = false;
         // -- first skip actual whitespace
 	    while (*inbuf == ' ' || *inbuf == '\t' || *inbuf == '\r' || *inbuf == '\n') {
-		    if(*inbuf == '\n')
+		    if (*inbuf == '\n')
 			    ++linenumber;
 		    ++inbuf;
 	    }
 
         // -- next comes block comments
-	    if(inbuf[0] == '/' && inbuf[1] == '*') {
+	    if (inbuf[0] == '/' && inbuf[1] == '*') {
             foundcomment = true;
             inbuf += 2;
 		    while(inbuf[0] != '\0' && inbuf[1] != '\0') {
-                if(inbuf[0] == '*' && inbuf[1] == '/') {
+                if (inbuf[0] == '*' && inbuf[1] == '/') {
                     inbuf += 2;
                     break;
                 }
-                if(inbuf[0] == '\n')
+                if (inbuf[0] == '\n')
                     ++linenumber;
                 ++inbuf;
             }
 	    }
 
 	    // -- skip line comments
-	    if(inbuf[0] == '/' && inbuf[1] == '/') {
+	    if (inbuf[0] == '/' && inbuf[1] == '/') {
             foundcomment = true;
             inbuf += 2;
 		    while(*inbuf != '\0' && *inbuf != '\n')
@@ -246,7 +246,7 @@ static const int32 kNumSymbols = 10;
 const char symbols[kNumSymbols + 1] = "(),;.:{}[]";
 
 bool8 GetToken(tReadToken& token, bool8 unaryop) {
-    if(!SkipWhiteSpace(token))
+    if (!SkipWhiteSpace(token))
         return false;
 	token.tokenptr = GetToken(token.inbufptr, token.length, token.type, NULL, token.linenumber, unaryop);
 	return (token.tokenptr != NULL);
@@ -259,18 +259,18 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 	length = 0;
 	type = TOKEN_NULL;
 
-	if(!inbuf)
+	if (!inbuf)
 		return NULL;
 
 	// -- check for NULL ptr, or eof ptr
 	const char* tokenptr = inbuf;
-	if(!tokenptr)
+	if (!tokenptr)
 		return NULL;
-	else if(tokenptr == '\0')
+	else if (tokenptr == '\0')
 		return tokenptr;
 
 	// -- see if we have the expected token
-	if(expectedtoken && expectedtoken[0] != '\0') {
+	if (expectedtoken && expectedtoken[0] != '\0') {
 		int32 expectedlength = (int32)strlen(expectedtoken);
 		if (! Strncmp_(tokenptr, expectedtoken, expectedlength)) {
 			length = expectedlength;
@@ -283,19 +283,19 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 	// -- look for an opening string
 	char quotechar = '\0';
 	for(int32 i = 0; i < kNumQuoteChars; ++i) {
-		if(*tokenptr == gQuoteChars[i]) {
+		if (*tokenptr == gQuoteChars[i]) {
 			quotechar = gQuoteChars[i];
 			break;
 		}
 	}
 
 	// -- if we found a string, find the end, and return the stripped string
-	if(quotechar != '\0') {
+	if (quotechar != '\0') {
 		++tokenptr;
 		const char* stringend = tokenptr;
 		while(*stringend != quotechar && *stringend != '\0')
 			++stringend;
-		if(*stringend == '\0')
+		if (*stringend == '\0')
 			return NULL;
 
 		// -- return results
@@ -306,16 +306,16 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 	}
 
 	// -- see if we have a bool8
-	if(!Strncmp_(tokenptr, "false", 5)) {
-		if(!IsIdentifierChar(tokenptr[5], true)) {
+	if (!Strncmp_(tokenptr, "false", 5)) {
+		if (!IsIdentifierChar(tokenptr[5], true)) {
 			length = 5;
 			type = TOKEN_BOOL;
 			inbuf = tokenptr + length;
 			return tokenptr;
 		}
 	}
-	else if(!Strncmp_(tokenptr, "true", 4)) {
-		if(!IsIdentifierChar(tokenptr[4], true)) {
+	else if (!Strncmp_(tokenptr, "true", 4)) {
+		if (!IsIdentifierChar(tokenptr[4], true)) {
 			length = 4;
 			type = TOKEN_BOOL;
 			inbuf = tokenptr + length;
@@ -324,7 +324,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 	}
 
 	// -- see if we have an identifier
-	if(IsIdentifierChar(*tokenptr, false)) {
+	if (IsIdentifierChar(*tokenptr, false)) {
 		const char* tokenendptr = tokenptr + 1;
 		while (IsIdentifierChar(*tokenendptr, true))
 			++tokenendptr;
@@ -334,21 +334,21 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 
 		// -- see if the identifier is a keyword
 		bool8 foundidtype = false;
-		if(! foundidtype) {
+		if (! foundidtype) {
 			int32 reservedwordtype = GetReservedKeywordType(tokenptr, length);
 			if (reservedwordtype != KEYWORD_NULL) {
 				type = TOKEN_KEYWORD;
 				foundidtype = true;
 			}
 		}
-		if(! foundidtype) {
+		if (! foundidtype) {
 			eVarType registeredtype = GetRegisteredType(tokenptr, length);
 			if (registeredtype != TYPE_NULL) {
 				type = TOKEN_REGTYPE;
 				foundidtype = true;
 			}
 		}
-		if(! foundidtype) {
+		if (! foundidtype) {
 			type = TOKEN_IDENTIFIER;
 		}
 
@@ -364,13 +364,13 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
     int32 unaryoplength = 0;
     for(int32 i = 0; i < UNARY_COUNT; ++i) {
 		int32 operatorlength = (int32)strlen(gUnaryOperatorString[i]);
-		if(!Strncmp_(tokenptr, gUnaryOperatorString[i], operatorlength)) {
+		if (!Strncmp_(tokenptr, gUnaryOperatorString[i], operatorlength)) {
 			unaryoplength = operatorlength;
             unaryopfound = true;
             break;
 		}
     }
-    if(unaryopfound && expectunaryop) {
+    if (unaryopfound && expectunaryop) {
         length = unaryoplength;
         inbuf = tokenptr + length;
         type = TOKEN_UNARY;
@@ -383,12 +383,12 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
     // -- with one exception...  ensure if we find '=' it's not '=='
 	for(int32 i = 0; i < ASSOP_COUNT; ++i) {
 		int32 operatorlength = (int32)strlen(gAssOperatorString[i]);
-		if(!Strncmp_(tokenptr, gAssOperatorString[i], operatorlength)) {
+		if (!Strncmp_(tokenptr, gAssOperatorString[i], operatorlength)) {
 
             // -- handle the exception - if we find '=', ensure i's not '=='
-            if(i == ASSOP_Assign) {
+            if (i == ASSOP_Assign) {
         		int32 operatorlength = (int32)strlen(gBinOperatorString[BINOP_CompareEqual]);
-        		if(!Strncmp_(tokenptr, gBinOperatorString[BINOP_CompareEqual], operatorlength)) {
+        		if (!Strncmp_(tokenptr, gBinOperatorString[BINOP_CompareEqual], operatorlength)) {
                     continue;
                 }
             }
@@ -403,7 +403,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 	// -- see if we have a binary op
 	for(int32 i = 0; i < BINOP_COUNT; ++i) {
 		int32 operatorlength = (int32)strlen(gBinOperatorString[i]);
-		if(!Strncmp_(tokenptr, gBinOperatorString[i], operatorlength)) {
+		if (!Strncmp_(tokenptr, gBinOperatorString[i], operatorlength)) {
 			length = operatorlength;
 			type = TOKEN_BINOP;
 			inbuf = tokenptr + length;
@@ -413,7 +413,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 
     // -- if we weren't expecting a unary op, we still need that we found one,
     // -- after we've ruled out assign/binary ops
-    if(unaryopfound) {
+    if (unaryopfound) {
         length = unaryoplength;
         inbuf = tokenptr + length;
         type = TOKEN_UNARY;
@@ -421,7 +421,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
     }
 
 	// -- see if we have a namespace '::'
-	if(tokenptr[0] == ':' && tokenptr[1] == ':') {
+	if (tokenptr[0] == ':' && tokenptr[1] == ':') {
 		length = 2;
 		type = TOKEN_NAMESPACE;
 		inbuf = tokenptr + 2;
@@ -430,7 +430,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 
     // -- see if we have a hex integer
     const char* hexptr = tokenptr;
-    if(*hexptr == '0' && (hexptr[1] == 'x' || hexptr[1] == 'X')) {
+    if (*hexptr == '0' && (hexptr[1] == 'x' || hexptr[1] == 'X')) {
         hexptr += 2;
         while((*hexptr >= '0' && *hexptr <= '9') || (*hexptr >= 'a' && *hexptr <= 'f') ||
               (*hexptr >= 'A' && *hexptr <= 'F')) {
@@ -439,7 +439,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 
         // -- initialize the return values for a float32
         length = (int32)kPointerDiffUInt32(hexptr, tokenptr);
-        if(length >= 3 || length <= 10) {
+        if (length >= 3 || length <= 10) {
             type = TOKEN_INTEGER;
             inbuf = hexptr;
             return tokenptr;
@@ -448,14 +448,14 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 
     // -- see if we have a binary integer
     const char* binaryptr = tokenptr;
-    if(*binaryptr == '0' && (binaryptr[1] == 'b' || binaryptr[1] == 'B')) {
+    if (*binaryptr == '0' && (binaryptr[1] == 'b' || binaryptr[1] == 'B')) {
         binaryptr += 2;
         while(*binaryptr >= '0' && *binaryptr <= '1')
                 ++binaryptr;
 
         // -- initialize the return values for a float32
         length = (int32)kPointerDiffUInt32(binaryptr, tokenptr);
-        if(length >= 3) {
+        if (length >= 3) {
             type = TOKEN_INTEGER;
             inbuf = binaryptr;
             return tokenptr;
@@ -466,9 +466,9 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 	const char* numericptr = tokenptr;
 	while(*numericptr >= '0' && *numericptr <= '9')
 		++numericptr;
-	if(numericptr > tokenptr) {
+	if (numericptr > tokenptr) {
 		// -- see if we have a float32, or an integer
-		if(*numericptr == '.' && numericptr[1] >= '0' && numericptr[1] <= '9') {
+		if (*numericptr == '.' && numericptr[1] >= '0' && numericptr[1] <= '9') {
 			++numericptr;
 			while(*numericptr >= '0' && *numericptr <= '9')
 				++numericptr;
@@ -479,7 +479,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 			inbuf = numericptr;
 
 			// -- see if we need to read the final 'f'
-			if(*numericptr == 'f')
+			if (*numericptr == 'f')
 				++inbuf;
 
 			return tokenptr;
@@ -496,7 +496,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 
 	// -- see if we have a symbol
 	for(int32 i = 0; i < kNumSymbols; ++i) {
-		if(*tokenptr == symbols[i]) {
+		if (*tokenptr == symbols[i]) {
 			length = 1;
 			type = eTokenType(TOKEN_PAREN_OPEN + i);
 			inbuf = tokenptr + 1;
@@ -505,7 +505,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 	}
 
 	// -- nothing left to parse - ensure we're at eof
-	if(*tokenptr == '\0') {
+	if (*tokenptr == '\0') {
 		length = 0;
 		type = TOKEN_EOF;
 		inbuf = NULL;
@@ -528,22 +528,22 @@ const char* ReadFileAllocBuf(const char* filename) {
 
 	// -- open the file
 	FILE* filehandle = NULL;
-	if(filename) {
+	if (filename) {
 		 int32 result = fopen_s(&filehandle, filename, "r");
 		 if (result != 0)
 			 return NULL;
 	}
-	if(!filehandle)
+	if (!filehandle)
 		return NULL;
 
 	// -- get the size of the file
 	int32 result = fseek(filehandle, 0, SEEK_END);
-	if(result != 0) {
+	if (result != 0) {
 		fclose(filehandle);
 		return NULL;
 	}
 	int32 filesize = ftell(filehandle);
-	if(filesize <= 0) {
+	if (filesize <= 0) {
 		fclose(filehandle);
 		return NULL;
 	}
@@ -574,7 +574,7 @@ const char* ReadFileAllocBuf(const char* filename) {
 bool8 DumpFile(const char* filename) {
 	// -- see if we can open the file
 	const char* filebuf = ReadFileAllocBuf(filename);
-	if(! filebuf) {
+	if (! filebuf) {
 		return false;
 	}
 
@@ -584,7 +584,7 @@ bool8 DumpFile(const char* filename) {
 	do {
 		success = GetToken(token);
 		char tokenbuf[kMaxTokenLength] = { 0 };
-		if(token.tokenptr != NULL) {
+		if (token.tokenptr != NULL) {
 			SafeStrcpy(tokenbuf, token.tokenptr, token.length + 1);
 			printf("Found token: [%s] %s\n", gTokenTypeStrings[token.type], tokenbuf);
 		}
@@ -637,12 +637,12 @@ void DestroyTree(CCompileTreeNode* root) {
     while(root) {
         CCompileTreeNode* nextroot = root->next;
 
-        if(root->leftchild) {
+        if (root->leftchild) {
             DestroyTree(root->leftchild);
             root->leftchild = NULL;
         }
 
-        if(root->rightchild) {
+        if (root->rightchild) {
             DestroyTree(root->rightchild);
             root->rightchild = NULL;
         }
@@ -655,7 +655,7 @@ void DestroyTree(CCompileTreeNode* root) {
 // ------------------------------------------------------------------------------------------------
 void DumpVarTable(CObjectEntry* oe) {
 	// -- sanity check
-	if(!oe)
+	if (!oe)
 		return;
 
     CNamespace* curentry = oe->GetNamespace();
@@ -666,7 +666,7 @@ void DumpVarTable(CObjectEntry* oe) {
     }
 
     // -- dump the dynamic var table as well
-    if(oe->GetDynamicVarTable()) {
+    if (oe->GetDynamicVarTable()) {
         TinPrint(oe->GetScriptContext(), "\nDYNAMIC VARS:\n");
         DumpVarTable(oe->GetScriptContext(), oe, oe->GetDynamicVarTable());
     }
@@ -674,7 +674,7 @@ void DumpVarTable(CObjectEntry* oe) {
 
 void DumpVarTable(CScriptContext* script_context, CObjectEntry* oe, const tVarTable* vartable) {
 	// -- sanity check
-	if(!script_context || (!oe && !vartable))
+	if (!script_context || (!oe && !vartable))
 		return;
 
     void* objaddr = oe ? oe->GetAddr() : NULL;
@@ -694,7 +694,7 @@ void DumpVarTable(CScriptContext* script_context, CObjectEntry* oe, const tVarTa
 // ------------------------------------------------------------------------------------------------
 void DumpFuncTable(CObjectEntry* oe) {
 	// -- sanity check
-	if(!oe)
+	if (!oe)
 		return;
 
     CNamespace* curentry = oe->GetNamespace();
@@ -707,7 +707,7 @@ void DumpFuncTable(CObjectEntry* oe) {
 
 void DumpFuncTable(CScriptContext* script_context, const tFuncTable* functable) {
 	// -- sanity check
-	if(!functable || !script_context)
+	if (!functable || !script_context)
 		return;
 
 	for(int32 i = 0; i < functable->Size(); ++i) {
@@ -729,49 +729,109 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 	// -- use temporary vars, to ensure we dont' change the actual bufptr, unless successful
 	tReadToken nexttoken(filebuf);
 	if (!GetToken(nexttoken))
-		return false;
+		return (false);
 
 	// -- see if we found a registered type
 	if (nexttoken.type != TOKEN_REGTYPE)
-		return false;
+		return (false);
+
 	eVarType registeredtype = GetRegisteredType(nexttoken.tokenptr, nexttoken.length);
+
+    // -- now see if we're declaring an array
+    // $$$TZA eventually, we can parse an expression to determine the size at runtime
+    // -- for now, the size must be fixed
+    //CCompileTreeNode* array_size_node = NULL;
+    //CCompileTreeNode** array_size_root = &array_size_node;
+    bool8 is_array = false;
+    int32 array_size = 1;
+    tReadToken array_decl_token(nexttoken);
+    if (!GetToken(array_decl_token))
+        return false;
+
+    // -- see if we're declaring an array of the given type
+    if (array_decl_token.type == TOKEN_SQUARE_OPEN)
+    {
+        if (registeredtype == TYPE_hashtable)
+        {
+			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), array_decl_token.linenumber,
+                          "Error - hashtable[] arrays are not supported\n");
+            return (false);
+        }
+
+        // -- committed to an array, and not just a type
+        nexttoken = array_decl_token;
+
+        // $$$TZA TYPE__array
+        // -- eventually, we can use int[] as a dynamically sizing array, but for now, we'll require
+        // -- a fixed size, e.g. int[37], or int[GetArraySize()]
+        //if (TryParseExpression(codeblock, array_size_token, *array_size_root))
+        //    nexttoken = array_size_token;
+        tReadToken array_size_token(nexttoken);
+        if (GetToken(array_size_token) && array_size_token.type == TOKEN_INTEGER)
+        {
+            nexttoken = array_size_token;
+            array_size = Atoi(array_size_token.tokenptr, array_size_token.length);
+        }
+
+        // -- ensure we have a valid array
+        if (array_size <= 0)
+        {
+			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), array_size_token.linenumber,
+                          "Error - expecting array size integer value, between 1 and %d\n", kMaxVariableArraySize);
+            return (false);
+        }
+
+        // -- we'd better be able to read the closing square bracket
+        if (!GetToken(nexttoken) || nexttoken.type != TOKEN_SQUARE_CLOSE)
+        {
+			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), nexttoken.linenumber,
+                          "Error - expecting ']'\n");
+            return (false);
+        }
+
+        // -- set the flag
+        is_array = true;
+    }
 
 	// -- see if the next token is an identifier, or a self.identifier
 	tReadToken idtoken = nexttoken;
-	if(!GetToken(idtoken))
+	if (!GetToken(idtoken))
 		return false;
 
     // -- a variable declaration including the keyword 'self' obviously affects its scope
     bool8 selfvardecl = false;
+    bool8 member_decl = false;
     tReadToken selftoken(nexttoken);
-    if(idtoken.type == TOKEN_KEYWORD) {
+    if (idtoken.type == TOKEN_KEYWORD)
+	{
 	    int32 reservedwordtype = GetReservedKeywordType(idtoken.tokenptr, idtoken.length);
-	    if (reservedwordtype == KEYWORD_self) {
+	    if (reservedwordtype == KEYWORD_self)
+        {
             // -- we'd better find a TOKEN_PERIOD, followed by an identifier
             selfvardecl = true;
             nexttoken = idtoken;
-            if(!GetToken(nexttoken) || nexttoken.type != TOKEN_PERIOD) {
+            if (!GetToken(nexttoken) || nexttoken.type != TOKEN_PERIOD)
                 return false;
-            }
+
             idtoken = nexttoken;
-            if(!GetToken(idtoken)) {
+            if (!GetToken(idtoken))
                 return false;
-            }
         }
         else
             return false;
     }
 
     // -- at this point, we should have an identifier
-	if(idtoken.type != TOKEN_IDENTIFIER)
+	if (idtoken.type != TOKEN_IDENTIFIER)
 		return false;
 
     // -- make sure the next token isn't an open parenthesis
     // -- which would make this a function definition
     tReadToken peektoken(idtoken);
-    if(!GetToken(peektoken))
+    if (!GetToken(peektoken))
         return false;
-    if(peektoken.type == TOKEN_PAREN_OPEN)
+
+    if (peektoken.type == TOKEN_PAREN_OPEN)
         return false;
 
     // -- temporary token marker we'll use later to decide if we're auto-initializing
@@ -813,6 +873,14 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     // -- as the hash value to dereference the array entry isn't known until runtime
     if (peektoken.type == TOKEN_SQUARE_OPEN)
     {
+        // -- for now, we don't support initializing members of an array
+        if (is_array)
+        {
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), peektoken.linenumber,
+                          "Error - auto-initialization of arrays is not supported.\n", TokenPrint(idtoken));
+            return (false);
+        }
+
         // -- committed to a hashtable dereference
         filebuf = idtoken;
 
@@ -829,7 +897,8 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         {
             var = GetVariable(codeblock->GetScriptContext(), codeblock->smCurrentGlobalVarTable, nshash, funchash,
                               varhash, 0);
-            if(!var || var->GetType() != TYPE_hashtable) {
+            if (!var || var->GetType() != TYPE_hashtable)
+            {
                 ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               filebuf.linenumber,
                               "Error - variable %s is not of type hashtable\n", UnHash(varhash));
@@ -905,7 +974,7 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         // -- create the node
         CSelfVarDeclNode* self_var_node = TinAlloc(ALLOC_TreeNode, CSelfVarDeclNode, codeblock, link,
                                                    idtoken.linenumber, idtoken.tokenptr, idtoken.length,
-                                                   registeredtype);
+                                                   registeredtype, array_size);
         Unused_(self_var_node);
     }
 
@@ -917,7 +986,8 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
 	// -- see if the last token was a semicolon, marking the end of a var declaration
     bool is_var_decl = false;
-	if(finaltoken.type == TOKEN_SEMICOLON) {
+	if (finaltoken.type == TOKEN_SEMICOLON)
+    {
 		// -- we've successfully created a var declaration
 		filebuf = finaltoken;
         is_var_decl = true;
@@ -926,11 +996,108 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 	// -- else if the next token is an operator, we're going to
 	else if (finaltoken.type == TOKEN_ASSOP)
     {
+        // -- no support for auto-initializing arrays
+        if (is_array)
+        {
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          finaltoken.linenumber, "Error - auto-initializing an array is not supported.\n");
+			return false;
+        }
+
 		// -- we're going to update the input buf ptr to just after having read the type
 		// -- and allow the assignment to be ready as an assignment
 		filebuf = nexttoken;
         is_var_decl = true;
 	}
+
+    // -- if the final token is actually a period, then we're dereferencing an object, and the variable is a member
+    else if (finaltoken.type == TOKEN_PERIOD)
+    {
+        // -- the idtoken actually refers to the object (or variable referring to an object)
+        tReadToken member_token = finaltoken;
+        if (!GetToken(member_token) || member_token.type != TOKEN_IDENTIFIER)
+        {
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          member_token.linenumber, "Error - expecting a member identifier.\n");
+            return (false);
+        }
+
+        // -- if we've got a hashtable expression, the left child is the member, the right child is hash value 
+        CCompileTreeNode* member_root = NULL;
+        CCompileTreeNode** member_link = &member_root;
+
+        // -- try to read the hash expression into the temporary root
+        CCompileTreeNode* array_root = NULL;
+        CCompileTreeNode** temp_root = &array_root;
+        tReadToken arrayhashtoken(member_token);
+        if (TryParseArrayHash(codeblock, arrayhashtoken, *temp_root))
+        {
+            // -- we're committed to a method hashtable lookup
+            finaltoken = arrayhashtoken;
+
+            // -- create the ArrayVarDeclNode, leftchild is the hashtable var, right is the hash value
+            CArrayVarDeclNode* arrayvarnode = TinAlloc(ALLOC_TreeNode, CArrayVarDeclNode, codeblock,
+                                                       link, filebuf.linenumber, registeredtype);
+
+            // -- the right child is the hash value
+            arrayvarnode->rightchild = array_root;
+
+
+            // -- the left child is the member node
+		    CObjMemberNode* objmember = TinAlloc(ALLOC_TreeNode, CObjMemberNode, codeblock, arrayvarnode->leftchild,
+                                                 member_token.linenumber, member_token.tokenptr, member_token.length);
+
+            // -- the left child of the member node resolves tothe object
+		    CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, objmember->leftchild,
+                                             idtoken.linenumber, idtoken.tokenptr, idtoken.length, true, TYPE_object);
+        }
+
+        // -- else we're connecting the member directly to link
+        else
+        {
+            // -- update the token ptr
+            finaltoken = member_token;
+
+            // -- create the member node
+            CObjMemberDeclNode* obj_member_decl_node = TinAlloc(ALLOC_TreeNode, CObjMemberDeclNode, codeblock, link,
+                                                                member_token.linenumber, member_token.tokenptr,
+                                                                member_token.length, registeredtype, array_size);
+
+            // -- create the value node that resolves to an object
+		    CValueNode* valuenode = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, obj_member_decl_node->leftchild,
+                                             idtoken.linenumber, idtoken.tokenptr, idtoken.length, true, TYPE_object);
+        }
+
+        // -- now we find the final token - is this a declaration, or do we have an assignment
+	    if (!GetToken(finaltoken))
+		    return false;
+
+	    // -- see if the last token was a semicolon, marking the end of a var declaration
+	    if (finaltoken.type == TOKEN_SEMICOLON)
+        {
+		    // -- we've successfully created a var declaration
+		    filebuf = finaltoken;
+	    }
+
+	    // -- else if the next token is an operator, we're going to
+	    else if (finaltoken.type == TOKEN_ASSOP)
+        {
+            // -- no support for auto-initializing arrays
+            if (is_array)
+            {
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              finaltoken.linenumber, "Error - auto-initializing an array is not supported.\n");
+			    return false;
+            }
+
+		    // -- we're going to update the input buf ptr to just after having read the type
+		    // -- and allow the assignment to be ready as an assignment
+		    filebuf = nexttoken;
+	    }
+		
+        // -- we're done
+        return (true);
+    }
 
     // -- if we found a variable declaration, add the variable
     if (is_var_decl && !selfvardecl)
@@ -941,7 +1108,7 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
             codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
 
         AddVariable(codeblock->GetScriptContext(), codeblock->smCurrentGlobalVarTable, curfunction,
-                    TokenPrint(idtoken), Hash(TokenPrint(idtoken)), registeredtype);
+                    TokenPrint(idtoken), Hash(TokenPrint(idtoken)), registeredtype, array_size);
     }
 
     // -- return the result
@@ -955,7 +1122,7 @@ CCompileTreeNode** SortBinOpPrecedence(CCompileTreeNode** toplink, bool8& found_
     found_swap = false;
 
     // -- sanity check
-    if(toplink == NULL)
+    if (toplink == NULL)
         return NULL;
 
     // -- we need to sort binary non-assign ops by precedence, for any sequential binop nodes
@@ -969,7 +1136,7 @@ CCompileTreeNode** SortBinOpPrecedence(CCompileTreeNode** toplink, bool8& found_
     }
 
     // -- if we didn't find a head, or a head->rightchild, nothing to sort
-    if(!head || !head->rightchild)
+    if (!head || !head->rightchild)
         return NULL;
 
     // -- now look for the highest priority child to sort above "head"
@@ -981,7 +1148,7 @@ CCompileTreeNode** SortBinOpPrecedence(CCompileTreeNode** toplink, bool8& found_
 
     while(swap && swap->GetType() == eBinaryOp) {
         int32 swapprecedence = static_cast<CBinaryOpNode*>(swap)->GetBinaryOpPrecedence() * 1000 + depth;
-        if(swapprecedence <= headprecedence) {
+        if (swapprecedence <= headprecedence) {
             ++depth;
             swapparent = &swap->rightchild;
             swap = swap->rightchild;
@@ -991,11 +1158,11 @@ CCompileTreeNode** SortBinOpPrecedence(CCompileTreeNode** toplink, bool8& found_
     }
 
     // -- if we didn't find a node to swap, we're done
-    if(!swap || swap == head)
+    if (!swap || swap == head)
         return NULL;
 
     // -- if swap isn't a binary op, we want to continue testing the next rightchild from head
-    if(swap->GetType() != eBinaryOp ||
+    if (swap->GetType() != eBinaryOp ||
        static_cast<CBinaryOpNode*>(swap)->GetBinaryOpPrecedence() == 0) {
         return &head->rightchild;
     }
@@ -1058,13 +1225,13 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 	// -- an expression followed by a binary operator, followed by an expression
 
 	tReadToken firsttoken(filebuf);
-	if(!GetToken(firsttoken))
+	if (!GetToken(firsttoken))
 		return false;
 
     // -- if the first token is a semi-colon, consume the empty expression
     // -- unless we're in the middle of a parenthetical expression
-    if(firsttoken.type == TOKEN_SEMICOLON) {
-        if(gGlobalExprParenDepth > 0)
+    if (firsttoken.type == TOKEN_SEMICOLON) {
+        if (gGlobalExprParenDepth > 0)
             return false;
         filebuf = firsttoken;
         return true;
@@ -1097,13 +1264,13 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
     // -- use a temporary link to see if we have an expression
     tReadToken readexpr(filebuf);
-    if(!TryParseExpression(codeblock, readexpr, *templink)) {
+    if (!TryParseExpression(codeblock, readexpr, *templink)) {
         return false;
     }
 
     // -- see if we've got a semicolon, a binop, an assop or an object dereference
     tReadToken nexttoken(readexpr);
-    if(!GetToken(nexttoken))
+    if (!GetToken(nexttoken))
         return false;
 
     // -- reached the end of the statement
@@ -1111,9 +1278,9 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
         // -- see if we've reached the end of the statement
         // -- if we find a closing parenthesis that we're expecting, we're done
-        if(nexttoken.type == TOKEN_PAREN_CLOSE || nexttoken.type == TOKEN_SQUARE_CLOSE) {
+        if (nexttoken.type == TOKEN_PAREN_CLOSE || nexttoken.type == TOKEN_SQUARE_CLOSE) {
             // -- make sure we were expecting it
-            if(gGlobalExprParenDepth == 0) {
+            if (gGlobalExprParenDepth == 0) {
                 return false;
             }
 
@@ -1129,7 +1296,7 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
                 return true;
             }
         }
-        else if(nexttoken.type == TOKEN_COMMA) {
+        else if (nexttoken.type == TOKEN_COMMA) {
             // -- don't consume the ',' - let the expression handle it
             filebuf = readexpr;
             link = statementroot;
@@ -1139,10 +1306,10 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
             return true;
         }
-        else if(nexttoken.type == TOKEN_SEMICOLON) {
+        else if (nexttoken.type == TOKEN_SEMICOLON) {
             // $$$TZA From within a 'For' loop, we have valid ';' within parenthesis
             // -- if so, do not consume the ';'
-            if(gGlobalExprParenDepth > 0)
+            if (gGlobalExprParenDepth > 0)
                 filebuf = readexpr;
             // -- otherwise this is a complete statement - consume the ';'
             else
@@ -1156,7 +1323,7 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
         }
 
         // -- see if we've got a binary operation
-        else if(nexttoken.type == TOKEN_BINOP) {
+        else if (nexttoken.type == TOKEN_BINOP) {
 
             // -- we're committed to a statement at this point
             readexpr = nexttoken;
@@ -1170,7 +1337,7 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
 		    // -- ensure we have an expression to fill the right child
 		    bool8 result = TryParseExpression(codeblock, readexpr, binopnode->rightchild);
-		    if(!result || !binopnode->rightchild) {
+		    if (!result || !binopnode->rightchild) {
                 ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               readexpr.linenumber,
                               "Error - Binary operator without a rhs expression\n");
@@ -1182,7 +1349,7 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
             // -- successfully read the rhs, get the next token
             nexttoken = readexpr;
-            if(!GetToken(nexttoken)) {
+            if (!GetToken(nexttoken)) {
 			    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               readexpr.linenumber, "Error - expecting ';'\n");
 			    return false;
@@ -1190,7 +1357,7 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
         }
 
         // -- see if we've got an assignment op
-        else if(nexttoken.type == TOKEN_ASSOP) {
+        else if (nexttoken.type == TOKEN_ASSOP) {
 
             // -- we're committed to a statement at this point
             readexpr = nexttoken;
@@ -1204,7 +1371,7 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
 		    // -- ensure we have an expression to fill the right child
 		    bool8 result = TryParseExpression(codeblock, readexpr, binopnode->rightchild);
-		    if(!result || !binopnode->rightchild) {
+		    if (!result || !binopnode->rightchild) {
 			    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               readexpr.linenumber,
                               "Error - Assignment operator without a rhs expression\n");
@@ -1216,7 +1383,7 @@ bool8 TryParseStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
             // -- successfully read the rhs, get the next token
             nexttoken = readexpr;
-            if(!GetToken(nexttoken)) {
+            if (!GetToken(nexttoken)) {
 			    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               readexpr.linenumber, "Error - expecting ';'\n");
 			    return false;
@@ -1575,18 +1742,18 @@ bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
     }
 
 	// -- not an expression
-	return false;
+	return (false);
 }
 
 // ------------------------------------------------------------------------------------------------
 bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
 	// -- the first token can be anything but a reserved word or type
 	tReadToken firsttoken(filebuf);
-	if(!GetToken(firsttoken))
+	if (!GetToken(firsttoken))
 		return false;
 
 	// -- starts with the keyword 'if'
-	if(firsttoken.type != TOKEN_KEYWORD) {
+	if (firsttoken.type != TOKEN_KEYWORD) {
 		return false;
 	}
 	int32 reservedwordtype = GetReservedKeywordType(firsttoken.tokenptr, firsttoken.length);
@@ -1597,7 +1764,7 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
     filebuf = firsttoken;
 
 	// -- next token better be an open parenthesis
-	if(!GetToken(filebuf) || (filebuf.type != TOKEN_PAREN_OPEN))
+	if (!GetToken(filebuf) || (filebuf.type != TOKEN_PAREN_OPEN))
 	{
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), filebuf.linenumber,
                       "Error - expecting '('\n");
@@ -1614,7 +1781,7 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 
 	// we need to have a valid expression for the left hand child
 	bool8 result = TryParseStatement(codeblock, filebuf, ifstmtnode->leftchild);
-	if(!result) {
+	if (!result) {
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - 'if statement' without a conditional expression\n");
@@ -1622,7 +1789,7 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 	}
 
     // -- consume the closing parenthesis
-    if(!GetToken(filebuf) || filebuf.type != TOKEN_PAREN_CLOSE) {
+    if (!GetToken(filebuf) || filebuf.type != TOKEN_PAREN_CLOSE) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber, "Error - expecting ')'\n");
         return false;
@@ -1638,17 +1805,17 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 	// -- the left side of the condbranchnode is the 'true' branch
 	// -- see if we have a statement, or a statement block
 	tReadToken peektoken(filebuf);
-	if(!GetToken(peektoken)) {
+	if (!GetToken(peektoken)) {
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - 'if statement' without a following statement block\n");
 		return false;
 	}
-	if(peektoken.type == TOKEN_BRACE_OPEN) {
+	if (peektoken.type == TOKEN_BRACE_OPEN) {
 		// -- consume the brace, and parse an entire statement block
 		filebuf = peektoken;
 		result = ParseStatementBlock(codeblock, condbranchnode->leftchild, filebuf, true);
-		if(!result) {
+		if (!result) {
 			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
                           "Error - failed to read statement block\n");
@@ -1659,7 +1826,7 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 	else
 	{
 		result = TryParseStatement(codeblock, filebuf, condbranchnode->leftchild);
-		if(!result) {
+		if (!result) {
 			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
                           "Error - 'if statement' without a statement block\n");
@@ -1669,35 +1836,35 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 
 	// -- now handle the "false" branch
 	peektoken = filebuf;
-	if(!GetToken(peektoken)) {
+	if (!GetToken(peektoken)) {
 		// -- no token - technically we're done successfully
 		return true;
 	}
 
 	// -- we're done, unless we find an an 'else', or an 'else if'
-	if(peektoken.type == TOKEN_KEYWORD) {
+	if (peektoken.type == TOKEN_KEYWORD) {
 		int32 reservedwordtype = GetReservedKeywordType(peektoken.tokenptr, peektoken.length);
-		if(reservedwordtype != KEYWORD_else)
+		if (reservedwordtype != KEYWORD_else)
 			return true;
 
 		// -- we have an 'else': three options to follow
 		filebuf = peektoken;
 
 		// -- first, see if it's an else 'if'
-		if(TryParseIfStatement(codeblock, filebuf, condbranchnode->rightchild))
+		if (TryParseIfStatement(codeblock, filebuf, condbranchnode->rightchild))
 			return true;
 
 		// -- next, see if we have a statement block
-		if(!GetToken(peektoken)) {
+		if (!GetToken(peektoken)) {
 			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
                           "Error - 'else' without a statement block\n");
 			return false;
 		}
-		if(peektoken.type == TOKEN_BRACE_OPEN) {
+		if (peektoken.type == TOKEN_BRACE_OPEN) {
 			filebuf = peektoken;
 			result = ParseStatementBlock(codeblock, condbranchnode->rightchild, filebuf, true);
-			if(!result) {
+			if (!result) {
 				ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               filebuf.linenumber,
                               "Error - unable to parse statmentblock following 'else'\n");
@@ -1709,7 +1876,7 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 		// -- finally, it must be a simple expression
 		else {
 			result = TryParseStatement(codeblock, filebuf, condbranchnode->rightchild);
-			if(!result) {
+			if (!result) {
 				ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               filebuf.linenumber,
                               "Error - unable to parse expression following 'else'\n");
@@ -1726,11 +1893,11 @@ bool8 TryParseIfStatement(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTr
 bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
 	// -- the first token can be anything but a reserved word or type
 	tReadToken firsttoken(filebuf);
-	if(!GetToken(firsttoken))
+	if (!GetToken(firsttoken))
 		return false;
 
 	// -- starts with the keyword 'for'
-	if(firsttoken.type != TOKEN_KEYWORD) {
+	if (firsttoken.type != TOKEN_KEYWORD) {
 		return false;
 	}
 	int32 reservedwordtype = GetReservedKeywordType(firsttoken.tokenptr, firsttoken.length);
@@ -1742,7 +1909,7 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
 	// -- next token better be an open parenthesis
 	tReadToken peektoken(firsttoken);
-	if(!GetToken(peektoken) || (peektoken.type != TOKEN_PAREN_OPEN))
+	if (!GetToken(peektoken) || (peektoken.type != TOKEN_PAREN_OPEN))
 	{
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       firsttoken.linenumber, "Error - expecting '('\n");
@@ -1774,7 +1941,7 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
 	// we need to have a valid expression for the left hand child
 	bool8 result = TryParseStatement(codeblock, filebuf, whileloopnode->leftchild);
-	if(!result) {
+	if (!result) {
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - 'while loop' without a conditional expression\n");
@@ -1783,7 +1950,7 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 	}
 
     // -- consume the closing parenthesis
-    if(!GetToken(filebuf) || filebuf.type != TOKEN_PAREN_CLOSE) {
+    if (!GetToken(filebuf) || filebuf.type != TOKEN_PAREN_CLOSE) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), filebuf.linenumber,
                       "Error - expecting ')'\n");
         --gWhileLoopDepth;
@@ -1795,16 +1962,16 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
 	// -- see if we've got a statement block, or a single statement
 	peektoken = filebuf;
-	if(!GetToken(peektoken)) {
+	if (!GetToken(peektoken)) {
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), filebuf.linenumber,
                       "Error - 'while loop' without a body\n");
         --gWhileLoopDepth;
 		return false;
 	}
-	if(peektoken.type == TOKEN_BRACE_OPEN) {
+	if (peektoken.type == TOKEN_BRACE_OPEN) {
 		filebuf = peektoken;
 		result = ParseStatementBlock(codeblock, whileloopnode->rightchild, filebuf, true);
-		if(!result) {
+		if (!result) {
 			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
                           "Error - unable to parse the while loop statmentblock\n");
@@ -1819,7 +1986,7 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 	// -- else it's a single expression
 	else {
 		result = TryParseStatement(codeblock, filebuf, whileloopnode->rightchild);
-		if(!result) {
+		if (!result) {
 			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
                           "Error - unable to parse the while loop body\n");
@@ -1837,11 +2004,11 @@ bool8 TryParseWhileLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
 	// -- the first token can be anything but a reserved word or type
 	tReadToken firsttoken(filebuf);
-	if(!GetToken(firsttoken))
+	if (!GetToken(firsttoken))
 		return false;
 
 	// -- starts with the keyword 'for'
-	if(firsttoken.type != TOKEN_KEYWORD) {
+	if (firsttoken.type != TOKEN_KEYWORD) {
 		return false;
 	}
 	int32 reservedwordtype = GetReservedKeywordType(firsttoken.tokenptr, firsttoken.length);
@@ -1853,7 +2020,7 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 
 	// -- next token better be an open parenthesis
 	tReadToken peektoken(firsttoken);
-	if(!GetToken(peektoken) || (peektoken.type != TOKEN_PAREN_OPEN))
+	if (!GetToken(peektoken) || (peektoken.type != TOKEN_PAREN_OPEN))
 	{
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       firsttoken.linenumber, "Error - expecting '('\n");
@@ -1875,7 +2042,7 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 
 	// -- initial expression
 	bool8 result = TryParseStatement(codeblock, filebuf, AppendToRoot(*forlooproot));
-	if(! result) {
+	if (! result) {
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - unable to parse the initial expression\n");
@@ -1883,7 +2050,7 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	}
 
   	// -- consume the separating semicolon
-	if(!GetToken(filebuf) || (filebuf.type != TOKEN_SEMICOLON))
+	if (!GetToken(filebuf) || (filebuf.type != TOKEN_SEMICOLON))
 	{
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber, "Error - expecting ';'\n");
@@ -1908,7 +2075,7 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 
 	// -- the for loop condition is the left child of the while loop node
 	result = TryParseStatement(codeblock, filebuf, whileloopnode->leftchild);
-	if(!result) {
+	if (!result) {
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - unable to parse the conditional expression\n"); 
@@ -1917,7 +2084,7 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	}
 
    	// -- consume the separating semicolon
-	if(!GetToken(filebuf) || (filebuf.type != TOKEN_SEMICOLON))
+	if (!GetToken(filebuf) || (filebuf.type != TOKEN_SEMICOLON))
 	{
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber, "Error - expecting ';'\n");
@@ -1928,7 +2095,7 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	// -- the end of loop expression is next, but we're going to hold on to it for a moment
 	CCompileTreeNode* tempendofloop = NULL;
 	result = TryParseStatement(codeblock, filebuf, tempendofloop);
-	if(!result) {
+	if (!result) {
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - unable to parse the end of loop expression\n");
@@ -1937,7 +2104,7 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	}
 
    	// -- consume the closing parenthesis semicolon
-	if(!GetToken(filebuf) || (filebuf.type != TOKEN_PAREN_CLOSE))
+	if (!GetToken(filebuf) || (filebuf.type != TOKEN_PAREN_CLOSE))
 	{
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber, "Error - expecting ')'\n");
@@ -1953,19 +2120,19 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 
 	// -- see if it's a single statement, or a statement block
 	peektoken = filebuf;
-	if(!GetToken(peektoken)) {
+	if (!GetToken(peektoken)) {
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - unable to parse the for loop body\n");
         --gWhileLoopDepth;
 		return false;
 	}
-	if(peektoken.type == TOKEN_BRACE_OPEN) {
+	if (peektoken.type == TOKEN_BRACE_OPEN) {
 		// -- consume the brace, and parse an entire statement block
 		filebuf = peektoken;
 		result = ParseStatementBlock(codeblock, AppendToRoot(*whileloopnode->rightchild), filebuf,
                                      true);
-		if(!result) {
+		if (!result) {
 			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
                           "Error - failed to read statement block\n");
@@ -1977,7 +2144,7 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
 	else
 	{
 		result = TryParseStatement(codeblock, filebuf, AppendToRoot(*whileloopnode->rightchild));
-		if(!result) {
+		if (!result) {
 			ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
                           "Error - failed to read statement block\n");
@@ -2001,7 +2168,7 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
 	// -- use temporary vars, to ensure we dont' change the actual bufptr, unless successful
 	tReadToken returntype(filebuf);
-	if(!GetToken(returntype))
+	if (!GetToken(returntype))
 		return false;
 
 	// -- see if we found a registered type
@@ -2011,21 +2178,21 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
 	// -- see if the next token is an identifier
 	tReadToken idtoken = returntype;
-	if(!GetToken(idtoken))
+	if (!GetToken(idtoken))
 		return false;
 
-	if(idtoken.type != TOKEN_IDENTIFIER)
+	if (idtoken.type != TOKEN_IDENTIFIER)
 		return false;
 
     // -- see if this is a namespaced function declaration
     bool8 usenamespace = false;
     tReadToken nsnametoken(idtoken);
     tReadToken nstoken(idtoken);
-    if(GetToken(nstoken) && nstoken.type == TOKEN_NAMESPACE) {
+    if (GetToken(nstoken) && nstoken.type == TOKEN_NAMESPACE) {
         usenamespace = true;
         // -- we'd better find another identifier
         idtoken = nstoken;
-        if(!GetToken(idtoken) || idtoken.type != TOKEN_IDENTIFIER) {
+        if (!GetToken(idtoken) || idtoken.type != TOKEN_IDENTIFIER) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           idtoken.linenumber,
                           "Error - Expecting an identifier after namespace %s::\n",
@@ -2036,9 +2203,9 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
     // -- ensure the next token is an open parenthesis, making this a function definition
     tReadToken peektoken(idtoken);
-    if(!GetToken(peektoken))
+    if (!GetToken(peektoken))
         return false;
-    if(peektoken.type != TOKEN_PAREN_OPEN)
+    if (peektoken.type != TOKEN_PAREN_OPEN)
         return false;
 
     // -- we're committed to a function definition
@@ -2046,11 +2213,11 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
     // -- find the namespace to which this function belongs
     tFuncTable* functable = NULL;
-    if(usenamespace) {
+    if (usenamespace) {
         // -- see if we need to create a new namespace
         CNamespace* nsentry = codeblock->GetScriptContext()->
                                          FindOrCreateNamespace(TokenPrint(nsnametoken), true);
-        if(!nsentry) {
+        if (!nsentry) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           peektoken.linenumber,
                           "Error - Failed to find/create Namespace: %s\n",
@@ -2064,7 +2231,7 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     else {
         functable = codeblock->GetScriptContext()->GetGlobalNamespace()->GetFuncTable();
     }
-    if(!functable) {
+    if (!functable) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       peektoken.linenumber,
                       "Error - How do we not have a function table???\n");
@@ -2078,7 +2245,7 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     CFunctionEntry* curfunction = exists;
 
     // -- if thus function doesn't exist, we're defining it now
-    if(! exists) {
+    if (! exists) {
 	    curfunction = FuncDeclaration(codeblock->GetScriptContext(), nshash, TokenPrint(idtoken),
                                       Hash(TokenPrint(idtoken)), eFuncTypeScript);
         codeblock->smFuncDefinitionStack->Push(curfunction, NULL, 0);
@@ -2090,11 +2257,13 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     // get the function context
     CFunctionContext* funccontext = curfunction->GetContext();
 
+    // $$$TZA TYPE__array
     // -- first parameter is always the return type
     int32 paramcount = 0;
-    if(!exists)
-        funccontext->AddParameter("__return", Hash("__return"), regreturntype);
-    else if(exists->GetReturnType() != regreturntype) {
+    if (!exists)
+        funccontext->AddParameter("__return", Hash("__return"), regreturntype, 1, 0);
+    else if (exists->GetReturnType() != regreturntype)
+    {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - return type doesn't match - Removing %s()\n"
@@ -2110,34 +2279,75 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     ++paramcount;
 
     // -- now we build the parameter list
-    while(true) {
-        // -- 
+    while (true)
+    {
+        // -- read either a parameter, or the closing parenthesis
         tReadToken paramtypetoken(filebuf);
-        if(!GetToken(paramtypetoken)) {
+        if (!GetToken(paramtypetoken))
+        {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber, "Error - expecting ')'\n");
-            return false;
+            return (false);
         }
 
         // -- see if the paramtype is actually the closing parenthesis
-        if(paramtypetoken.type == TOKEN_PAREN_CLOSE) {
+        if (paramtypetoken.type == TOKEN_PAREN_CLOSE)
+        {
             // -- we're done with the parameter list
             filebuf = paramtypetoken;
             break;
         }
 
         // -- ensure we read a valid type (also, no void parameters)
+        bool8 param_is_array = false;
         eVarType paramtype = GetRegisteredType(paramtypetoken.tokenptr, paramtypetoken.length);
         if (paramtype < FIRST_VALID_TYPE)
         {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber, "Error - invalid parameter type\n");
-            return false;
+            return (false);
         }
 
-        // -- get the parameter name
+        // -- get the parameter name (or possibly an '[]' denoting the param is an array)
         tReadToken paramname(paramtypetoken);
-        if(!GetToken(paramname) || paramname.type != TOKEN_IDENTIFIER) {
+        if (!GetToken(paramname))
+        {
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber, "Error - invalid parameter identifier\n");
+            return (false);
+        }
+
+        // -- see if we've got an array
+        if (paramname.type == TOKEN_SQUARE_OPEN)
+        {
+            if (!GetToken(paramname) || paramname.type != TOKEN_SQUARE_CLOSE)
+            {
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber, "Error - expecting ']'\n");
+                return (false);
+            }
+
+            // -- no support for arrays of hashtables (yet?)
+            if (paramtype == TYPE_hashtable)
+            {
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber, "Error - arrays of hashtables is not supported.\n");
+           }
+
+            // -- set the bool
+            param_is_array = true;
+
+            // -- read the param name now
+            if (!GetToken(paramname))
+            {
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber, "Error - expecting parameter identifier\n");
+                return (false);
+            }
+        }
+
+        if (paramname.type != TOKEN_IDENTIFIER)
+        {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber, "Error - invalid parameter identifier\n");
             return false;
@@ -2147,10 +2357,12 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         filebuf = paramname;
 
         // -- if the function doesn't exists, add the parameter
-        if(!exists) {
+        if (!exists)
+        {
             // -- add the parameter to the context
-            if(!funccontext->AddParameter(TokenPrint(paramname), Hash(TokenPrint(paramname)),
-                                          paramtype)) {
+            if (!funccontext->AddParameter(TokenPrint(paramname), Hash(TokenPrint(paramname)), paramtype,
+                                           param_is_array ? -1 : 1, 0))
+            {
                 ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               filebuf.linenumber,
                               "Error - unable to add parameter %s to function declaration %s\n",
@@ -2160,12 +2372,14 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         }
 
         // -- else ensure the parameters match
-        else {
+        else
+        {
             int cur_param_count = exists->GetContext()->GetParameterCount();
             CVariableEntry* paramexists = paramcount < cur_param_count
                                           ? exists->GetContext()->GetParameter(paramcount)
                                           : NULL;
-            if(!paramexists || paramexists->GetType() != paramtype) {
+            if (!paramexists || paramexists->GetType() != paramtype || paramexists->IsArray() != param_is_array)
+            {
                 ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               filebuf.linenumber,
                               "Error - function signature does not match: %s\n"
@@ -2186,16 +2400,19 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
         // -- see if we've got a comma
         tReadToken peektoken(filebuf);
-        if(!GetToken(peektoken)) {
+        if (!GetToken(peektoken))
+        {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber, "Error - expecting ')'\n");
             return false;
         }
-        if(peektoken.type == TOKEN_COMMA) {
 
+        if (peektoken.type == TOKEN_COMMA)
+        {
             // -- if we do have a comma, ensure the token after it is the next param type
             tReadToken peektoken2(peektoken);
-            if(!GetToken(peektoken2) || peektoken2.type != TOKEN_REGTYPE) {
+            if (!GetToken(peektoken2) || peektoken2.type != TOKEN_REGTYPE)
+            {
                 ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               peektoken.linenumber, "Error - expecting ')'\n");
                 return false;
@@ -2208,13 +2425,15 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
     // see if we're simply declaring the function
     peektoken = filebuf;
-    if(!GetToken(peektoken)) {
+    if (!GetToken(peektoken))
+    {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber, "Error - expecting '{'\n");
         return false;
     }
 
-    if(peektoken.type == TOKEN_SEMICOLON) {
+    if (peektoken.type == TOKEN_SEMICOLON)
+    {
         // -- just a declaration
         filebuf = peektoken;
 
@@ -2228,7 +2447,8 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     }
 
     // -- after the function prototype, we should have the statement body, beginning with a brace
-    if(peektoken.type != TOKEN_BRACE_OPEN) {
+    if (peektoken.type != TOKEN_BRACE_OPEN)
+    {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber, "Error - expecting '{'\n");
         return false;
@@ -2245,7 +2465,7 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     
     // -- read the function body
     int32 result = ParseStatementBlock(codeblock, funcdeclnode->leftchild, filebuf, true);
-    if(!result) {
+    if (!result) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - unabled to parse statement block\n");
@@ -2280,21 +2500,21 @@ bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 
 	// -- see if the next token is an identifier
 	tReadToken idtoken(filebuf);
-	if(!GetToken(idtoken))
+	if (!GetToken(idtoken))
 		return false;
 
-	if(idtoken.type != TOKEN_IDENTIFIER)
+	if (idtoken.type != TOKEN_IDENTIFIER)
 		return false;
 
     // -- see if this is a namespaced function declaration
     bool8 usenamespace = false;
     tReadToken nsnametoken(idtoken);
     tReadToken nstoken(idtoken);
-    if(GetToken(nstoken) && nstoken.type == TOKEN_NAMESPACE) {
+    if (GetToken(nstoken) && nstoken.type == TOKEN_NAMESPACE) {
         usenamespace = true;
         // -- we'd better find another identifier
         idtoken = nstoken;
-        if(!GetToken(idtoken) || idtoken.type != TOKEN_IDENTIFIER) {
+        if (!GetToken(idtoken) || idtoken.type != TOKEN_IDENTIFIER) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           idtoken.linenumber,
                           "Error - Expecting an identifier after namespace %s::\n",
@@ -2305,9 +2525,9 @@ bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 
     // -- ensure the next token is an open parenthesis, making this a function call
     tReadToken peektoken(idtoken);
-    if(!GetToken(peektoken))
+    if (!GetToken(peektoken))
         return false;
-    if(peektoken.type != TOKEN_PAREN_OPEN)
+    if (peektoken.type != TOKEN_PAREN_OPEN)
         return false;
 
     // -- we're committed to a function call
@@ -2339,12 +2559,12 @@ bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 
         // -- see if we have a closing parenthesis
         tReadToken peektoken(filebuf);
-        if(!GetToken(peektoken)) {
+        if (!GetToken(peektoken)) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           peektoken.linenumber, "Error - expecting ')'\n");
             return false;
         }
-        if(peektoken.type == TOKEN_PAREN_CLOSE) {
+        if (peektoken.type == TOKEN_PAREN_CLOSE) {
             // -- we've found all the parameters we're going to find
             filebuf = peektoken;
             break;
@@ -2352,8 +2572,8 @@ bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 
         // -- if we didn't find a closing parenthesis, and this isn't the first parameter, then
         // -- we'd better find the separating comma
-        if(paramindex >= 1) {
-            if(!GetToken(filebuf) || filebuf.type != TOKEN_COMMA) {
+        if (paramindex >= 1) {
+            if (!GetToken(filebuf) || filebuf.type != TOKEN_COMMA) {
                 ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               filebuf.linenumber,
                               "Error - Expecting ',' after parameter %d in call to %s()\n",
@@ -2377,7 +2597,7 @@ bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
         Unused_(valuenode);
 
         bool8 result = TryParseStatement(codeblock, filebuf, binopnode->rightchild);
-        if(!result) {
+        if (!result) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
                           "Error - Unable to evaluate parameter %d in call to %s()\n", paramindex,
@@ -2404,10 +2624,10 @@ bool8 TryParseBreakContinue(CCodeBlock* codeblock, tReadToken& filebuf, CCompile
 
     // -- ensure the next token is the 'return' keyword
     tReadToken peektoken(filebuf);
-    if(!GetToken(peektoken) || peektoken.type != TOKEN_KEYWORD)
+    if (!GetToken(peektoken) || peektoken.type != TOKEN_KEYWORD)
         return false;
 	int32 reservedwordtype = GetReservedKeywordType(peektoken.tokenptr, peektoken.length);
-    if(reservedwordtype != KEYWORD_break && reservedwordtype != KEYWORD_continue)
+    if (reservedwordtype != KEYWORD_break && reservedwordtype != KEYWORD_continue)
         return false;
 
     // -- ensure we're in the middle of compiling a loop
@@ -2433,26 +2653,26 @@ bool8 TryParseBreakContinue(CCodeBlock* codeblock, tReadToken& filebuf, CCompile
 bool8 TryParseReturn(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
 
     // -- if we're already parsing a return statement, ensure this is non-reentrant
-    if(gGlobalReturnStatement)
+    if (gGlobalReturnStatement)
         return (false);
 
     // -- disallow return statments while in the middle of parenthetical expressions
     // -- (at least until I can think of a valid example)
-    if(gGlobalExprParenDepth > 0)
+    if (gGlobalExprParenDepth > 0)
         return (false);
 
     // -- can't return from a function, if there's no active function being defined
     int32 stacktopdummy = 0;
     CObjectEntry* dummy = NULL;
-    if(codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy) == NULL)
+    if (codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy) == NULL)
         return false;
 
     // -- ensure the next token is the 'return' keyword
     tReadToken peektoken(filebuf);
-    if(!GetToken(peektoken) || peektoken.type != TOKEN_KEYWORD)
+    if (!GetToken(peektoken) || peektoken.type != TOKEN_KEYWORD)
         return false;
 	int32 reservedwordtype = GetReservedKeywordType(peektoken.tokenptr, peektoken.length);
-    if(reservedwordtype != KEYWORD_return)
+    if (reservedwordtype != KEYWORD_return)
         return false;
 
     // -- committed
@@ -2463,7 +2683,7 @@ bool8 TryParseReturn(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNod
     CFuncReturnNode* returnnode = TinAlloc(ALLOC_TreeNode, CFuncReturnNode, codeblock, link,
                                            filebuf.linenumber);
     bool8 result = TryParseStatement(codeblock, filebuf, returnnode->leftchild);
-	if(!result) {
+	if (!result) {
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - failed to parse 'return' statement\n");
@@ -2472,7 +2692,7 @@ bool8 TryParseReturn(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNod
 	}
 
     // -- ensure we have a non-empty return - all functions return a value
-    if(!returnnode->leftchild) {
+    if (!returnnode->leftchild) {
         CValueNode* nullreturn = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock,
                                           returnnode->leftchild, filebuf.linenumber, "", 0, false,
                                           TYPE_int);
@@ -2489,7 +2709,7 @@ bool8 TryParseReturn(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNod
 // ------------------------------------------------------------------------------------------------
 bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
     tReadToken nexttoken(filebuf);
-    if(!GetToken(nexttoken) || nexttoken.type != TOKEN_SQUARE_OPEN)
+    if (!GetToken(nexttoken) || nexttoken.type != TOKEN_SQUARE_OPEN)
         return false;
 
     // -- committed to an array hash, comma delineated sequence of statements
@@ -2507,19 +2727,19 @@ bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
     int32 hashexprcount = 0;
     while(true) {
         tReadToken hashexpr(filebuf);
-        if(!GetToken(hashexpr)) {
+        if (!GetToken(hashexpr)) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber, "Error - expecting ']'\n");
             return false;
         }
 
         // -- see if the paramtype is actually the closing parenthesis
-        if(hashexpr.type == TOKEN_SQUARE_CLOSE) {
+        if (hashexpr.type == TOKEN_SQUARE_CLOSE) {
             // -- we're done with the hash value list
             filebuf = hashexpr;
 
             // -- ensure we found at least one hash value
-            if(hashexprcount == 0) {
+            if (hashexprcount == 0) {
                 ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               filebuf.linenumber, "Error - empty array hash []\n");
                 return false;
@@ -2530,8 +2750,8 @@ bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
         }
 
         // -- if this isn't our first hash expr, then we'd better find a comma
-        if(hashexprcount > 0) {
-            if(hashexpr.type != TOKEN_COMMA) {
+        if (hashexprcount > 0) {
+            if (hashexpr.type != TOKEN_COMMA) {
                 ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               filebuf.linenumber, "Error - expecting ']'\n");
                 return false;
@@ -2547,7 +2767,7 @@ bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
         CCompileTreeNode* templink = NULL;
         CArrayHashNode* ahn = TinAlloc(ALLOC_TreeNode, CArrayHashNode, codeblock, templink,
                                        filebuf.linenumber);
-        if(!TryParseStatement(codeblock, filebuf, ahn->rightchild)) {
+        if (!TryParseStatement(codeblock, filebuf, ahn->rightchild)) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber, "Error - expecting ']'\n");
             return false;
@@ -2566,7 +2786,7 @@ bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 
         // -- ensure we didn't exit the TryParseStatement with a ';' or a ')'
         tReadToken peektoken(filebuf);
-        if(!GetToken(peektoken) || peektoken.type == TOKEN_SEMICOLON ||
+        if (!GetToken(peektoken) || peektoken.type == TOKEN_SEMICOLON ||
            peektoken.type == TOKEN_PAREN_CLOSE) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber, "Error - expecting ']'\n");
@@ -2581,10 +2801,10 @@ bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
 bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
     // -- ensure the next token is the 'new' keyword
     tReadToken peektoken(filebuf);
-    if(!GetToken(peektoken) || peektoken.type != TOKEN_KEYWORD)
+    if (!GetToken(peektoken) || peektoken.type != TOKEN_KEYWORD)
         return false;
 	int32 reservedwordtype = GetReservedKeywordType(peektoken.tokenptr, peektoken.length);
-    if(reservedwordtype != KEYWORD_schedule && reservedwordtype != KEYWORD_execute)
+    if (reservedwordtype != KEYWORD_schedule && reservedwordtype != KEYWORD_execute)
         return false;
 
     // -- see if we're parsing an execute statement - same as a schedule, but executes immediately
@@ -2594,9 +2814,9 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
     // -- format is schedule(objid, time, funchash, arg1, ... argn);
     // -- formate is execute(objid, funchash, arg1, ... argn);
     // -- ensure the next token is an open parenthesis, making this a function call
-    if(!GetToken(peektoken))
+    if (!GetToken(peektoken))
         return false;
-    if(peektoken.type != TOKEN_PAREN_OPEN)
+    if (peektoken.type != TOKEN_PAREN_OPEN)
         return false;
 
     // -- we're committed to a schedule call
@@ -2608,7 +2828,7 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
     // -- the left child is the tree resolving to an objectid
     CCompileTreeNode* templink = NULL;
     bool8 result = TryParseStatement(codeblock, filebuf, templink);
-    if(!result) {
+    if (!result) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - Unable to resolve object ID in schedule/execute() call\n");
@@ -2617,7 +2837,7 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 
     // -- read a comma next
     peektoken = filebuf;
-    if(!GetToken(peektoken)) {
+    if (!GetToken(peektoken)) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - expecting ',' in schedule/execute() call\n");
@@ -2627,9 +2847,9 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
     // -- read the delay (msec)
     // $$$TZA read a statement?  tree resolving to the scheduled delay time?
     int32 delaytime = 0;
-    if(! immediate_execution) {
+    if (! immediate_execution) {
         tReadToken delaytoken(peektoken);
-        if(!GetToken(delaytoken) || delaytoken.type != TOKEN_INTEGER) {
+        if (!GetToken(delaytoken) || delaytoken.type != TOKEN_INTEGER) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           delaytoken.linenumber,
                           "Error - expecting delay (msec) in schedule/execute() call\n");
@@ -2641,7 +2861,7 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 
         // -- read a comma next
         peektoken = delaytoken;
-        if(!GetToken(peektoken)) {
+        if (!GetToken(peektoken)) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           peektoken.linenumber,
                           "Error - expecting ',' in schedule/execute() call\n");
@@ -2668,7 +2888,7 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 
     // -- the left child is the tree resolving to a function hash
     result = TryParseStatement(codeblock, filebuf, schedulefunc->leftchild);
-    if(!result) {
+    if (!result) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - Unable to resolve function hash ID in schedule() call\n");
@@ -2685,20 +2905,20 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 
         // -- see if we have a closing parenthesis
         tReadToken peektoken(filebuf);
-        if(!GetToken(peektoken)) {
+        if (!GetToken(peektoken)) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           peektoken.linenumber,
                           "Error - expecting ')'\n");
             return false;
         }
-        if(peektoken.type == TOKEN_PAREN_CLOSE) {
+        if (peektoken.type == TOKEN_PAREN_CLOSE) {
             // -- we've found all the parameters we're going to find
             filebuf = peektoken;
             break;
         }
 
         // -- if we didn't find a closing parenthesis, we'd better find the separating comma
-        if(!GetToken(filebuf) || filebuf.type != TOKEN_COMMA) {
+        if (!GetToken(filebuf) || filebuf.type != TOKEN_COMMA) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
                           "Error - Expecting ',' after parameter %d in schedule() call\n",
@@ -2715,7 +2935,7 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
                                                    paramindex);
 
         bool8 result = TryParseStatement(codeblock, filebuf, schedparamnode->leftchild);
-        if(!result) {
+        if (!result) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber,
                           "Error - Unable to evaluate parameter %d in schedule() statement\n",
@@ -2735,15 +2955,15 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
 
     // -- if we're already parsing a destroy statement, ensure this is non-reentrant
-    if(gGlobalCreateStatement)
+    if (gGlobalCreateStatement)
         return (false);
 
     // -- ensure the next token is the 'new' keyword
     tReadToken peektoken(filebuf);
-    if(!GetToken(peektoken) || peektoken.type != TOKEN_KEYWORD)
+    if (!GetToken(peektoken) || peektoken.type != TOKEN_KEYWORD)
         return false;
 	int32 reservedwordtype = GetReservedKeywordType(peektoken.tokenptr, peektoken.length);
-    if(reservedwordtype != KEYWORD_create)
+    if (reservedwordtype != KEYWORD_create)
         return false;
 
     // -- committed
@@ -2751,7 +2971,7 @@ bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileT
     gGlobalCreateStatement = true;
 
     tReadToken classtoken(filebuf);
-    if(!GetToken(classtoken) || classtoken.type != TOKEN_IDENTIFIER) {
+    if (!GetToken(classtoken) || classtoken.type != TOKEN_IDENTIFIER) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber, "Error - expecting class name\n");
         gGlobalCreateStatement = false;
@@ -2760,7 +2980,7 @@ bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileT
 
     // -- read an open parenthesis
     tReadToken nexttoken(classtoken);
-    if(!GetToken(nexttoken) || nexttoken.type != TOKEN_PAREN_OPEN) {
+    if (!GetToken(nexttoken) || nexttoken.type != TOKEN_PAREN_OPEN) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       nexttoken.linenumber, "Error - expecting '('\n");
         gGlobalCreateStatement = false;
@@ -2779,7 +2999,7 @@ bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileT
     }
 
     // -- read the closing parenthesis
-    if(!GetToken(nexttoken) || nexttoken.type != TOKEN_PAREN_CLOSE) {
+    if (!GetToken(nexttoken) || nexttoken.type != TOKEN_PAREN_CLOSE) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                         nexttoken.linenumber, "Error - expecting ')'\n");
         gGlobalCreateStatement = false;
@@ -2790,7 +3010,7 @@ bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileT
     filebuf = nexttoken;
 
     // -- create the node
-    if(obj_name_expr_root != NULL)
+    if (obj_name_expr_root != NULL)
     {
         CCreateObjectNode* newobjnode = TinAlloc(ALLOC_TreeNode, CCreateObjectNode, codeblock,
                                                  link, filebuf.linenumber, classtoken.tokenptr,
@@ -2819,20 +3039,20 @@ bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileT
 bool8 TryParseDestroyObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link) {
 
     // -- if we're already parsing a destroy statement, ensure this is non-reentrant
-    if(gGlobalDestroyStatement)
+    if (gGlobalDestroyStatement)
         return (false);
 
     // -- disallow return statments while in the middle of parenthetical expressions
     // -- (at least until I can think of a valid example)
-    if(gGlobalExprParenDepth > 0)
+    if (gGlobalExprParenDepth > 0)
         return (false);
 
     // -- ensure the next token is the 'delete' keyword
     tReadToken peektoken(filebuf);
-    if(!GetToken(peektoken) || peektoken.type != TOKEN_KEYWORD)
+    if (!GetToken(peektoken) || peektoken.type != TOKEN_KEYWORD)
         return false;
 	int32 reservedwordtype = GetReservedKeywordType(peektoken.tokenptr, peektoken.length);
-    if(reservedwordtype != KEYWORD_destroy)
+    if (reservedwordtype != KEYWORD_destroy)
         return false;
 
     // -- committed
@@ -2844,7 +3064,7 @@ bool8 TryParseDestroyObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompile
                                                   link, filebuf.linenumber);
 
     // -- ensure we have a valid statement
-    if(!TryParseStatement(codeblock, filebuf, destroyobjnode->leftchild)) {
+    if (!TryParseStatement(codeblock, filebuf, destroyobjnode->leftchild)) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
                       "Error - 'destroy' found, expecting an object statement\n");
@@ -2886,7 +3106,7 @@ bool8 ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& link, tReadT
 	bool8 foundtoken = true;
 	do {
         // -- a small optimization, skip whitespace and comments at the start of the loop
-        if(!SkipWhiteSpace(filetokenbuf)) {
+        if (!SkipWhiteSpace(filetokenbuf)) {
 		    ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filetokenbuf.linenumber, "Error - unexpected EOF\n");
             return false;
@@ -2894,8 +3114,8 @@ bool8 ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& link, tReadT
 
 		// -- see if we're done with this statement block
 		tReadToken peekbuf(filetokenbuf);
-		if(! GetToken(peekbuf)) {
-            if(bracedepth > 0) {
+		if (! GetToken(peekbuf)) {
+            if (bracedepth > 0) {
 				ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               filetokenbuf.linenumber, "Error - expecting '}'\n");
 				return false;
@@ -2907,19 +3127,19 @@ bool8 ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& link, tReadT
 		}
 
         // -- see if we've increased our brace depth
-        if(peekbuf.type == TOKEN_BRACE_OPEN) {
+        if (peekbuf.type == TOKEN_BRACE_OPEN) {
             filetokenbuf = peekbuf;
             ++bracedepth;
             continue;
         }
 
 		// -- see if we're done
-		if(peekbuf.type == TOKEN_BRACE_CLOSE) {
+		if (peekbuf.type == TOKEN_BRACE_CLOSE) {
 			filetokenbuf = peekbuf;
             --bracedepth;
 
             // -- see if we've balanced out
-            if(bracedepth == 0) {
+            if (bracedepth == 0) {
                 filebuf = filetokenbuf;
 				return true;
             }
@@ -2937,7 +3157,7 @@ bool8 ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& link, tReadT
 		found = found || TryParseForLoop(codeblock, filetokenbuf, curroot->next);
 		found = found || TryParseDestroyObject(codeblock, filetokenbuf, curroot->next);
 
-		if(found) {
+		if (found) {
 			// -- always add to the end of the current root linked list
             while(curroot && curroot->next)
                 curroot = curroot->next;
@@ -2945,7 +3165,7 @@ bool8 ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& link, tReadT
 		else {
 			// -- not found - dump out the token
 			foundtoken = GetToken(filetokenbuf);
-			if(foundtoken) {
+			if (foundtoken) {
 				ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               filetokenbuf.linenumber, "Unhandled token: [%s] %s, line %d\n",
                               gTokenTypeStrings[filetokenbuf.type], TokenPrint(filetokenbuf),
@@ -2970,7 +3190,7 @@ CCodeBlock* ParseFile(CScriptContext* script_context, const char* filename) {
 CCodeBlock* ParseText(CScriptContext* script_context, const char* filename, const char* filebuf) {
 
 #if DEBUG_CODEBLOCK
-if(GetDebugCodeBlock()) {
+if (GetDebugCodeBlock()) {
     printf("\n*** COMPILING: %s\n\n", filename && filename[0] ? filename : "<stdin>");
 }
 #endif
@@ -2979,7 +3199,7 @@ if(GetDebugCodeBlock()) {
     gGlobalExprParenDepth = 0;
 
     // -- sanity check
-    if(!filebuf)
+    if (!filebuf)
         return NULL;
 
     CCodeBlock* codeblock = TinAlloc(ALLOC_CodeBlock, CCodeBlock, script_context, filename);
@@ -2987,7 +3207,7 @@ if(GetDebugCodeBlock()) {
 	// create the starting root, initial token, and parse the existing statements
 	CCompileTreeNode* root = CCompileTreeNode::CreateTreeRoot(codeblock);
 	tReadToken parsetoken(filebuf, 0);
-	if(!ParseStatementBlock(codeblock, root->next, parsetoken, false)) {
+	if (!ParseStatementBlock(codeblock, root->next, parsetoken, false)) {
 		ScriptAssert_(script_context, 0, codeblock->GetFileName(), parsetoken.linenumber,
                       "Error - failed to ParseStatementBlock()\n");
         codeblock->SetFinishedParsing();
@@ -3016,7 +3236,7 @@ if(GetDebugCodeBlock()) {
     codeblock->AllocateInstructionBlock(size, codeblock->GetLineNumberCount());
 
     // -- run through the tree again, this time actually compiling it
-    if(!codeblock->CompileTree(*root)) {
+    if (!codeblock->CompileTree(*root)) {
 		ScriptAssert_(script_context, 0, codeblock->GetFileName(), -1,
                       "Error - failed to compile tree for file: %s", codeblock->GetFileName());
         // -- failed
@@ -3034,12 +3254,12 @@ if(GetDebugCodeBlock()) {
 
 // ------------------------------------------------------------------------------------------------
 bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
-    if(!codeblock || !binfilename)
+    if (!codeblock || !binfilename)
         return false;
 
   	// -- open the file
 	FILE* filehandle = NULL;
-	if(binfilename) {
+	if (binfilename) {
 		 int32 result = fopen_s(&filehandle, binfilename, "wb");
 		 if (result != 0) {
              ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
@@ -3047,7 +3267,7 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
 			 return false;
          }
 	}
-	if(!filehandle) {
+	if (!filehandle) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
                       "Error - unable to write file %s\n", binfilename);
 		return false;
@@ -3057,7 +3277,7 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
     // -- write the version
     int32 version = kCompilerVersion;
     int32 instrwritten = (int32)fwrite((void*)&version, sizeof(int32), 1, filehandle);
-    if(instrwritten != 1) {
+    if (instrwritten != 1) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
                       "Error - unable to write file %s\n", binfilename);
         return false;
@@ -3066,7 +3286,7 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
     // -- write the instrcount
     int32 instrcount = codeblock->GetInstructionCount();
     instrwritten = (int32)fwrite((void*)&instrcount, sizeof(int32), 1, filehandle);
-    if(instrwritten != 1) {
+    if (instrwritten != 1) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
                       "Error - unable to write file %s\n", binfilename);
         return false;
@@ -3079,7 +3299,7 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
     int32 linenumbercount = 0;
 #endif
     instrwritten = (int32)fwrite((void*)&linenumbercount, sizeof(int32), 1, filehandle);
-    if(instrwritten != 1) {
+    if (instrwritten != 1) {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
                       "Error - unable to write file %s\n", binfilename);
         return false;
@@ -3093,7 +3313,7 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
         remaining -= writecount;
         int32 instrwritten = (int32)fwrite((void*)instrptr, (int32)sizeof(uint32), writecount, filehandle);
         fflush(filehandle);
-        if(instrwritten != writecount) {
+        if (instrwritten != writecount) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
                           "Error - unable to write file %s\n", binfilename);
             return false;
@@ -3112,7 +3332,7 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
         remaining -= writecount;
         int32 instrwritten = (int32)fwrite((void*)instrptr, (int32)sizeof(uint32), writecount, filehandle);
         fflush(filehandle);
-        if(instrwritten != writecount) {
+        if (instrwritten != writecount) {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), -1,
                           "Error - unable to write file %s\n", binfilename);
             return false;
@@ -3148,12 +3368,12 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename) {
 CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename) {
 
     // -- sanity check
-    if(!binfilename)
+    if (!binfilename)
         return NULL;
 
 	// -- open the file
 	FILE* filehandle = NULL;
-	if(binfilename) {
+	if (binfilename) {
 		 int32 result = fopen_s(&filehandle, binfilename, "rb");
 		 if (result != 0) {
              ScriptAssert_(script_context, 0, "<internal>", -1,
@@ -3161,7 +3381,7 @@ CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename) 
 			 return NULL;
          }
 	}
-	if(!filehandle) {
+	if (!filehandle) {
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - failed to load file: %s\n", binfilename);
 		return NULL;
@@ -3170,7 +3390,7 @@ CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename) 
     // -- read the version
     int32 version = -1;
     int32 instrread = (int32)fread((int32*)&version, sizeof(int32), 1, filehandle);
-    if(ferror(filehandle) || instrread != 1) {
+    if (ferror(filehandle) || instrread != 1) {
         fclose(filehandle);
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - unable to read file: %s\n", binfilename);
@@ -3180,13 +3400,13 @@ CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename) 
     // -- read the instrcount
     int32 instrcount = -1;
     instrread = (int32)fread((int32*)&instrcount, sizeof(int32), 1, filehandle);
-    if(ferror(filehandle) || instrread != 1) {
+    if (ferror(filehandle) || instrread != 1) {
         fclose(filehandle);
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - unable to read file: %s\n", binfilename);
         return NULL;
     }
-    if(instrcount <= 0) {
+    if (instrcount <= 0) {
 	    fclose(filehandle);
 		return NULL;
     }
@@ -3194,7 +3414,7 @@ CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename) 
     // -- read the linenumber count
     int32 linenumbercount = -1;
     instrread = (int32)fread((int32*)&linenumbercount, sizeof(int32), 1, filehandle);
-    if(ferror(filehandle) || instrread != 1) {
+    if (ferror(filehandle) || instrread != 1) {
         fclose(filehandle);
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - unable to read file: %s\n", binfilename);
@@ -3208,7 +3428,7 @@ CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename) 
     // -- read the file into the codeblock
     uint32* readptr = codeblock->GetInstructionPtr();
     instrread = (int32)fread(readptr, sizeof(uint32), (int32)instrcount, filehandle);
-    if(ferror(filehandle)) {
+    if (ferror(filehandle)) {
         fclose(filehandle);
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - unable to read file: %s\n", binfilename);
@@ -3216,7 +3436,7 @@ CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename) 
         return NULL;
     }
 
-    if(instrread != instrcount) {
+    if (instrread != instrcount) {
 	    fclose(filehandle);
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - unable to read file: %s\n", binfilename);
@@ -3235,35 +3455,38 @@ CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename) 
 // ------------------------------------------------------------------------------------------------
 CVariableEntry* AddVariable(CScriptContext* script_context, tVarTable* curglobalvartable,
                             CFunctionEntry* curfuncdefinition, const char* varname, uint32 varhash,
-                            eVarType vartype) {
-
+                            eVarType vartype, int array_size)
+{
     // get the function we're currently defining
     CVariableEntry* ve = NULL;
-    if(curfuncdefinition) {
+    if (curfuncdefinition) {
         // -- search the local var table for the executing function
         ve = curfuncdefinition->GetContext()->GetLocalVar(varhash);
-        if(!ve) {
-            ve = curfuncdefinition->GetContext()->AddLocalVar(varname, varhash, vartype, false);
-        }
+        if (!ve)
+            ve = curfuncdefinition->GetContext()->AddLocalVar(varname, varhash, vartype, array_size, false);
     }
     // -- not defining a function - see if we're compiling
-    else if(curglobalvartable) {
+    else if (curglobalvartable)
+    {
         // -- if the variable already exists, we're done
         ve = curglobalvartable->FindItem(varhash);
-        if(!ve) {
+        if (!ve)
+        {
 	        ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, script_context, varname, varhash,
-                                                          vartype, false, 0, false);
+                                                          vartype, array_size, false, 0, false);
 	        uint32 hash = ve->GetHash();
 	        curglobalvartable->AddItem(*ve, hash);
         }
     }
-    else {
+    else
+    {
         // -- if the variable already exists, we're done
 	    tVarTable* globalvartable = script_context->GetGlobalNamespace()->GetVarTable();
         ve = globalvartable->FindItem(varhash);
-        if(!ve) {
-	        ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, script_context, varname, varhash,
-                                                          vartype, false, 0, false);
+        if (!ve)
+        {
+	        ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, script_context, varname, varhash, vartype, array_size,
+                          false, 0, false);
 	        uint32 hash = ve->GetHash();
 	        globalvartable->AddItem(*ve, hash);
         }
@@ -3272,10 +3495,56 @@ CVariableEntry* AddVariable(CScriptContext* script_context, tVarTable* curglobal
 }
 
 // ====================================================================================================================
+// GetObjectMember():  Given a NS hash, function or object ID, Var Hash, and an array hash, find the variable entry
+// ====================================================================================================================
+CVariableEntry* GetObjectMember(CScriptContext* script_context, CObjectEntry*& oe, uint32 ns_hash,
+                              uint32 func_or_obj, uint32 var_hash, uint32 array_hash)
+{
+    // -- note: these are the same 4x parameters as used to find a variable
+    // -- if they don't resolve to a member, we return NULL
+
+    // -- objects don't belong to a namespace
+    if (ns_hash != 0)
+        return (NULL);
+
+    // -- with no ns_hash, the next parameter is an object ID - see if we can find the objecct
+    oe = script_context->FindObjectEntry(func_or_obj);
+    if (!oe)
+        return (NULL);
+
+    // -- see if the object has the requested member
+    CVariableEntry* ve = oe->GetVariableEntry(var_hash);
+
+    // -- if we found a variable, but it's a hashtable, and we've been given an array hash,
+    // -- we need to find the variable within the hashtable
+    if (ve && ve->GetType() == TYPE_hashtable && array_hash != 0)
+    {
+        // -- get the var table
+        tVarTable* vartable = (tVarTable*)ve->GetAddr(oe ? oe->GetAddr() : NULL);
+
+        // -- look for the entry in the vartable
+        CVariableEntry* vte = vartable->FindItem(array_hash);
+        if (!vte)
+        {
+            ScriptAssert_(script_context, 0, "<internal>", -1,
+                            "Error - HashTable Variable %s: unable to find entry: %d\n",
+                            UnHash(ve->GetHash()), UnHash(array_hash));
+            return NULL;
+        }
+
+        // -- return the vte
+        ve = vte;
+    }
+
+    // -- return the result
+    return (ve);
+}
+
+// ====================================================================================================================
 // GetVariable():  Given a NS hash, function or object ID, Var Hash, and an array hash, find the variable entry
 // ====================================================================================================================
 CVariableEntry* GetVariable(CScriptContext* script_context, tVarTable* globalVarTable, uint32 ns_hash,
-                            uint32 func_or_obj, uint32 var_hash, uint32 array_hash)
+                            uint32 func_or_obj, uint32 var_hash, uint32 array_hash_index)
 {
 
     // -- to retrieve the variable:
@@ -3284,7 +3553,8 @@ CVariableEntry* GetVariable(CScriptContext* script_context, tVarTable* globalVar
     // --    the next word is non-zero means the var is a local var in a function
     // --    (note:  the ns hash could be "_global" for global functions)
     // --    else if the next word is zero, it's a global variable
-    // -- the last two words are, the hash table variable name, and the hash value of the entry
+    // -- the last two words are, the table variable name, and the hash value, or index
+    // -- if the variable is either an array or a hashtable
 
     CFunctionEntry* fe = NULL;
     CObjectEntry* oe = NULL;
@@ -3338,7 +3608,7 @@ CVariableEntry* GetVariable(CScriptContext* script_context, tVarTable* globalVar
         ve = fe->GetContext()->GetLocalVar(var_hash);
 
         // -- mark the variable entry with the owning function
-        if(ve)
+        if (ve)
             ve->SetFunctionEntry(fe);
     }
 
@@ -3356,35 +3626,39 @@ CVariableEntry* GetVariable(CScriptContext* script_context, tVarTable* globalVar
     // -- if we did not find the variable entry, fail
     if (!ve)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - Unable to find variable: %s\n",
-                      UnHash(var_hash));
+        //ScriptAssert_(script_context, 0, "<internal>", -1, "Error - Unable to find variable: %s\n",
+        //              UnHash(var_hash));
         return NULL;
     }
 
     // -- if we did find the variable, but were given an array hash, we need to go one step deeper
-    if (array_hash != 0)
+    if (array_hash_index != 0)
     {
-        if (ve->GetType() != TYPE_hashtable)
+        // -- if we've got a hashtable variable, the array_hash is a hash value, not an index
+        if (ve->GetType() == TYPE_hashtable)
+        {
+            // -- get the var table
+            tVarTable* vartable = (tVarTable*)ve->GetAddr(oe ? oe->GetAddr() : NULL);
+
+            // -- look for the entry in the vartable
+            CVariableEntry* vte = vartable->FindItem(array_hash_index);
+            if (!vte) {
+                ScriptAssert_(script_context, 0, "<internal>", -1,
+                              "Error - HashTable Variable %s: unable to find entry: %d\n",
+                              UnHash(ve->GetHash()), UnHash(array_hash_index));
+                return NULL;
+            }
+
+            // -- return the vte
+            ve = vte;
+        }
+
+        else if (!ve->IsArray())
         {
             ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - expecting variable %s to be a hashtable\n", UnHash(ve->GetHash()));
+                          "Error - expecting variable %s to be a hashtable or an array\n", UnHash(ve->GetHash()));
             return NULL;
         }
-
-        // -- get the var table
-        tVarTable* vartable = (tVarTable*)ve->GetAddr(oe ? oe->GetAddr() : NULL);
-
-        // -- look for the entry in the vartable
-        CVariableEntry* vte = vartable->FindItem(array_hash);
-        if(!vte) {
-            ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - HashTable Variable %s: unable to find entry: %d\n",
-                          UnHash(ve->GetHash()), UnHash(array_hash));
-            return NULL;
-        }
-
-        // -- return the vte
-        ve = vte;
     }
 
     return ve;
@@ -3394,7 +3668,7 @@ CVariableEntry* GetVariable(CScriptContext* script_context, tVarTable* globalVar
 CFunctionEntry* FuncDeclaration(CScriptContext* script_context, uint32 namespacehash,
                                 const char* funcname, uint32 funchash, EFunctionType type) {
     CNamespace* nsentry = script_context->FindNamespace(namespacehash);
-    if(!nsentry) {
+    if (!nsentry) {
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - unable to find Namespace: %s\n", UnHash(namespacehash));
         return NULL;
@@ -3408,13 +3682,13 @@ CFunctionEntry* FuncDeclaration(CScriptContext* script_context, CNamespace* nsen
                                 const char* funcname, uint32 funchash, EFunctionType type) {
 
     // -- no namespace means by definition this is a global function
-    if(!nsentry) {
+    if (!nsentry) {
         nsentry = script_context->GetGlobalNamespace();
     }
 
     // -- remove any existing function decl
 	CFunctionEntry* fe = nsentry->GetFuncTable()->FindItem(funchash);
-	if(fe) {
+	if (fe) {
         nsentry->GetFuncTable()->RemoveItem(fe->GetHash());
         TinFree(fe);
     }

@@ -70,33 +70,47 @@ void* GetStackVarAddr(CScriptContext* script_context, CExecStack& execstack,
 
 bool8 GetStackValue(CScriptContext* script_context, CExecStack& execstack,
                     CFunctionCallStack& funccallstack, void*& valaddr, eVarType& valtype,
-                    CVariableEntry*& ve, CObjectEntry*& oe) {
+                    CVariableEntry*& ve, CObjectEntry*& oe)
+{
     // -- we'll always return a value, but if that comes from a var or an object member,
     // -- return those as well
     ve = NULL;
     oe = NULL;
 
 	// -- if a variable was pushed, use the var addr instead
-	if(valtype == TYPE__var || valtype == TYPE__hashvar)
+	if(valtype == TYPE__var || valtype == TYPE__hashvarindex)
     {
         uint32 val1ns = ((uint32*)valaddr)[0];
         uint32 val1func = ((uint32*)valaddr)[1];
         uint32 val1hash = ((uint32*)valaddr)[2];
 
-        // -- one more level of dereference for variables that are actually hashtables
-        uint32 val1hashvar = (valtype == TYPE__hashvar) ? ((uint32*)valaddr)[3] : 0;
+        // -- one more level of dereference for variables that are actually hashtables or arrays
+        uint32 ve_array_hash_index = (valtype == TYPE__hashvarindex) ? ((uint32*)valaddr)[3] : 0;
 
-		ve = GetVariable(script_context, script_context->GetGlobalNamespace()->GetVarTable(), val1ns, val1func,
-                         val1hash, val1hashvar);
+        // -- this method will return the object, if the 4x parameters resolve to an object member
+        ve = GetObjectMember(script_context, oe, val1ns, val1func, val1hash, ve_array_hash_index);
+
+        // -- if not, search for a global/local variable
+        if (!ve)
+		    ve = GetVariable(script_context, script_context->GetGlobalNamespace()->GetVarTable(), val1ns, val1func,
+                             val1hash, ve_array_hash_index);
+
+        // -- if we still haven't found the variable, assert and fail
         if (!ve)
         {
             ScriptAssert_(script_context, 0, "<internal>", -1,
                           "Error - Unable to find variable %d\n", UnHash(val1hash));
-            return false;
+            return (false);
         }
-		valaddr = ve->GetAddr(NULL);
+
+        // -- if the variable is not a hashtable, but an array, we need to get the address of the array element
+        if (ve->IsArray())
+            valaddr = ve->GetArrayVarAddr(oe ? oe->GetAddr() : NULL, ve_array_hash_index);
+        else
+		    valaddr = ve->GetAddr(NULL);
 		valtype = ve->GetType();
 	}
+
 	// -- if a member was pushed, use the var addr instead
     else if (valtype == TYPE__member)
     {
@@ -120,12 +134,31 @@ bool8 GetStackValue(CScriptContext* script_context, CExecStack& execstack,
         valaddr = ve->GetAddr(oe->GetAddr());
 		valtype = ve->GetType();
     }
+
     // -- if a stack variable was pushed...
     else if (valtype == TYPE__stackvar)
     {
         // -- we already know to do a stackvar lookup - replace the var with the actual value type
         valtype = (eVarType)((uint32*)valaddr)[0];
         int32 stackvaroffset = ((uint32*)valaddr)[1];
+        int32 local_var_index = ((uint32*)valaddr)[2];
+
+        // -- get the corresponding stack variable
+        int32 stacktop = 0;
+        CObjectEntry* oe = NULL;
+        CFunctionEntry* fe = funccallstack.GetExecuting(oe, stacktop);
+        if (!fe)
+            return (false);
+
+        // -- would be better to have random access to a hash table
+        tVarTable* var_table = fe->GetContext()->GetLocalVarTable();
+        int32 var_index = 0;
+        ve = var_table->First();
+        while (ve && var_index < local_var_index)
+        {
+            ve = var_table->Next();
+            ++var_index;
+        }
 
         // -- if we're pulling a stack var of type_hashtable, then the hash table isn't a "value" that can be
         // -- modified locally, but rather it lives in the function context, and must be manually emptied
@@ -168,24 +201,9 @@ bool8 GetStackValue(CScriptContext* script_context, CExecStack& execstack,
         // -- else it is a hash table... find the ve in the function context
         else
         {
-            int32 stacktop = 0;
-            CObjectEntry* oe = NULL;
-            CFunctionEntry* fe = funccallstack.GetExecuting(oe, stacktop);
-            if (!fe)
+            // -- ensure the offset is within range of the local variable stack space
+            if (stackvaroffset >= fe->GetContext()->CalculateLocalVarStackSize())
                 return (false);
-
-            tVarTable* var_table = fe->GetContext()->GetLocalVarTable();
-            if (stackvaroffset >= var_table->Used())
-                return (false);
-
-            // -- would be better to have random access to a hash table
-            int32 var_index = 0;
-            ve = var_table->First();
-            while (ve && var_index < stackvaroffset)
-            {
-                ve = var_table->Next();
-                ++var_index;
-            }
 
             // -- ensure the variable we found *is* a hash table
             if (!ve || ve->GetType() != TYPE_hashtable)
@@ -213,23 +231,22 @@ bool8 GetStackValue(CScriptContext* script_context, CExecStack& execstack,
 }
 
 bool8 GetBinOpValues(CScriptContext* script_context, CExecStack& execstack,
-                     CFunctionCallStack& funccallstack,
-                     void*& val0, eVarType& val0type,
-					 void*& val1, eVarType& val1type) {
-
+                     CFunctionCallStack& funccallstack, void*& val0, eVarType& val0type, void*& val1,
+                     eVarType& val1type)
+{
 	// -- Note:  values come off the stack in reverse order
 	// -- get the 2nd value
     CVariableEntry* ve1 = NULL;
     CObjectEntry* oe1 = NULL;
 	val1 = execstack.Pop(val1type);
-    if(!GetStackValue(script_context, execstack, funccallstack, val1, val1type, ve1, oe1))
+    if (!GetStackValue(script_context, execstack, funccallstack, val1, val1type, ve1, oe1))
         return false;
 
 	// -- get the 1st value
     CVariableEntry* ve0 = NULL;
     CObjectEntry* oe0 = NULL;
 	val0 = execstack.Pop(val0type);
-    if(!GetStackValue(script_context, execstack, funccallstack, val0, val0type, ve0, oe0))
+    if (!GetStackValue(script_context, execstack, funccallstack, val0, val0type, ve0, oe0))
         return false;
 
 	return true;
@@ -238,14 +255,15 @@ bool8 GetBinOpValues(CScriptContext* script_context, CExecStack& execstack,
 // -- this is to consolidate all the operations that pop two values from the stack
 // -- and combine them, and pushing the result onto the stack
 bool8 PerformBinaryOpPush(CScriptContext* script_context, CExecStack& execstack,
-                            CFunctionCallStack& funccallstack, eOpCode op) {
-
+                            CFunctionCallStack& funccallstack, eOpCode op)
+{
 	// -- Get both args from the stacks
 	eVarType val0type;
 	void* val0 = NULL;
 	eVarType val1type;
 	void* val1 = NULL;
-	if(!GetBinOpValues(script_context, execstack, funccallstack, val0, val0type, val1, val1type)) {
+	if (!GetBinOpValues(script_context, execstack, funccallstack, val0, val0type, val1, val1type))
+    {
 		printf("Error - failed GetBinopValues() for operation: %s\n",
 				GetOperationString(op));
 		return false;
@@ -421,9 +439,32 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
             return (false);
         }
 
-    	ve0->SetValue(oe0 ? oe0->GetAddr() : NULL, val1addr, &execstack, &funccallstack);
-        DebugTrace(op, "Var %s: %s", UnHash(ve0->GetHash()),
-                    DebugPrintVar(val1addr, ve0->GetType()));
+        // -- If the destination is an array parameter that has yet not been initialized,
+        // -- then the first assignment to it happens when the function is called.
+        // -- It would be preferable to initialize the parameter through a specific code path,
+        // -- but since the assignment uses the same path, we use the test below and trust
+        // -- the compiled code.  This implementation is 100% solid, just less preferable than
+        // -- a deliberate initialization.
+        if (ve0->IsParameter() && ve0->GetArraySize() == -1 && ve1 && ve1->IsArray() &&
+            ve0->GetType() == ve1->GetType())
+        {
+            ve0->InitializeArrayParameter(ve1, oe1);
+        }
+
+        else if (!ve0->IsArray())
+        {
+    	    ve0->SetValue(oe0 ? oe0->GetAddr() : NULL, val1addr, &execstack, &funccallstack);
+            DebugTrace(op, "Var %s: %s", UnHash(ve0->GetHash()),
+                        DebugPrintVar(val1addr, ve0->GetType()));
+        }
+        else
+        {
+            // $$$TZA need a better way to determine the array index
+            void* ve0_addr = ve0->GetAddr(oe0 ? oe0->GetAddr() : NULL);
+            int32 byte_count = kPointerDiffUInt32(var, ve0_addr);
+            int32 array_index = byte_count / gRegisteredTypeSize[ve0->GetType()];
+            ve0->SetValue(oe0 ? oe0->GetAddr() : NULL, val1addr, &execstack, &funccallstack, array_index);
+        }
     }
 
     // -- success
@@ -449,27 +490,31 @@ bool8 OpExecVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecSt
                     CFunctionCallStack& funccallstack) {
     uint32 varhash = *instrptr++;
     eVarType vartype = (eVarType)(*instrptr++);
+    int32 array_size = *instrptr++;
 
     // -- if we're in the middle of a function definition, the var is local
     // -- otherwise it's global... there are no nested function definitions allowed
     int32 stacktop = 0;
     CObjectEntry* oe = NULL;
     AddVariable(cb->GetScriptContext(), cb->GetScriptContext()->GetGlobalNamespace()->GetVarTable(),
-                funccallstack.GetTop(oe, stacktop), UnHash(varhash), varhash, vartype);
+                funccallstack.GetTop(oe, stacktop), UnHash(varhash), varhash, vartype, array_size);
     DebugTrace(op, "Var: %s", UnHash(varhash));
     return (true);
 }
 
 bool8 OpExecParamDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
+                      CFunctionCallStack& funccallstack)
+{
     uint32 varhash = *instrptr++;
     eVarType vartype = (eVarType)(*instrptr++);
+    int32 array_size = *instrptr++;
 
     int32 stacktop = 0;
     CObjectEntry* oe = NULL;
     CFunctionEntry* fe = funccallstack.GetTop(oe, stacktop);
     assert(fe != NULL);
-    fe->GetContext()->AddParameter(UnHash(varhash), varhash, vartype);
+
+    fe->GetContext()->AddParameter(UnHash(varhash), varhash, vartype, array_size, 0);
     DebugTrace(op, "Var: %s", UnHash(varhash));
     return (true);
 }
@@ -805,8 +850,7 @@ bool8 OpExecPushLocalVar(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
                          CFunctionCallStack& funccallstack) {
     // -- next instruction is the variable hash followed by the function context hash
     execstack.Push((void*)instrptr, TYPE__stackvar);
-    DebugTrace(op, "StackVar [%s : %d]",
-               GetRegisteredTypeName((eVarType)instrptr[0]), instrptr[1]);
+    DebugTrace(op, "StackVar [%s : %d]", GetRegisteredTypeName((eVarType)instrptr[0]), instrptr[1]);
 
     // -- advance the instruction pointer
     int32 contentsize = kBytesToWordCount(gRegisteredTypeSize[TYPE__stackvar]);
@@ -822,10 +866,14 @@ bool8 OpExecPushLocalValue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     // -- next instruction is the stack offset
     int32 stackoffset = (int32)*instrptr++;
 
+    // -- next instruction is the local var index
+    int32 local_var_index = (int32)*instrptr++;
+
     // -- get the stack top for this function call
     void* stackvaraddr = GetStackVarAddr(cb->GetScriptContext(), execstack, funccallstack,
                                          stackoffset);
-    if(!stackvaraddr) {
+    if (!stackvaraddr)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - Unable to get StackVarAddr()\n");
         return false;
@@ -902,10 +950,10 @@ bool8 OpExecPushArrayVar(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
         return false;
     }
 
-    if(!ve0 || ve0->GetType() != TYPE_hashtable)
+    if (!ve0 || (ve0->GetType() != TYPE_hashtable && !ve0->IsArray()))
     {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
-                        "Error - ExecStack should contain hashtable variable\n");
+                        "Error - ExecStack should contain hashtable or array variable\n");
         return false;
     }
 
@@ -941,7 +989,7 @@ bool8 OpExecPushArrayVar(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
         func_or_obj = ve0->GetFunctionEntry()->GetHash();
     }
 
-    // -- push the hashvar
+    // -- push the hashvar (note:  could also be an index)
     uint32 arrayvar[4];
     arrayvar[0] = ns_hash;
     arrayvar[1] = func_or_obj;
@@ -949,7 +997,7 @@ bool8 OpExecPushArrayVar(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     arrayvar[3] = arrayvarhash;
 
     // -- next instruction is the variable hash followed by the function context hash
-    execstack.Push((void*)arrayvar, TYPE__hashvar);
+    execstack.Push((void*)arrayvar, TYPE__hashvarindex);
     if (oe0)
         DebugTrace(op, "ArrayVar: %d.%s[%s], %s", oe0->GetID(), UnHash(var_hash), UnHash(arrayvarhash),
                    DebugPrintVar(ve0->GetAddr(oe0 ? oe0->GetAddr() : NULL), ve0->GetType()));
@@ -990,7 +1038,7 @@ bool8 OpExecPushArrayValue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
         return false;
     }
 
-    if(!ve0 || ve0->GetType() != TYPE_hashtable)
+    if (!ve0 || (ve0->GetType() != TYPE_hashtable && !ve0->IsArray()))
     {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - ExecStack should contain hashtable variable\n");
@@ -1040,7 +1088,8 @@ bool8 OpExecPushArrayValue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
 
     // -- push the variable onto the stack
     eVarType vetype = ve->GetType();
-    void* veaddr = ve->GetAddr(oe0 ? oe0->GetAddr() : NULL);
+    void* veaddr = ve->IsArray() ? ve->GetArrayVarAddr(oe0 ? oe0->GetAddr() : NULL, arrayvarhash)
+                                 : ve->GetAddr(oe0 ? oe0->GetAddr() : NULL);
 
     execstack.Push(veaddr, vetype);
     if (oe0)
@@ -1113,12 +1162,29 @@ bool8 OpExecPushMemberVal(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
         return false;
     }
     assert(ve != NULL);
-    void* val = ve->GetAddr(oe->GetAddr());
-    eVarType valtype = ve->GetType();
 
-    // -- push the value of the member
-    execstack.Push(val, valtype);
-    DebugTrace(op, "Obj Mem %s: %s", UnHash(varhash), DebugPrintVar(val, valtype));
+    // -- if the variable is an array, we want to push it back onto the stack, as
+    // -- an array has no value except itself (the value will be an upcoming arrayhash instruction)
+    void* val = ve->GetAddr(oe->GetAddr());
+
+    // -- the type is TYPE__var, *if* the variable is an array hash instruction
+    if (!ve->IsArray())
+    {
+        eVarType valtype = ve->GetType();
+
+        // -- push the value of the member
+        execstack.Push(val, valtype);
+        DebugTrace(op, "Obj Mem %s: %s", UnHash(varhash), DebugPrintVar(val, valtype));
+    }
+    else
+    {
+        // -- push the variable onto the stack
+        uint32 varbuf[3];
+        varbuf[0] = 0;
+        varbuf[1] = oe->GetID();
+        varbuf[2] = ve->GetHash();
+        execstack.Push((void*)varbuf, TYPE__var);
+    }
 	
     return (true);
 }
@@ -1542,8 +1608,9 @@ bool8 OpExecFuncCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     DebugTrace(op, "%s", UnHash(fe->GetHash()));
 
     // -- create space on the execstack, if this is a script function
-    if(fe->GetType() != eFuncTypeGlobal) {
-        int32 localvarcount = fe->GetLocalVarTable()->Used();
+    if (fe->GetType() != eFuncTypeGlobal)
+    {
+        int32 localvarcount = fe->GetContext()->CalculateLocalVarStackSize();
         execstack.Reserve(localvarcount * MAX_TYPE_SIZE);
     }
 
@@ -1635,8 +1702,9 @@ bool8 OpExecMethodCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     funccallstack.Push(fe, oe, execstack.GetStackTop());
 
     // -- create space on the execstack, if this is a script function
-    if(fe->GetType() != eFuncTypeGlobal) {
-        int32 localvarcount = fe->GetLocalVarTable()->Used();
+    if(fe->GetType() != eFuncTypeGlobal)
+    {
+        int32 localvarcount = fe->GetContext()->CalculateLocalVarStackSize();
         execstack.Reserve(localvarcount * MAX_TYPE_SIZE);
     }
 
@@ -1712,7 +1780,7 @@ bool8 OpExecFuncReturn(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     memcpy(stacktopcontent, content, MAX_TYPE_SIZE * sizeof(uint32));
 
     // -- unreserve space from the exec stack
-    int32 localvarcount = fe->GetLocalVarTable()->Used();
+    int32 localvarcount = fe->GetContext()->CalculateLocalVarStackSize();
     execstack.UnReserve(localvarcount * MAX_TYPE_SIZE);
 
     // -- ensure our current stack top is what it was before we reserved
@@ -1743,37 +1811,113 @@ bool8 OpExecFuncReturn(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
 }
 
 bool8 OpExecArrayHash(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
-    // -- pop the value of the next string to append to the hash
-    CVariableEntry* ve1 = NULL;
-    CObjectEntry* oe1 = NULL;
-    eVarType val1type;
-    void* val1 = execstack.Pop(val1type);
-    if(!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, val1, val1type, ve1, oe1)) {
-        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
-                        "Error - Failed to pop string to hash\n");
-        return false;
-    }
-    // -- ensure it actually is a string
-    void* val1addr = TypeConvert(cb->GetScriptContext(), val1type, val1, TYPE_string);
+                      CFunctionCallStack& funccallstack)
+{
+    // -- peek at what's on the stack underneath the array hash...  if it's a variable of TYPE_hashtable
+    // -- we pull a string off the stack and hash it
+    // -- otherwise, it had better be a regular variable (with an array count)
+    // -- we pull an integer off the stack, verify the range, and index
+    bool found_array_var = true;
+    eVarType peek_type;
+	void* peek_val = execstack.Peek(peek_type, 2);
+    if (!peek_val)
+        found_array_var = false;
 
-    // -- get the current hash
-    eVarType contenttype;
-    void* contentptr = execstack.Pop(contenttype);
-    if(contenttype != TYPE_int) {
-        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
-                        "Error - ExecStack should contain TYPE_object\n");
-        return false;
+    // -- resolve the stack content
+    CVariableEntry* peek_ve = NULL;
+    CObjectEntry* peek_oe = NULL;
+    if (!found_array_var || !GetStackValue(cb->GetScriptContext(), execstack, funccallstack, peek_val, peek_type,
+                                           peek_ve, peek_oe))
+    {
+        found_array_var = false;
     }
 
-    // -- calculate the updated hash
-    uint32 hash = *(uint32*)contentptr;
-    hash = HashAppend(hash, "_");
-    hash = HashAppend(hash, (const char*)val1addr);
+    // -- see if the stack content is an variable entry
+    if (!found_array_var || !peek_ve || (!peek_ve->IsArray() && peek_ve->GetType() != TYPE_hashtable))
+    {
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Failed to find an array or hashtable variable on the stack\n");
+        return false;
+    }
 
-    // -- push the result
-    execstack.Push((void*)&hash, TYPE_int);
-    DebugTrace(op, "ArrayHash: %s", UnHash(hash));
+    // -- see if it's a hashtable var
+    bool is_hashtable_var = (peek_ve->GetType() == TYPE_hashtable);
+
+    // -- if we have a hashtable var, pop the string, append the hash, and push the result
+    if (is_hashtable_var)
+    {
+        // -- pop the value of the next string to append to the hash
+        CVariableEntry* ve1 = NULL;
+        CObjectEntry* oe1 = NULL;
+        eVarType val1type;
+        void* val1 = execstack.Pop(val1type);
+        if (!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, val1, val1type, ve1, oe1))
+        {
+            DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                            "Error - Failed to pop string to hash\n");
+            return false;
+        }
+
+        // -- ensure it actually is a string
+        void* val1addr = TypeConvert(cb->GetScriptContext(), val1type, val1, TYPE_string);
+
+        // -- get the current hash
+        eVarType contenttype;
+        void* contentptr = execstack.Pop(contenttype);
+        if (contenttype != TYPE_int)
+        {
+            DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                            "Error - ExecStack should contain TYPE_int, a hash value\n");
+            return false;
+        }
+
+        // -- calculate the updated hash
+        uint32 hash = *(uint32*)contentptr;
+        hash = HashAppend(hash, "_");
+        hash = HashAppend(hash, (const char*)val1addr);
+
+        // -- push the result
+        execstack.Push((void*)&hash, TYPE_int);
+        DebugTrace(op, "ArrayHash: %s", UnHash(hash));
+    }
+
+    // -- else we have an array variable
+    else
+    {
+        // -- pop the value of the next integer - in a variable array, we add the indices
+        // -- consecutive integers, it allows an array[100] to be indexed as array[10,6]
+        // -- which is array[16], or the 6th column of row 1, where there are 10 columns per row
+        CVariableEntry* ve1 = NULL;
+        CObjectEntry* oe1 = NULL;
+        eVarType val1type;
+        void* val1 = execstack.Pop(val1type);
+        if (!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, val1, val1type, ve1, oe1))
+        {
+            DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                            "Error - Failed to pop an array index\n");
+            return false;
+        }
+
+        // -- ensure the index is an integer
+        void* val1addr = TypeConvert(cb->GetScriptContext(), val1type, val1, TYPE_int);
+
+        // -- get the current array index (so far)
+        eVarType contenttype;
+        void* contentptr = execstack.Pop(contenttype);
+        if (contenttype != TYPE_int)
+        {
+            DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                            "Error - ExecStack should contain TYPE_int, an array index\n");
+            return false;
+        }
+
+        // -- calculate the updated array index (adding together, as per above)
+        int32 array_index = *(int32*)contentptr + *(int32*)val1addr;
+
+        // -- push the result
+        execstack.Push((void*)&array_index, TYPE_int);
+        DebugTrace(op, "ArrayIndex: %d", array_index);
+    }
 
     return (true);
 }
@@ -1826,7 +1970,7 @@ bool8 OpExecArrayVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     else if (!hte)
     {
         CVariableEntry* hte = TinAlloc(ALLOC_VarEntry, CVariableEntry, cb->GetScriptContext(), UnHash(hashvalue),
-                                       hashvalue, vartype, false, 0, true);
+                                       hashvalue, vartype, 1, false, 0, true);
         hashtable->AddItem(*hte, hashvalue);
     }
 
@@ -1835,25 +1979,124 @@ bool8 OpExecArrayVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     return (true);
 }
 
+bool8 OpExecArrayDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
+                       CFunctionCallStack& funccallstack)
+{
+    // -- pull the array size from the stack
+    eVarType contenttype;
+    void* contentptr = execstack.Pop(contenttype);
+    if (contenttype != TYPE_int)
+    {
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain a positive TYPE_int value\n");
+        return false;
+    }
+    uint32 array_size = *(uint32*)contentptr;
+
+    // -- pull the variable off the stack
+    CVariableEntry* ve0 = NULL;
+    CObjectEntry* oe0 = NULL;
+    eVarType val0type;
+    void* val0 = execstack.Pop(val0type);
+
+    // -- when "converting" a variable into an array, if the array is a stack variable, it's already
+    // -- the correct size when stack space was reserved, or it's a parameter in which case
+    // -- it refers to an actually array variable entry that has already been allocated.
+    // -- either way, if this is a stack variable, we're done
+    if (val0type == TYPE__stackvar)
+    {
+        return (true);
+    }
+
+    // -- not a stack variable - resolve to the acctual variable then...
+    if (!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, val0, val0type, ve0, oe0))
+    {
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain a hashtable variable\n");
+        return false;
+    }
+
+    // -- ensure we have a non-hashtable variable (no arrays of hashtables)
+    if (val0type == TYPE_hashtable || val0type < FIRST_VALID_TYPE)
+    {
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain a non-hashtable variable\n");
+        return false;
+    }
+
+    // -- set the array size
+    bool8 result = ve0->ConvertToArray(array_size);
+
+    DebugTrace(op, "Array: %s[%d]", UnHash(ve0->GetHash()), array_size);
+
+    return (result);
+}
+
 bool8 OpExecSelfVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                        CFunctionCallStack& funccallstack) {
+                        CFunctionCallStack& funccallstack)
+{
     // -- next instruction is the variable hash
     uint32 varhash = *instrptr++;
 
     // -- followed by the type
     eVarType vartype = (eVarType)(*instrptr++);
 
+    // -- followed by the array size
+    int32 array_size = *instrptr++;
+
     // -- get the object from the stack
     CObjectEntry* oe = NULL;
     CFunctionEntry* fe = funccallstack.GetTopMethod(oe);
-    if(!fe || !oe) {
+    if (!fe || !oe)
+    {
         ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
                       "Error - Unable to declare a self.var from outside a method\n");
         return false;
     }
 
     // -- add the dynamic variable
-    cb->GetScriptContext()->AddDynamicVariable(oe->GetID(), varhash, vartype);
+    cb->GetScriptContext()->AddDynamicVariable(oe->GetID(), varhash, vartype, array_size);
+    DebugTrace(op, "Obj Id [%d] Var: %s", oe->GetID(), UnHash(varhash));
+
+    return (true);
+}
+
+bool8 OpExecObjMemberDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
+                          CFunctionCallStack& funccallstack)
+{
+    // -- next instruction is the variable hash
+    uint32 varhash = *instrptr++;
+
+    // -- followed by the type
+    eVarType vartype = (eVarType)(*instrptr++);
+
+    // -- followed by the array size
+    int32 array_size = *instrptr++;
+
+    // -- what will previously have been pushed on the stack, is the object ID
+    eVarType contenttype;
+    void* contentptr = execstack.Pop(contenttype);
+    if (contenttype != TYPE_object)
+    {
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain TYPE_object\n");
+        return false;
+    }
+
+    // -- TYPE_object is actually just an uint32 ID
+    uint32 objectid = *(uint32*)contentptr;
+
+    // -- find the object
+    CObjectEntry* oe = cb->GetScriptContext()->FindObjectEntry(objectid);
+    if (!oe)
+    {
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - Unable to find object %d\n", objectid);
+        return false;
+    }
+
+    // -- add the dynamic variable
+    cb->GetScriptContext()->AddDynamicVariable(oe->GetID(), varhash, vartype, array_size);
     DebugTrace(op, "Obj Id [%d] Var: %s", oe->GetID(), UnHash(varhash));
 
     return (true);
@@ -1936,7 +2179,7 @@ bool8 OpExecScheduleParam(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     char varnamebuf[32];
     sprintf_s(varnamebuf, 32, "_%d", paramindex);
     cb->GetScriptContext()->GetScheduler()->mCurrentSchedule->mFuncContext->
-        AddParameter(varnamebuf, Hash(varnamebuf), contenttype, paramindex);
+        AddParameter(varnamebuf, Hash(varnamebuf), contenttype, 1, paramindex, 0);
 
     // -- assign the value
     CVariableEntry* ve = cb->GetScriptContext()->GetScheduler()->mCurrentSchedule->

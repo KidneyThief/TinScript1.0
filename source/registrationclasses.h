@@ -64,7 +64,7 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -106,7 +106,7 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -154,7 +154,7 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -198,7 +198,7 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -250,8 +250,8 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -294,8 +294,8 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -345,8 +345,8 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -392,8 +392,8 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -447,9 +447,9 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -494,9 +494,9 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -548,9 +548,9 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -598,9 +598,9 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -656,10 +656,10 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -706,10 +706,10 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -763,10 +763,10 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -816,10 +816,10 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -877,11 +877,11 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -930,11 +930,11 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -990,11 +990,11 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -1046,11 +1046,11 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -1110,12 +1110,12 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -1166,12 +1166,12 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -1229,12 +1229,12 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -1288,12 +1288,12 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -1355,13 +1355,13 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
-        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), GetTypeID<T6>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -1414,13 +1414,13 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
-        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), GetTypeID<T6>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -1480,13 +1480,13 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
-        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), GetTypeID<T6>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -1542,13 +1542,13 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
-        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), GetTypeID<T6>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -1612,14 +1612,14 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
-        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), GetTypeID<T6>());
-        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), GetTypeID<T7>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -1674,14 +1674,14 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
-        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), GetTypeID<T6>());
-        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), GetTypeID<T7>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -1743,14 +1743,14 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
-        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), GetTypeID<T6>());
-        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), GetTypeID<T7>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -1808,14 +1808,14 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
-        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), GetTypeID<T6>());
-        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), GetTypeID<T7>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -1881,15 +1881,15 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
-        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), GetTypeID<T6>());
-        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), GetTypeID<T7>());
-        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), GetTypeID<T8>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -1946,15 +1946,15 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
-        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), GetTypeID<T6>());
-        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), GetTypeID<T7>());
-        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), GetTypeID<T8>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
@@ -2018,15 +2018,15 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
-        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), GetTypeID<T6>());
-        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), GetTypeID<T7>());
-        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), GetTypeID<T8>());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
@@ -2086,15 +2086,15 @@ public:
         CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
         SetScriptContext(script_context);
         SetContext(fe->GetContext());
-        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 0);
-        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), GetTypeID<T1>());
-        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), GetTypeID<T2>());
-        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), GetTypeID<T3>());
-        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), GetTypeID<T4>());
-        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), GetTypeID<T5>());
-        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), GetTypeID<T6>());
-        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), GetTypeID<T7>());
-        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), GetTypeID<T8>());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
 
         uint32 hash = fe->GetHash();
         tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();

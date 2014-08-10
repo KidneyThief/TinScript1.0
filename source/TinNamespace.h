@@ -145,7 +145,7 @@ class CObjectEntry {
         CFunctionEntry* GetFunctionEntry(uint32 nshash, uint32 funchash);
         CNamespace* HasNamespace(uint32 nshash);
 
-        bool8 AddDynamicVariable(uint32 varhash, eVarType vartype);
+        bool8 AddDynamicVariable(uint32 varhash, eVarType vartype, int32 array_size = 1);
         bool8 SetMemberVar(uint32 varhash, void* value);
         tVarTable* GetDynamicVarTable() {
             return mDynamicVariables;

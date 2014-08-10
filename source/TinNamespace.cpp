@@ -101,7 +101,7 @@ CNamespace* CObjectEntry::HasNamespace(uint32 nshash) {
     return objns;
 }
 
-bool8 CObjectEntry::AddDynamicVariable(uint32 varhash, eVarType vartype) {
+bool8 CObjectEntry::AddDynamicVariable(uint32 varhash, eVarType vartype, int32 array_size) {
     // -- sanity check
     if(varhash == 0 || vartype < FIRST_VALID_TYPE)
         return false;
@@ -126,7 +126,7 @@ bool8 CObjectEntry::AddDynamicVariable(uint32 varhash, eVarType vartype) {
                                     kLocalVarTableSize);
     }
 	ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, GetScriptContext(), UnHash(varhash), varhash,
-                                                  vartype, false, 0, true);
+                                                  vartype, array_size, false, 0, true);
 	mDynamicVariables->AddItem(*ve, varhash);
 
     return (ve != NULL);
@@ -608,19 +608,21 @@ bool8 CScriptContext::HasMethod(uint32 objectid, const char* method_name) {
     return (fe != NULL);
 }
 
-bool8 CScriptContext::AddDynamicVariable(uint32 objectid, uint32 varhash, eVarType vartype) {
+bool8 CScriptContext::AddDynamicVariable(uint32 objectid, uint32 varhash, eVarType vartype, int32 array_size)
+{
     CObjectEntry* oe = GetObjectDictionary()->FindItem(objectid);
     if(!oe) {
         ScriptAssert_(this, 0, "<internal>", -1,
                       "Error - Unable to find object: %d\n", objectid);
         return (false);
     }
-    return (oe->AddDynamicVariable(varhash, vartype));
+    return (oe->AddDynamicVariable(varhash, vartype, array_size));
 }
 
-bool8 CScriptContext::AddDynamicVariable(uint32 objectid, const char* varname,
-    const char* vartypename) {
-    if(!varname || !vartypename) {
+bool8 CScriptContext::AddDynamicVariable(uint32 objectid, const char* varname, const char* vartypename, int32 array_size)
+{
+    if(!varname || !vartypename)
+    {
         ScriptAssert_(this, 0, "<internal>", -1,
                       "Error - AddDynamicVariable with no var name/type\n");
         return (false);
@@ -628,7 +630,7 @@ bool8 CScriptContext::AddDynamicVariable(uint32 objectid, const char* varname,
 
     uint32 varhash = Hash(varname);
     eVarType vartype = GetRegisteredType(vartypename, (int32)strlen(vartypename));
-    return (AddDynamicVariable(objectid, varhash, vartype));
+    return (AddDynamicVariable(objectid, varhash, vartype, array_size));
 }
 
 bool8 CScriptContext::SetMemberVar(uint32 objectid, const char* varname, void* value) {

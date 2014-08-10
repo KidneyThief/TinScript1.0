@@ -39,20 +39,24 @@ CRegFunctionBase* CRegFunctionBase::gRegistrationList = NULL;
 // --  CRegisterGlobal  ---------------------------------------------------------------------------
 
 CRegisterGlobal* CRegisterGlobal::head = NULL;
-CRegisterGlobal::CRegisterGlobal(const char* _name, TinScript::eVarType _type, void* _addr) {
+CRegisterGlobal::CRegisterGlobal(const char* _name, TinScript::eVarType _type, void* _addr, int32 _array_size)
+{
     name = _name;
     type = _type;
     addr = _addr;
+    array_size = _array_size;
     next = NULL;
 
     // -- if we've got and address, hook it into the linked list for registration
-    if(name && name[0] && addr) {
+    if (name && name[0] && addr)
+    {
         next = head;
         head = this;
     }
 }
 
-void CRegisterGlobal::RegisterGlobals(CScriptContext* script_context) {
+void CRegisterGlobal::RegisterGlobals(CScriptContext* script_context)
+{
     CRegisterGlobal* global = CRegisterGlobal::head;
     while(global)
     {
@@ -65,8 +69,8 @@ void CRegisterGlobal::RegisterGlobals(CScriptContext* script_context) {
         else
         {
             // -- create the var entry, add it to the global namespace
-            CVariableEntry* ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, script_context, global->name,
-                                                                          global->type, global->addr);
+            CVariableEntry* ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, script_context, global->name, global->type,
+                                          global->array_size, global->addr);
 	        uint32 hash = ve->GetHash();
 	        script_context->GetGlobalNamespace()->GetVarTable()->AddItem(*ve, hash);
         }
@@ -142,10 +146,10 @@ bool8 ContextObjectHasMethod(uint32 objectid, const char* method_name)
     return (has_method);
 }
 
-void ContextAddDynamicVariable(uint32 objectid, const char* varname, const char* vartype)
+void ContextAddDynamicVariable(uint32 objectid, const char* varname, const char* vartype, int32 array_size)
 {
     CScriptContext* script_context = TinScript::GetContext();
-    script_context->AddDynamicVariable(objectid, varname, vartype);
+    script_context->AddDynamicVariable(objectid, varname, vartype, array_size);
 }
 
 void ContextLinkNamespaces(const char* childns, const char* parentns) {
@@ -234,7 +238,7 @@ REGISTER_FUNCTION_P1(IsObject, ContextIsObject, bool8, uint32);
 REGISTER_FUNCTION_P1(FindObject, ContextFindObjectByName, uint32, const char*);
 REGISTER_FUNCTION_P2(ObjectHasNamespace, ContextObjectIsDerivedFrom, bool8, uint32, const char*);
 REGISTER_FUNCTION_P2(ObjectHasMethod, ContextObjectHasMethod, bool8, uint32, const char*);
-REGISTER_FUNCTION_P3(AddDynamicVar, ContextAddDynamicVariable, void, uint32, const char*, const char*);
+REGISTER_FUNCTION_P4(AddDynamicVar, ContextAddDynamicVariable, void, uint32, const char*, const char*, int32);
 REGISTER_FUNCTION_P2(LinkNamespaces, ContextLinkNamespaces, void, const char*, const char*);
 REGISTER_FUNCTION_P1(ListVariables, ContextListVariables, void, uint32);
 REGISTER_FUNCTION_P1(ListFunctions, ContextListFunctions, void, uint32);

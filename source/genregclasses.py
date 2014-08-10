@@ -252,10 +252,10 @@ def GenerateClasses(maxparamcount, outputfilename):
         outputfile.write("        CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);\n");
         outputfile.write("        SetScriptContext(script_context);\n");
         outputfile.write("        SetContext(fe->GetContext());\n");
-        outputfile.write("        GetContext()->AddParameter(\"__return\", Hash(\"__return\"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());\n");
+        outputfile.write("        GetContext()->AddParameter(\"__return\", Hash(\"__return\"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());\n");
         i = 1;
         while (i <= paramcount):
-            outputfile.write("        GetContext()->AddParameter(\"_p%d\", Hash(\"_p%d\"), GetRegisteredType(GetTypeID<T%d>()), GetTypeID<T%d>());\n" % (i, i, i, i));
+            outputfile.write("        GetContext()->AddParameter(\"_p%d\", Hash(\"_p%d\"), GetRegisteredType(GetTypeID<T%d>()), 1, GetTypeID<T%d>());\n" % (i, i, i, i));
             i = i + 1;
         outputfile.write("\n");
         outputfile.write("        uint32 hash = fe->GetHash();\n");
@@ -364,10 +364,10 @@ def GenerateClasses(maxparamcount, outputfilename):
         outputfile.write("        CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);\n");
         outputfile.write("        SetScriptContext(script_context);\n");
         outputfile.write("        SetContext(fe->GetContext());\n");
-        outputfile.write("        GetContext()->AddParameter(\"__return\", Hash(\"__return\"), TYPE_void, 0);\n");
+        outputfile.write("        GetContext()->AddParameter(\"__return\", Hash(\"__return\"), TYPE_void, 1, 0);\n");
         i = 1;
         while (i <= paramcount):
-            outputfile.write("        GetContext()->AddParameter(\"_p%d\", Hash(\"_p%d\"), GetRegisteredType(GetTypeID<T%d>()), GetTypeID<T%d>());\n" % (i, i, i, i));
+            outputfile.write("        GetContext()->AddParameter(\"_p%d\", Hash(\"_p%d\"), GetRegisteredType(GetTypeID<T%d>()), 1, GetTypeID<T%d>());\n" % (i, i, i, i));
             i = i + 1;
         outputfile.write("\n");
         outputfile.write("        uint32 hash = fe->GetHash();\n");
@@ -467,10 +467,10 @@ def GenerateClasses(maxparamcount, outputfilename):
         outputfile.write("        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);\n");
         outputfile.write("        SetScriptContext(script_context);\n");
         outputfile.write("        SetContext(fe->GetContext());\n");
-        outputfile.write("        GetContext()->AddParameter(\"__return\", Hash(\"__return\"), GetRegisteredType(GetTypeID<R>()), GetTypeID<R>());\n");
+        outputfile.write("        GetContext()->AddParameter(\"__return\", Hash(\"__return\"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());\n");
         i = 1;
         while (i <= paramcount):
-            outputfile.write("        GetContext()->AddParameter(\"_p%d\", Hash(\"_p%d\"), GetRegisteredType(GetTypeID<T%d>()), GetTypeID<T%d>());\n" % (i, i, i, i));
+            outputfile.write("        GetContext()->AddParameter(\"_p%d\", Hash(\"_p%d\"), GetRegisteredType(GetTypeID<T%d>()), 1, GetTypeID<T%d>());\n" % (i, i, i, i));
             i = i + 1;
         outputfile.write("\n");
         outputfile.write("        uint32 hash = fe->GetHash();\n");
@@ -573,10 +573,10 @@ def GenerateClasses(maxparamcount, outputfilename):
         outputfile.write("        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);\n");
         outputfile.write("        SetScriptContext(script_context);\n");
         outputfile.write("        SetContext(fe->GetContext());\n");
-        outputfile.write("        GetContext()->AddParameter(\"__return\", Hash(\"__return\"), TYPE_void, 0);\n");
+        outputfile.write("        GetContext()->AddParameter(\"__return\", Hash(\"__return\"), TYPE_void, 1, 0);\n");
         i = 1;
         while (i <= paramcount):
-            outputfile.write("        GetContext()->AddParameter(\"_p%d\", Hash(\"_p%d\"), GetRegisteredType(GetTypeID<T%d>()), GetTypeID<T%d>());\n" % (i, i, i, i));
+            outputfile.write("        GetContext()->AddParameter(\"_p%d\", Hash(\"_p%d\"), GetRegisteredType(GetTypeID<T%d>()), 1, GetTypeID<T%d>());\n" % (i, i, i, i));
             i = i + 1;
         outputfile.write("\n");
         outputfile.write("        uint32 hash = fe->GetHash();\n");

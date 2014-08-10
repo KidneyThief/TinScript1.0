@@ -257,10 +257,13 @@ bool8 TryParseDestroyObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompile
 // ------------------------------------------------------------------------------------------------
 CVariableEntry* AddVariable(CScriptContext* script_context, tVarTable* curglobalvartable,
                             CFunctionEntry* curfuncdefinition, const char* varname,
-                            uint32 varhash, eVarType vartype);
+                            uint32 varhash, eVarType vartype, int array_size);
 
 CVariableEntry* GetVariable(CScriptContext* script_context, tVarTable* globalVarTable, uint32 ns_hash,
                             uint32 func_or_obj, uint32 var_hash, uint32 array_hash);
+
+CVariableEntry* GetObjectMember(CScriptContext* script_context, CObjectEntry*& oe, uint32 ns_hash,
+                                uint32 func_or_obj, uint32 var_hash, uint32 array_hash);
 
 CFunctionEntry* FuncDeclaration(CScriptContext* script_context, uint32 namespacehash,
                                 const char* funcname, uint32 funchash, EFunctionType type);

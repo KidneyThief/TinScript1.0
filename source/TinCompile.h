@@ -67,7 +67,9 @@ class CWhileLoopNode;
 	CompileNodeTypeEntry(ArrayHash) 			\
 	CompileNodeTypeEntry(ArrayVar)			    \
 	CompileNodeTypeEntry(ArrayVarDecl)			\
+	CompileNodeTypeEntry(ArrayDecl)			    \
 	CompileNodeTypeEntry(SelfVarDecl)			\
+	CompileNodeTypeEntry(ObjMemberDecl)			\
 	CompileNodeTypeEntry(Schedule)			    \
 	CompileNodeTypeEntry(CreateObject)  	    \
 	CompileNodeTypeEntry(DestroyObject)  	    \
@@ -151,7 +153,9 @@ const char* GetNodeTypeString(ECompileNodeType nodetype);
 	OperationEntry(MethodCallArgs)		\
 	OperationEntry(ArrayHash)			\
 	OperationEntry(ArrayVarDecl)		\
+	OperationEntry(ArrayDecl)		    \
 	OperationEntry(SelfVarDecl)		    \
+	OperationEntry(ObjMemberDecl)       \
 	OperationEntry(ScheduleBegin)       \
 	OperationEntry(ScheduleParam)       \
 	OperationEntry(ScheduleEnd)         \
@@ -486,11 +490,22 @@ class CArrayVarDeclNode : public CCompileTreeNode
         eVarType type;
 };
 
+class CArrayDeclNode : public CCompileTreeNode
+{
+	public:
+		CArrayDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int _linenumber, int32 _size);
+		virtual int Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const;
+
+	protected:
+		CArrayDeclNode() { }
+        int32 mSize;
+};
+
 class CSelfVarDeclNode : public CCompileTreeNode
 {
 	public:
 		CSelfVarDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int _linenumber,
-                         const char* _varname, int _varnamelength, eVarType _type);
+                         const char* _varname, int _varnamelength, eVarType _type, int32 _array_size);
 
 		virtual int Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const;
         virtual void Dump(char*& output, int32& length) const;
@@ -498,6 +513,23 @@ class CSelfVarDeclNode : public CCompileTreeNode
 	protected:
 		CSelfVarDeclNode() { }
         eVarType type;
+        int32 mArraySize;
+        char varname[kMaxNameLength];
+};
+
+class CObjMemberDeclNode : public CCompileTreeNode
+{
+	public:
+		CObjMemberDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int _linenumber,
+                           const char* _varname, int _varnamelength, eVarType _type, int32 _array_size);
+
+		virtual int Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const;
+        virtual void Dump(char*& output, int32& length) const;
+
+	protected:
+		CObjMemberDeclNode() { }
+        eVarType type;
+        int32 mArraySize;
         char varname[kMaxNameLength];
 };
 
