@@ -19,9 +19,9 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
-// tinnamespace.h
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// TinNamespace.h
+// ====================================================================================================================
 
 #ifndef __TINNAMESPACE_H
 #define __TINNAMESPACE_H
@@ -29,7 +29,7 @@
 #include "TinHash.h"
 #include "TinScript.h"
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // -- These macros are included by DECLARE_SCRIPT_CLASS and IMPLEMENT_SCRIPT_CLASS...
 // -- not to be used independently (or publicly unless you know what you're doing!)
 #define SCRIPT_DEFAULT_METHODS(classname)                                                           \
@@ -87,6 +87,8 @@
         ("ListMethods", classname##ListMethods);                                                    \
 
 
+// == namespace TinScript =============================================================================================
+
 namespace TinScript {
 
 class CScriptContext;
@@ -99,47 +101,30 @@ class CObjectGroup;
 typedef CHashTable<CVariableEntry> tVarTable;
 typedef CHashTable<CFunctionEntry> tFuncTable;
 
-// ------------------------------------------------------------------------------------------------
-class CObjectEntry {
+// ====================================================================================================================
+// class CObjectEntry:  Refers to an instance of an object, retrievable by name or hash, etc...
+// ====================================================================================================================
+class CObjectEntry
+{
     public:
         CObjectEntry(CScriptContext* script_context, uint32 _objid, uint32 _namehash,
                      CNamespace* _objnamespace, void* _objaddr, bool8 register_manual);
         virtual ~CObjectEntry();
 
-        CScriptContext* GetScriptContext() {
-            return (mContextOwner);
-        }
+        CScriptContext* GetScriptContext() { return (mContextOwner); }
 
-        uint32 GetID() const {
-            return mObjectID;
-        }
+        uint32 GetID() const { return mObjectID; }
+        const char* GetName() const { return UnHash(mNameHash); }
+        uint32 GetNameHash() const { return mNameHash; }
 
-        const char* GetName() const {
-            return UnHash(mNameHash);
-        }
+        CNamespace* GetNamespace() const { return mObjectNamespace; }
 
-        uint32 GetNameHash() const {
-            return mNameHash;
-        }
+        void* GetAddr() const { return mObjectAddr; }
 
-        CNamespace* GetNamespace() const {
-            return mObjectNamespace;
-        }
+        CObjectGroup* GetObjectGroup() const { return (mGroupOwner); }
+        void SetObjectGroup(CObjectGroup* group_owner) { mGroupOwner = group_owner; }
 
-        void* GetAddr() const {
-            return mObjectAddr;
-        }
-
-        CObjectGroup* GetObjectGroup() const {
-            return (mGroupOwner);
-        }
-        void SetObjectGroup(CObjectGroup* group_owner) {
-            mGroupOwner = group_owner;
-        }
-
-        bool8 IsManuallyRegistered() {
-            return (mManualRegister);
-        }
+        bool8 IsManuallyRegistered() { return (mManualRegister); }
 
         CVariableEntry* GetVariableEntry(uint32 varhash);
         CFunctionEntry* GetFunctionEntry(uint32 nshash, uint32 funchash);
@@ -147,9 +132,7 @@ class CObjectEntry {
 
         bool8 AddDynamicVariable(uint32 varhash, eVarType vartype, int32 array_size = 1);
         bool8 SetMemberVar(uint32 varhash, void* value);
-        tVarTable* GetDynamicVarTable() {
-            return mDynamicVariables;
-        }
+        tVarTable* GetDynamicVarTable() { return (mDynamicVariables); }
 
     private:
         CScriptContext* mContextOwner;
@@ -163,8 +146,11 @@ class CObjectEntry {
         CHashTable<CVariableEntry>* mDynamicVariables;
 };
 
-// ------------------------------------------------------------------------------------------------
-class CNamespace {
+// ====================================================================================================================
+// class CNamespace:  A class used to store hashtables for registered members and methods, forming a linked list.
+// ====================================================================================================================
+class CNamespace
+{
     public:
         typedef void* (*CreateInstance)();
         typedef void (*DestroyInstance)(void* addr);
@@ -174,41 +160,27 @@ class CNamespace {
                    CreateInstance _createinstance = NULL, DestroyInstance _destroyinstance = NULL);
         virtual ~CNamespace();
 
-        CScriptContext* GetScriptContext() {
-            return (mContextOwner);
-        }
+        CScriptContext* GetScriptContext() { return (mContextOwner); }
 
-        const char* GetName() {
-            return (mName);
-        }
+        const char* GetName() { return (mName); }
+        uint32 GetHash() { return (mHash); }
+        uint32 GetTypeID() { return (mTypeID); }
 
-        uint32 GetHash() {
-            return (mHash);
-        }
-
-        uint32 GetTypeID() {
-            return (mTypeID);
-        }
-
-        bool8 IsRegisteredClass() {
+        bool8 IsRegisteredClass()
+        {
             // -- only classes can be instantiated (obviously)
             return (mCreateFuncptr != NULL);
         }
 
-        CNamespace* GetNext() const {
-            return (mNext);
-        }
-        void SetNext(CNamespace* _next) {
-            mNext = _next;
-        }
+        CNamespace* GetNext() const { return (mNext); }
+        void SetNext(CNamespace* _next) { mNext = _next; }
 
-        CreateInstance GetCreateInstance() const {
-            return (mCreateFuncptr);
-        }
+        CreateInstance GetCreateInstance() const { return (mCreateFuncptr); }
 
         // -- it's possible that this is a script-derived namespace...
         // -- find the highest level child with a proper destructor
-        DestroyInstance GetDestroyInstance() const {
+        DestroyInstance GetDestroyInstance() const
+        {
             const CNamespace* ns = this;
             while(ns && ns->mDestroyFuncptr == NULL)
                 ns = ns->mNext;
@@ -219,14 +191,8 @@ class CNamespace {
         }
 
         CVariableEntry* GetVarEntry(uint32 varhash);
-
-        tVarTable* GetVarTable() {
-            return (mMemberTable);
-        }
-
-        tFuncTable* GetFuncTable() {
-            return (mMethodTable);
-        }
+        tVarTable* GetVarTable() { return (mMemberTable); }
+        tFuncTable* GetFuncTable() { return (mMethodTable); }
 
     private:
         CNamespace() { }
@@ -245,11 +211,16 @@ class CNamespace {
         tFuncTable* mMethodTable;
 };
 
-class CNamespaceReg {
+// ====================================================================================================================
+// class CNamespaceReg:  A class instantiated in the global namespace used to store registration details.
+// ====================================================================================================================
+class CNamespaceReg
+{
     public:
         CNamespaceReg(const char* _name, const char* _parentname, uint32 _typeID,
                       void* _createfuncptr, void* _destroyfuncptr,
-                      void* _regfuncptr) {
+                      void* _regfuncptr)
+        {
             mName = _name;
             mHash = Hash(mName);
             mTypeID = _typeID;
@@ -267,47 +238,24 @@ class CNamespaceReg {
         static CNamespaceReg* head;
         CNamespaceReg* next;
 
-        const char* GetName() const {
-            return mName;
-        }
+        const char* GetName() const { return mName; }
+        uint32 GetTypeID() const { return mTypeID; }
 
-        uint32 GetTypeID() const {
-            return mTypeID;
-        }
+        const char* GetParentName() const { return mParentName; }
 
-        const char* GetParentName() const {
-            return mParentName;
-        }
+        uint32 GetHash() const { return mHash; }
+        uint32 GetParentHash() const { return mParentHash; }
 
-        uint32 GetHash() const {
-            return mHash;
-        }
+        void SetRegistered(bool8 torf) { mRegistered = torf; }
+        bool8 GetRegistered() const { return (mRegistered); }
 
-        uint32 GetParentHash() const {
-            return mParentHash;
-        }
+        CNamespaceReg* GetNext() const { return next;}
 
-        void SetRegistered(bool8 torf) {
-            mRegistered = torf;
-        }
+        CNamespace::CreateInstance GetCreateFunction() const { return (mCreateFuncptr); }
+        CNamespace::DestroyInstance GetDestroyFunction() const { return (mDestroyFuncptr); }
 
-        bool8 GetRegistered() const {
-            return (mRegistered);
-        }
-
-        CNamespaceReg* GetNext() const {
-            return next;
-        }
-
-        CNamespace::CreateInstance GetCreateFunction() const {
-            return mCreateFuncptr;
-        }
-
-        CNamespace::DestroyInstance GetDestroyFunction() const {
-            return mDestroyFuncptr;
-        }
-
-        void RegisterNamespace(CScriptContext* script_context, CNamespace* _namespace) {
+        void RegisterNamespace(CScriptContext* script_context, CNamespace* _namespace)
+        {
             mRegFuncptr(script_context, _namespace);
         }
 
@@ -327,10 +275,10 @@ class CNamespaceReg {
         CNamespaceReg() { }
 };
 
-};
+}; // namespace TinScript
 
 #endif // __TINNAMESPACE_H
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

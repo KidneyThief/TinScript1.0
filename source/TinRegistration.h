@@ -19,14 +19,26 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
+// ====================================================================================================================
+// TinRegistration.h:  This is the second header file that must be included for any source requiring access.
+// ====================================================================================================================
+
 #ifndef __TINREGISTRATION_H
 #define __TINREGISTRATION_H
+
+// -- includes
 
 #include "TinNamespace.h"
 #include "TinStringTable.h"
 #include "TinInterface.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
+
+namespace TinScript
+{
+
+// --------------------------------------------------------------------------------------------------------------------
+// -- forward declarations
 
 class CVariableEntry;
 class CFunctionEntry;
@@ -35,22 +47,23 @@ class CCodeBlock;
 typedef CHashTable<CVariableEntry> tVarTable;
 typedef CHashTable<CFunctionEntry> tFuncTable;
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // registration macros
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// -- these macros are generated from the python script genregclasses.py
+// -- default usage is:  python genregclasses.py -maxparams 8
 #include "registrationmacros.h"
 
-// ------------------------------------------------------------------------------------------------
-// Function Entry
-class CFunctionContext {
-
+// ====================================================================================================================
+// class CFunctionContext:  Used to store the variable table for local varables and parameters.
+// ====================================================================================================================
+class CFunctionContext
+{
     public:
         CFunctionContext(CScriptContext* script_context);
         virtual ~CFunctionContext();
 
-        CScriptContext* GetScriptContext() {
-            return mContextOwner;
-        }
+        CScriptContext* GetScriptContext() { return mContextOwner; }
 
         bool8 AddParameter(const char* varname, uint32 varhash, eVarType type, int32 array_size,
                            uint32 convert_type_from_object);
@@ -80,6 +93,10 @@ class CFunctionContext {
         CVariableEntry* parameterlist[eMaxParameterCount];
 };
 
+// ====================================================================================================================
+// class CRegFunctionBase:  Base class for registering functions.
+// Templated versions for each parameter variation are derived from this class, implemented in registrationclasses.h.
+// ====================================================================================================================
 class CRegFunctionBase
 {
     public:
@@ -90,44 +107,20 @@ class CRegFunctionBase
             gRegistrationList = this;
         }
 
-        virtual ~CRegFunctionBase()
-        {
-        }
+        virtual ~CRegFunctionBase() { }
 
-        const char* GetName()
-        {
-            return funcname;
-        }
+        const char* GetName() { return funcname; }
 
-        void SetScriptContext(CScriptContext* script_context)
-        {
-            mScriptContext = script_context;
-        }
+        void SetScriptContext(CScriptContext* script_context) { mScriptContext = script_context; }
+        CScriptContext* GetScriptContext() { return (mScriptContext); }
 
-        CScriptContext* GetScriptContext()
-        {
-            return (mScriptContext);
-        }
+        void SetContext(CFunctionContext* fe) { funccontext = fe; }
+        CFunctionContext* GetContext() { return (funccontext); }
 
-        void SetContext(CFunctionContext* fe)
-        {
-            funccontext = fe;
-        }
-
-        CFunctionContext* GetContext()
-        {
-            return funccontext;
-        }
-
-        virtual void DispatchFunction(void*)
-        {
-        }
+        virtual void DispatchFunction(void*) { }
 
         virtual void Register(CScriptContext* script_context) = 0;
-        CRegFunctionBase* GetNext()
-        {
-            return next;
-        }
+        CRegFunctionBase* GetNext() { return (next); }
 
         static CRegFunctionBase* gRegistrationList;
 
@@ -139,9 +132,11 @@ class CRegFunctionBase
         CRegFunctionBase* next;
 };
 
-// ------------------------------------------------------------------------------------------------
-// Function Entry
-class CFunctionEntry {
+// ====================================================================================================================
+// class CFunctionEntry:  Stores the details for a registered function, including the vartable and context.
+// ====================================================================================================================
+class CFunctionEntry
+{
 	public:
 		CFunctionEntry(CScriptContext* script_context, uint32 _nshash, const char* _name,
                        uint32 _hash, EFunctionType _type, void* _addr);
@@ -149,17 +144,10 @@ class CFunctionEntry {
                        uint32 _hash, EFunctionType _type, CRegFunctionBase* _func);
 		virtual ~CFunctionEntry();
 
-        CScriptContext* GetScriptContext() {
-            return (mContextOwner);
-        }
+        CScriptContext* GetScriptContext() { return (mContextOwner); }
 
-		const char* GetName() const {
-			return (mName);
-		}
-
-		EFunctionType GetType() const {
-			return (mType);
-		}
+		const char* GetName() const { return (mName); }
+		EFunctionType GetType() const { return (mType); }
 
 		uint32 GetNamespaceHash() const
         {
@@ -169,20 +157,14 @@ class CFunctionEntry {
 			    return (mNamespaceHash);
 		}
 
-		uint32 GetHash() const {
-			return (mHash);
-		}
-
+		uint32 GetHash() const { return (mHash); }
 		void* GetAddr() const;
 
         void SetCodeBlockOffset(CCodeBlock* _codeblock, uint32 _offset);
         uint32 GetCodeBlockOffset(CCodeBlock*& _codeblock) const;
         CFunctionContext* GetContext();
 
-        CCodeBlock* GetCodeBlock() const
-        {
-            return (mCodeblock);
-        }
+        CCodeBlock* GetCodeBlock() const { return (mCodeblock); }
 
         eVarType GetReturnType();
         tVarTable* GetLocalVarTable();
@@ -205,16 +187,17 @@ class CFunctionEntry {
         CRegFunctionBase* mRegObject;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // registration classes
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// -- these classes are generated from the python script genregclasses.py
+// -- default usage is:  python genregclasses.py -maxparams 8
 #include "registrationclasses.h"
-//#include "registrationexecs.h"
 
 }  // TinScript
 
 #endif // __TINREGISTRATION_H
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

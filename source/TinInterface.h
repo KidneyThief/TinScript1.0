@@ -19,9 +19,9 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // TinInterface.h
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 
 #ifndef __TININTERFACE_H
 #define __TININTERFACE_H
@@ -30,7 +30,10 @@
 #include "TinVariableEntry.h"
 #include "TinParse.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
+
+namespace TinScript
+{
 
 // ====================================================================================================================
 // CreateContext():  Creates a singleton context, max of one for each thread
@@ -73,56 +76,60 @@ bool8 ExecScript(const char* filename);
 // Must be used, of the global is of type const char* (or in string, in script)
 // ====================================================================================================================
 template <typename T>
-inline bool8 GetGlobalVar(CScriptContext* script_context, const char* varname, T& value) {
+inline bool8 GetGlobalVar(CScriptContext* script_context, const char* varname, T& value)
+{
     // -- sanity check
     if (!script_context->GetGlobalNamespace() || !varname ||!varname[0])
-        return false;
+        return (false);
 
     CVariableEntry*
         ve = script_context->GetGlobalNamespace()->GetVarTable()->FindItem(Hash(varname));
     if (!ve)
-        return false;
+        return (false);
 
     // -- see if we can recognize an appropriate type
     eVarType returntype = GetRegisteredType(GetTypeID<T>());
     if (returntype == TYPE_NULL)
-        return false;
+        return (false);
 
     // -- because the return type is *not* a const char* (which is specialized below)
     // -- we want to call GetValue(), not GetValueAddr() - which allows us to properly
     // -- convert from a string (ste) to any other type
     void* convertvalue = TypeConvert(script_context, ve->GetType(), ve->GetAddr(NULL), returntype);
     if (!convertvalue)
-        return false;
+        return (false);
 
     // -- set the return value
     value = *reinterpret_cast<T*>((uint32*)(convertvalue));
 
-    return true;
+    return (true);
 }
 
-// -- const char* specialization - since we want a const char*, we need to use GetValueAddr() which returns
-// -- an actual string, not the ste hash value
+// ====================================================================================================================
+// GetGlobalVar():  const char* specialization - since we want a const char*, we need to use GetValueAddr()
+// which returns an actual string, not the ste hash value
+// ====================================================================================================================
 template <>
-inline bool8 GetGlobalVar<const char*>(CScriptContext* script_context, const char* varname, const char*& value) {
+inline bool8 GetGlobalVar<const char*>(CScriptContext* script_context, const char* varname, const char*& value)
+{
     // -- sanity check
     if (!script_context->GetGlobalNamespace() || !varname ||!varname[0])
-        return false;
+        return (false);
 
     CVariableEntry*
         ve = script_context->GetGlobalNamespace()->GetVarTable()->FindItem(Hash(varname));
     if (!ve)
-        return false;
+        return (false);
 
     // -- note we're using GetValueAddr() - which returns a const char*, not an STE, for TYPE_string
     void* convertvalue = TypeConvert(script_context, ve->GetType(), ve->GetValueAddr(NULL), TYPE_string);
     if (!convertvalue)
-        return false;
+        return (false);
 
     // -- set the return value
     value = (const char*)(convertvalue);
 
-    return true;
+    return (true);
 }
 
 // ====================================================================================================================
@@ -131,29 +138,30 @@ inline bool8 GetGlobalVar<const char*>(CScriptContext* script_context, const cha
 // Must be used, of the global is of type const char* (or in string, in script)
 // ====================================================================================================================
 template <typename T>
-bool8 SetGlobalVar(CScriptContext* script_context, const char* varname, T value) {
+bool8 SetGlobalVar(CScriptContext* script_context, const char* varname, T value)
+{
     // -- sanity check
     if (!script_context->GetGlobalNamespace() || !varname ||!varname[0])
-        return false;
+        return (false);
 
     CVariableEntry*
         ve = script_context->GetGlobalNamespace()->GetVarTable()->FindItem(Hash(varname));
     if (!ve)
-        return false;
+        return (false);
 
     // -- see if we can recognize an appropriate type
     eVarType input_type = GetRegisteredType(GetTypeID<T>());
     if (input_type == TYPE_NULL)
-        return false;
+        return (false);
 
     void* convertvalue = TypeConvert(script_context, ve->GetType(), convert_to_void_ptr<T>::Convert(value), input_type);
     if (!convertvalue)
-        return false;
+        return (false);
 
     // -- set the value - note, we're using SetValueAddr(), not SetValue(), which uses a const char*,
     // -- not an STE, for TYPE_string
     ve->SetValueAddr(NULL, convertvalue);
-    return true;
+    return (true);
 }
 
 // ====================================================================================================================
@@ -165,7 +173,7 @@ bool8 ReturnExecfResult(CScriptContext* script_context, T& code_return_value)
     // -- see if we can recognize an appropriate type
     eVarType code_return_type = GetRegisteredType(GetTypeID<T>());
     if (code_return_type == TYPE_NULL)
-        return false;
+        return (false);
 
     void* script_return_value = NULL;
     eVarType script_return_type = TYPE_NULL;
@@ -193,7 +201,7 @@ bool8 ReturnExecfResult(CScriptContext* script_context, T& code_return_value)
         {
             ScriptAssert_(script_context, 0, "<internal>", -1,
                             "Error - return type size exceeds the max size of any registered type.\n");
-            return false;
+            return (false);
         }
 
         // -- success
@@ -202,7 +210,7 @@ bool8 ReturnExecfResult(CScriptContext* script_context, T& code_return_value)
     }
 
     // -- unable to get the return value - fill in with a NULL, so we don't crash - still requires
-    // -- caller to see if we return false
+    // -- caller to see if we return (false)
     else
     {
         int32 no_return = 0;
@@ -239,7 +247,7 @@ bool8 ObjExecF(void* objaddr, T& returnval, const char* methodformat, ...)
         ScriptAssert_(script_context, 0,
                       "<internal>", -1, "Error - object not registered: 0x%x\n",
                       kPointerToUInt32(objaddr));
-        return false;
+        return (false);
     }
 
     // -- expand the formatted buffer
@@ -260,7 +268,7 @@ bool8 ObjExecF(void* objaddr, T& returnval, const char* methodformat, ...)
     if (result)
         return (ReturnExecfResult(script_context, returnval));
     else
-        return false;
+        return (false);
 }
 
 // ====================================================================================================================
@@ -274,13 +282,13 @@ bool8 ObjExecF(uint32 objectid, T& returnval, const char* methodformat, ...)
 
     // -- sanity check
     if (!script_context || objectid == 0 || !methodformat || !methodformat[0])
-        return false;
+        return (false);
 
     CObjectEntry* oe = script_context->FindObjectEntry(objectid);
     if (!oe) {
         ScriptAssert_(script_context, 0,
                       "<internal>", -1, "Error - unable to find object: %d\n", objectid);
-        return false;
+        return (false);
     }
 
     // -- expand the formated buffer
@@ -302,20 +310,20 @@ bool8 ObjExecF(uint32 objectid, T& returnval, const char* methodformat, ...)
     if (result)
         return (ReturnExecfResult(script_context, returnval));
     else
-        return false;
+        return (false);
 }
 
 // ====================================================================================================================
 // ExecF():  From code, Executed a global function either registered or scripted
 // ====================================================================================================================
 template <typename T>
-bool ExecF(T& returnval, const char* stmtformat, ...) {
-
+bool ExecF(T& returnval, const char* stmtformat, ...)
+{
     CScriptContext* script_context = TinScript::GetContext();
 
     // -- sanity check
     if (!script_context || !stmtformat || !stmtformat[0])
-        return false;
+        return (false);
 
     va_list args;
     va_start(args, stmtformat);
@@ -330,7 +338,7 @@ bool ExecF(T& returnval, const char* stmtformat, ...) {
     if (result)
         return (ReturnExecfResult(script_context, returnval));
     else
-        return false;
+        return (false);
 }
 
 } // TinScript
@@ -340,4 +348,3 @@ bool ExecF(T& returnval, const char* stmtformat, ...) {
 // ====================================================================================================================
 // EOF
 // ====================================================================================================================
-

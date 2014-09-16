@@ -19,9 +19,14 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
+// ====================================================================================================================
+// TinCompile.h
+// ====================================================================================================================
+
 #ifndef __TINCOMPILE_H
 #define __TINCOMPILE_H
 
+// -- includes
 #include "assert.h"
 
 #include "TinTypes.h"
@@ -30,9 +35,11 @@
 #include "TinExecute.h"
 #include "TinScript.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
+namespace TinScript
+{
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // forward declarations
 class CVariableEntry;
 class CFunctionContext;
@@ -41,7 +48,7 @@ class CExecStack;
 class CFunctionCallStack;
 class CWhileLoopNode;
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // compile tree node types
 #define CompileNodeTypesTuple \
 	CompileNodeTypeEntry(NOP)					\
@@ -75,7 +82,8 @@ class CWhileLoopNode;
 	CompileNodeTypeEntry(DestroyObject)  	    \
 
 // enum
-enum ECompileNodeType {
+enum ECompileNodeType
+{
 	#define CompileNodeTypeEntry(a) e##a,
 	CompileNodeTypesTuple
 	#undef CompileNodeTypeEntry
@@ -85,7 +93,7 @@ enum ECompileNodeType {
 
 const char* GetNodeTypeString(ECompileNodeType nodetype);
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // operation types
 
 #define OperationTuple \
@@ -172,7 +180,9 @@ enum eOpCode {
 
 const char* GetOperationString(eOpCode op);
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// class CCompileTreeNode:  Base class for the nodes used comprising the parse tree.
+// ====================================================================================================================
 class CCompileTreeNode
 {
 	public:
@@ -199,13 +209,17 @@ class CCompileTreeNode
         int32 linenumber;
 
 	protected:
-		CCompileTreeNode(CCodeBlock* _codeblock = NULL) {
+		CCompileTreeNode(CCodeBlock* _codeblock = NULL)
+        {
             type = eNOP;
             codeblock = _codeblock;
             linenumber = -1;
         }
 };
 
+// ====================================================================================================================
+// class CValueNode:  Parse tree node, compiling to a literal value or a variable.
+// ====================================================================================================================
 class CValueNode : public CCompileTreeNode
 {
 	public:
@@ -228,6 +242,9 @@ class CValueNode : public CCompileTreeNode
 		CValueNode() { }
 };
 
+// ====================================================================================================================
+// class CBinaryOpNode:  Parse tree node, compiling to a binary operation.
+// ====================================================================================================================
 class CBinaryOpNode : public CCompileTreeNode
 {
 	public:
@@ -254,6 +271,9 @@ class CBinaryOpNode : public CCompileTreeNode
 		CBinaryOpNode() { }
 };
 
+// ====================================================================================================================
+// class CUnaryOpNode:  Parse tree node, compiling to a unary operation.
+// ====================================================================================================================
 class CUnaryOpNode : public CCompileTreeNode
 {
 	public:
@@ -267,6 +287,9 @@ class CUnaryOpNode : public CCompileTreeNode
         eOpCode unaryopcode;
 };
 
+// ====================================================================================================================
+// class CSelfNode:  Parse tree node, compiling to the object ID for which a namespaced method is being called.
+// ====================================================================================================================
 class CSelfNode : public CCompileTreeNode
 {
 	public:
@@ -278,6 +301,9 @@ class CSelfNode : public CCompileTreeNode
 		CSelfNode() { }
 };
 
+// ====================================================================================================================
+// class CObjMemberNode:  Parse tree node, compiling to the member of an object.
+// ====================================================================================================================
 class CObjMemberNode : public CCompileTreeNode
 {
 	public:
@@ -294,6 +320,9 @@ class CObjMemberNode : public CCompileTreeNode
 		CObjMemberNode() { }
 };
 
+// ====================================================================================================================
+// class CObjMemberNode:  Parse tree node, compiling to the member of a POD registered type.
+// ====================================================================================================================
 class CPODMemberNode : public CCompileTreeNode
 {
 	public:
@@ -310,6 +339,9 @@ class CPODMemberNode : public CCompileTreeNode
 		CPODMemberNode() { }
 };
 
+// ====================================================================================================================
+// class CObjMemberNode:  Parse tree node, compiling to an if statement.
+// ====================================================================================================================
 class CIfStatementNode : public CCompileTreeNode
 {
 	public:
@@ -321,6 +353,9 @@ class CIfStatementNode : public CCompileTreeNode
 		CIfStatementNode() { }
 };
 
+// ====================================================================================================================
+// class CCondBranchNode:  Parse tree node, compiling to an contitional branch.
+// ====================================================================================================================
 class CCondBranchNode : public CCompileTreeNode
 {
 	public:
@@ -332,6 +367,9 @@ class CCondBranchNode : public CCompileTreeNode
 		CCondBranchNode() { }
 };
 
+// ====================================================================================================================
+// class CLoopJumpNode:  Parse tree node, compiling to an jump from within a loop.
+// ====================================================================================================================
 class CLoopJumpNode : public CCompileTreeNode
 {
 	public:
@@ -348,6 +386,9 @@ class CLoopJumpNode : public CCompileTreeNode
         mutable uint32* mJumpOffset;
 };
 
+// ====================================================================================================================
+// class CWhileLoopNode:  Parse tree node, compiling to a while loop.
+// ====================================================================================================================
 class CWhileLoopNode : public CCompileTreeNode
 {
 	public:
@@ -382,6 +423,9 @@ class CWhileLoopNode : public CCompileTreeNode
         CLoopJumpNode* mLoopJumpNodeList[kMaxLoopJumpCount];
 };
 
+// ====================================================================================================================
+// class CParenOpenNode:  Parse tree node, placeholder node to enforce an operation priority over precedence.
+// ====================================================================================================================
 class CParenOpenNode : public CCompileTreeNode
 {
 	public:
@@ -393,6 +437,9 @@ class CParenOpenNode : public CCompileTreeNode
 		CParenOpenNode() { }
 };
 
+// ====================================================================================================================
+// class CFuncDeclNode:  Parse tree node, compiles to a function declaration.
+// ====================================================================================================================
 class CFuncDeclNode : public CCompileTreeNode
 {
 	public:
@@ -409,6 +456,9 @@ class CFuncDeclNode : public CCompileTreeNode
         CFunctionEntry* functionentry;
 };
 
+// ====================================================================================================================
+// class CFuncCallNode:  Parse tree node, compiles to a function call.
+// ====================================================================================================================
 class CFuncCallNode : public CCompileTreeNode
 {
 	public:
@@ -428,6 +478,9 @@ class CFuncCallNode : public CCompileTreeNode
 		CFuncCallNode() { }
 };
 
+// ====================================================================================================================
+// class CFuncCallNode:  Parse tree node, compiles to a return stataement from within a function.
+// ====================================================================================================================
 class CFuncReturnNode : public CCompileTreeNode
 {
 	public:
@@ -440,6 +493,9 @@ class CFuncReturnNode : public CCompileTreeNode
         CFunctionEntry* functionentry;
 };
 
+// ====================================================================================================================
+// class CObjMethodNode:  Parse tree node, compiles to a object method call.
+// ====================================================================================================================
 class CObjMethodNode : public CCompileTreeNode
 {
 	public:
@@ -456,6 +512,9 @@ class CObjMethodNode : public CCompileTreeNode
 		CObjMethodNode() { }
 };
 
+// ====================================================================================================================
+// class CArrayHashNode:  Parse tree node, concatenates a value into an array hash for a hashtable dereference.
+// ====================================================================================================================
 class CArrayHashNode : public CCompileTreeNode
 {
 	public:
@@ -467,6 +526,9 @@ class CArrayHashNode : public CCompileTreeNode
 		CArrayHashNode() { }
 };
 
+// ====================================================================================================================
+// class CArrayHashNode:  Parse tree node, concatenates a value into an array hash for a hashtable dereference.
+// ====================================================================================================================
 class CArrayVarNode : public CCompileTreeNode
 {
 	public:
@@ -477,6 +539,9 @@ class CArrayVarNode : public CCompileTreeNode
 		CArrayVarNode() { }
 };
 
+// ====================================================================================================================
+// class CArrayHashNode:  Parse tree node, compiles to finding a variable entry from a hashtable.
+// ====================================================================================================================
 class CArrayVarDeclNode : public CCompileTreeNode
 {
 	public:
@@ -490,6 +555,9 @@ class CArrayVarDeclNode : public CCompileTreeNode
         eVarType type;
 };
 
+// ====================================================================================================================
+// class CArrayDeclNode:  Parse tree node, converts a variable into an array.
+// ====================================================================================================================
 class CArrayDeclNode : public CCompileTreeNode
 {
 	public:
@@ -501,6 +569,9 @@ class CArrayDeclNode : public CCompileTreeNode
         int32 mSize;
 };
 
+// ====================================================================================================================
+// class CArrayDeclNode:  Parse tree node, compiles to declaring a member of the object calling a method.
+// ====================================================================================================================
 class CSelfVarDeclNode : public CCompileTreeNode
 {
 	public:
@@ -517,6 +588,9 @@ class CSelfVarDeclNode : public CCompileTreeNode
         char varname[kMaxNameLength];
 };
 
+// ====================================================================================================================
+// class CObjMemberDeclNode:  Parse tree node, compiles to declaring a member of an object.
+// ====================================================================================================================
 class CObjMemberDeclNode : public CCompileTreeNode
 {
 	public:
@@ -533,6 +607,9 @@ class CObjMemberDeclNode : public CCompileTreeNode
         char varname[kMaxNameLength];
 };
 
+// ====================================================================================================================
+// class CScheduleNode:  Parse tree node, compiles to scheduling function/method call.
+// ====================================================================================================================
 class CScheduleNode : public CCompileTreeNode
 {
 	public:
@@ -549,6 +626,9 @@ class CScheduleNode : public CCompileTreeNode
 		CScheduleNode() { }
 };
 
+// ====================================================================================================================
+// class CScheduleNode:  Parse tree node, compiles to a node calling a scheduled function/method.
+// ====================================================================================================================
 class CSchedFuncNode : public CCompileTreeNode
 {
     public:
@@ -564,6 +644,9 @@ class CSchedFuncNode : public CCompileTreeNode
         CSchedFuncNode() { }
 };
 
+// ====================================================================================================================
+// class CScheduleNode:  Parse tree node, compiles to a node defining a parameter value for a scheduled function.
+// ====================================================================================================================
 class CSchedParamNode : public CCompileTreeNode
 {
 	public:
@@ -579,6 +662,9 @@ class CSchedParamNode : public CCompileTreeNode
 		CSchedParamNode() { }
 };
 
+// ====================================================================================================================
+// class CCreateObjectNode:  Parse tree node, compiles to a node to create an object.
+// ====================================================================================================================
 class CCreateObjectNode : public CCompileTreeNode
 {
 	public:
@@ -592,6 +678,9 @@ class CCreateObjectNode : public CCompileTreeNode
 		char classname[kMaxTokenLength];
 };
 
+// ====================================================================================================================
+// class CDestroyObjectNode:  Parse tree node, compiles to a node to destroy an object.
+// ====================================================================================================================
 class CDestroyObjectNode : public CCompileTreeNode
 {
 	public:
@@ -603,19 +692,20 @@ class CDestroyObjectNode : public CCompileTreeNode
 		CDestroyObjectNode() { }
 };
 
-// ------------------------------------------------------------------------------------------------
-class CCodeBlock {
+// ====================================================================================================================
+// class CCodeBlock:  Stores the table of local variables, functions, and the byte code for a compiled script.
+// ====================================================================================================================
+class CCodeBlock
+{
 	public:
 
 		CCodeBlock(CScriptContext* script_context, const char* _filename = NULL);
 		virtual ~CCodeBlock();
 
-        CScriptContext* GetScriptContext() {
-            return (mContextOwner);
-        }
+        CScriptContext* GetScriptContext() { return (mContextOwner); }
 
-        void AllocateInstructionBlock(int _size, int _linecount) {
-            assert(mInstrBlock == NULL);
+        void AllocateInstructionBlock(int _size, int _linecount)
+        {
 			mInstrBlock = NULL;
 			mInstrCount = _size;
 			if (_size > 0)
@@ -624,16 +714,14 @@ class CCodeBlock {
                 mLineNumbers = TinAllocInstrBlock(_linecount);
         }
 
-        const char* GetFileName() const {
-            return (mFileName);
-        }
+        const char* GetFileName() const { return (mFileName); }
 
-        uint32 GetFilenameHash() const {
-            return (mFileNameHash);
-        }
+        uint32 GetFilenameHash() const { return (mFileNameHash); }
 
-        void AddLineNumber(int linenumber, uint32* instrptr) {
-            if(mLineNumbers) {
+        void AddLineNumber(int linenumber, uint32* instrptr)
+        {
+            if (mLineNumbers)
+            {
                 uint32 offset = CalcOffset(instrptr);
                 mLineNumbers[mLineNumberIndex++] = (offset << 16) + (linenumber & (0xffff));
             }
@@ -641,25 +729,13 @@ class CCodeBlock {
                 ++mLineNumberCount;
         }
 
-		const uint32 GetInstructionCount() const {
-			return (mInstrCount);
-		}
-		const uint32* GetInstructionPtr() const {
-			return (mInstrBlock);
-		}
-		uint32* GetInstructionPtr() {
-			return (mInstrBlock);
-		}
+		const uint32 GetInstructionCount() const { return (mInstrCount); }
+		const uint32* GetInstructionPtr() const { return (mInstrBlock); }
+		uint32* GetInstructionPtr() { return (mInstrBlock); }
 
-		const uint32 GetLineNumberCount() const {
-			return (mLineNumberCount);
-		}
-		const uint32* GetLineNumberPtr() const {
-			return (mLineNumbers);
-		}
-		uint32* GetLineNumberPtr() {
-			return (mLineNumbers);
-		}
+		const uint32 GetLineNumberCount() const { return (mLineNumberCount); }
+		const uint32* GetLineNumberPtr() const { return (mLineNumbers); }
+		uint32* GetLineNumberPtr() { return (mLineNumbers); }
 
         uint32 CalcLineNumber(const uint32* instrptr, bool* isNewLine = NULL) const
         {
@@ -709,28 +785,28 @@ class CCodeBlock {
             return (linenumber);
         }
 
-        uint32 CalcOffset(const uint32* instrptr) const {
+        uint32 CalcOffset(const uint32* instrptr) const
+        {
             return kBytesToWordCount(kPointerDiffUInt32(instrptr, mInstrBlock));
         }
 
         int CalcInstrCount(const CCompileTreeNode& root);
         bool CompileTree(const CCompileTreeNode& root);
-        bool Execute(uint32 offset, CExecStack& execstack,
-                     CFunctionCallStack& funccallstack);
+        bool Execute(uint32 offset, CExecStack& execstack, CFunctionCallStack& funccallstack);
 
-        void AddFunction(CFunctionEntry* _func) {
-            assert(_func);
-            if(!mFunctionList->FindItem(_func->GetHash())) {
+        void AddFunction(CFunctionEntry* _func)
+        {
+            if (!mFunctionList->FindItem(_func->GetHash()))
                 mFunctionList->AddItem(*_func, _func->GetHash());
-            }
         }
 
-        void RemoveFunction(CFunctionEntry* _func) {
-            assert(_func);
+        void RemoveFunction(CFunctionEntry* _func)
+        {
             mFunctionList->RemoveItem(_func->GetHash());
         }
 
-        int IsInUse() {
+        int IsInUse()
+        {
             return (mIsParsing || !mFunctionList->IsEmpty());
         }
 
@@ -747,33 +823,37 @@ class CCodeBlock {
         int32 RemoveBreakpoint(int32 line_number);
         void RemoveAllBreakpoints();
 
-        static void DestroyCodeBlock(CCodeBlock* codeblock) {
-            if(!codeblock)
+        static void DestroyCodeBlock(CCodeBlock* codeblock)
+        {
+            if (!codeblock)
                 return;
-            if(codeblock->IsInUse()) {
+            if (codeblock->IsInUse())
+            {
                 ScriptAssert_(codeblock->GetScriptContext(), 0, "<internal>", -1,
                               "Error - Attempting to destroy active codeblock: %s\n",
                               codeblock->GetFileName());
                 return;
             }
-            codeblock->GetScriptContext()->GetCodeBlockList()->RemoveItem(codeblock,
-                                                                          codeblock->mFileNameHash);
+            codeblock->GetScriptContext()->GetCodeBlockList()->RemoveItem(codeblock, codeblock->mFileNameHash);
             TinFree(codeblock);
         }
 
-        static void DestroyUnusedCodeBlocks(CHashTable<CCodeBlock>* code_block_list) {
-            for(int32 i = 0; i < code_block_list->Size(); ++i) {
+        static void DestroyUnusedCodeBlocks(CHashTable<CCodeBlock>* code_block_list)
+        {
+            for (int32 i = 0; i < code_block_list->Size(); ++i)
+            {
                 CCodeBlock* codeblock = code_block_list->FindItemByBucket(i);
-                while(codeblock) {
+                while(codeblock)
+                {
                     CCodeBlock* nextcodeblock = code_block_list->GetNextItemInBucket(i);
-                    if(!codeblock->IsInUse()) {
+                    if (!codeblock->IsInUse())
+                    {
                         code_block_list->RemoveItem(codeblock, codeblock->mFileNameHash);
                         TinFree(codeblock);
                         codeblock = code_block_list->FindItemByBucket(i);
                     }
-                    else {
+                    else
                         codeblock = nextcodeblock;
-                    }
                 }
             }
         }
@@ -800,8 +880,8 @@ class CCodeBlock {
         CHashTable<CDebuggerWatchExpression>* mBreakpoints;
 };
 
-// ------------------------------------------------------------------------------------------------
-// debugging support
+// ====================================================================================================================
+// -- debugging support
 void SetDebugCodeBlock(bool torf);
 bool GetDebugCodeBlock();
 
@@ -809,6 +889,6 @@ bool GetDebugCodeBlock();
 
 #endif // __TINCOMPILE_H
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

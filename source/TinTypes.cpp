@@ -19,9 +19,9 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
-// TinTypes.cpp : Registered types for use with TinScript
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// TinTypes.cpp : Registered types for use with TinScript.
+// ====================================================================================================================
 
 // -- lib includes
 #include "stdafx.h"
@@ -37,47 +37,64 @@
 #include "TinScript.h"
 #include "TinStringTable.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
 
-// --------------------------------------------------------------------------------------------------------------------
-// types
-const char* gRegisteredTypeNames[TYPE_COUNT] = {
+namespace TinScript
+{
+
+// ====================================================================================================================
+// GetRegisteredTypeName(): Return the string name for a registered type.
+// ====================================================================================================================
+const char* gRegisteredTypeNames[TYPE_COUNT] =
+{
+
 	#define VarTypeEntry(a, b, c, d, e, f) #a,
 	VarTypeTuple
 	#undef VarTypeEntry
 };
 
-const char* GetRegisteredTypeName(eVarType vartype) {
+const char* GetRegisteredTypeName(eVarType vartype)
+{
 	return gRegisteredTypeNames[vartype];
 }
 
-eVarType GetRegisteredType(const char* token, int32 length) {
-    if(!token)
+// ====================================================================================================================
+// GetRegisteredType():  Returns the enum type for an inplace string segment.
+// ====================================================================================================================
+eVarType GetRegisteredType(const char* token, int32 length)
+{
+    if (!token)
         return TYPE_NULL;
-	for(eVarType i = TYPE_void; i < TYPE_COUNT; i = eVarType(i + 1)) {
+	for (eVarType i = TYPE_void; i < TYPE_COUNT; i = eVarType(i + 1))
+    {
 		int32 comparelength = int32(strlen(gRegisteredTypeNames[i])) > length
                               ? (int32)strlen(gRegisteredTypeNames[i])
                               : length;
-		if(!Strncmp_(token, gRegisteredTypeNames[i], comparelength)) {
+		if (!Strncmp_(token, gRegisteredTypeNames[i], comparelength))
+        {
 			return i;
 		}
 	}
+
 	return TYPE_NULL;
 }
 
-int32 gRegisteredTypeSize[TYPE_COUNT] = {
+int32 gRegisteredTypeSize[TYPE_COUNT] =
+{
 	#define VarTypeEntry(a, b, c, d, e, f) b,
 	VarTypeTuple
 	#undef VarTypeEntry
 };
 
-TypeToString gRegisteredTypeToString[TYPE_COUNT] = {
+TypeToString gRegisteredTypeToString[TYPE_COUNT] =
+{
 	#define VarTypeEntry(a, b, c, d, e, f) c,
 	VarTypeTuple
 	#undef VarTypeEntry
 };
 
-StringToType gRegisteredStringToType[TYPE_COUNT] = {
+StringToType gRegisteredStringToType[TYPE_COUNT] =
+{
 	#define VarTypeEntry(a, b, c, d, e, f) d,
 	VarTypeTuple
 	#undef VarTypeEntry
@@ -98,19 +115,24 @@ TypeOpOverride gRegisteredTypeOpTable[OP_COUNT][TYPE_COUNT];
 // -- this table must be manually populated
 TypeConvertFunction gRegisteredTypeConvertTable[TYPE_COUNT][TYPE_COUNT];
 
-// --------------------------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// GetRegsiteredType():  Returns the enum type, given the ID returned from GetTypeID().
+// ====================================================================================================================
 eVarType GetRegisteredType(uint32 id)
 {
     // -- if this array is declared in the global scope, GetTypeID<>() initializes
     // -- the entire array to 0s...
-    static uint32 gRegisteredTypeID[TYPE_COUNT] = {
+    static uint32 gRegisteredTypeID[TYPE_COUNT] =
+    {
 	    #define VarTypeEntry(a, b, c, d, e, f) GetTypeID<e>(),
 	    VarTypeTuple
 	    #undef VarTypeEntry
     };
 
-	for(eVarType i = FIRST_VALID_TYPE; i < TYPE_COUNT; i = eVarType(i + 1)) {
-        if(id == gRegisteredTypeID[i]) {
+	for (eVarType i = FIRST_VALID_TYPE; i < TYPE_COUNT; i = eVarType(i + 1))
+    {
+        if (id == gRegisteredTypeID[i])
+        {
 			return i;
 		}
 	}
@@ -134,8 +156,12 @@ eVarType GetRegisteredType(uint32 id)
 	return TYPE_NULL;
 }
 
-// --------------------------------------------------------------------------------------------------------------------
-bool8 VoidToString(void*, char* buf, int32 bufsize) {
+// == Type Registration Functions =====================================================================================
+
+// ====================================================================================================================
+// -- type void
+bool8 VoidToString(void*, char* buf, int32 bufsize)
+{
 	if (buf && bufsize > 0) {
 		*buf = '\0';
 		return true;
@@ -147,9 +173,12 @@ bool8 StringToVoid(void*, char*) {
 	return true;
 }
 
-// --------------------------------------------------------------------------------------------------------------------
-bool8 STEToString(void* value, char* buf, int32 bufsize) {
-	if(value && buf && bufsize > 0) {
+// ====================================================================================================================
+// -- type string table entry
+bool8 STEToString(void* value, char* buf, int32 bufsize)
+{
+	if (value && buf && bufsize > 0)
+    {
         sprintf_s(buf, bufsize, "%s",
             TinScript::GetContext()->GetStringTable()->FindString(*(uint32*)value));
 		return true;
@@ -157,9 +186,11 @@ bool8 STEToString(void* value, char* buf, int32 bufsize) {
 	return false;
 }
 
-bool8 StringToSTE(void* addr, char* value) {
+bool8 StringToSTE(void* addr, char* value)
+{
     // -- an STE is simply an address, copy the 4x bytes verbatim
-	if(addr && value) {
+	if (addr && value)
+    {
 		uint32* varaddr = (uint32*)addr;
 		*varaddr = Hash(value, -1, false);
 		return true;
@@ -167,17 +198,22 @@ bool8 StringToSTE(void* addr, char* value) {
 	return false;
 }
 
-// --------------------------------------------------------------------------------------------------------------------
-bool8 IntToString(void* value, char* buf, int32 bufsize) {
-	if(value && buf && bufsize > 0) {
+// ====================================================================================================================
+// -- type int
+bool8 IntToString(void* value, char* buf, int32 bufsize)
+{
+	if (value && buf && bufsize > 0)
+    {
 		sprintf_s(buf, bufsize, "%d", *(int32*)(value));
 		return true;
 	}
 	return false;
 }
 
-bool8 StringToInt(void* addr, char* value) {
-	if(addr && value) {
+bool8 StringToInt(void* addr, char* value)
+{
+	if (addr && value)
+    {
 		int32* varaddr = (int32*)addr;
 		*varaddr = Atoi(value);
 		return true;
@@ -185,21 +221,27 @@ bool8 StringToInt(void* addr, char* value) {
 	return false;
 }
 
-// --------------------------------------------------------------------------------------------------------------------
-bool8 BoolToString(void* value, char* buf, int32 bufsize) {
-	if(value && buf && bufsize > 0) {
+// ====================================================================================================================
+// -- type bool
+bool8 BoolToString(void* value, char* buf, int32 bufsize)
+{
+	if (value && buf && bufsize > 0)
+    {
 		sprintf_s(buf, bufsize, "%s", *(bool8*)(value) ? "true" : "false");
 		return true;
 	}
 	return false;
 }
 
-bool8 StringToBool(void* addr, char* value) {
-	if(addr && value) {
+bool8 StringToBool(void* addr, char* value)
+{
+	if (addr && value)
+    {
 		bool8* varaddr = (bool8*)addr;
 		if (!Strncmp_(value, "false", 6) || !Strncmp_(value, "0", 2) ||
 					!Strncmp_(value, "0.0", 4) || !Strncmp_(value, "0.0f", 5) ||
-                    !Strncmp_(value, "", 1)) {
+                    !Strncmp_(value, "", 1))
+        {
 			*varaddr = false;
 			return true;
 		}
@@ -211,17 +253,22 @@ bool8 StringToBool(void* addr, char* value) {
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
-bool8 FloatToString(void* value, char* buf, int32 bufsize) {
-	if(value && buf && bufsize > 0) {
+// ====================================================================================================================
+// -- type float
+bool8 FloatToString(void* value, char* buf, int32 bufsize)
+{
+	if (value && buf && bufsize > 0)
+    {
 		sprintf_s(buf, bufsize, "%.4f", *(float32*)(value));
 		return true;
 	}
 	return false;
 }
 
-bool8 StringToFloat(void* addr, char* value) {
-	if(addr && value) {
+bool8 StringToFloat(void* addr, char* value)
+{
+	if (addr && value)
+    {
 		float32* varaddr = (float32*)addr;
 		*varaddr = float32(atof(value));
 		return true;
@@ -241,7 +288,7 @@ bool8 GetRegisteredPODMember(eVarType type_id, void* var_addr, uint32 member_has
 
     // -- see if the hash table contains a specific entry for the member
     tPODTypeMember* member = gRegisteredPODTypeTable[type_id]->FindItem(member_hash);
-    if(!member)
+    if (!member)
         return (false);
 
     // -- get the member type and address
@@ -261,7 +308,7 @@ TypeOpOverride GetTypeOpOverride(eOpCode op, eVarType var0_type)
 }
 
 // ====================================================================================================================
-// InitializeTypes():  Any initialization for types
+// InitializeTypes():  Perform any initialization for registered types.
 // ====================================================================================================================
 void InitializeTypes()
 {
@@ -292,7 +339,7 @@ void InitializeTypes()
 }
 
 // ====================================================================================================================
-// InitializeTypes():  Any initialization for types
+// ShutdownTypes():  Perform any shutdown required for registered types.
 // ====================================================================================================================
 void ShutdownTypes()
 {
@@ -348,7 +395,7 @@ void* TypeConvert(CScriptContext* script_context, eVarType fromtype, void* froma
     char* bufferptr = script_context->GetScratchBuffer();
     
     // -- if the type remains the same, no conversion is necessary
-    if(fromtype == totype || !fromaddr)
+    if (fromtype == totype || !fromaddr)
         return fromaddr;
 
     // -- if the "to type" is a string, use the registered string conversion function
@@ -419,6 +466,9 @@ void* TypeConvert(CScriptContext* script_context, eVarType fromtype, void* froma
     return (NULL);
 }
 
+// ====================================================================================================================
+// DebugPrintVar():  Convert the given address to a variable type, and print the value to std out.
+// ====================================================================================================================
 const char* DebugPrintVar(void* addr, eVarType vartype)
 {
     if (!CScriptContext::gDebugTrace)
@@ -427,7 +477,7 @@ const char* DebugPrintVar(void* addr, eVarType vartype)
     static int32 bufferindex = 0;
     static char buffers[8][kMaxTokenLength];
 
-    if(!addr)
+    if (!addr)
         return "";
     char* convertbuf = TinScript::GetContext()->GetScratchBuffer();
     char* destbuf = TinScript::GetContext()->GetScratchBuffer();
@@ -436,20 +486,24 @@ const char* DebugPrintVar(void* addr, eVarType vartype)
     return convertbuf;
 }
 
-bool8 SafeStrcpy(char* dest, const char* src, int32 max) {
+// ====================================================================================================================
+// SafeStrcpy(): Safe version of strcpy(), guarantees no buffer overruns, and a null-terminated destination.
+// ====================================================================================================================
+bool8 SafeStrcpy(char* dest, const char* src, int32 max)
+{
 	// terminate the dest pointer, in case we copy a zero length string
 	if (dest)
 		*dest = '\0';
 
 	// -- sanity check
-	if(! dest || ! src || max <= 0) {
+	if (! dest || ! src || max <= 0)
 		return false;
-	}
 
 	char* destptr = dest;
 	const char* srcptr = src;
 	int32 count = max - 1;
-	while (*srcptr != '\0' && count > 0) {
+	while (*srcptr != '\0' && count > 0)
+    {
 		*destptr++ = *srcptr++;
 		--count;
 	}
@@ -457,9 +511,13 @@ bool8 SafeStrcpy(char* dest, const char* src, int32 max) {
 	return true;
 }
 
-int32 Atoi(const char* src, int32 length) {
+// ====================================================================================================================
+// Atoi():  Converts an ascii string segment to an integer value, including binary and hex string formats.
+// ====================================================================================================================
+int32 Atoi(const char* src, int32 length)
+{
     int32 result = 0;
-    if(!src || (length == 0))
+    if (!src || (length == 0))
         return 0;
 
     // -- see if we need to negate
@@ -474,16 +532,18 @@ int32 Atoi(const char* src, int32 length) {
     }
 
     // see if we're converting from hex
-    if(src[0] == '0' && (src[1] == 'x' || src[1] == 'X')) {
+    if (src[0] == '0' && (src[1] == 'x' || src[1] == 'X'))
+    {
         src += 2;
         length -= 2;
-        while(*src != '\0' && length != 0) {
+        while (*src != '\0' && length != 0)
+        {
             result = result * 16;
-            if(*src >= '0' && *src <= '9')
+            if (*src >= '0' && *src <= '9')
                 result += (*src - '0');
-            else if(*src >= 'a' && *src <= 'f')
+            else if (*src >= 'a' && *src <= 'f')
                 result += 10 + (*src - 'a');
-            else if(*src >= 'A' && *src <= 'F')
+            else if (*src >= 'A' && *src <= 'F')
                 result += 10 + (*src - 'A');
             else
                 return (signchange * result);
@@ -495,14 +555,16 @@ int32 Atoi(const char* src, int32 length) {
     }
 
     // see if we're converting from binary
-    if(src[0] == '0' && (src[1] == 'b' || src[1] == 'B')) {
+    if (src[0] == '0' && (src[1] == 'b' || src[1] == 'B'))
+    {
         src += 2;
         length -= 2;
-        while(*src != '\0' && length != 0) {
+        while (*src != '\0' && length != 0)
+        {
             result = result << 1;
-            if(*src == '1')
+            if (*src == '1')
                 ++result;
-            else if(*src != '0')
+            else if (*src != '0')
                 return (signchange * result);
 
             // -- next character
@@ -511,11 +573,13 @@ int32 Atoi(const char* src, int32 length) {
         }
     }
 
-    else {
+    else
+    {
         // -- if length was given as -1, we process the entire null-terminated string
-        while(*src != '\0' && length != 0) {
+        while(*src != '\0' && length != 0)
+        {
             // -- validate the character
-            if(*src < '0' || *src > '9')
+            if (*src < '0' || *src > '9')
                 return (signchange * result);
             result = (result * 10) + (int32)(*src - '0');
 
@@ -527,8 +591,12 @@ int32 Atoi(const char* src, int32 length) {
 
     return (signchange * result);
 }
-// --------------------------------------------------------------------------------------------------------------------
-// -- Type conversion functions
+
+// == Type Conversion functions =======================================================================================
+
+// ====================================================================================================================
+// FloatConvert():  Convert the given value to a float, for valid source types.
+// ====================================================================================================================
 void* FloatConvert(CScriptContext* script_context, eVarType from_type, void* from_val, void* to_buffer)
 {
     // -- sanity check
@@ -550,8 +618,9 @@ void* FloatConvert(CScriptContext* script_context, eVarType from_type, void* fro
     return (NULL);
 }
 
-// --------------------------------------------------------------------------------------------------------------------
-// -- Type conversion functions
+// ====================================================================================================================
+// IntegerConvert():  Convert the given value to an integer, for valid source types.
+// ====================================================================================================================
 void* IntegerConvert(CScriptContext* script_context, eVarType from_type, void* from_val, void* to_buffer)
 {
     // -- sanity check
@@ -586,8 +655,9 @@ void* IntegerConvert(CScriptContext* script_context, eVarType from_type, void* f
     return (NULL);
 }
 
-// --------------------------------------------------------------------------------------------------------------------
-// -- Type conversion functions
+// ====================================================================================================================
+// BoolConvert():  Convert the given value to a bool, for valid source types.
+// ====================================================================================================================
 void* BoolConvert(CScriptContext* script_context, eVarType from_type, void* from_val, void* to_buffer)
 {
     // -- sanity check
@@ -616,8 +686,9 @@ void* BoolConvert(CScriptContext* script_context, eVarType from_type, void* from
     return (NULL);
 }
 
-// --------------------------------------------------------------------------------------------------------------------
-// -- Type conversion functions
+// ====================================================================================================================
+// ObjectConvert():  Convert the given value to an object, for valid source types.  Also validates the object exists.
+// ====================================================================================================================
 void* ObjectConvert(CScriptContext* script_context, eVarType from_type, void* from_val, void* to_buffer)
 {
     // -- sanity check
@@ -642,7 +713,7 @@ void* ObjectConvert(CScriptContext* script_context, eVarType from_type, void* fr
     return (NULL);
 }
 
-// --------------------------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // -- Forward declarations for operation overrides
 bool8 ObjectBinaryOp(CScriptContext* script_context, eOpCode op, eVarType& result_type, void* result_addr,
                      eVarType val0_type, void* val0, eVarType val1_type, void* val1);
@@ -1113,6 +1184,6 @@ bool8 BoolConfig(eVarType var_type, bool8 onInit)
 
 } // TinScript
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

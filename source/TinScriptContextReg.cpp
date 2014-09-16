@@ -19,26 +19,32 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
-// TinScript.cpp
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// TinScriptContextReg.cpp
+// ====================================================================================================================
 
+// -- includes
 #include "stdafx.h"
 #include "TinRegistration.h"
 #include "TinScheduler.h"
 #include "TinObjectGroup.h"
 #include "TinScript.h"
 
-// ------------------------------------------------------------------------------------------------
+// == namespace TinScript =============================================================================================
 
-namespace TinScript {
+namespace TinScript
+{
 
+// --------------------------------------------------------------------------------------------------------------------
+// -- statics
 CRegFunctionBase* CRegFunctionBase::gRegistrationList = NULL;
-
-// ------------------------------------------------------------------------------------------------
-// --  CRegisterGlobal  ---------------------------------------------------------------------------
-
 CRegisterGlobal* CRegisterGlobal::head = NULL;
+
+// == class CRegisterGlobal ===========================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CRegisterGlobal::CRegisterGlobal(const char* _name, TinScript::eVarType _type, void* _addr, int32 _array_size)
 {
     name = _name;
@@ -55,6 +61,9 @@ CRegisterGlobal::CRegisterGlobal(const char* _name, TinScript::eVarType _type, v
     }
 }
 
+// ====================================================================================================================
+// RegisterGlobals():  On startup, iterate through the registration objects and actually perform the registration.
+// ====================================================================================================================
 void CRegisterGlobal::RegisterGlobals(CScriptContext* script_context)
 {
     CRegisterGlobal* global = CRegisterGlobal::head;
@@ -80,10 +89,13 @@ void CRegisterGlobal::RegisterGlobals(CScriptContext* script_context)
     }
 }
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // -- Set of functions that (mostly) access an internal method of a ScriptContext
 // -- They retrieve the correct CScriptContext instance from the thread currently executing
 
+// ====================================================================================================================
+// CalcHash():  Wrapper for Hash, but allows multiple string arguments
+// ====================================================================================================================
 int32 CalcHash(const char* str0, const char* str1, const char* str2, const char* str3)
 {
     uint32 hashval = Hash(str0);
@@ -94,11 +106,17 @@ int32 CalcHash(const char* str0, const char* str1, const char* str2, const char*
     return static_cast<int32>(hashval);
 }
 
+// ====================================================================================================================
+// CalcUnhash():  Reverse lookup, returns the string that hashes to the given value.
+// ====================================================================================================================
 const char* CalcUnhash(int32 hashval)
 {
     return UnHash(static_cast<int32>(hashval));
 }
 
+// ====================================================================================================================
+// ContextPrintObject():  Find the object in the CScriptContext belonging to this thread, and debug print it's members.
+// ====================================================================================================================
 void ContextPrintObject(uint32 objectid)
 {
     CScriptContext* script_context = TinScript::GetContext();
@@ -106,6 +124,9 @@ void ContextPrintObject(uint32 objectid)
     script_context->PrintObject(oe);
 }
 
+// ====================================================================================================================
+// ContextDebugBreak():  Cause the current thread's CScriptContext, and trigger an assert.  Used for debugging.
+// ====================================================================================================================
 void ContextDebugBreak(const char* msg)
 {
     // -- force an assert on the executing thread
@@ -113,11 +134,17 @@ void ContextDebugBreak(const char* msg)
     ScriptAssert_(script_context, false, "<internal>", -1, "Scripted DebugBreak()\n");
 }
 
+// ====================================================================================================================
+// ContextListObjects():  List the objects registered to the current thread's CScriptContext.
+// ====================================================================================================================
 void ContextListObjects()
 {
     TinScript::GetContext()->ListObjects();
 }
 
+// ====================================================================================================================
+// ContextIsObject():  Returns true, if the object is registered to the current thread's CScriptContext.
+// ====================================================================================================================
 bool8 ContextIsObject(uint32 objectid)
 {
     CScriptContext* script_context = TinScript::GetContext();
@@ -125,6 +152,10 @@ bool8 ContextIsObject(uint32 objectid)
     return found;
 }
 
+// ====================================================================================================================
+// ContextFindObjectByName(): Returns the object ID, for an object of the given name is found within
+// the curren thread's CScriptContext.
+// ====================================================================================================================
 uint32 ContextFindObjectByName(const char* objname)
 {
     CScriptContext* script_context = TinScript::GetContext();
@@ -132,6 +163,9 @@ uint32 ContextFindObjectByName(const char* objname)
     return oe ? oe->GetID() : 0;
 }
 
+// ====================================================================================================================
+// ContextObjectIsDerivedFrom():  Returns true if the object has the given namespace in it's hierarchy.
+// ====================================================================================================================
 bool8 ContextObjectIsDerivedFrom(uint32 objectid, const char* requred_namespace)
 {
     CScriptContext* script_context = TinScript::GetContext();
@@ -139,6 +173,9 @@ bool8 ContextObjectIsDerivedFrom(uint32 objectid, const char* requred_namespace)
     return (objaddr != NULL);
 }
 
+// ====================================================================================================================
+// ContextObjectHasMethod():  Returns true if the object has an implementation for the given method.
+// ====================================================================================================================
 bool8 ContextObjectHasMethod(uint32 objectid, const char* method_name)
 {
     CScriptContext* script_context = TinScript::GetContext();
@@ -146,60 +183,79 @@ bool8 ContextObjectHasMethod(uint32 objectid, const char* method_name)
     return (has_method);
 }
 
+// ====================================================================================================================
+// ContextAddDynamicVariable():  Declare a dynamic variable for the given object.
+// ====================================================================================================================
 void ContextAddDynamicVariable(uint32 objectid, const char* varname, const char* vartype, int32 array_size)
 {
     CScriptContext* script_context = TinScript::GetContext();
     script_context->AddDynamicVariable(objectid, varname, vartype, array_size);
 }
 
-void ContextLinkNamespaces(const char* childns, const char* parentns) {
+// ====================================================================================================================
+// ContextLinkNamespaces():  Link the child namespace to the parent, in the current thread's CScriptContext.
+// ====================================================================================================================
+void ContextLinkNamespaces(const char* childns, const char* parentns)
+{
     CScriptContext* script_context = TinScript::GetContext();
     script_context->LinkNamespaces(childns, parentns);
 }
 
+// ====================================================================================================================
+// ContextListVariables():  If an object id is given, dump it's hierarchy of members.
+// Otherwise, dump the global variables in this thread's CScriptContext.
+// ====================================================================================================================
 void ContextListVariables(uint32 objectid)
 {
     CScriptContext* script_context = TinScript::GetContext();
-    if(objectid > 0) {
+    if (objectid > 0)
+    {
         TinScript::CObjectEntry* oe = script_context->FindObjectEntry(objectid);
-        if(!oe) {
+        if (!oe)
+        {
             ScriptAssert_(script_context, 0, "<internal>", -1,
                           "Error - Unable to find object: %d\n", objectid);
         }
-        else {
+        else
             TinScript::DumpVarTable(oe);
-        }
     }
-    else {
-        TinScript::DumpVarTable(script_context, NULL,
-                                script_context->GetGlobalNamespace()->GetVarTable());
+    else
+    {
+        TinScript::DumpVarTable(script_context, NULL, script_context->GetGlobalNamespace()->GetVarTable());
     }
 }
 
+// ====================================================================================================================
+// ContextListFunctions():  If an object id is given, dump it's hierarchy of methods.
+// Otherwise, dump the global functions in this thread's CScriptContext.
+// ====================================================================================================================
 void ContextListFunctions(uint32 objectid)
 {
     CScriptContext* script_context = TinScript::GetContext();
-    if(objectid > 0) {
+    if (objectid > 0)
+    {
         TinScript::CObjectEntry* oe = script_context->FindObjectEntry(objectid);
-        if(!oe) {
-            ScriptAssert_(script_context, 0, "<internal>", -1,
-                          "Error - Unable to find object: %d\n", objectid);
+        if (!oe)
+        {
+            ScriptAssert_(script_context, 0, "<internal>", -1, "Error - Unable to find object: %d\n", objectid);
         }
-        else {
+        else
             TinScript::DumpFuncTable(oe);
-        }
     }
-    else {
+    else
         TinScript::DumpFuncTable(script_context, script_context->GetGlobalNamespace()->GetFuncTable());
-    }
 }
 
+// ====================================================================================================================
+// ContextGetObjectNamespace():  Return the last (leaf) namespace in the hierarchy for the given object.
+// ====================================================================================================================
 const char* ContextGetObjectNamespace(uint32 objectid)
 {
     CScriptContext* script_context = TinScript::GetContext();
-    if(objectid > 0) {
+    if (objectid > 0)
+    {
         TinScript::CObjectEntry* oe = script_context->FindObjectEntry(objectid);
-        if(!oe) {
+        if (!oe) {
             return "";
         }
         else {
@@ -211,23 +267,34 @@ const char* ContextGetObjectNamespace(uint32 objectid)
     }
 }
 
+// ====================================================================================================================
+// ListSchedules():  Dump the pending scheduled requests for the current thread's CScriptContext.
+// ====================================================================================================================
 void ContextListSchedules()
 {
     CScriptContext* script_context = TinScript::GetContext();
     script_context->GetScheduler()->Dump();
 }
 
+// ====================================================================================================================
+// ContextScheduleCancel():  Cancel a pending scheduled request in the current thread's CScriptContext.
+// ====================================================================================================================
 void ContextScheduleCancel(int32 reqid)
 {
     CScriptContext* script_context = TinScript::GetContext();
     script_context->GetScheduler()->CancelRequest(reqid);
 }
 
+// ====================================================================================================================
+// ContextScheduleCancelObject():  Cancel all pending scheduled requests for an object, in the current CScriptContext.
+// ====================================================================================================================
 void ContextScheduleCancelObject(uint32 objectid)
 {
     CScriptContext* script_context = TinScript::GetContext();
     script_context->GetScheduler()->CancelObject(objectid);
 }
+
+// == Registration ====================================================================================================
 
 // -- these methods all wrap some call to a member of ScriptContext
 // -- we want to execute the context created by the thread, in which this function is being called
@@ -254,6 +321,6 @@ REGISTER_FUNCTION_P1(Unhash, CalcUnhash, const char*, int32);
 
 } // TinScript
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

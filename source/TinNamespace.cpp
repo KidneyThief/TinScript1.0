@@ -19,14 +19,15 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
-// tinnamespace.cpp
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// TinNamespace.cpp
+// ====================================================================================================================
 
 // -- lib includes
 #include "stdafx.h"
 #include "stdio.h"
 
+// -- includes
 #include "TinNamespace.h"
 #include "TinParse.h"
 #include "TinScheduler.h"
@@ -34,18 +35,24 @@
 #include "TinStringTable.h"
 #include "TinRegistration.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
 
+namespace TinScript
+{
+
+// --------------------------------------------------------------------------------------------------------------------
+// -- statics
 CNamespaceReg* CNamespaceReg::head = NULL;
-
 static const char* kGlobalNamespace = "_global";
 
-// ------------------------------------------------------------------------------------------------
-// -- CObjectEntry
-// ------------------------------------------------------------------------------------------------
+// == class CObjectEntry ==============================================================================================
 
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CObjectEntry::CObjectEntry(CScriptContext* script_context, uint32 _objid, uint32 _namehash,
-                           CNamespace* _objnamespace, void* _objaddr, bool8 register_manual) {
+                           CNamespace* _objnamespace, void* _objaddr, bool8 register_manual)
+{
     mContextOwner = script_context;
     mObjectID = _objid;
     mNameHash = _namehash;
@@ -56,35 +63,47 @@ CObjectEntry::CObjectEntry(CScriptContext* script_context, uint32 _objid, uint32
     mManualRegister = register_manual;
 }
 
-CObjectEntry::~CObjectEntry() {
-    if(mDynamicVariables) {
+// ====================================================================================================================
+// Destructor
+// ====================================================================================================================
+CObjectEntry::~CObjectEntry()
+{
+    if (mDynamicVariables)
+    {
         mDynamicVariables->DestroyAll();
         TinFree(mDynamicVariables);
     }
 }
 
-// ------------------------------------------------------------------------------------------------
-CVariableEntry* CObjectEntry::GetVariableEntry(uint32 varhash) {
+// ====================================================================================================================
+// GetVariableEntry():  Search the linked list of namespaces, and the dynamically added list for a registered variable.
+// ====================================================================================================================
+CVariableEntry* CObjectEntry::GetVariableEntry(uint32 varhash)
+{
     CVariableEntry* ve = NULL;
     CNamespace* objns = GetNamespace();
-    while(objns && !ve) {
+    while (objns && !ve) {
         ve = objns->GetVarTable()->FindItem(varhash);
         objns = objns->GetNext();
     }
 
     // -- if we weren't able to find the variable in the legitimate namespace hierarchy,
     // -- check the dynamic variables
-    if(!ve && mDynamicVariables)
+    if (!ve && mDynamicVariables)
         ve = mDynamicVariables->FindItem(varhash);
 
-    return ve;
+    return (ve);
 }
 
-CFunctionEntry* CObjectEntry::GetFunctionEntry(uint32 nshash, uint32 funchash) {
+// ====================================================================================================================
+// GetFunctionEntry():  Search the linked list of namespaces looking for a registered method.
+// ====================================================================================================================
+CFunctionEntry* CObjectEntry::GetFunctionEntry(uint32 nshash, uint32 funchash)
+{
     CFunctionEntry* fe = NULL;
     CNamespace* objns = GetNamespace();
-    while(!fe && objns) {
-        if(nshash == 0 || objns->GetHash() == nshash)
+    while (!fe && objns) {
+        if (nshash == 0 || objns->GetHash() == nshash)
             fe = objns->GetFuncTable()->FindItem(funchash);
         objns = objns->GetNext();
     }
@@ -92,53 +111,70 @@ CFunctionEntry* CObjectEntry::GetFunctionEntry(uint32 nshash, uint32 funchash) {
     return fe;
 }
 
-CNamespace* CObjectEntry::HasNamespace(uint32 nshash) {
-    if(nshash == 0)
-        return NULL;
+// ====================================================================================================================
+// HasNamespace():  Search the linked list to see if this object is "derived" from a given namespace.
+// ====================================================================================================================
+CNamespace* CObjectEntry::HasNamespace(uint32 nshash)
+{
+    if (nshash == 0)
+        return (NULL);
     CNamespace* objns = GetNamespace();
-    while(objns && objns->GetHash() != nshash)
+    while (objns && objns->GetHash() != nshash)
         objns = objns->GetNext();
     return objns;
 }
 
-bool8 CObjectEntry::AddDynamicVariable(uint32 varhash, eVarType vartype, int32 array_size) {
+// ====================================================================================================================
+// AddDynamicVariable():  Add a dynamic variable to this object.
+// ====================================================================================================================
+bool8 CObjectEntry::AddDynamicVariable(uint32 varhash, eVarType vartype, int32 array_size)
+{
     // -- sanity check
-    if(varhash == 0 || vartype < FIRST_VALID_TYPE)
-        return false;
+    if (varhash == 0 || vartype < FIRST_VALID_TYPE)
+        return (false);
 
     // -- see if the variable already exists
     CVariableEntry* ve = GetVariableEntry(varhash);
 
     // -- if we do, it had better be the same type
-    if(ve) {
-        if(ve->GetType() != vartype) {
+    if (ve)
+    {
+        if (ve->GetType() != vartype)
+        {
             ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
                           "Error - Variable already exists: %s, type: %s\n",
                           UnHash(varhash), GetRegisteredTypeName(ve->GetType()));
-            return false;
+            return (false);
         }
-        return true;
+        return (true);
     }
 
     // -- ensure we have a dictionary to hold the dynamic tags
-    if(!mDynamicVariables) {
+    if (!mDynamicVariables)
+    {
         mDynamicVariables = TinAlloc(ALLOC_HashTable, CHashTable<CVariableEntry>,
                                     kLocalVarTableSize);
     }
+
 	ve = TinAlloc(ALLOC_VarEntry, CVariableEntry, GetScriptContext(), UnHash(varhash), varhash,
-                                                  vartype, array_size, false, 0, true);
+                  vartype, array_size, false, 0, true);
 	mDynamicVariables->AddItem(*ve, varhash);
 
     return (ve != NULL);
 }
 
-bool8 CObjectEntry::SetMemberVar(uint32 varhash, void* value) {
-    if(!value) {
-        return false;
-    }
+// ====================================================================================================================
+// SetMemberVar():  Set the value of an object member.
+// ====================================================================================================================
+bool8 CObjectEntry::SetMemberVar(uint32 varhash, void* value)
+{
+    if (!value)
+        return (false);
+
     // -- find the variable
     CVariableEntry* ve = GetVariableEntry(varhash);
-    if(!ve) {
+    if (!ve)
+    {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
                       "Error - Unable to find variable %s for object %d\n",
                       UnHash(varhash), GetID());
@@ -150,32 +186,17 @@ bool8 CObjectEntry::SetMemberVar(uint32 varhash, void* value) {
     return (true);
 }
 
-
-// ------------------------------------------------------------------------------------------------
-// -- CVariableEntry
-// ------------------------------------------------------------------------------------------------
-
-CVariableEntry* CNamespace::GetVarEntry(uint32 varhash) {
-    CNamespace* curnamespace = this;
-    while(curnamespace) {
-        CVariableEntry* ve = GetVarTable()->FindItem(varhash);
-        if(ve)
-            return ve;
-        else
-            curnamespace = curnamespace->GetNext();
-    }
-
-    // -- not found
-    return NULL;
-}
-
-CNamespace* CScriptContext::FindOrCreateNamespace(const char* _nsname, bool8 create) {
+// ====================================================================================================================
+// FindOrCreateNamespace():  Find a namespace by name, create if required.
+// ====================================================================================================================
+CNamespace* CScriptContext::FindOrCreateNamespace(const char* _nsname, bool8 create)
+{
     // -- ensure the name lives in the string table
     const char* nsname = _nsname && _nsname[0] ? GetStringTable()->AddString(_nsname)
                                                : GetStringTable()->AddString(kGlobalNamespace);
     uint32 nshash = Hash(nsname);
     CNamespace* namespaceentry = mNamespaceDictionary->FindItem(nshash);
-    if(!namespaceentry && create) {
+    if (!namespaceentry && create) {
         namespaceentry = TinAlloc(ALLOC_Namespace, CNamespace, this, nsname, 0, NULL);
 
         // -- add the namespace to the dictionary
@@ -185,17 +206,24 @@ CNamespace* CScriptContext::FindOrCreateNamespace(const char* _nsname, bool8 cre
     return namespaceentry;
 }
 
-CNamespace* CScriptContext::FindNamespace(uint32 nshash) {
-    if(nshash == 0)
+// ====================================================================================================================
+// FindNamespace():  Find a namespace by hash.
+// ====================================================================================================================
+CNamespace* CScriptContext::FindNamespace(uint32 nshash)
+{
+    if (nshash == 0)
         nshash = Hash(kGlobalNamespace);
     CNamespace* namespaceentry = mNamespaceDictionary->FindItem(nshash);
     return (namespaceentry);
 }
 
-void CScriptContext::LinkNamespaces(const char* childnsname, const char* parentnsname) {
-
+// ====================================================================================================================
+// LinkNamespaces():  Link a child namespace to a parent, creating a hierarchy.
+// ====================================================================================================================
+void CScriptContext::LinkNamespaces(const char* childnsname, const char* parentnsname)
+{
     // sanity check
-    if(!childnsname || !childnsname[0] || !parentnsname || !parentnsname[0])
+    if (!childnsname || !childnsname[0] || !parentnsname || !parentnsname[0])
         return;
 
     // -- ensure the child exists and the parent exists
@@ -204,19 +232,26 @@ void CScriptContext::LinkNamespaces(const char* childnsname, const char* parentn
     LinkNamespaces(childns, parentns);
 }
 
-void CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns) {
+// ====================================================================================================================
+// LinkNamespaces():  Link a child namespace to a parent, creating a hierarchy.
+// ====================================================================================================================
+void CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns)
+{
     // -- sanity check
-    if(!childns || !parentns || parentns == childns)
+    if (!childns || !parentns || parentns == childns)
         return;
 
-    if(childns->GetNext() == NULL) {
+    if (childns->GetNext() == NULL)
+    {
         // -- verify the parent is not already in the hierarchy, or we'll have a circular list
         CNamespace* tempns = parentns;
-        while(tempns) {
-            if(tempns == childns) {
+        while (tempns)
+        {
+            if (tempns == childns)
+            {
                 ScriptAssert_(this, 0, "<internal>", -1,
-                    "Error - attempting to link namespace %s to %s, which is already its child\n",
-                    UnHash(childns->GetHash()), UnHash(parentns->GetHash()));
+                             "Error - attempting to link namespace %s to %s, which is already its child\n",
+                             UnHash(childns->GetHash()), UnHash(parentns->GetHash()));
                 return;
             }
             tempns = tempns->GetNext();
@@ -228,10 +263,12 @@ void CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns) {
     }
 
     // -- child is already linked - see if the new parent is already in the hierarchy
-    else {
+    else
+    {
         CNamespace* tempns = childns->GetNext();
-        while(tempns) {
-            if(tempns == parentns)
+        while (tempns)
+        {
+            if (tempns == parentns)
                 return;
             else
                 tempns = tempns->GetNext();
@@ -242,15 +279,19 @@ void CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns) {
         bool8 found = false;
         CNamespace* oldparent = childns->GetNext();
         tempns = parentns;
-        while(tempns) {
-            if(tempns == oldparent) {
+        while (tempns)
+        {
+            if (tempns == oldparent)
+            {
                 found = true;
                 break;
             }
             tempns = tempns->GetNext();
         }
+
         // -- if it was found, link the namespaces and exit
-        if(found) {
+        if (found)
+        {
             childns->SetNext(parentns);
             return;
         }
@@ -304,12 +345,19 @@ void CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns) {
                   UnHash(childns->GetNext()->GetHash()));
 }
 
-uint32 CScriptContext::GetNextObjectID() {
+// ====================================================================================================================
+// GetNextObjectID():  Generate the object ID for the next object registered.
+// ====================================================================================================================
+uint32 CScriptContext::GetNextObjectID()
+{
     // -- every object created gets a unique ID, so we can find it in the object dictionary
     // -- providing a way to register code-instantiated objects
     return ++mObjectIDGenerator;
 }
 
+// ====================================================================================================================
+// CreateObject():  Create an object instance, given the hash of the class to use, and the hash of the object's name.
+// ====================================================================================================================
 uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash)
 {
     uint32 objectid = GetNextObjectID();
@@ -349,12 +397,13 @@ uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash)
 
         // -- see if we can hook this object up to the namespace for it's object name
         CNamespace* objnamens = namespaceentry;
-        if(objnamehash != 0) {
+        if (objnamehash != 0)
+        {
             objnamens = GetNamespaceDictionary()->FindItem(objnamehash);
-            if(!objnamens) {
+            if (!objnamens)
                 objnamens = namespaceentry;
-            }
-            else {
+            else
+            {
                 // -- link the namespaces
                 LinkNamespaces(objnamens, namespaceentry);
             }
@@ -362,13 +411,15 @@ uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash)
 
         // -- need to verify that if we're using an objnamens (scripted), that the namespaceentry
         // -- is the highest level registered class
-        if(objnamens != namespaceentry) {
+        if (objnamens != namespaceentry)
+        {
             CNamespace* tempns = objnamens;
-            while(tempns && tempns->GetCreateInstance() == NULL) {
+            while (tempns && tempns->GetCreateInstance() == NULL)
                 tempns = tempns->GetNext();
-            }
+
             // -- if we run out of namespaces... how'd we create this object?
-            if(!tempns) {
+            if (!tempns)
+            {
                 ScriptAssert_(this, 0, "<internal>", -1,
                               "Error - Unable to verify hierarchy for namespace: %s\n",
                               UnHash(objnamens->GetHash()));
@@ -376,7 +427,8 @@ uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash)
                 //delete newobj;
                 return 0;
             }
-            else if(tempns != class_namespace) {
+            else if (tempns != class_namespace)
+            {
                 ScriptAssert_(this, 0, "<internal>", -1,
                               "Error - Unable to create an instance of base class: %s, using object namespace: %s.\n"
                               "Use derived class: %s\n",
@@ -397,19 +449,19 @@ uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash)
 
         // -- if the item is named, add it to the name dictionary
         // $$$TZA Note:  names are not guaranteed unique...  warn?
-        if(objnamehash != Hash("")) {
+        if (objnamehash != Hash(""))
             GetNameDictionary()->AddItem(*newobjectentry, objnamehash);
-        }
 
         // -- see if the "OnCreate" has been defined - it's not required to
         CFunctionEntry* createfunc = newobjectentry->GetFunctionEntry(0, Hash("OnCreate"));
-        if(createfunc) {
+        if (createfunc)
+        {
             // -- call the script "OnCreate" for the object
             int32 dummy = 0;
             ObjExecF(objectid, dummy, "OnCreate();");
         }
 
-        return objectid;
+        return (objectid);
     }
     else
     {
@@ -419,17 +471,19 @@ uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash)
     }
 }
 
-uint32 CScriptContext::RegisterObject(void* objaddr, const char* classname,
-                                         const char* objectname) {
-
+// ====================================================================================================================
+// RegisterObject():  Given the address of an object instantiated outside TinScript, register it independently.
+// ====================================================================================================================
+uint32 CScriptContext::RegisterObject(void* objaddr, const char* classname, const char* objectname)
+{
     // -- sanity check
-    if(!objaddr || !classname || !classname[0])
+    if (!objaddr || !classname || !classname[0])
         return 0;
 
     // -- ensure the classname is for an existing registered class
     uint32 nshash = Hash(classname);
     CNamespace* namespaceentry = FindNamespace(nshash);
-    if(!namespaceentry) {
+    if (!namespaceentry) {
         ScriptAssert_(this, 0, "<internal>", -1,
                        "Error - Class is not registered: %s\n", classname);
         return 0;
@@ -440,9 +494,9 @@ uint32 CScriptContext::RegisterObject(void* objaddr, const char* classname,
         // -- see if we can hook this object up to the namespace for it's object name
     uint32 objnamehash = objectname ? Hash(objectname) : 0;
     CNamespace* objnamens = namespaceentry;
-    if(objnamehash != 0) {
+    if (objnamehash != 0) {
         objnamens = GetNamespaceDictionary()->FindItem(objnamehash);
-        if(!objnamens)
+        if (!objnamens)
             objnamens = namespaceentry;
         else {
             // -- link the namespaces
@@ -459,15 +513,15 @@ uint32 CScriptContext::RegisterObject(void* objaddr, const char* classname,
     GetAddressDictionary()->AddItem(*newobjectentry, kPointerToUInt32(objaddr));
 
     // -- if the item is named, add it to the name dictionary
-    if(objnamehash != Hash("")) {
+    if (objnamehash != Hash("")) {
         GetNameDictionary()->AddItem(*newobjectentry, objnamehash);
     }
 
     // -- see if the "OnCreate" has been defined - it's not required to
     CFunctionEntry* createfunc = newobjectentry->GetFunctionEntry(0, Hash("OnCreate"));
-    if(createfunc) {
+    if (createfunc) {
         // -- call the script "OnCreate" for the object
-        if(HasMethod(objectid, "OnCreate")) {
+        if (HasMethod(objectid, "OnCreate")) {
             int32 dummy = 0;
             ObjExecF(objectid, dummy, "OnCreate();");
         }
@@ -476,6 +530,9 @@ uint32 CScriptContext::RegisterObject(void* objaddr, const char* classname,
     return objectid;
 }
 
+// ====================================================================================================================
+// UnregisterObject():  Used to remove all TinScript references to an object instantiated outside the system.
+// ====================================================================================================================
 void CScriptContext::UnregisterObject(void* objaddr)
 {
     // -- find the ID of the registered object
@@ -488,10 +545,15 @@ void CScriptContext::UnregisterObject(void* objaddr)
     DestroyObject(objectid);
 }
 
-void CScriptContext::DestroyObject(uint32 objectid) {
+// ====================================================================================================================
+// DestroyObject():  Destroy an object, calls the OnDestroy() method, and deletes it.
+// ====================================================================================================================
+void CScriptContext::DestroyObject(uint32 objectid)
+{
     // -- find this object in the dictionary of all objects created from script
     CObjectEntry* oe = GetObjectDictionary()->FindItem(objectid);
-    if(!oe) {
+    if (!oe)
+    {
         ScriptAssert_(this, 0, "<internal>", -1,
                       "Error - Unable to find object: %d\n", objectid);
         return;
@@ -502,7 +564,8 @@ void CScriptContext::DestroyObject(uint32 objectid) {
 
     // -- get the namespace entry for the object
     CNamespace* namespaceentry = oe->GetNamespace();
-    if(!namespaceentry) {
+    if (!namespaceentry)
+    {
         ScriptAssert_(this, 0, "<internal>", -1,
                       "Error - Unable to find the namespace for object: %d\n", objectid);
         return;
@@ -510,7 +573,8 @@ void CScriptContext::DestroyObject(uint32 objectid) {
 
     // -- get the Destroy function
     CNamespace::DestroyInstance destroyptr = namespaceentry->GetDestroyInstance();
-    if(destroyptr == NULL) {
+    if (destroyptr == NULL)
+    {
         ScriptAssert_(this, 0, "<internal>", -1,
                       "Error - no Destroy() function registered for class: %s\n",
                       UnHash(namespaceentry->GetHash()));
@@ -519,14 +583,16 @@ void CScriptContext::DestroyObject(uint32 objectid) {
 
     // -- see if the "OnDestroy" has been defined - it's not required to
     CFunctionEntry* destroyfunc = oe->GetFunctionEntry(0, Hash("OnDestroy"));
-    if(destroyfunc) {
+    if (destroyfunc)
+    {
         int32 dummy = 0;
         ObjExecF(objectid, dummy, "OnDestroy();");
     }
 
     // -- get the address of the object
     void* objaddr = oe->GetAddr();
-    if(!objaddr) {
+    if (!objaddr)
+    {
         ScriptAssert_(this, 0, "<internal>", -1,
                       "Error - no address for object: %d\n", objectid);
         return;
@@ -536,9 +602,8 @@ void CScriptContext::DestroyObject(uint32 objectid) {
     GetScheduler()->CancelObject(objectid);
 
     // -- if the object was not registered externally, delete the actual object
-    if(!oe->IsManuallyRegistered()) {
+    if (!oe->IsManuallyRegistered())
         (*destroyptr)(objaddr);
-    }
 
     // -- remove the object from the dictionary, and delete the entry
     GetObjectDictionary()->RemoveItem(objectid);
@@ -549,69 +614,98 @@ void CScriptContext::DestroyObject(uint32 objectid) {
     TinFree(oe);
 }
 
-CObjectEntry* CScriptContext::FindObjectEntry(uint32 objectid) {
+// ====================================================================================================================
+// FindObjectEntry():  Finds an object, given the ID.
+// ====================================================================================================================
+CObjectEntry* CScriptContext::FindObjectEntry(uint32 objectid)
+{
     CObjectEntry* oe = GetObjectDictionary()->FindItem(objectid);
     return oe;
 }
 
-CObjectEntry* CScriptContext::FindObjectByAddress(void* addr) {
+// ====================================================================================================================
+// FindObjectByAddress():  Find an entry, given the address of an object registered but instantiated outside TinScript.
+// ====================================================================================================================
+CObjectEntry* CScriptContext::FindObjectByAddress(void* addr)
+{
     CObjectEntry* oe = GetAddressDictionary()->FindItem(kPointerToUInt32(addr));
     return oe;
 }
 
-CObjectEntry* CScriptContext::FindObjectByName(const char* objname) {
-    if(!objname || !objname[0])
-        return NULL;
+// ====================================================================================================================
+// FindObjectByName():  Find an object entry, given it's name.
+// ====================================================================================================================
+CObjectEntry* CScriptContext::FindObjectByName(const char* objname)
+{
+    if (!objname || !objname[0])
+        return (NULL);
     CObjectEntry* oe = GetNameDictionary()->FindItem(Hash(objname));
     return oe;
 }
 
-uint32 CScriptContext::FindIDByAddress(void* addr) {
+// ====================================================================================================================
+// FindIDByAddress():  Find an object entry, give the address, and return the ID.
+// ====================================================================================================================
+uint32 CScriptContext::FindIDByAddress(void* addr)
+{
     CObjectEntry* oe = GetAddressDictionary()->FindItem(kPointerToUInt32(addr));
     return oe ? oe->GetID() : 0;
 }
 
+// ====================================================================================================================
+// FindObject():  Find an object by ID, but return NULL if a required namespace is not part of its hierarchy.
+// ====================================================================================================================
 void* CScriptContext::FindObject(uint32 objectid, const char* required_namespace) {
     CObjectEntry* oe = GetObjectDictionary()->FindItem(objectid);
-    if(oe && (!required_namespace || !required_namespace[0] ||
-              oe->HasNamespace(Hash(required_namespace)))) {
+    if (oe && (!required_namespace || !required_namespace[0] ||
+              oe->HasNamespace(Hash(required_namespace))))
+    {
         return (oe->GetAddr());
     }
-    return NULL;
+    return (NULL);
 }
 
-bool8 CScriptContext::HasMethod(void* addr, const char* method_name) {
-    if(!addr || !method_name)
+// ====================================================================================================================
+// HasMethod():  Return 'true' if there's a registered or scripted method in the hierarchy of an object.
+// ====================================================================================================================
+bool8 CScriptContext::HasMethod(void* addr, const char* method_name)
+{
+    if (!addr || !method_name)
         return (false);
 
     CObjectEntry* oe = GetAddressDictionary()->FindItem(kPointerToUInt32(addr));
-    if(!oe) {
+    if (!oe)
         return (false);
-    }
 
     uint32 function_hash = Hash(method_name);
     CFunctionEntry* fe = oe->GetFunctionEntry(0, function_hash);
     return (fe != NULL);
 }
 
-bool8 CScriptContext::HasMethod(uint32 objectid, const char* method_name) {
-    if(!method_name)
+// ====================================================================================================================
+// HasMethod():  Return 'true' if there's a registered or scripted method in the hierarchy of an object.
+// ====================================================================================================================
+bool8 CScriptContext::HasMethod(uint32 objectid, const char* method_name)
+{
+    if (!method_name)
         return (false);
 
     CObjectEntry* oe = GetObjectDictionary()->FindItem(objectid);
-    if(!oe) {
+    if (!oe)
         return (false);
-    }
 
     uint32 function_hash = Hash(method_name);
     CFunctionEntry* fe = oe->GetFunctionEntry(0, function_hash);
     return (fe != NULL);
 }
 
+// ====================================================================================================================
+// AddDynamicVariable():  Given an object id, add a variable (or array) of a given type.
+// ====================================================================================================================
 bool8 CScriptContext::AddDynamicVariable(uint32 objectid, uint32 varhash, eVarType vartype, int32 array_size)
 {
     CObjectEntry* oe = GetObjectDictionary()->FindItem(objectid);
-    if(!oe) {
+    if (!oe) {
         ScriptAssert_(this, 0, "<internal>", -1,
                       "Error - Unable to find object: %d\n", objectid);
         return (false);
@@ -619,9 +713,13 @@ bool8 CScriptContext::AddDynamicVariable(uint32 objectid, uint32 varhash, eVarTy
     return (oe->AddDynamicVariable(varhash, vartype, array_size));
 }
 
-bool8 CScriptContext::AddDynamicVariable(uint32 objectid, const char* varname, const char* vartypename, int32 array_size)
+// ====================================================================================================================
+// AddDynamicVariable():  Given an object id, add a dynamic variable by name and type name.
+// ====================================================================================================================
+bool8 CScriptContext::AddDynamicVariable(uint32 objectid, const char* varname, const char* vartypename,
+                                         int32 array_size)
 {
-    if(!varname || !vartypename)
+    if (!varname || !vartypename)
     {
         ScriptAssert_(this, 0, "<internal>", -1,
                       "Error - AddDynamicVariable with no var name/type\n");
@@ -633,15 +731,21 @@ bool8 CScriptContext::AddDynamicVariable(uint32 objectid, const char* varname, c
     return (AddDynamicVariable(objectid, varhash, vartype, array_size));
 }
 
-bool8 CScriptContext::SetMemberVar(uint32 objectid, const char* varname, void* value) {
-    if(!varname || !value) {
+// ====================================================================================================================
+// SetMemberVar():  Given an object id, and the name of a member, set the value.
+// ====================================================================================================================
+bool8 CScriptContext::SetMemberVar(uint32 objectid, const char* varname, void* value)
+{
+    if (!varname || !value)
+    {
         ScriptAssert_(this, 0, "<internal>", -1,
                       "Error - invalid call to SetMemberVar\n");
         return (false);
     }
 
     CObjectEntry* oe = GetObjectDictionary()->FindItem(objectid);
-    if(!oe) {
+    if (!oe)
+    {
         ScriptAssert_(this, 0, "<internal>", -1,
                       "Error - Unable to find object: %d\n", objectid);
         return (false);
@@ -651,14 +755,20 @@ bool8 CScriptContext::SetMemberVar(uint32 objectid, const char* varname, void* v
     return oe->SetMemberVar(varhash, value);
 }
 
-void CScriptContext::PrintObject(CObjectEntry* oe, int32 indent) {
-    if(!oe)
+// ====================================================================================================================
+// PrintObject():  Debug method to go through the hierarchy of namespaces, and dump the members/values.
+// ====================================================================================================================
+void CScriptContext::PrintObject(CObjectEntry* oe, int32 indent)
+{
+    if (!oe)
         return;
+
     // -- find the actual class
     CNamespace* classns = oe->GetNamespace();
     while (classns && !classns->IsRegisteredClass())
         classns = classns->GetNext();
-    if(!classns) {
+    if (!classns)
+    {
         ScriptAssert_(this, 0, "<internal>", -1,
                       "Error - Registered object with no class: [%d] %s\n",
                       oe->GetID(), oe->GetName());
@@ -667,40 +777,48 @@ void CScriptContext::PrintObject(CObjectEntry* oe, int32 indent) {
 
     // -- print the indent
     const char* indentbuf = "    ";
-    for(int32 i = 0; i < indent; ++i) {
+    for (int32 i = 0; i < indent; ++i)
         TinPrint(this, indentbuf);
-    }
 
     // -- print the object id and name
     TinPrint(this, "[%d] %s:", oe->GetID(), oe->GetName());
     bool8 first = true;
     CNamespace* ns = oe->GetNamespace();
-    while(ns) {
+    while (ns)
+    {
         // -- if this is registered class, highlight it
-        if(ns->IsRegisteredClass()) {
+        if (ns->IsRegisteredClass())
+        {
             TinPrint(this, "%s[%s]", !first ? "-->" : " ", UnHash(ns->GetHash()));
         }
-        else {
+        else
+        {
             TinPrint(this, "%s%s", !first ? "-->" : " ", UnHash(ns->GetHash()));
         }
         first = false;
         ns = ns->GetNext();
     }
+
     TinPrint(this, "\n");
 }
 
-void CScriptContext::ListObjects() {
+// ====================================================================================================================
+// ListObjects():  Debug method to list all registered objects.
+// ====================================================================================================================
+void CScriptContext::ListObjects()
+{
     TinPrint(this, "\n");
     CObjectEntry* oe = GetObjectDictionary()->First();
-    while(oe) {
+    while (oe)
+    {
         // -- if the object has a parent group, don't bother printing it - it'll have already
         // -- been printed by its parent group
-        if(oe->GetObjectGroup() == NULL) {
+        if (oe->GetObjectGroup() == NULL)
             PrintObject(oe);
-        }
 
         // -- if the object itself is a group, list it's children
-        if(HasMethod(oe->GetID(), "ListObjects")) {
+        if (HasMethod(oe->GetID(), "ListObjects"))
+        {
             int32 dummy = 0;
             ObjExecF(oe->GetID(), dummy, "ListObjects(1);");
         }
@@ -710,9 +828,12 @@ void CScriptContext::ListObjects() {
     }
 }
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CNamespace::CNamespace(CScriptContext* script_context, const char* _name, uint32 _typeID,
-                       CreateInstance _createinstance, DestroyInstance _destroyinstance) {
+                       CreateInstance _createinstance, DestroyInstance _destroyinstance)
+{
     mContextOwner = script_context;
     // -- ensure the name lives in the string table
     mName = _name && _name[0] ? script_context->GetStringTable()->AddString(_name)
@@ -726,15 +847,38 @@ CNamespace::CNamespace(CScriptContext* script_context, const char* _name, uint32
     mMethodTable = TinAlloc(ALLOC_FuncTable, tFuncTable, kLocalFuncTableSize);
 }
 
-CNamespace::~CNamespace() {
+// ====================================================================================================================
+// Destructor
+// ====================================================================================================================
+CNamespace::~CNamespace()
+{
     mMemberTable->DestroyAll();
     TinFree(mMemberTable);
     mMethodTable->DestroyAll();
     TinFree(mMethodTable);
 }
 
+// ====================================================================================================================
+// GetVarEntry():  Find a variable registered in a given namespace
+// ====================================================================================================================
+CVariableEntry* CNamespace::GetVarEntry(uint32 varhash)
+{
+    CNamespace* curnamespace = this;
+    while (curnamespace)
+    {
+        CVariableEntry* ve = GetVarTable()->FindItem(varhash);
+        if (ve)
+            return ve;
+        else
+            curnamespace = curnamespace->GetNext();
+    }
+
+    // -- not found
+    return (NULL);
+}
+
 };
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

@@ -19,19 +19,23 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // TinStringTable.h
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 
 #ifndef __TINSTRINGTABLE_H
 #define __TINSTRINGTABLE_H
 
+// -- includes
 #include "string.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
+
+namespace TinScript
+{
 
 // ====================================================================================================================
-// CStringTable
+// class CStringTable
 // Used to create a dictionary of hashed strings, refcounted to allow unused strings to be deleted
 // ====================================================================================================================
 class CStringTable
@@ -56,10 +60,7 @@ class CStringTable
         CStringTable(CScriptContext* owner, uint32 _size);
         virtual ~CStringTable();
 
-        CScriptContext* GetScriptContext()
-        {
-            return (mContextOwner);
-        }
+        CScriptContext* GetScriptContext() { return (mContextOwner); }
 
         const char* AddString(const char* s, int length = -1, uint32 hash = 0, bool inc_refcount = false);
         const char* FindString(uint32 hash);
@@ -69,10 +70,7 @@ class CStringTable
 
         void RemoveUnreferencedStrings();
 
-        const CHashTable<tStringEntry>* GetStringDictionary()
-        {
-            return mStringDictionary;
-        }
+        const CHashTable<tStringEntry>* GetStringDictionary() { return (mStringDictionary); }
 
     private:
         CScriptContext* mContextOwner;
@@ -88,6 +86,6 @@ class CStringTable
 
 #endif // __TINSTRINGTABLE_H
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

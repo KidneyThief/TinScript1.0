@@ -19,10 +19,11 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // TinScript.cpp
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 
+// -- includes
 #include "stdafx.h"
 #include "stdlib.h"
 #include "stdio.h"
@@ -50,9 +51,13 @@
 
 #include "TinScript.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
 
-// --  statics --------------------------------------------------------------------------------------------------------
+namespace TinScript
+{
+
+// --------------------------------------------------------------------------------------------------------------------
+// -- statics
 static const char* gStringTableFileName = "stringtable.txt";
 
 bool8 CScriptContext::gDebugParseTree = false;
@@ -61,7 +66,6 @@ bool8 CScriptContext::gDebugTrace = false;
 
 const char* CScriptContext::kGlobalNamespace = "_global";
 uint32 CScriptContext::kGlobalNamespaceHash = Hash(CScriptContext::kGlobalNamespace);
-
 
 // -- this is a *thread* variable, each thread can reference a separate context
 _declspec(thread) CScriptContext* gThreadContext = NULL;
@@ -194,11 +198,11 @@ void CScriptContext::Destroy()
     }
 }
 
-// --------------------------------------------------------------------------------------------------------------------
-// Constructor()
-// --------------------------------------------------------------------------------------------------------------------
-CScriptContext::CScriptContext(TinPrintHandler printfunction, TinAssertHandler asserthandler, bool is_main_thread) {
-
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CScriptContext::CScriptContext(TinPrintHandler printfunction, TinAssertHandler asserthandler, bool is_main_thread)
+{
     // -- set the flag
     mIsMainThread = is_main_thread;
 
@@ -233,7 +237,8 @@ CScriptContext::CScriptContext(TinPrintHandler printfunction, TinAssertHandler a
 
     // -- register functions, each to their namespace
     CRegFunctionBase* regfunc = CRegFunctionBase::gRegistrationList;
-    while(regfunc != NULL) {
+    while (regfunc != NULL)
+    {
         regfunc->Register(this);
         regfunc = regfunc->GetNext();
     }
@@ -245,8 +250,7 @@ CScriptContext::CScriptContext(TinPrintHandler printfunction, TinAssertHandler a
     mScheduler = TinAlloc(ALLOC_SchedCmd, CScheduler, this);
 
     // -- initialize the master object list
-    mMasterMembershipList = TinAlloc(ALLOC_ObjectGroup, CMasterMembershipList, this,
-                                     kMasterMembershipTableSize);
+    mMasterMembershipList = TinAlloc(ALLOC_ObjectGroup, CMasterMembershipList, this, kMasterMembershipTableSize);
 
     // -- initialize the code block hash table
     mCodeBlockList = TinAlloc(ALLOC_HashTable, CHashTable<CCodeBlock>, kGlobalFuncTableSize);
@@ -272,8 +276,11 @@ CScriptContext::CScriptContext(TinPrintHandler printfunction, TinAssertHandler a
     mThreadBufPtr = NULL;
 }
 
-void CScriptContext::InitializeDictionaries() {
-
+// ====================================================================================================================
+// InitializeDictionaries():  Create the dictionaries, namespace, object, etc... and perform the startup registration.
+// ====================================================================================================================
+void CScriptContext::InitializeDictionaries()
+{
     // -- allocate the dictinary to store creation functions
     mNamespaceDictionary = TinAlloc(ALLOC_HashTable, CHashTable<CNamespace>, kGlobalFuncTableSize);
 
@@ -301,10 +308,11 @@ void CScriptContext::InitializeDictionaries() {
         CNamespaceReg* found_unregistered = NULL;
         bool8 abletoregister = false;
         CNamespaceReg* regptr = CNamespaceReg::head;
-        while(regptr) {
-
+        while (regptr)
+        {
             // -- see if this namespace is already registered
-            if (regptr->GetRegistered()) {
+            if (regptr->GetRegistered())
+            {
                 regptr = regptr->GetNext();
                 continue;
             }
@@ -318,7 +326,8 @@ void CScriptContext::InitializeDictionaries() {
             if (regptr->GetParentHash() != nullparenthash)
             {
                 parentnamespace = mNamespaceDictionary->FindItem(regptr->GetParentHash());
-                if (!parentnamespace) {
+                if (!parentnamespace)
+                {
                     // -- skip this one, and wait until the parent is registered
                     regptr = regptr->GetNext();
                     continue;
@@ -330,7 +339,8 @@ void CScriptContext::InitializeDictionaries() {
 
             // -- ensure the namespace doesn't already exist
             CNamespace* namespaceentry = mNamespaceDictionary->FindItem(regptr->GetHash());
-            if (namespaceentry == NULL) {
+            if (namespaceentry == NULL)
+            {
                 // -- create the namespace
                 CNamespace* newnamespace = TinAlloc(ALLOC_Namespace, CNamespace,
                                                     this, regptr->GetName(),
@@ -342,7 +352,8 @@ void CScriptContext::InitializeDictionaries() {
                 mNamespaceDictionary->AddItem(*newnamespace, regptr->GetHash());
 
                 // -- link this namespace to its parent
-                if (parentnamespace) {
+                if (parentnamespace)
+                {
                     LinkNamespaces(newnamespace, parentnamespace);
                 }
 
@@ -350,7 +361,8 @@ void CScriptContext::InitializeDictionaries() {
                 regptr->RegisterNamespace(this, newnamespace);
                 regptr->SetRegistered(true);
             }
-            else {
+            else
+            {
                 ScriptAssert_(this, 0, "<internal>", -1,
                               "Error - Namespace already created: %s\n",
                               UnHash(regptr->GetHash()));
@@ -361,7 +373,8 @@ void CScriptContext::InitializeDictionaries() {
         }
 
         // -- we'd better have registered at least one namespace, otherwise we're stuck
-        if (found_unregistered && !abletoregister) {
+        if (found_unregistered && !abletoregister)
+        {
             ScriptAssert_(this, 0, "<internal>", -1,
                           "Error - Unable to register Namespace: %s\n",
                           UnHash(found_unregistered->GetHash()));
@@ -369,13 +382,18 @@ void CScriptContext::InitializeDictionaries() {
         }
 
         // -- else see if we're done
-        else if (!found_unregistered) {
+        else if (!found_unregistered)
+        {
             break;
         }
     }
 }
 
-CScriptContext::~CScriptContext() {
+// ====================================================================================================================
+// Destructor
+// ====================================================================================================================
+CScriptContext::~CScriptContext()
+{
     // -- cleanup the namespace context
     // -- note:  the global namespace is owned by the namespace dictionary
     // -- within the context - it'll be automatically cleaned up
@@ -403,26 +421,31 @@ CScriptContext::~CScriptContext() {
     }
 }
 
-void CScriptContext::ShutdownDictionaries() {
-
+void CScriptContext::ShutdownDictionaries()
+{
     // -- delete the Namespace dictionary
-    if (mNamespaceDictionary) {
+    if (mNamespaceDictionary)
+    {
         mNamespaceDictionary->DestroyAll();
         TinFree(mNamespaceDictionary);
     }
 
     // -- delete the Object dictionaries
-    if (mObjectDictionary) {
+    if (mObjectDictionary)
+    {
         mObjectDictionary->DestroyAll();
         TinFree(mObjectDictionary);
     }
 
     // -- objects will have been destroyed above, so simply clear this hash table
-    if (mAddressDictionary) {
+    if (mAddressDictionary)
+    {
         mAddressDictionary->RemoveAll();
         TinFree(mAddressDictionary);
     }
-    if (mNameDictionary) {
+
+    if (mNameDictionary)
+    {
         mNameDictionary->RemoveAll();
         TinFree(mNameDictionary);
     }
@@ -439,15 +462,20 @@ void CScriptContext::Update(uint32 curtime)
     CCodeBlock::DestroyUnusedCodeBlocks(mCodeBlockList);
 }
 
-// ------------------------------------------------------------------------------------------------
-uint32 Hash(const char *string, int32 length, bool add_to_table) {
+// ====================================================================================================================
+// Hash():  A core function for converting strings, used primarily for hash table keys.
+// ====================================================================================================================
+uint32 Hash(const char *string, int32 length, bool add_to_table)
+{
 	if (!string || !string[0])
 		return 0;
+
     const char* s = string;
 	int32 remaining = length;
 
 	uint32 h = 5381;
-	for (uint8 c = *s; c != '\0' && remaining != 0; c = *++s) {
+	for (uint8 c = *s; c != '\0' && remaining != 0; c = *++s)
+    {
 		--remaining;
 
 #if !CASE_SENSITIVE
@@ -462,8 +490,7 @@ uint32 Hash(const char *string, int32 length, bool add_to_table) {
     // $$$TZA this should only happen in a DEBUG build
     // $$$TZA This is also not thread safe - only the main thread should be allowed to populate the
     // -- the string dictionary
-    if (TinScript::GetContext() &&
-        TinScript::GetContext()->GetStringTable())
+    if (TinScript::GetContext() && TinScript::GetContext()->GetStringTable())
     {
         TinScript::GetContext()->GetStringTable()->AddString(string, length, h, add_to_table);
     }
@@ -471,23 +498,33 @@ uint32 Hash(const char *string, int32 length, bool add_to_table) {
 	return h;
 }
 
-uint32 HashAppend(uint32 h, const char *string, int32 length) {
+// ====================================================================================================================
+// HashAppend():  Uses the same algorithm as Hash(), but allows "concatenation" of the string through multiple calls.
+// ====================================================================================================================
+uint32 HashAppend(uint32 h, const char *string, int32 length)
+{
 	if (!string || !string[0])
 		return h;
+
     const char* s = string;
 	int32 remaining = length;
 
-	for (uint8 c = *s; c != '\0' && remaining != 0; c = *++s) {
+	for (uint8 c = *s; c != '\0' && remaining != 0; c = *++s)
+    {
 		--remaining;
 		h = ((h << 5) + h) + c;
 	}
 	return h;
 }
 
-const char* UnHash(uint32 hash) {
-    const char* string =
-        TinScript::GetContext()->GetStringTable()->FindString(hash);
-    if (!string || !string[0]) {
+// ====================================================================================================================
+// UnHash():  Looks up the hash value in the string table, or returns a string version of the value.
+// ====================================================================================================================
+const char* UnHash(uint32 hash)
+{
+    const char* string = TinScript::GetContext()->GetStringTable()->FindString(hash);
+    if (!string || !string[0])
+    {
         static char buffers[8][20];
         static int32 bufindex = -1;
         bufindex = (bufindex + 1) % 8;
@@ -498,11 +535,17 @@ const char* UnHash(uint32 hash) {
         return string;
 }
 
+// ====================================================================================================================
+// GetStringTableName():  Returns the file name used to save/load the string table.
+// ====================================================================================================================
 const char* GetStringTableName()
 {
     return (gStringTableFileName);
 }
 
+// ====================================================================================================================
+// SaveStringTable():  Write the string table to a file.
+// ====================================================================================================================
 void SaveStringTable(const char* filename)
 {
     // -- ensure we have a valid filename
@@ -516,26 +559,30 @@ void SaveStringTable(const char* filename)
 
     const CHashTable<CStringTable::tStringEntry>* string_table =
         script_context->GetStringTable()->GetStringDictionary();
+
     if (!string_table)
         return;
 
   	// -- open the file
 	FILE* filehandle = NULL;
 	int32 result = fopen_s(&filehandle, gStringTableFileName, "wb");
-	if (result != 0) {
+	if (result != 0)
+    {
         ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
 		return;
     }
 
-	if (!filehandle) {
+	if (!filehandle)
+    {
         ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
 		return;
     }
 
-    for(int32 i = 0; i < string_table->Size(); ++i) {
+    for (int32 i = 0; i < string_table->Size(); ++i)
+    {
 	    CHashTable<CStringTable::tStringEntry>::CHashTableEntry* ste = string_table->FindRawEntryByBucket(i);
-	    while (ste) {
-
+	    while (ste)
+        {
             // -- only write out ref-counted strings (the remaining haven't been cleaned up)
             if (ste->item->mRefCount <= 0)
             {
@@ -552,7 +599,8 @@ void SaveStringTable(const char* filename)
             // -- write the hash
             sprintf_s(tempbuf, kMaxTokenLength, "0x%08x: ", stringhash);
             int32 count = (int32)fwrite(tempbuf, sizeof(char), 12, filehandle);
-            if (count != 12) {
+            if (count != 12)
+            {
                 fclose(filehandle);
                 ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
                 return;
@@ -561,7 +609,8 @@ void SaveStringTable(const char* filename)
             // -- write the string length
             sprintf_s(tempbuf, kMaxTokenLength, "%04d: ", length);
             count = (int32)fwrite(tempbuf, sizeof(char), 6, filehandle);
-            if (count != 6) {
+            if (count != 6)
+            {
                 fclose(filehandle);
                 ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
                 return;
@@ -569,7 +618,8 @@ void SaveStringTable(const char* filename)
 
             // -- write the string
             count = (int32)fwrite(string, sizeof(char), length, filehandle);
-            if (count != length) {
+            if (count != length)
+            {
                 fclose(filehandle);
                 ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
                 return;
@@ -577,7 +627,8 @@ void SaveStringTable(const char* filename)
 
             // -- write the eol
             count = (int32)fwrite("\r\n", sizeof(char), 2, filehandle);
-            if (count != 2) {
+            if (count != 2)
+            {
                 fclose(filehandle);
                 ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
                 return;
@@ -592,6 +643,9 @@ void SaveStringTable(const char* filename)
 	fclose(filehandle);
 }
 
+// ====================================================================================================================
+// LoadStringTable():  Load the string table from a file.
+// ====================================================================================================================
 void LoadStringTable(const char* filename)
 {
     // -- ensure we have a valid filename
@@ -606,9 +660,8 @@ void LoadStringTable(const char* filename)
   	// -- open the file
 	FILE* filehandle = NULL;
 	int32 result = fopen_s(&filehandle, filename, "rb");
-	if (result != 0) {
+	if (result != 0)
 		return;
-    }
 
 	if (!filehandle)
     {
@@ -676,10 +729,9 @@ void LoadStringTable(const char* filename)
 	fclose(filehandle);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// helper functions
-
+// ====================================================================================================================
+// GetLastWriteTime():  Given a filename, get the last time the file was written.
+// ====================================================================================================================
 bool8 GetLastWriteTime(const char* filename, FILETIME& writetime)
 {
     if (!filename || !filename[0])
@@ -701,7 +753,11 @@ bool8 GetLastWriteTime(const char* filename, FILETIME& writetime)
     return true;
 }
 
-bool8 GetBinaryFileName(const char* filename, char* binfilename, int32 maxnamelength) {
+// ====================================================================================================================
+// GetBinaryFileName():  Given a source filename, return the file to write the compiled byte code to.
+// ====================================================================================================================
+bool8 GetBinaryFileName(const char* filename, char* binfilename, int32 maxnamelength)
+{
     if (!filename)
         return false;
 
@@ -718,8 +774,11 @@ bool8 GetBinaryFileName(const char* filename, char* binfilename, int32 maxnamele
     return true;
 }
 
-bool8 NeedToCompile(const char* filename, const char* binfilename) {
-
+// ====================================================================================================================
+// NeedToCompile():  Returns 'true' if the source file needs to be compiled.
+// ====================================================================================================================
+bool8 NeedToCompile(const char* filename, const char* binfilename)
+{
 #if FORCE_COMPILE
     return true;
 #else
@@ -744,22 +803,24 @@ bool8 NeedToCompile(const char* filename, const char* binfilename) {
 #endif
 }
 
-// ------------------------------------------------------------------------------------------------
-CCodeBlock* CScriptContext::CompileScript(const char* filename) {
-
+// ====================================================================================================================
+// CompileScript():  Compile a source script.
+// ====================================================================================================================
+CCodeBlock* CScriptContext::CompileScript(const char* filename)
+{
     // -- get the name of the output binary file
     char binfilename[kMaxNameLength];
-    if (!GetBinaryFileName(filename, binfilename, kMaxNameLength)) {
-        ScriptAssert_(this, 0, "<internal>", -1, "Error - invalid script filename: %s\n",
-                      filename ? filename : "");
+    if (!GetBinaryFileName(filename, binfilename, kMaxNameLength))
+    {
+        ScriptAssert_(this, 0, "<internal>", -1, "Error - invalid script filename: %s\n", filename ? filename : "");
         return NULL;
     }
 
     // -- compile the source
     CCodeBlock* codeblock = ParseFile(this, filename);
-    if (codeblock == NULL) {
-        ScriptAssert_(this, 0, "<internal>", -1, "Error - unable to parse file: %s\n",
-                      filename);
+    if (codeblock == NULL)
+    {
+        ScriptAssert_(this, 0, "<internal>", -1, "Error - unable to parse file: %s\n", filename);
         return NULL;
     }
 
@@ -777,9 +838,14 @@ CCodeBlock* CScriptContext::CompileScript(const char* filename) {
     return codeblock;
 }
 
-bool8 CScriptContext::ExecScript(const char* filename) {
+// ====================================================================================================================
+// ExecScript():  Execute a script, compiles if necessary.
+// ====================================================================================================================
+bool8 CScriptContext::ExecScript(const char* filename)
+{
     char binfilename[kMaxNameLength];
-    if (!GetBinaryFileName(filename, binfilename, kMaxNameLength)) {
+    if (!GetBinaryFileName(filename, binfilename, kMaxNameLength))
+    {
         ScriptAssert_(this, 0, "<internal>", -1, "Error - invalid script filename: %s\n",
                       filename ? filename : "");
         ResetAssertStack();
@@ -789,14 +855,17 @@ bool8 CScriptContext::ExecScript(const char* filename) {
     CCodeBlock* codeblock = NULL;
 
     bool8 needtocompile = NeedToCompile(filename, binfilename);
-    if (needtocompile) {
+    if (needtocompile)
+    {
         codeblock = CompileScript(filename);
-        if (!codeblock) {
+        if (!codeblock)
+        {
             ResetAssertStack();
             return false;
         }
     }
-    else {
+    else
+    {
         codeblock = LoadBinary(this, binfilename);
     }
 
@@ -808,16 +877,19 @@ bool8 CScriptContext::ExecScript(const char* filename) {
 
     // -- execute the codeblock
     bool8 result = true;
-    if (codeblock) {
+    if (codeblock)
+    {
 	    bool8 result = ExecuteCodeBlock(*codeblock);
         codeblock->SetFinishedParsing();
 
-        if (!result) {
+        if (!result)
+        {
             ScriptAssert_(this, 0, "<internal>", -1,
                           "Error - unable to execute file: %s\n", filename);
             result = false;
         }
-        else if (!codeblock->IsInUse()) {
+        else if (!codeblock->IsInUse())
+        {
             CCodeBlock::DestroyCodeBlock(codeblock);
         }
     }
@@ -826,16 +898,23 @@ bool8 CScriptContext::ExecScript(const char* filename) {
     return result;
 }
 
-// ------------------------------------------------------------------------------------------------
-CCodeBlock* CScriptContext::CompileCommand(const char* statement) {
-
+// ====================================================================================================================
+// CompileCommand():  Compile a text block into byte code.
+// ====================================================================================================================
+CCodeBlock* CScriptContext::CompileCommand(const char* statement)
+{
     CCodeBlock* commandblock = ParseText(this, "<stdin>", statement);
     return commandblock;
 }
 
-bool8 CScriptContext::ExecCommand(const char* statement) {
+// ====================================================================================================================
+// ExecCommand():  Compile and execute a text block.
+// ====================================================================================================================
+bool8 CScriptContext::ExecCommand(const char* statement)
+{
     CCodeBlock* stmtblock = CompileCommand(statement);
-    if (stmtblock) {
+    if (stmtblock)
+    {
         bool8 result = ExecuteCodeBlock(*stmtblock);
         stmtblock->SetFinishedParsing();
 
@@ -846,9 +925,9 @@ bool8 CScriptContext::ExecCommand(const char* statement) {
             CCodeBlock::DestroyCodeBlock(stmtblock);
         return result;
     }
-    else {
-        ScriptAssert_(this, 0, "<internal>", -1, "Error - Unable to compile: %s\n",
-                      statement);
+    else
+    {
+        ScriptAssert_(this, 0, "<internal>", -1, "Error - Unable to compile: %s\n", statement);
     }
 
     ResetAssertStack();
@@ -857,7 +936,9 @@ bool8 CScriptContext::ExecCommand(const char* statement) {
     return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// SetFunctionReturnValue():  Each time a function returns, the return value is stored for external access.
+// ====================================================================================================================
 void CScriptContext::SetFunctionReturnValue(void* value, eVarType valueType)
 {
     // -- if the current value is a string, we do need to update the refcount
@@ -886,6 +967,9 @@ void CScriptContext::SetFunctionReturnValue(void* value, eVarType valueType)
     }
 }
 
+// ====================================================================================================================
+// GetFunctionReturnValue():  Get the value returned by the last function executed.
+// ====================================================================================================================
 bool8 CScriptContext::GetFunctionReturnValue(void*& value, eVarType& valueType)
 {
     if (mFunctionReturnValType >= FIRST_VALID_TYPE)
@@ -902,6 +986,9 @@ bool8 CScriptContext::GetFunctionReturnValue(void*& value, eVarType& valueType)
     }
 }
 
+// ====================================================================================================================
+// GetScratchBuffer():  Convenience function to store intermediate values without the bother of memory management.
+// ====================================================================================================================
 char* CScriptContext::GetScratchBuffer()
 {
     char* scratch_buffer = mScratchBuffers[(++mScratchBufferIndex) % kMaxScratchBuffers];
@@ -2772,24 +2859,27 @@ void CDebuggerWatchExpression::SetAttributes(bool break_enabled, const char* new
 
 } // TinScript
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// class CScriptObject:  Default registered object, to provide a base class for scripting.
+// ====================================================================================================================
 // -- generic object - has absolutely no functionality except to serve as something to
 // -- instantiate, that you can name, and then implement methods on the namespace
 
-class CScriptObject {
-public:
-    CScriptObject() { dummy = 0; }
-    virtual ~CScriptObject() {}
+class CScriptObject
+{
+    public:
+        CScriptObject() { dummy = 0; }
+        virtual ~CScriptObject() {}
 
-    DECLARE_SCRIPT_CLASS(CScriptObject, VOID);
+        DECLARE_SCRIPT_CLASS(CScriptObject, VOID);
 
-private:
-    int64 dummy;
+    private:
+        int64 dummy;
 };
 
 IMPLEMENT_SCRIPT_CLASS_BEGIN(CScriptObject, VOID)
 IMPLEMENT_SCRIPT_CLASS_END()
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

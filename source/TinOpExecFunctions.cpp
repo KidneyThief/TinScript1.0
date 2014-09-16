@@ -19,14 +19,16 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
-// TinOpExecFunctions.cpp : Implementation of the virtual machine
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// TinOpExecFunctions.cpp : Implementation of the virtual machine operations.
+// ====================================================================================================================
 
+// -- lib includes
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
 
+// -- includes
 #include "TinScript.h"
 #include "TinCompile.h"
 #include "TinNamespace.h"
@@ -34,13 +36,18 @@
 #include "TinExecute.h"
 #include "TinOpExecFunctions.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
 
-static const char* kGlobalNamespace = "_global";
+namespace TinScript
+{
 
-void DebugTrace(eOpCode opcode, const char* fmt, ...) {
+// ====================================================================================================================
+// DebugTrace():  Prints a text version of the operations being executed by the virtual machine.
+// ====================================================================================================================
+void DebugTrace(eOpCode opcode, const char* fmt, ...)
+{
 #if DEBUG_TRACE
-    if(!CScriptContext::gDebugTrace)
+    if (!CScriptContext::gDebugTrace)
         return;
     // -- expand the formated buffer
     va_list args;
@@ -53,14 +60,18 @@ void DebugTrace(eOpCode opcode, const char* fmt, ...) {
 #endif
 }
 
-void* GetStackVarAddr(CScriptContext* script_context, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack, int32 stackvaroffset) {
+// ====================================================================================================================
+// GetStackVarAddr():  Get the address of a stack veriable.
+// ====================================================================================================================
+void* GetStackVarAddr(CScriptContext* script_context, CExecStack& execstack, CFunctionCallStack& funccallstack,
+                      int32 stackvaroffset)
+{
     int32 stacktop = 0;
     CObjectEntry* oe = NULL;
     CFunctionEntry* fe = funccallstack.GetExecuting(oe, stacktop);
-    if(!fe || stackvaroffset < 0) {
-        ScriptAssert_(script_context, 0, "<internal>", -1,
-                      "Error - GetStackVarAddr() failed\n");
+    if (!fe || stackvaroffset < 0)
+    {
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - GetStackVarAddr() failed\n");
         return NULL;
     }
 
@@ -68,6 +79,9 @@ void* GetStackVarAddr(CScriptContext* script_context, CExecStack& execstack,
     return varaddr;
 }
 
+// ====================================================================================================================
+// GetStackValue():  From an exec stack entry, extract the type, value, variable, and/or object values. 
+// ====================================================================================================================
 bool8 GetStackValue(CScriptContext* script_context, CExecStack& execstack,
                     CFunctionCallStack& funccallstack, void*& valaddr, eVarType& valtype,
                     CVariableEntry*& ve, CObjectEntry*& oe)
@@ -78,7 +92,7 @@ bool8 GetStackValue(CScriptContext* script_context, CExecStack& execstack,
     oe = NULL;
 
 	// -- if a variable was pushed, use the var addr instead
-	if(valtype == TYPE__var || valtype == TYPE__hashvarindex)
+	if (valtype == TYPE__var || valtype == TYPE__hashvarindex)
     {
         uint32 val1ns = ((uint32*)valaddr)[0];
         uint32 val1func = ((uint32*)valaddr)[1];
@@ -230,6 +244,9 @@ bool8 GetStackValue(CScriptContext* script_context, CExecStack& execstack,
     return true;
 }
 
+// ====================================================================================================================
+// GetBinOpValues():  Pull the top two stack entries, and get the type and address for each.
+// ====================================================================================================================
 bool8 GetBinOpValues(CScriptContext* script_context, CExecStack& execstack,
                      CFunctionCallStack& funccallstack, void*& val0, eVarType& val0type, void*& val1,
                      eVarType& val1type)
@@ -252,10 +269,13 @@ bool8 GetBinOpValues(CScriptContext* script_context, CExecStack& execstack,
 	return true;
 }
 
-// -- this is to consolidate all the operations that pop two values from the stack
-// -- and combine them, and pushing the result onto the stack
-bool8 PerformBinaryOpPush(CScriptContext* script_context, CExecStack& execstack,
-                            CFunctionCallStack& funccallstack, eOpCode op)
+// ====================================================================================================================
+// PerformBinaryOpPush():  
+// This is to consolidate all the operations that pop two values from the stack and combine them,
+// and pushing the result onto the stack.
+// ====================================================================================================================
+bool8 PerformBinaryOpPush(CScriptContext* script_context, CExecStack& execstack, CFunctionCallStack& funccallstack,
+                          eOpCode op)
 {
 	// -- Get both args from the stacks
 	eVarType val0type;
@@ -304,9 +324,11 @@ bool8 PerformBinaryOpPush(CScriptContext* script_context, CExecStack& execstack,
     return (false);
 }
 
-// --------------------------------------------------------------------------------------------------------------------
-bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack, eOpCode op)
+// ====================================================================================================================
+// PerformAssignOp():  Consolidates all variations of the assignment operation execution.
+// ====================================================================================================================
+bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack, CFunctionCallStack& funccallstack,
+                      eOpCode op)
 {
     // -- if we're not doing a straight up assignment, we need to pop the variable and value off the stack,
     // -- so we can cache the variable to be modified by the result of the operation
@@ -387,13 +409,13 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
     bool8 is_stack_var = (varhashtype == TYPE__stackvar);
     bool8 is_pod_member = (varhashtype == TYPE__podmember);
     bool8 use_var_addr = (is_stack_var || is_pod_member);
-    if(!GetStackValue(script_context, execstack, funccallstack, var, varhashtype, ve0, oe0))
+    if (!GetStackValue(script_context, execstack, funccallstack, var, varhashtype, ve0, oe0))
     {
         return (false);
     }
 
     // -- ensure we're assigning to a variable, an object member, or a local stack variable
-    if(!ve0 && !use_var_addr)
+    if (!ve0 && !use_var_addr)
     {
         return (false);
     }
@@ -471,23 +493,33 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack,
     return (true);
 }
 
-// ------------------------------------------------------------------------------------------------
-// Specific Operation Execution Functions begin here
+// ====================================================================================================================
+// OpExecNULL():  NULL operation, should never be executed, and will trigger an assert.
+// ====================================================================================================================
 bool8 OpExecNULL(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                 CFunctionCallStack& funccallstack) {
+                 CFunctionCallStack& funccallstack)
+{
     DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                     "Error - OP_NULL is not a valid op, indicating an error in this codeblock: %s\n");
     return (false);
 }
 
+// ====================================================================================================================
+// OpExecNOP():  NOP operation, benign.
+// ====================================================================================================================
 bool8 OpExecNOP(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                CFunctionCallStack& funccallstack) {
+                CFunctionCallStack& funccallstack)
+{
     DebugTrace(op, "");
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecVarDecl():  Operation to declare a variable.
+// ====================================================================================================================
 bool8 OpExecVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                    CFunctionCallStack& funccallstack) {
+                    CFunctionCallStack& funccallstack)
+{
     uint32 varhash = *instrptr++;
     eVarType vartype = (eVarType)(*instrptr++);
     int32 array_size = *instrptr++;
@@ -502,6 +534,9 @@ bool8 OpExecVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecSt
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecParamDecl():  Parameter declaration.
+// ====================================================================================================================
 bool8 OpExecParamDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                       CFunctionCallStack& funccallstack)
 {
@@ -519,8 +554,9 @@ bool8 OpExecParamDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
     return (true);
 }
 
-// ------------------------------------------------------------------------------------------------
-// -- assignment ops
+// ====================================================================================================================
+// OpExecAssign():  Assignment operation.
+// ====================================================================================================================
 bool8 OpExecAssign(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                    CFunctionCallStack& funccallstack)
 {
@@ -534,8 +570,12 @@ bool8 OpExecAssign(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecSta
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecAssignAdd():  Add Assignment operation.
+// ====================================================================================================================
 bool8 OpExecAssignAdd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
+                      CFunctionCallStack& funccallstack)
+{
     if (!PerformAssignOp(cb->GetScriptContext(), execstack, funccallstack, op))
     {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
@@ -546,6 +586,9 @@ bool8 OpExecAssignAdd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecAssignSub():  Sub assignment operation.
+// ====================================================================================================================
 bool8 OpExecAssignSub(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                       CFunctionCallStack& funccallstack)
 {
@@ -559,6 +602,9 @@ bool8 OpExecAssignSub(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecAssignMult():  Mult assignment operation.
+// ====================================================================================================================
 bool8 OpExecAssignMult(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                        CFunctionCallStack& funccallstack)
 {
@@ -572,6 +618,9 @@ bool8 OpExecAssignMult(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecAssignDiv():  Div assignment operation.
+// ====================================================================================================================
 bool8 OpExecAssignDiv(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                       CFunctionCallStack& funccallstack)
 {
@@ -585,6 +634,9 @@ bool8 OpExecAssignDiv(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecAssignMod():  Mod assignment operation.
+// ====================================================================================================================
 bool8 OpExecAssignMod(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                       CFunctionCallStack& funccallstack)
 {
@@ -598,6 +650,9 @@ bool8 OpExecAssignMod(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecAssignLeftShift():  Left shift assignment operation.
+// ====================================================================================================================
 bool8 OpExecAssignLeftShift(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                             CFunctionCallStack& funccallstack)
 {
@@ -611,6 +666,9 @@ bool8 OpExecAssignLeftShift(CCodeBlock* cb, eOpCode op, const uint32*& instrptr,
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecAssignRightShift():  Right shift assignment operation.
+// ====================================================================================================================
 bool8 OpExecAssignRightShift(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                              CFunctionCallStack& funccallstack)
 {
@@ -624,6 +682,9 @@ bool8 OpExecAssignRightShift(CCodeBlock* cb, eOpCode op, const uint32*& instrptr
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecAssignBitAnd():  Bit And assignment operation.
+// ====================================================================================================================
 bool8 OpExecAssignBitAnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                          CFunctionCallStack& funccallstack)
 {
@@ -637,6 +698,9 @@ bool8 OpExecAssignBitAnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecAssignBitOr():  Bit Or assignment operation.
+// ====================================================================================================================
 bool8 OpExecAssignBitOr(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                         CFunctionCallStack& funccallstack)
 {
@@ -650,6 +714,9 @@ bool8 OpExecAssignBitOr(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecAssignBitXor():  Bit Xor assignment operation.
+// ====================================================================================================================
 bool8 OpExecAssignBitXor(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                          CFunctionCallStack& funccallstack)
 {
@@ -663,8 +730,9 @@ bool8 OpExecAssignBitXor(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     return (true);
 }
 
-// ------------------------------------------------------------------------------------------------
-// -- used for all unary ops
+// ====================================================================================================================
+// OpExecAssignPreInc():  Pre-increment unary operation.
+// ====================================================================================================================
 bool8 OpExecUnaryPreInc(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                         CFunctionCallStack& funccallstack)
 {
@@ -705,6 +773,9 @@ bool8 OpExecUnaryPreInc(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecAssignPreDec():  Pre-decrement unary operation.
+// ====================================================================================================================
 bool8 OpExecUnaryPreDec(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                         CFunctionCallStack& funccallstack)
 {
@@ -745,6 +816,9 @@ bool8 OpExecUnaryPreDec(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecAssignUnaryNeg():  Negate unary operation.
+// ====================================================================================================================
 bool8 OpExecUnaryNeg(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                      CFunctionCallStack& funccallstack)
 {
@@ -755,20 +829,29 @@ bool8 OpExecUnaryNeg(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
     return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, OP_Mult));
 }
 
+// ====================================================================================================================
+// OpExecAssignUnaryPos():  Positive unary operation.  (actually has no side effects).
+// ====================================================================================================================
 bool8 OpExecUnaryPos(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                     CFunctionCallStack& funccallstack) {
-
+                     CFunctionCallStack& funccallstack)
+{
     // -- Unary pos has no effect on anything - leave the value on the stack "as is"
     return (true);
 }
+
+// ====================================================================================================================
+// OpExecUnaryBitInvert():  Bit Invert unary operation.
+// ====================================================================================================================
 bool8 OpExecUnaryBitInvert(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                           CFunctionCallStack& funccallstack) {
+                           CFunctionCallStack& funccallstack)
+{
 	// -- pop the value
     CVariableEntry* ve = NULL;
     CObjectEntry* oe = NULL;
 	eVarType valtype;
 	void* valaddr = execstack.Pop(valtype);
-    if(!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, valaddr, valtype, ve, oe)){
+    if (!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, valaddr, valtype, ve, oe))
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - Failed pop value for op: %s\n", GetOperationString(op));
         return false;
@@ -794,6 +877,9 @@ bool8 OpExecUnaryBitInvert(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecUnaryUnaryNot():  Not unary operation.
+// ====================================================================================================================
 bool8 OpExecUnaryNot(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                      CFunctionCallStack& funccallstack)
 {
@@ -802,7 +888,8 @@ bool8 OpExecUnaryNot(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
     CObjectEntry* oe = NULL;
 	eVarType valtype;
 	void* valaddr = execstack.Pop(valtype);
-    if(!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, valaddr, valtype, ve, oe)) {
+    if (!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, valaddr, valtype, ve, oe))
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - Failed pop value for op: %s\n", GetOperationString(op));
         return false;
@@ -828,9 +915,12 @@ bool8 OpExecUnaryNot(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
     return (true);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// OpExecPush():  Push a var/value onto the execution stack.
+// ====================================================================================================================
 bool8 OpExecPush(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                 CFunctionCallStack& funccallstack) {
+                 CFunctionCallStack& funccallstack)
+{
     // -- next instruction is the type
     eVarType contenttype = (eVarType)(*instrptr);
     instrptr++;
@@ -846,8 +936,12 @@ bool8 OpExecPush(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecPushLocalVar():  Push a local variable onto the exec stack.
+// ====================================================================================================================
 bool8 OpExecPushLocalVar(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                         CFunctionCallStack& funccallstack) {
+                         CFunctionCallStack& funccallstack)
+{
     // -- next instruction is the variable hash followed by the function context hash
     execstack.Push((void*)instrptr, TYPE__stackvar);
     DebugTrace(op, "StackVar [%s : %d]", GetRegisteredTypeName((eVarType)instrptr[0]), instrptr[1]);
@@ -858,8 +952,12 @@ bool8 OpExecPushLocalVar(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecPushLocalValue():  Push the value of a local variable onto the exec stack.
+// ====================================================================================================================
 bool8 OpExecPushLocalValue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                         CFunctionCallStack& funccallstack) {
+                           CFunctionCallStack& funccallstack)
+{
     // -- next instruction is the type
     eVarType valtype = (eVarType)(*instrptr++);
 
@@ -884,8 +982,12 @@ bool8 OpExecPushLocalValue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecPushGlobalVar():  Push a global variable onto the exec stack.
+// ====================================================================================================================
 bool8 OpExecPushGlobalVar(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
+                          CFunctionCallStack& funccallstack)
+{
     // -- next instruction is the variable hash followed by the function context hash
     execstack.Push((void*)instrptr, TYPE__var);
     DebugTrace(op, "Var: %s", UnHash(instrptr[2]));
@@ -896,8 +998,12 @@ bool8 OpExecPushGlobalVar(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecPushGlobalValue():  Push the value of a global variable onto the exec stack.
+// ====================================================================================================================
 bool8 OpExecPushGlobalValue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                        CFunctionCallStack& funccallstack) {
+                            CFunctionCallStack& funccallstack)
+{
     // -- next instruction is the variable name
     uint32 nshash = *instrptr++;
     uint32 varfunchash = *instrptr++;
@@ -920,12 +1026,12 @@ bool8 OpExecPushGlobalValue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr,
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecPushArrayVar():  Push a variable belonging to a hashtable onto the exec stack.
+// ====================================================================================================================
 bool8 OpExecPushArrayVar(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                          CFunctionCallStack& funccallstack)
 {
-    // -- cache the hash value to save a bit of time
-    static uint32 global_ns_hash = Hash(kGlobalNamespace);
-
     // -- hash value will have already been pushed
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
@@ -979,7 +1085,7 @@ bool8 OpExecPushArrayVar(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     // -- global hash table variable
     else if (!ve0->GetFunctionEntry())
     {
-        ns_hash = global_ns_hash;
+        ns_hash = CScriptContext::kGlobalNamespaceHash;
     }
 
     // -- function local variable
@@ -1008,12 +1114,12 @@ bool8 OpExecPushArrayVar(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecPushArrayValue():  Push the value of a variable belonging to a hashtable onto the exec stack.
+// ====================================================================================================================
 bool8 OpExecPushArrayValue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                            CFunctionCallStack& funccallstack)
 {
-    // -- cache the hash value to save a bit of time
-    static uint32 global_ns_hash = Hash(kGlobalNamespace);
-
     // -- hash value will have already been pushed
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
@@ -1067,7 +1173,7 @@ bool8 OpExecPushArrayValue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     // -- global hash table variable
     else if (!ve0->GetFunctionEntry())
     {
-        ns_hash = global_ns_hash;
+        ns_hash = CScriptContext::kGlobalNamespaceHash;
     }
 
     // -- function local variable
@@ -1101,15 +1207,20 @@ bool8 OpExecPushArrayValue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecPushMember():  Push an object member onto the exec stack.
+// ====================================================================================================================
 bool8 OpExecPushMember(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                       CFunctionCallStack& funccallstack) {
+                       CFunctionCallStack& funccallstack)
+{
     // -- next instruction is the member name
     uint32 varhash = *instrptr++;
 
     // -- what will previously have been pushed on the stack, is the object ID
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
-    if(contenttype != TYPE_object) {
+    if (contenttype != TYPE_object)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - ExecStack should contain TYPE_object\n");
         return false;
@@ -1128,15 +1239,20 @@ bool8 OpExecPushMember(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecPushMemberVal():  Push the value of an object member onto the exec stack.
+// ====================================================================================================================
 bool8 OpExecPushMemberVal(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                          CFunctionCallStack& funccallstack) {
+                          CFunctionCallStack& funccallstack)
+{
     // -- next instruction is the member name
     uint32 varhash = *instrptr++;
 
     // -- what will previously have been pushed on the stack, is the object ID
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
-    if(contenttype != TYPE_object) {
+    if (contenttype != TYPE_object)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - ExecStack should contain TYPE_object\n");
         return false;
@@ -1147,7 +1263,8 @@ bool8 OpExecPushMemberVal(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
 
     // -- find the object
     CObjectEntry* oe = cb->GetScriptContext()->FindObjectEntry(objectid);
-    if(!oe) {
+    if (!oe)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - Unable to find object %d\n", objectid);
         return false;
@@ -1155,7 +1272,8 @@ bool8 OpExecPushMemberVal(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
 
     // -- find the variable entry from the object's namespace variable table
     CVariableEntry* ve = oe->GetVariableEntry(varhash);
-    if(!ve) {
+    if (!ve)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - Unable to find member %s for object %d\n",
                         UnHash(varhash), objectid);
@@ -1189,8 +1307,12 @@ bool8 OpExecPushMemberVal(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecPushPODMember():  Push the member of a POD type onto the exec stack.
+// ====================================================================================================================
 bool8 OpExecPushPODMember(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                          CFunctionCallStack& funccallstack) {
+                          CFunctionCallStack& funccallstack)
+{
     // -- next instruction is the POD member name
     uint32 varhash = *instrptr++;
 
@@ -1229,8 +1351,12 @@ bool8 OpExecPushPODMember(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecPushPODMemberVal():  Push the value of a member of a POD type onto the exec stack.
+// ====================================================================================================================
 bool8 OpExecPushPODMemberVal(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                          CFunctionCallStack& funccallstack) {
+                          CFunctionCallStack& funccallstack)
+{
     // -- next instruction is the POD member name
     uint32 varhash = *instrptr++;
 
@@ -1256,12 +1382,17 @@ bool8 OpExecPushPODMemberVal(CCodeBlock* cb, eOpCode op, const uint32*& instrptr
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecPushSelf():  Push the ID of the object whose method is currently being executed.
+// ====================================================================================================================
 bool8 OpExecPushSelf(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                     CFunctionCallStack& funccallstack) {
+                     CFunctionCallStack& funccallstack)
+{
     int32 stacktop = 0;
     CObjectEntry* oe = NULL;
     CFunctionEntry* fe = funccallstack.GetExecuting(oe, stacktop);
-    if(!fe || !oe) {
+    if (!fe || !oe)
+    {
         ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
                       "Error - PushSelf from outside a method\n");
         return false;
@@ -1274,46 +1405,68 @@ bool8 OpExecPushSelf(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecPop():  Discard the top exec stack entry.
+// ====================================================================================================================
 bool8 OpExecPop(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                CFunctionCallStack& funccallstack) {
+                CFunctionCallStack& funccallstack)
+{
     eVarType contenttype;
     void* content = execstack.Pop(contenttype);
     DebugTrace(op, "Val: %s", DebugPrintVar(content, contenttype));
     return (true);
 }
 
-// ------------------------------------------------------------------------------------------------
-// -- Math ops
+// ====================================================================================================================
+// OpExecAdd():  Add operation.
+// ====================================================================================================================
 bool8 OpExecAdd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                CFunctionCallStack& funccallstack) {
+                CFunctionCallStack& funccallstack)
+{
     return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
+// ====================================================================================================================
+// OpExecSub():  Sub operation.
+// ====================================================================================================================
 bool8 OpExecSub(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                CFunctionCallStack& funccallstack) {
+                CFunctionCallStack& funccallstack)
+{
     return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
+// ====================================================================================================================
+// OpExecMult():  Mult operation.
+// ====================================================================================================================
 bool8 OpExecMult(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                CFunctionCallStack& funccallstack) {
+                CFunctionCallStack& funccallstack)
+{
     return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
+// ====================================================================================================================
+// OpExecDiv():  Div operation.
+// ====================================================================================================================
 bool8 OpExecDiv(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                CFunctionCallStack& funccallstack) {
+                CFunctionCallStack& funccallstack)
+{
     return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
+// ====================================================================================================================
+// OpExecMod():  Mod operation.
+// ====================================================================================================================
 bool8 OpExecMod(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                CFunctionCallStack& funccallstack) {
+                CFunctionCallStack& funccallstack)
+{
     return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
-// ------------------------------------------------------------------------------------------------
-// PerformCompareOp():  perform comparisons, returning success and a float result
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// PerformCompareOp():  Perform comparisons, returning success and a float result.
+// ====================================================================================================================
 bool8 PerformCompareOp(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                         CFunctionCallStack& funccallstack, float& float_result)
+                       CFunctionCallStack& funccallstack, float& float_result)
 {
     if (!PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op))
     {
@@ -1334,14 +1487,15 @@ bool8 PerformCompareOp(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecBooleanAnd():  Boolean And operation.
+// ====================================================================================================================
 bool8 OpExecBooleanAnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                       CFunctionCallStack& funccallstack)
 {
     float32 float_result = 0.0f;
     if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
-    {
         return (false);
-    }
 
     bool8 boolresult = (float_result != 0.0f);
     execstack.Push((void*)&boolresult, TYPE_bool);
@@ -1349,14 +1503,15 @@ bool8 OpExecBooleanAnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecBooleanOr():  Boolean Or operation.
+// ====================================================================================================================
 bool8 OpExecBooleanOr(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                       CFunctionCallStack& funccallstack)
 {
     float32 float_result = 0.0f;
     if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
-    {
         return (false);
-    }
 
     bool8 boolresult = (float_result != 0.0f);
     execstack.Push((void*)&boolresult, TYPE_bool);
@@ -1364,14 +1519,15 @@ bool8 OpExecBooleanOr(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecCompareEqual():  Compare Equal operation.
+// ====================================================================================================================
 bool8 OpExecCompareEqual(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                          CFunctionCallStack& funccallstack)
 {
     float32 float_result = 0.0f;
     if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
-    {
         return (false);
-    }
 
     bool8 boolresult = (float_result == 0.0f);
     execstack.Push((void*)&boolresult, TYPE_bool);
@@ -1379,14 +1535,15 @@ bool8 OpExecCompareEqual(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecCompareNotEqual():  Compare Not equal operation.
+// ====================================================================================================================
 bool8 OpExecCompareNotEqual(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                          CFunctionCallStack& funccallstack)
 {
     float32 float_result = 0.0f;
     if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
-    {
         return (false);
-    }
 
     bool8 boolresult = (float_result != 0.0f);
     execstack.Push((void*)&boolresult, TYPE_bool);
@@ -1394,14 +1551,15 @@ bool8 OpExecCompareNotEqual(CCodeBlock* cb, eOpCode op, const uint32*& instrptr,
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecCompareLess():  Compare Less Than operation.
+// ====================================================================================================================
 bool8 OpExecCompareLess(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                          CFunctionCallStack& funccallstack)
 {
     float32 float_result = 0.0f;
     if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
-    {
         return (false);
-    }
 
     bool8 boolresult = (float_result < 0.0f);
     execstack.Push((void*)&boolresult, TYPE_bool);
@@ -1409,14 +1567,15 @@ bool8 OpExecCompareLess(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecCompareLessEqual():  Compare Less Than Equal To operation.
+// ====================================================================================================================
 bool8 OpExecCompareLessEqual(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                              CFunctionCallStack& funccallstack)
 {
     float32 float_result = 0.0f;
     if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
-    {
         return (false);
-    }
 
     bool8 boolresult = (float_result <= 0.0f);
     execstack.Push((void*)&boolresult, TYPE_bool);
@@ -1424,14 +1583,15 @@ bool8 OpExecCompareLessEqual(CCodeBlock* cb, eOpCode op, const uint32*& instrptr
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecCompareGreater():  Compare Greater Than operation.
+// ====================================================================================================================
 bool8 OpExecCompareGreater(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                         CFunctionCallStack& funccallstack)
+                           CFunctionCallStack& funccallstack)
 {
     float32 float_result = 0.0f;
     if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
-    {
         return (false);
-    }
 
     bool8 boolresult = (float_result > 0.0f);
     execstack.Push((void*)&boolresult, TYPE_bool);
@@ -1439,14 +1599,15 @@ bool8 OpExecCompareGreater(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecCompareGreaterEqual():  Compare Greater Than Equal To operation.
+// ====================================================================================================================
 bool8 OpExecCompareGreaterEqual(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                             CFunctionCallStack& funccallstack)
+                                CFunctionCallStack& funccallstack)
 {
     float32 float_result = 0.0f;
     if (!PerformCompareOp(cb, op, instrptr, execstack, funccallstack, float_result))
-    {
         return (false);
-    }
 
     bool8 boolresult = (float_result >= 0.0f);
     execstack.Push((void*)&boolresult, TYPE_bool);
@@ -1454,44 +1615,69 @@ bool8 OpExecCompareGreaterEqual(CCodeBlock* cb, eOpCode op, const uint32*& instr
     return (true);
 }
 
-// ------------------------------------------------------------------------------------------------
-// -- Bit operations
+// ====================================================================================================================
+// OpExecBitLeftShift():  Left Shift operation.
+// ====================================================================================================================
 bool8 OpExecBitLeftShift(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
+                      CFunctionCallStack& funccallstack)
+{
     return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
+// ====================================================================================================================
+// OpExecBitRightShift():  Right Shift operation.
+// ====================================================================================================================
 bool8 OpExecBitRightShift(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
+                      CFunctionCallStack& funccallstack)
+{
     return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
+// ====================================================================================================================
+// OpExecBitAnd():  Bitwise And operation.
+// ====================================================================================================================
 bool8 OpExecBitAnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
+                      CFunctionCallStack& funccallstack)
+{
     return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
+// ====================================================================================================================
+// OpExecBitOr():  Bitwise Or operation.
+// ====================================================================================================================
 bool8 OpExecBitOr(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
+                  CFunctionCallStack& funccallstack)
+{
     return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
+// ====================================================================================================================
+// OpExecBitXor():  Bitwise Xor operation.
+// ====================================================================================================================
 bool8 OpExecBitXor(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
+                   CFunctionCallStack& funccallstack)
+{
     return (PerformBinaryOpPush(cb->GetScriptContext(), execstack, funccallstack, op));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// OpExecBranch():  Branch operation.
+// ====================================================================================================================
 bool8 OpExecBranch(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                   CFunctionCallStack& funccallstack) {
+                   CFunctionCallStack& funccallstack)
+{
     int32 jumpcount = *instrptr++;
     instrptr += jumpcount;
     DebugTrace(op, "count: %d", jumpcount);
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecBranchTrue():  Branch If True operation.
+// ====================================================================================================================
 bool8 OpExecBranchTrue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                       CFunctionCallStack& funccallstack) {
+                       CFunctionCallStack& funccallstack)
+{
     int32 jumpcount = *instrptr++;
 
     // -- top of the stack had better be a bool8
@@ -1515,6 +1701,9 @@ bool8 OpExecBranchTrue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecBranchFalse():  Branch If False operation.
+// ====================================================================================================================
 bool8 OpExecBranchFalse(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                         CFunctionCallStack& funccallstack) {
     int32 jumpcount = *instrptr++;
@@ -1539,14 +1728,19 @@ bool8 OpExecBranchFalse(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecFuncDecl():  Function declaration operation.
+// ====================================================================================================================
 bool8 OpExecFuncDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                     CFunctionCallStack& funccallstack) {
+                     CFunctionCallStack& funccallstack)
+{
     uint32 funchash = *instrptr++;
     uint32 namespacehash = *instrptr++;
     uint32 funcoffset = *instrptr++;
     CFunctionEntry* fe = FuncDeclaration(cb->GetScriptContext(), namespacehash, UnHash(funchash),
                                          funchash, eFuncTypeScript);
-    if(!fe) {
+    if (!fe)
+    {
         ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
                       "Error - failed to declare function - hash: 0x%08x\n", funchash);
         return false;
@@ -1563,9 +1757,13 @@ bool8 OpExecFuncDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecFuncDeclEnd():  Notification that the function declaration has conconcluded.
+// ====================================================================================================================
 bool8 OpExecFuncDeclEnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                        CFunctionCallStack& funccallstack) {
-    // -- push the function stack
+                        CFunctionCallStack& funccallstack)
+{
+    // -- pop the function stack
     CObjectEntry* oe = NULL;
     int32 var_offset = 0;
     CFunctionEntry* fe = funccallstack.Pop(oe, var_offset);
@@ -1574,8 +1772,12 @@ bool8 OpExecFuncDeclEnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecFuncCallArgs():  Preparation to call a function after we've assigned all the arguments.
+// ====================================================================================================================
 bool8 OpExecFuncCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                         CFunctionCallStack& funccallstack) {
+                         CFunctionCallStack& funccallstack)
+{
     // -- we're about to call a new function - next will be however many assign ops
     // -- to set the parameter values, finally OP_FuncCall will actually execute
 
@@ -1584,16 +1786,18 @@ bool8 OpExecFuncCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     uint32 funchash = *instrptr++;
     tFuncTable* functable = cb->GetScriptContext()->FindNamespace(nshash)->GetFuncTable();
     CFunctionEntry* fe = functable->FindItem(funchash);
-    if(!fe) {
-        if(nshash != 0) {
-        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
-                        "Error - undefined function: %s::%s()\n",
-                        UnHash(nshash), UnHash(funchash));
+    if (!fe)
+    {
+        if (nshash != 0)
+        {
+            DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                            "Error - undefined function: %s::%s()\n",
+                            UnHash(nshash), UnHash(funchash));
         }
         else
         {
-        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
-                        "Error - undefined function: %s()\n", UnHash(funchash));
+            DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                            "Error - undefined function: %s()\n", UnHash(funchash));
         }
         return false;
     }
@@ -1617,8 +1821,12 @@ bool8 OpExecFuncCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecPushParam():  Push a parameter variable.
+// ====================================================================================================================
 bool8 OpExecPushParam(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                      CFunctionCallStack& funccallstack) {
+                      CFunctionCallStack& funccallstack)
+{
     // -- the next word is the parameter index for the current function we're calling
     uint32 paramindex = *instrptr++;
 
@@ -1626,13 +1834,16 @@ bool8 OpExecPushParam(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
     int32 stackoffset = 0;
     CObjectEntry* oe = NULL;
     CFunctionEntry* fe = funccallstack.GetTop(oe, stackoffset);
-    if(!fe) {
+    if (!fe)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - assigning parameters outside a function call\n");
         return false;
     }
+
     uint32 paramcount = fe->GetContext()->GetParameterCount();
-    if(paramindex >= paramcount) {
+    if (paramindex >= paramcount)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - too many parameters calling function: %s\n",
                         UnHash(fe->GetHash()));
@@ -1654,8 +1865,12 @@ bool8 OpExecPushParam(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecMethodCallArgs():  Preparation to call a method after we've assigned all the arguments.
+// ====================================================================================================================
 bool8 OpExecMethodCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                           CFunctionCallStack& funccallstack) {
+                           CFunctionCallStack& funccallstack)
+{
     // -- get the hash of the namespace, in case we want a specific one
     uint32 nshash = *instrptr++;
 
@@ -1665,7 +1880,8 @@ bool8 OpExecMethodCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     // -- what will previously have been pushed on the stack, is the object ID
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
-    if(contenttype != TYPE_object) {
+    if (contenttype != TYPE_object)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - ExecStack should contain TYPE_object\n");
         return false;
@@ -1676,7 +1892,8 @@ bool8 OpExecMethodCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
 
     // -- find the object
     CObjectEntry* oe = cb->GetScriptContext()->FindObjectEntry(objectid);
-    if(!oe) {
+    if (!oe)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - Unable to find object %d\n", objectid);
         return false;
@@ -1685,7 +1902,8 @@ bool8 OpExecMethodCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     // -- find the method entry from the object's namespace hierarachy
     // -- if nshash is 0, then it's from the top of the hierarchy
     CFunctionEntry* fe = oe->GetFunctionEntry(nshash, methodhash);
-    if(!fe) {
+    if (!fe)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - Unable to find method %s for object %d\n",
                         UnHash(methodhash), objectid);
@@ -1702,7 +1920,7 @@ bool8 OpExecMethodCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     funccallstack.Push(fe, oe, execstack.GetStackTop());
 
     // -- create space on the execstack, if this is a script function
-    if(fe->GetType() != eFuncTypeGlobal)
+    if (fe->GetType() != eFuncTypeGlobal)
     {
         int32 localvarcount = fe->GetContext()->CalculateLocalVarStackSize();
         execstack.Reserve(localvarcount * MAX_TYPE_SIZE);
@@ -1713,12 +1931,15 @@ bool8 OpExecMethodCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     return (true);
 }
 
-// $$$TZA Why is the compiler complaining about not finding this, when it's defined in TinExecute.h
+// ====================================================================================================================
+// OpExecFuncCall():  Call a function.
+// ====================================================================================================================
 extern bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
-                            CFunctionCallStack& funccallstack);
+                                   CFunctionCallStack& funccallstack);
 
 bool8 OpExecFuncCall(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                     CFunctionCallStack& funccallstack) {
+                     CFunctionCallStack& funccallstack)
+{
     int32 stackoffset = 0;
     CObjectEntry* oe = NULL;
     CFunctionEntry* fe = funccallstack.GetTop(oe, stackoffset);
@@ -1732,7 +1953,7 @@ bool8 OpExecFuncCall(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
     DebugTrace(op, "func: %s", UnHash(fe->GetHash()));
 
     bool8 result = CodeBlockCallFunction(fe, oe, execstack, funccallstack);
-    if(!result) {
+    if (!result) {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - Unable to call function: %s()\n",
                         UnHash(fe->GetHash()));
@@ -1745,7 +1966,7 @@ bool8 OpExecFuncCall(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
     CVariableEntry* return_ve = NULL;
     CObjectEntry* return_oe = NULL;
 	void* return_val = execstack.Peek(return_valtype);
-    if(!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, return_val, return_valtype, return_ve,
+    if (!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, return_val, return_valtype, return_ve,
                       return_oe))
     {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
@@ -1759,13 +1980,18 @@ bool8 OpExecFuncCall(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecFuncReturn():  Return from a function operation.
+// ====================================================================================================================
 bool8 OpExecFuncReturn(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                       CFunctionCallStack& funccallstack) {
+                       CFunctionCallStack& funccallstack)
+{
     // -- pop the function entry from the stack
     CObjectEntry* oe = NULL;
     int32 var_offset = 0;
     CFunctionEntry* fe = funccallstack.Pop(oe, var_offset);
-    if(!fe) {
+    if (!fe)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - return with no function\n");
         return false;
@@ -1810,6 +2036,9 @@ bool8 OpExecFuncReturn(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExe
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecArrayHash():  Appends a value to the current hash, to be used indexing a hashtable or array variable.
+// ====================================================================================================================
 bool8 OpExecArrayHash(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                       CFunctionCallStack& funccallstack)
 {
@@ -1922,15 +2151,20 @@ bool8 OpExecArrayHash(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecArrayVarDecl():  Declare a variable to be inserted into a hashtable.
+// ====================================================================================================================
 bool8 OpExecArrayVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                         CFunctionCallStack& funccallstack) {
+                         CFunctionCallStack& funccallstack)
+{
     // -- next instruction is the type
     eVarType vartype = (eVarType)(*instrptr++);
 
     // -- pull the hash value for the hash table entry
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
-    if(contenttype != TYPE_int) {
+    if (contenttype != TYPE_int)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - ExecStack should contain TYPE_int\n");
         return false;
@@ -1942,12 +2176,14 @@ bool8 OpExecArrayVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     CObjectEntry* oe0 = NULL;
     eVarType val0type;
     void* val0 = execstack.Pop(val0type);
-    if(!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, val0, val0type, ve0, oe0)) {
+    if (!GetStackValue(cb->GetScriptContext(), execstack, funccallstack, val0, val0type, ve0, oe0))
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - ExecStack should contain a hashtable variable\n");
         return false;
     }
-    if(val0type != TYPE_hashtable) {
+    if (val0type != TYPE_hashtable)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - ExecStack should contain hashtable variable\n");
         return false;
@@ -1957,8 +2193,10 @@ bool8 OpExecArrayVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     // -- the hash table entry
     tVarTable* hashtable = (tVarTable*)ve0->GetAddr(oe0 ? oe0->GetAddr() : NULL);
     CVariableEntry* hte = hashtable->FindItem(hashvalue);
+
     // -- if the entry already exists, ensure it's the same type
-    if(hte && hte->GetType() != vartype) {
+    if (hte && hte->GetType() != vartype)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - HashTable variable: %s already has an entry of type: %s\n",
                         UnHash(ve0->GetHash()), GetRegisteredTypeName(hte->GetType()));
@@ -1979,6 +2217,9 @@ bool8 OpExecArrayVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecArrayDecl():  Pops the size and converts a variable to an array variable.
+// ====================================================================================================================
 bool8 OpExecArrayDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                        CFunctionCallStack& funccallstack)
 {
@@ -2032,6 +2273,9 @@ bool8 OpExecArrayDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExec
     return (result);
 }
 
+// ====================================================================================================================
+// OpExecSelfVarDecl():  Declare a member for the object executing the current method.
+// ====================================================================================================================
 bool8 OpExecSelfVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                         CFunctionCallStack& funccallstack)
 {
@@ -2061,6 +2305,9 @@ bool8 OpExecSelfVarDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecObjMemberDecl():  Declare an object member variable.
+// ====================================================================================================================
 bool8 OpExecObjMemberDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                           CFunctionCallStack& funccallstack)
 {
@@ -2102,10 +2349,15 @@ bool8 OpExecObjMemberDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecScheduleBegin():  Operation at the beginning of a scheduled function call.
+// ====================================================================================================================
 bool8 OpExecScheduleBegin(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                          CFunctionCallStack& funccallstack) {
+                          CFunctionCallStack& funccallstack)
+{
     // -- ensure we're not in the middle of a schedule construction already
-    if(cb->GetScriptContext()->GetScheduler()->mCurrentSchedule != NULL) {
+    if (cb->GetScriptContext()->GetScheduler()->mCurrentSchedule != NULL)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - A schedule() is already being processed\n");
         return false;
@@ -2117,7 +2369,8 @@ bool8 OpExecScheduleBegin(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     // -- the function hash will have been pushed most recently
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
-    if(contenttype != TYPE_int) {
+    if (contenttype != TYPE_int)
+    {
         ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
                       "Error - ExecStack should contain TYPE_int\n");
         return false;
@@ -2127,7 +2380,8 @@ bool8 OpExecScheduleBegin(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     // -- next pull the object ID off the stack
     contenttype;
     contentptr = execstack.Pop(contenttype);
-    if(contenttype != TYPE_object) {
+    if (contenttype != TYPE_object)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - ExecStack should contain TYPE_object\n");
         return false;
@@ -2138,7 +2392,8 @@ bool8 OpExecScheduleBegin(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
 
     // -- finally pull the delay time off the stack
     contentptr = execstack.Pop(contenttype);
-    if(contenttype != TYPE_int) {
+    if (contenttype != TYPE_int)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - ExecStack should contain TYPE_int\n");
         return false;
@@ -2148,7 +2403,7 @@ bool8 OpExecScheduleBegin(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     // -- create the schedule 
     cb->GetScriptContext()->GetScheduler()->mCurrentSchedule =
         cb->GetScriptContext()->GetScheduler()->ScheduleCreate(objectid, delaytime, funchash,
-        immediate_execution != 0 ? true : false);
+                                                               immediate_execution != 0 ? true : false);
 
     if (objectid > 0)
         DebugTrace(op, "Obj Id [%d] Function: %s", objectid, UnHash(funchash));
@@ -2158,10 +2413,14 @@ bool8 OpExecScheduleBegin(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecScheduleParam():  Assign a parameter value as part of a scheduled function call.
+// ====================================================================================================================
 bool8 OpExecScheduleParam(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                          CFunctionCallStack& funccallstack) {
+                          CFunctionCallStack& funccallstack)
+{
     // -- ensure we are in the middle of a schedule construction
-    if(cb->GetScriptContext()->GetScheduler()->mCurrentSchedule == NULL) {
+    if (cb->GetScriptContext()->GetScheduler()->mCurrentSchedule == NULL) {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - There is no schedule() being processed\n");
         return false;
@@ -2190,10 +2449,15 @@ bool8 OpExecScheduleParam(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecScheduleEnd():  Construction of a scheduled function call is complete.
+// ====================================================================================================================
 bool8 OpExecScheduleEnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                        CFunctionCallStack& funccallstack) {
+                        CFunctionCallStack& funccallstack)
+{
     // -- ensure we are in the middle of a schedule construction
-    if(cb->GetScriptContext()->GetScheduler()->mCurrentSchedule == NULL) {
+    if (cb->GetScriptContext()->GetScheduler()->mCurrentSchedule == NULL)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - There is no schedule() being processed\n");
         return false;
@@ -2202,13 +2466,15 @@ bool8 OpExecScheduleEnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     // -- now that the schedule has been completely constructed, we need to determine
     // -- if it's scheduled for immediate execution
     CScheduler::CCommand* curcommand = cb->GetScriptContext()->GetScheduler()->mCurrentSchedule;
-    if(curcommand->mImmediateExec) {
+    if (curcommand->mImmediateExec)
+    {
         ExecuteScheduledFunction(cb->GetScriptContext(), curcommand->mObjectID, curcommand->mFuncHash,
                                  curcommand->mFuncContext);
 
         // -- see if we have a return result
         CVariableEntry* return_ve = curcommand->mFuncContext->GetParameter(0);
-        if(!return_ve) {
+        if (!return_ve)
+        {
             DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                             "Error - There is no return value available from schedule()\n");
             return false;
@@ -2222,7 +2488,8 @@ bool8 OpExecScheduleEnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     }
 
     // -- not immediate execution - therefore, push the schedule request ID instead
-    else {
+    else
+    {
         int32 reqid =  cb->GetScriptContext()->GetScheduler()->mCurrentSchedule->mReqID;
         execstack.Push(&reqid, TYPE_int);
     }
@@ -2234,9 +2501,12 @@ bool8 OpExecScheduleEnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecCreateObject():  Create Object instruction.
+// ====================================================================================================================
 bool8 OpExecCreateObject(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                         CFunctionCallStack& funccallstack) {
-
+                         CFunctionCallStack& funccallstack)
+{
     // -- The next instruction is the class to instantiate
     uint32 classhash = *instrptr++;
 
@@ -2269,12 +2539,17 @@ bool8 OpExecCreateObject(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CE
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecDestroyObject():  Destroy Object instruction.
+// ====================================================================================================================
 bool8 OpExecDestroyObject(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                          CFunctionCallStack& funccallstack) {
+                          CFunctionCallStack& funccallstack)
+{
     // -- what will previously have been pushed on the stack, is the object ID
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
-    if(contenttype != TYPE_object) {
+    if (contenttype != TYPE_object)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - ExecStack should contain TYPE_object\n");
         return false;
@@ -2285,7 +2560,8 @@ bool8 OpExecDestroyObject(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
 
     // -- find the object
     CObjectEntry* oe = cb->GetScriptContext()->FindObjectEntry(objectid);
-    if(!oe) {
+    if (!oe)
+    {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - Unable to find object %d\n", objectid);
         return false;
@@ -2298,28 +2574,28 @@ bool8 OpExecDestroyObject(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     return (true);
 }
 
+// ====================================================================================================================
+// OpExecEOF():  Notification of the end of the script file.
+// ====================================================================================================================
 bool8 OpExecEOF(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
-                CFunctionCallStack& funccallstack) {
+                CFunctionCallStack& funccallstack)
+{
     DebugTrace(op, "");
     return (true);
 }
 
-// ------------------------------------------------------------------------------------------------
-// Debug helper functions
+// ====================================================================================================================
+// SetDebugTrace():  Debug function to enable tracing as the virtual machine executes the code block.
+// ====================================================================================================================
 void SetDebugTrace(bool8 torf)
 {
     CScriptContext::gDebugTrace = torf;
 }
 
-bool8 GetDebugParseTree()
-{
-    return (CScriptContext::gDebugTrace);
-}
-
 REGISTER_FUNCTION_P1(SetDebugTrace, SetDebugTrace, void, bool8);
 
-}  // TinScript
+}  // namespace TinScript
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

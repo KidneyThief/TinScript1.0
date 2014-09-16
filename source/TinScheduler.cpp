@@ -19,10 +19,11 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // TinScheduler.cpp
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 
+// -- includes
 #include "stdafx.h"
 #include "stdio.h"
 
@@ -32,17 +33,29 @@
 #include "TinExecute.h"
 #include "TinScheduler.h"
 
-// ------------------------------------------------------------------------------------------------
-namespace TinScript {
+// == namespace TinScript =============================================================================================
 
-CScheduler::CScheduler(CScriptContext* script_context) {
+namespace TinScript
+{
+
+// == class CScheduler ================================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CScheduler::CScheduler(CScriptContext* script_context)
+{
     mContextOwner = script_context;
     mHead = NULL;
     mCurrentSimTime = 0;
     mCurrentSchedule = NULL;
 }
 
-CScheduler::~CScheduler() {
+// ====================================================================================================================
+// Destructor
+// ====================================================================================================================
+CScheduler::~CScheduler()
+{
     // -- clean up all pending scheduled events
     while(mHead) {
         CCommand* next = mHead->mNext;
@@ -51,14 +64,17 @@ CScheduler::~CScheduler() {
     }
 }
 
-void CScheduler::Update(uint32 curtime) {
-
+// ====================================================================================================================
+// Update():  Iterates through the list of requests, executing those who's requested time has elapsed.
+// ====================================================================================================================
+void CScheduler::Update(uint32 curtime)
+{
     // -- cache the current time
     mCurrentSimTime = curtime;
 
     // -- execute all commands scheduled for dispatch by this time
-    while(mHead && mHead->mDispatchTime <= curtime) {
-
+    while (mHead && mHead->mDispatchTime <= curtime)
+    {
         // -- get the current command, and remove it from the list - now, before we execute,
         // -- since executing this command could 
         CCommand* curcommand = mHead;
@@ -67,16 +83,20 @@ void CScheduler::Update(uint32 curtime) {
         mHead = curcommand->mNext;
 
         // -- dispatch the command - see if it's a direct function call, or a command buf
-        if(curcommand->mFuncHash != 0) {
+        if (curcommand->mFuncHash != 0)
+        {
             ExecuteScheduledFunction(GetScriptContext(), curcommand->mObjectID, curcommand->mFuncHash,
                                      curcommand->mFuncContext);
         }
-        else {
-            if(curcommand->mObjectID > 0) {
+        else
+        {
+            if(curcommand->mObjectID > 0)
+            {
                 int32 dummy = 0;
                 ObjExecF(curcommand->mObjectID, dummy, curcommand->mCommandBuf);
             }
-            else {
+            else
+            {
                 // $$$TZA is there anything we can do with the result?
                 GetScriptContext()->ExecCommand(curcommand->mCommandBuf);
             }
@@ -87,19 +107,31 @@ void CScheduler::Update(uint32 curtime) {
     }
 }
 
-void CScheduler::CancelObject(uint32 objectid) {
+// ====================================================================================================================
+// CancelObject():  On destruction of an object, cancel all scheduled method calls.
+// ====================================================================================================================
+void CScheduler::CancelObject(uint32 objectid)
+{
     if(objectid == 0)
         return;
     Cancel(objectid, 0);
 }
 
-void CScheduler::CancelRequest(int32 reqid) {
+// ====================================================================================================================
+// CancelRequest():  Cancel a scheduled function/method call by ID
+// ====================================================================================================================
+void CScheduler::CancelRequest(int32 reqid)
+{
     if(reqid <= 0)
         return;
     Cancel(0, reqid);
 }
 
-void CScheduler::Cancel(uint32 objectid, int32 reqid) {
+// ====================================================================================================================
+// Cancel():  Cancel a scheduled method call by ID, but for a specific object
+// ====================================================================================================================
+void CScheduler::Cancel(uint32 objectid, int32 reqid)
+{
     // -- loop through and delete any schedules pending for this object
     CCommand** prevcommand = &mHead;
     CCommand* curcommand = mHead;
@@ -116,7 +148,11 @@ void CScheduler::Cancel(uint32 objectid, int32 reqid) {
     }
 }
 
-void CScheduler::Dump() {
+// ====================================================================================================================
+// Dump():  Display the list of scheduled requests through standard text.
+// ====================================================================================================================
+void CScheduler::Dump()
+{
     // -- loop through and delete any schedules pending for this object
     CCommand* curcommand = mHead;
     while(curcommand) {
@@ -126,8 +162,14 @@ void CScheduler::Dump() {
     }
 }
 
+// == class CScheduler::CCommand ======================================================================================
+
+// ====================================================================================================================
+// Constructor: Schedule a raw text statement, to be parsed and executed.
+// ====================================================================================================================
 CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uint32 _objectid,
-                               uint32 _dispatchtime, const char* _command, bool8 immediate) {
+                               uint32 _dispatchtime, const char* _command, bool8 immediate)
+{
     // -- set the context
     mContextOwner = script_context;
 
@@ -143,8 +185,12 @@ CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uin
     mFuncContext = NULL;
 }
 
+// ====================================================================================================================
+// Constructor:  Schedule a specific function/method call - much more efficient than raw text.
+// ====================================================================================================================
 CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uint32 _objectid,
-                               uint32 _dispatchtime, uint32 _funchash, bool8 immediate) {
+                               uint32 _dispatchtime, uint32 _funchash, bool8 immediate)
+{
     // -- set the context
     mContextOwner = script_context;
 
@@ -160,14 +206,22 @@ CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uin
     mFuncContext = TinAlloc(ALLOC_FuncContext, CFunctionContext, script_context);
 }
 
-CScheduler::CCommand::~CCommand() {
+// ====================================================================================================================
+// Destructor
+// ====================================================================================================================
+CScheduler::CCommand::~CCommand()
+{
     // clean up the function context, if it exists
     if(mFuncContext)
         TinFree(mFuncContext);
 }
 
+// ====================================================================================================================
+// Schedule():  Schedule a raw text command.
+// ====================================================================================================================
 static int32 gScheduleID = 0;
-int32 CScheduler::Schedule(uint32 objectid, int32 delay, const char* commandstring) {
+int32 CScheduler::Schedule(uint32 objectid, int32 delay, const char* commandstring)
+{
     ++gScheduleID;
 
     // -- ensure we have a valid command string
@@ -182,14 +236,16 @@ int32 CScheduler::Schedule(uint32 objectid, int32 delay, const char* commandstri
                                     objectid, dispatchtime, commandstring);
 
     // -- see if it goes at the front of the list
-    if(!mHead || dispatchtime <= mHead->mDispatchTime) {
+    if (!mHead || dispatchtime <= mHead->mDispatchTime)
+    {
         newcommand->mNext = mHead;
         newcommand->mPrev = NULL;
         if(mHead)
             mHead->mPrev = newcommand;
         mHead = newcommand;
     }
-    else {
+    else
+    {
         // -- insert it into the list, in after curschedule
         CCommand* curschedule = mHead;
         while(curschedule->mNext && curschedule->mDispatchTime < dispatchtime)
@@ -205,8 +261,12 @@ int32 CScheduler::Schedule(uint32 objectid, int32 delay, const char* commandstri
     return newcommand->mReqID;
 }
 
+// ====================================================================================================================
+// ScheduleCreate():  Create a schedule request.
+// ====================================================================================================================
 CScheduler::CCommand* CScheduler::ScheduleCreate(uint32 objectid, int32 delay,
-                                                 uint32 funchash, bool8 immediate) {
+                                                 uint32 funchash, bool8 immediate)
+{
     ++gScheduleID;
 
     // -- calculate the dispatch time - enforce a one-frame delay
@@ -220,14 +280,16 @@ CScheduler::CCommand* CScheduler::ScheduleCreate(uint32 objectid, int32 delay,
     newcommand->mFuncContext->AddParameter("_return", Hash("_return"), TYPE__resolve, 1, 0);
 
     // -- see if it goes at the front of the list
-    if(!mHead || dispatchtime <= mHead->mDispatchTime) {
+    if (!mHead || dispatchtime <= mHead->mDispatchTime)
+    {
         newcommand->mNext = mHead;
         newcommand->mPrev = NULL;
         if(mHead)
             mHead->mPrev = newcommand;
         mHead = newcommand;
     }
-    else {
+    else
+    {
         // -- insert it into the list, in after curschedule
         CCommand* curschedule = mHead;
         while(curschedule->mNext && curschedule->mDispatchTime < dispatchtime)
@@ -243,7 +305,13 @@ CScheduler::CCommand* CScheduler::ScheduleCreate(uint32 objectid, int32 delay,
     return newcommand;
 }
 
-int32 CScheduler::Thread(int32 reqid, uint32 objectid, int32 delay, const char* commandstring) {
+// ====================================================================================================================
+// Thread():  Cancel a previous request, and replace with this one.
+// ====================================================================================================================
+// -- When iterating by reloading/re-executing scripts, a scheduled request can accidently queue up multiples, when
+// -- only one request was ever meant to exist.  This interface can ensure that only one actual schedule exists.
+int32 CScheduler::Thread(int32 reqid, uint32 objectid, int32 delay, const char* commandstring)
+{
     CancelRequest(reqid);
     int32 newreqid = Schedule(objectid, delay, commandstring);
     return newreqid;
@@ -265,6 +333,6 @@ REGISTER_FUNCTION_P1(ScheduleCancelRequest, TinScript::CScheduler::CancelRequest
 REGISTER_FUNCTION_P0(ListSchedules, TinScript::CScheduler::Dump, void);
 */
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

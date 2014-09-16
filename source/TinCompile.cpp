@@ -19,9 +19,9 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // TinCompile.cpp
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 
 // -- lib includes
 #include "stdafx.h"
@@ -29,6 +29,7 @@
 #include "string.h"
 #include "stdio.h"
 
+// -- includes
 #include "integration.h"
 #include "TinScript.h"
 #include "TinParse.h"
@@ -36,70 +37,100 @@
 #include "TinExecute.h"
 #include "TinNamespace.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// CCompileTree implementation
-const char* gCompileNodeTypes[eNodeTypeCount] = {
+namespace TinScript
+{
+
+// ====================================================================================================================
+// GetNodeTypeString():  Declaration and accessor to identify compile tree nodes.
+// ====================================================================================================================
+const char* gCompileNodeTypes[eNodeTypeCount] =
+{
 	#define CompileNodeTypeEntry(a) #a,
 	CompileNodeTypesTuple
 	#undef CompileNodeTypeEntry
 };
 
-const char* GetNodeTypeString(ECompileNodeType nodetype) {
+const char* GetNodeTypeString(ECompileNodeType nodetype)
+{
 	return gCompileNodeTypes[nodetype];
 }
 
-const char* gOperationName[OP_COUNT] = {
+// ====================================================================================================================
+// GetOperationString():  Declaration and accessor to identify types of operations.
+// ====================================================================================================================
+const char* gOperationName[OP_COUNT] =
+{
 	#define OperationEntry(a) #a,
 	OperationTuple
 	#undef OperationEntry
 };
 
-const char* GetOperationString(eOpCode op) {
+const char* GetOperationString(eOpCode op)
+{
 	return gOperationName[op];
 }
 
-eOpCode gBinInstructionType[] = {
+// ====================================================================================================================
+// GetBinOpInstructionType():  Declaration and accessor to identify types of binary operations and their precedence.
+// ====================================================================================================================
+eOpCode gBinInstructionType[] =
+{
 	#define BinaryOperatorEntry(a, b, c) OP_##a,
 	BinaryOperatorTuple
 	#undef BinaryOperatorEntry
 };
 
-int32 gBinOpPrecedence[] = {
+int32 gBinOpPrecedence[] =
+{
 	#define BinaryOperatorEntry(a, b, c) c,
 	BinaryOperatorTuple
 	#undef BinaryOperatorEntry
 };
 
-eOpCode GetBinOpInstructionType(eBinaryOpType binoptype) {
+eOpCode GetBinOpInstructionType(eBinaryOpType binoptype)
+{
     return gBinInstructionType[binoptype];
 }
 
-int32 GetBinOpPrecedence(eBinaryOpType binoptype) {
+int32 GetBinOpPrecedence(eBinaryOpType binoptype)
+{
     return gBinOpPrecedence[binoptype];
 }
 
-static eOpCode gAssInstructionType[] = {
+// ====================================================================================================================
+// GetAssOpInstructionType():  Declaration and accessor to identify types of assignment operations.
+// ====================================================================================================================
+static eOpCode gAssInstructionType[] =
+{
 	#define AssignOperatorEntry(a, b) OP_##a,
 	AssignOperatorTuple
 	#undef AssignOperatorEntry
 };
 
-eOpCode GetAssOpInstructionType(eAssignOpType assoptype) {
+eOpCode GetAssOpInstructionType(eAssignOpType assoptype)
+{
     return gAssInstructionType[assoptype];
 }
 
-static eOpCode gUnaryInstructionType[] = {
+// ====================================================================================================================
+// GetUnaryOpInstructionType():  Declaration and accessor to identify types of unary operations.
+// ====================================================================================================================
+static eOpCode gUnaryInstructionType[] =
+{
 	#define UnaryOperatorEntry(a, b) OP_##a,
 	UnaryOperatorTuple
 	#undef UnaryOperatorEntry
 };
 
-eOpCode GetUnaryOpInstructionType(eUnaryOpType unarytype) {
+eOpCode GetUnaryOpInstructionType(eUnaryOpType unarytype)
+{
     return gUnaryInstructionType[unarytype];
 }
 
+// ====================================================================================================================
+// -- debug type, enum, and string to provide lables for byte code traces and dumps
 #define DebugByteCodeTuple \
 	DebugByteCodeEntry(NULL) \
 	DebugByteCodeEntry(instr) \
@@ -123,17 +154,20 @@ static const char* gDebugByteTypeName[] = {
 	#undef DebugByteCodeEntry
 };
 
-// ------------------------------------------------------------------------------------------------
-int32 PushInstructionRaw(bool8 countonly, uint32*& instrptr, void* content, int32 wordcount,
-					eDebugByteType debugtype, const char* debugmsg = NULL) {
-
-	if(!countonly) {
+// ====================================================================================================================
+// PushInstructionRaw():  As the parse tree is compiled, instructions are created.
+// ====================================================================================================================
+int32 PushInstructionRaw(bool8 countonly, uint32*& instrptr, void* content, int32 wordcount, eDebugByteType debugtype,
+                         const char* debugmsg = NULL)
+{
+	if (!countonly)
+    {
 		memcpy(instrptr, content, wordcount * 4);
 		instrptr += wordcount;
 	}
 
 #if DEBUG_CODEBLOCK
-    if(CScriptContext::gDebugCodeBlock && !countonly) {
+    if (CScriptContext::gDebugCodeBlock && !countonly) {
 	    for(int32 i = 0; i < wordcount; ++i) {
 		    if (i == 0) {
 			    const char* debugtypeinfo = NULL;
@@ -165,23 +199,35 @@ int32 PushInstructionRaw(bool8 countonly, uint32*& instrptr, void* content, int3
 	return wordcount;
 }
 
-int32 PushInstruction(bool8 countonly, uint32*& instrptr, uint32 content,
-					eDebugByteType debugtype, const char* debugmsg = NULL) {
+// ====================================================================================================================
+// PushInstruction():  As the parse tree is compiled, instructions are created.
+// ====================================================================================================================
+int32 PushInstruction(bool8 countonly, uint32*& instrptr, uint32 content, eDebugByteType debugtype,
+                      const char* debugmsg = NULL)
+{
 	return PushInstructionRaw(countonly, instrptr, (void*)&content, 1, debugtype, debugmsg);
 }
 
-void DebugEvaluateNode(const CCompileTreeNode& node, bool8 countonly, uint32* instrptr) {
+// ====================================================================================================================
+// DebugEvaluateNode():  Addes debug information to the code block for each node, as the parse tree is compiled.
+// ====================================================================================================================
+void DebugEvaluateNode(const CCompileTreeNode& node, bool8 countonly, uint32* instrptr)
+{
 #if DEBUG_CODEBLOCK
     if (CScriptContext::gDebugCodeBlock && !countonly)
 	    printf("\n--- Eval: %s\n", GetNodeTypeString(node.GetType()));
 
-    // if we're debugging, add 
-    if(node.GetCodeBlock())
+    // -- if we're debugging, add the line number for the current operation
+    if (node.GetCodeBlock())
         node.GetCodeBlock()->AddLineNumber(node.GetLineNumber(), instrptr);
 #endif
 }
 
-void DebugEvaluateBinOpNode(const CBinaryOpNode& binopnode, bool8 countonly) {
+// ====================================================================================================================
+// DebugEvaluateBinOpNode():  Adds debug information to the code block for binary op nodes, during compilation.
+// ====================================================================================================================
+void DebugEvaluateBinOpNode(const CBinaryOpNode& binopnode, bool8 countonly)
+{
 #if DEBUG_CODEBLOCK
     if (CScriptContext::gDebugCodeBlock && !countonly)
     {
@@ -191,8 +237,11 @@ void DebugEvaluateBinOpNode(const CBinaryOpNode& binopnode, bool8 countonly) {
 #endif
 }
 
-// ------------------------------------------------------------------------------------------------
-int32 CompileVarTable(tVarTable* vartable, uint32*& instrptr, bool8 countonly) {
+// ====================================================================================================================
+// CompileVarTable():  Adds variable declarations for the variables added when compiling the code block.
+// ====================================================================================================================
+int32 CompileVarTable(tVarTable* vartable, uint32*& instrptr, bool8 countonly)
+{
     int32 size = 0;
 	if (vartable)
     {
@@ -211,7 +260,9 @@ int32 CompileVarTable(tVarTable* vartable, uint32*& instrptr, bool8 countonly) {
     return size;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// CompileVarTable():  Adds parameter and local variable declaration operations for functions defined in a code block.
+// ====================================================================================================================
 int32 CompileFunctionContext(CFunctionEntry* fe, uint32*& instrptr, bool8 countonly)
 {
     // -- get the context for the function
@@ -232,7 +283,6 @@ int32 CompileFunctionContext(CFunctionEntry* fe, uint32*& instrptr, bool8 counto
 
     // -- now declare the rest of the local vars
     tVarTable* vartable = funccontext->GetLocalVarTable();
-    assert(vartable);
 	if (vartable)
     {
 	    CVariableEntry* ve = vartable->First();
@@ -256,7 +306,11 @@ int32 CompileFunctionContext(CFunctionEntry* fe, uint32*& instrptr, bool8 counto
     return size;
 }
 
-// ------------------------------------------------------------------------------------------------
+// == class CCompileTreeNode ==========================================================================================
+
+// ====================================================================================================================
+// CreateTreeRoot():  Creates a root node for a parse tree.
+// ====================================================================================================================
 CCompileTreeNode* CCompileTreeNode::CreateTreeRoot(CCodeBlock* codeblock)
 {
     CCompileTreeNode* root = TinAlloc(ALLOC_TreeNode, CCompileTreeNode, codeblock);
@@ -267,8 +321,12 @@ CCompileTreeNode* CCompileTreeNode::CreateTreeRoot(CCodeBlock* codeblock)
 	return root;
 }
 
-CCompileTreeNode::CCompileTreeNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
-                                   ECompileNodeType nodetype, int32 _linenumber) {
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CCompileTreeNode::CCompileTreeNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, ECompileNodeType nodetype,
+                                   int32 _linenumber)
+{
 	type = nodetype;
 	next = NULL;
 	leftchild = NULL;
@@ -282,18 +340,27 @@ CCompileTreeNode::CCompileTreeNode(CCodeBlock* _codeblock, CCompileTreeNode*& _l
     linenumber = _linenumber;
 }
 
-CCompileTreeNode::~CCompileTreeNode() {
+// ====================================================================================================================
+// Destructor
+// ====================================================================================================================
+CCompileTreeNode::~CCompileTreeNode()
+{
 	assert(leftchild == NULL && rightchild == NULL);
 }
 
-int32 CCompileTreeNode::Eval(uint32*& instrptr, eVarType, bool8 countonly) const {
+// ====================================================================================================================
+// Eval():  Evaluate a parse tree, starting from a tree root, and advancing through the "next" linked list.
+// ====================================================================================================================
+int32 CCompileTreeNode::Eval(uint32*& instrptr, eVarType, bool8 countonly) const
+{
 
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
 	// -- NOP nodes have no children, but loop through and evaluate the chain of siblings
 	const CCompileTreeNode* rootptr = next;
-	while (rootptr) {
+	while (rootptr)
+    {
         int32 tree_size = rootptr->Eval(instrptr, TYPE_void, countonly);
         if (tree_size < 0)
             return -1;
@@ -301,7 +368,7 @@ int32 CCompileTreeNode::Eval(uint32*& instrptr, eVarType, bool8 countonly) const
 
         // -- we're done if the rootptr is a NOP, as it would have already evaluated
         // -- the rest of the linked list
-        if(rootptr->GetType() == eNOP)
+        if (rootptr->GetType() == eNOP)
             break;
 
 		rootptr = rootptr->next;
@@ -310,6 +377,9 @@ int32 CCompileTreeNode::Eval(uint32*& instrptr, eVarType, bool8 countonly) const
 	return size;
 }
 
+// ====================================================================================================================
+// Dump():  Dumps out the debug type for parse tree node.
+// ====================================================================================================================
 void CCompileTreeNode::Dump(char*& output, int32& length) const
 {
 	sprintf_s(output, length, "type: %s", gCompileNodeTypes[type]);
@@ -318,17 +388,25 @@ void CCompileTreeNode::Dump(char*& output, int32& length) const
 	length -= debuglength;
 }
 
-// ------------------------------------------------------------------------------------------------
+// == class CValueNode ================================================================================================
+
+// ====================================================================================================================
+// Constructor:  Used for values and variables.
+// ====================================================================================================================
 CValueNode::CValueNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
                        const char* _value, int32 _valuelength, bool8 _isvar,
-                       eVarType _valtype) :
-                       CCompileTreeNode(_codeblock, _link, eValue, _linenumber) {
+                       eVarType _valtype)
+    : CCompileTreeNode(_codeblock, _link, eValue, _linenumber)
+{
 	SafeStrcpy(value, _value, _valuelength + 1);
 	isvariable = _isvar;
     isparam = false;
     valtype = _valtype;
 }
 
+// ====================================================================================================================
+// Constructor:  Used when the value is a function parameter.
+// ====================================================================================================================
 CValueNode::CValueNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber, int32 _paramindex,
                        eVarType _valtype)
     : CCompileTreeNode(_codeblock, _link, eValue, _linenumber)
@@ -340,12 +418,15 @@ CValueNode::CValueNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _
     valtype = _valtype;
 }
 
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
 int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
 {
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
-	// if the value is being used, push it on the stack
+	// -- if the value is being used, push it on the stack
 	if (pushresult > TYPE_void)
     {
         if (isparam)
@@ -453,11 +534,14 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
 	return size;
 }
 
+// ====================================================================================================================
+// Dump():  Outputs the text version of the instructions compiled from this node.
+// ====================================================================================================================
 void CValueNode::Dump(char*& output, int32& length) const
 {
-    if(isparam)
+    if (isparam)
 	    sprintf_s(output, length, "type: %s, param: %d", gCompileNodeTypes[type], paramindex);
-    else if(isvariable)
+    else if (isvariable)
 	    sprintf_s(output, length, "type: %s, var: %s", gCompileNodeTypes[type], value);
     else
 	    sprintf_s(output, length, "type: %s, %s", gCompileNodeTypes[type], value);
@@ -466,38 +550,56 @@ void CValueNode::Dump(char*& output, int32& length) const
 	length -= debuglength;
 }
 
-// ------------------------------------------------------------------------------------------------
-CSelfNode::CSelfNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber) :
-                               CCompileTreeNode(_codeblock, _link, eSelf, _linenumber) {
+// == class CSelfNode =================================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CSelfNode::CSelfNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber)
+    : CCompileTreeNode(_codeblock, _link, eSelf, _linenumber)
+{
 }
 
-int32 CSelfNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CSelfNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
 	// -- if the value is being used, push it on the stack
-	if(pushresult > TYPE_void) {
+	if (pushresult > TYPE_void) {
 	    size += PushInstruction(countonly, instrptr, OP_PushSelf, DBG_var);
 	}
 
 	return size;
 }
 
-// ------------------------------------------------------------------------------------------------
+// == class CObjMemberNode ============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CObjMemberNode::CObjMemberNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
-                               const char* _membername, int32 _memberlength) :
-                               CCompileTreeNode(_codeblock, _link, eObjMember, _linenumber) {
+                               const char* _membername, int32 _memberlength)
+    : CCompileTreeNode(_codeblock, _link, eObjMember, _linenumber)
+{
 	SafeStrcpy(membername, _membername, _memberlength + 1);
 }
 
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
 int32 CObjMemberNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 	
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
 	// -- ensure we have a left child
-	if(!leftchild) {
+	if (!leftchild)
+    {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
                         "Error - CObjMemberNode with no left child\n");
 		return (-1);
@@ -540,6 +642,9 @@ int32 CObjMemberNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 	return size;
 }
 
+// ====================================================================================================================
+// Dump():  Outputs the text version of the instructions compiled from this node.
+// ====================================================================================================================
 void CObjMemberNode::Dump(char*& output, int32& length) const
 {
 	sprintf_s(output, length, "type: %s, %s", gCompileNodeTypes[type], membername);
@@ -548,20 +653,29 @@ void CObjMemberNode::Dump(char*& output, int32& length) const
 	length -= debuglength;
 }
 
-// ------------------------------------------------------------------------------------------------
+// == class CPODMemberNode ============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CPODMemberNode::CPODMemberNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
-                               const char* _membername, int32 _memberlength) :
-                               CCompileTreeNode(_codeblock, _link, ePODMember, _linenumber) {
+                               const char* _membername, int32 _memberlength)
+    : CCompileTreeNode(_codeblock, _link, ePODMember, _linenumber)
+{
 	SafeStrcpy(podmembername, _membername, _memberlength + 1);
 }
 
-int32 CPODMemberNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-	
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CPODMemberNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
 	// -- ensure we have a left child
-	if(!leftchild) {
+	if (!leftchild)
+    {
 		printf("Error - CPODMemberNode with no left child\n");
 		return (-1);
 	}
@@ -574,33 +688,37 @@ int32 CPODMemberNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
     size += tree_size;
 
 	// -- if the value is being used, push it on the stack
-	if(pushresult > TYPE_void) {
-
+	if (pushresult > TYPE_void)
+    {
         // -- get the hash of the member
 		uint32 memberhash = Hash(podmembername);
 
 		// -- if we're supposed to be pushing a var (for an assign...), we actually push
         // -- a member (still a variable, but the lookup is different)
-		if(pushresult == TYPE__var) {
+		if (pushresult == TYPE__var)
+        {
 			size += PushInstruction(countonly, instrptr, OP_PushPODMember, DBG_instr);
 			size += PushInstruction(countonly, instrptr, memberhash, DBG_var);
 		}
 
 		// -- otherwise we push the hash, but the instruction is to get the value
-		else {
+		else
+        {
 			size += PushInstruction(countonly, instrptr, OP_PushPODMemberVal, DBG_instr);
 			size += PushInstruction(countonly, instrptr, memberhash, DBG_var);
 		}
 	}
 
     // -- otherwise, we're referencing a member without actually doing anything - pop the stack
-    else {
+    else
         size += PushInstruction(countonly, instrptr, OP_Pop, DBG_instr);
-    }
 
 	return size;
 }
 
+// ====================================================================================================================
+// Dump():  Outputs the text version of the instructions compiled from this node.
+// ====================================================================================================================
 void CPODMemberNode::Dump(char*& output, int32& length) const
 {
 	sprintf_s(output, length, "type: %s, %s", gCompileNodeTypes[type], podmembername);
@@ -609,41 +727,52 @@ void CPODMemberNode::Dump(char*& output, int32& length) const
 	length -= debuglength;
 }
 
-// ------------------------------------------------------------------------------------------------
-CBinaryOpNode::CBinaryOpNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
-                             eBinaryOpType _binaryoptype, bool8 _isassignop, eVarType _resulttype) :
-                             CCompileTreeNode(_codeblock, _link, eBinaryOp, _linenumber) {
+// == class CBinaryOpNode =============================================================================================
 
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CBinaryOpNode::CBinaryOpNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
+                             eBinaryOpType _binaryoptype, bool8 _isassignop, eVarType _resulttype)
+    : CCompileTreeNode(_codeblock, _link, eBinaryOp, _linenumber)
+{
 	binaryopcode = GetBinOpInstructionType(_binaryoptype);
     binaryopprecedence = GetBinOpPrecedence(_binaryoptype);
 	binopresult = _resulttype;
 	isassignop = _isassignop;
 }
 
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CBinaryOpNode::CBinaryOpNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
-                             eAssignOpType _assoptype, bool8 _isassignop, eVarType _resulttype) :
-                             CCompileTreeNode(_codeblock, _link, eBinaryOp, _linenumber) {
-
+                             eAssignOpType _assoptype, bool8 _isassignop, eVarType _resulttype)
+    : CCompileTreeNode(_codeblock, _link, eBinaryOp, _linenumber)
+{
 	binaryopcode = GetAssOpInstructionType(_assoptype);
     binaryopprecedence = 0;
 	binopresult = _resulttype;
 	isassignop = _isassignop;
 }
 
-// ------------------------------------------------------------------------------------------------
-int32 CBinaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CBinaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateBinOpNode(*this, countonly);
 	int32 size = 0;
 
 	// -- ensure we have a left child
-	if(!leftchild) {
+	if (!leftchild)
+    {
 		printf("Error - CBinaryOpNode with no left child\n");
 		return (-1);
 	}
 
 	// -- ensure we have a left child
-	if(!rightchild) {
+	if (!rightchild)
+    {
 		printf("Error - CBinaryOpNode with no right child\n");
 		return (-1);
 	}
@@ -670,6 +799,9 @@ int32 CBinaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 	return size;
 }
 
+// ====================================================================================================================
+// Dump():  Outputs the text version of the instructions compiled from this node.
+// ====================================================================================================================
 void CBinaryOpNode::Dump(char*& output, int32& length) const
 {
 	sprintf_s(output, length, "type: %s, op: %s", gCompileNodeTypes[type],
@@ -678,20 +810,30 @@ void CBinaryOpNode::Dump(char*& output, int32& length) const
 	output += debuglength;
 	length -= debuglength;
 }
-// ------------------------------------------------------------------------------------------------
+
+// == class CUnaryOpNode ==============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CUnaryOpNode::CUnaryOpNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
-                           eUnaryOpType _unaryoptype) :
-                           CCompileTreeNode(_codeblock, _link, eUnaryOp, _linenumber) {
+                           eUnaryOpType _unaryoptype)
+    : CCompileTreeNode(_codeblock, _link, eUnaryOp, _linenumber)
+{
 	unaryopcode = GetUnaryOpInstructionType(_unaryoptype);
 }
 
-int32 CUnaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CUnaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
 	// -- ensure we have a left child
-	if(!leftchild) {
+	if (!leftchild)
+    {
 		printf("Error - CUnaryOpNode with no left child\n");
 		return (-1);
 	}
@@ -716,26 +858,34 @@ int32 CUnaryOpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly
 	return size;
 }
 
-// ------------------------------------------------------------------------------------------------
-CIfStatementNode::CIfStatementNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
-                                   int32 _linenumber) : CCompileTreeNode(_codeblock, _link, eIfStmt,
-                                                                       _linenumber) {
+// == class CIfStatementNode ==========================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CIfStatementNode::CIfStatementNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber)
+    : CCompileTreeNode(_codeblock, _link, eIfStmt, _linenumber)
+{
 }
 
-int32 CIfStatementNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-    Unused_(pushresult);
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CIfStatementNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
 	// -- ensure we have a left child
-	if(!leftchild) {
+	if (!leftchild)
+    {
 		printf("Error - CIfStatementNode with no left child\n");
 		return (-1);
 	}
 
 	// -- ensure we have a right child
-	if(!rightchild) {
+	if (!rightchild)
+    {
 		printf("Error - CIfStatementNode with no right child\n");
 		return (-1);
 	}
@@ -755,15 +905,21 @@ int32 CIfStatementNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 count
 	return size;
 }
 
-// ------------------------------------------------------------------------------------------------
-CCondBranchNode::CCondBranchNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
-                                 int32 _linenumber) : CCompileTreeNode(_codeblock, _link,
-                                                                     eCondBranch, _linenumber) {
+// == class CCondBranchNode ===========================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CCondBranchNode::CCondBranchNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber)
+    : CCompileTreeNode(_codeblock, _link, eCondBranch, _linenumber)
+{
 }
 
-int32 CCondBranchNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-    Unused_(pushresult);
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CCondBranchNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
@@ -774,11 +930,11 @@ int32 CCondBranchNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counto
 	// -- push a placeholder in the meantime
 	uint32* branchwordcount = instrptr;
 	uint32 empty = 0;
-	size += PushInstructionRaw(countonly, instrptr, (void*)&empty, 1, DBG_NULL,
-							   "placeholder for branch");
+	size += PushInstructionRaw(countonly, instrptr, (void*)&empty, 1, DBG_NULL, "placeholder for branch");
 
 	// -- if we have a left child, this is the 'true' tree
-	if(leftchild) {
+	if (leftchild)
+    {
 		int32 cursize = size;
 
         int32 tree_size = leftchild->Eval(instrptr, TYPE_void, countonly);
@@ -789,7 +945,8 @@ int32 CCondBranchNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counto
 		// -- the size of the leftchild is how many instructions to jump, should the
 		// -- branch condition be false - but add two, since the end of the 'true'
 		// -- tree will have to jump the 'false' section
-        if(!countonly) {
+        if (!countonly)
+        {
 		    int32 jumpcount = size - cursize;
 		    if (rightchild)
 			    jumpcount += 2;
@@ -798,12 +955,12 @@ int32 CCondBranchNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counto
 	}
 
 	// -- the right tree is the 'false' tree
-	if(rightchild) {
+	if (rightchild)
+    {
 		// -- start with adding a branch at the end of the 'true' section
 		size += PushInstruction(countonly, instrptr, OP_Branch, DBG_instr);
 		branchwordcount = instrptr;
-		size += PushInstructionRaw(countonly, instrptr, (void*)&empty, 1, DBG_NULL,
-								   "placeholder for branch");
+		size += PushInstructionRaw(countonly, instrptr, (void*)&empty, 1, DBG_NULL, "placeholder for branch");
 
 		// now evaluate the right child, tracking it's size
 		int32 cursize = size;
@@ -814,7 +971,8 @@ int32 CCondBranchNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counto
         size += tree_size;
 
 		// fill in the jumpcount
-        if(!countonly) {
+        if (!countonly)
+        {
 		    int32 jumpcount = size - cursize;
 		    *branchwordcount = jumpcount;
         }
@@ -823,7 +981,11 @@ int32 CCondBranchNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counto
 	return size;
 }
 
-// ------------------------------------------------------------------------------------------------
+// == class CLoopJumpNode =============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CLoopJumpNode::CLoopJumpNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
                              CWhileLoopNode* loop_node, bool8 is_break)
     : CCompileTreeNode(_codeblock, _link, eLoopJump, _linenumber)
@@ -836,6 +998,9 @@ CLoopJumpNode::CLoopJumpNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, i
     loop_node->AddLoopJumpNode(this);
 }
 
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
 int32 CLoopJumpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
 {
     Unused_(pushresult);
@@ -854,8 +1019,7 @@ int32 CLoopJumpNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
     if (!countonly)
         mJumpOffset = instrptr;
 	uint32 empty = 0;
-	size += PushInstructionRaw(countonly, instrptr, (void*)&empty, 1, DBG_NULL,
-							   "placeholder for branch");
+	size += PushInstructionRaw(countonly, instrptr, (void*)&empty, 1, DBG_NULL, "placeholder for branch");
 	return size;
 }
 
@@ -865,7 +1029,7 @@ void CLoopJumpNode::NotifyLoopInstr(uint32* continue_instr, uint32* break_instr)
     if (!continue_instr || !break_instr || !mJumpInstr || !mJumpOffset)
     {
         ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
-                        "Error - NotifyLoopInstr(): invalid offsets\n");
+                      "Error - NotifyLoopInstr(): invalid offsets\n");
         return;
     }
 
@@ -898,9 +1062,13 @@ void CLoopJumpNode::NotifyLoopInstr(uint32* continue_instr, uint32* break_instr)
     }
 }
 
-// ------------------------------------------------------------------------------------------------
-CWhileLoopNode::CWhileLoopNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber) :
-                               CCompileTreeNode(_codeblock, _link, eWhileLoop, _linenumber)
+// == class CWhileLoopNode ============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CWhileLoopNode::CWhileLoopNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber)
+    : CCompileTreeNode(_codeblock, _link, eWhileLoop, _linenumber)
 {
     mEndOfLoopNode = NULL;
     mContinueHereInstr = NULL;
@@ -908,14 +1076,16 @@ CWhileLoopNode::CWhileLoopNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
     mLoopJumpNodeCount = 0;
 }
 
-int32 CWhileLoopNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-    Unused_(pushresult);
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CWhileLoopNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
 	// -- ensure we have a left child
-	if(!leftchild)
+	if (!leftchild)
     {
 		printf("Error - CWhileLoopNode with no left child\n");
 		return (-1);
@@ -948,8 +1118,7 @@ int32 CWhileLoopNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 	size += PushInstruction(countonly, instrptr, OP_BranchFalse, DBG_instr);
 	uint32* branchwordcount = instrptr;
 	uint32 empty = 0;
-	size += PushInstructionRaw(countonly, instrptr, (void*)&empty, 1, DBG_NULL,
-							   "placeholder for branch");
+	size += PushInstructionRaw(countonly, instrptr, (void*)&empty, 1, DBG_NULL, "placeholder for branch");
 	int32 cursize = size;
 
 	// -- evaluate the right child, which is the body of the while loop
@@ -1007,23 +1176,35 @@ int32 CWhileLoopNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 	return size;
 }
 
+// ====================================================================================================================
+// AddLoopJumpNode():  Adds a jump node to the list belonging to a loop, so the beginning/end offset can be set.
+// ====================================================================================================================
 bool8 CWhileLoopNode::AddLoopJumpNode(CLoopJumpNode* jump_node)
 {
     if (mLoopJumpNodeCount >= kMaxLoopJumpCount || !jump_node)
     {
         ScriptAssert_(codeblock->GetScriptContext(), 0, "<internal>", -1,
-                        "Error - AddLoopJumpNode() in file: %s\n", codeblock->GetFileName());
+                      "Error - AddLoopJumpNode() in file: %s\n", codeblock->GetFileName());
         return (false);
     }
+
     mLoopJumpNodeList[mLoopJumpNodeCount++] = jump_node;
     return (true);
 }
 
-// ------------------------------------------------------------------------------------------------
-CParenOpenNode::CParenOpenNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber) :
-                               CCompileTreeNode(_codeblock, _link, eWhileLoop, _linenumber) {
+// == class CParenOpenNode ============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CParenOpenNode::CParenOpenNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber)
+    : CCompileTreeNode(_codeblock, _link, eWhileLoop, _linenumber)
+{
 }
 
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
 int32 CParenOpenNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
     Unused_(pushresult);
 
@@ -1033,12 +1214,16 @@ int32 CParenOpenNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 	return size;
 }
 
-// ------------------------------------------------------------------------------------------------
+// == class CFuncDeclNode =============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CFuncDeclNode::CFuncDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
                              const char* _funcname, int32 _length, const char* _funcns,
-                             int32 _funcnslength) :
-                             CCompileTreeNode(_codeblock, _link, eFuncDecl, _linenumber) {
-    Unused_(_linenumber);
+                             int32 _funcnslength)
+    : CCompileTreeNode(_codeblock, _link, eFuncDecl, _linenumber)
+{
     SafeStrcpy(funcname, _funcname, _length + 1);
     SafeStrcpy(funcnamespace, _funcns, _funcnslength + 1);
 
@@ -1047,9 +1232,11 @@ CFuncDeclNode::CFuncDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, i
     functionentry = codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
 }
 
-int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-    Unused_(pushresult);
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
@@ -1059,22 +1246,24 @@ int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
     // -- if we're using a namespace, find the function entry from there
     uint32 funcnshash = funcnamespace[0] != '\0' ? Hash(funcnamespace) : 0;
     tFuncTable* functable = NULL;
-    if(funcnshash != 0) {
-        CNamespace* nsentry =
-            codeblock->GetScriptContext()->FindOrCreateNamespace(funcnamespace, true);
-        if(!nsentry) {
+    if (funcnshash != 0)
+    {
+        CNamespace* nsentry = codeblock->GetScriptContext()->FindOrCreateNamespace(funcnamespace, true);
+        if (!nsentry)
+        {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
                           "Error - Failed to find/create Namespace: %s\n", funcnamespace);
             return (-1);
         }
+
         functable = nsentry->GetFuncTable();
     }
-    else {
+    else
 	    functable = codeblock->GetScriptContext()->GetGlobalNamespace()->GetFuncTable();
-    }
 
 	CFunctionEntry* fe = functable->FindItem(funchash);
-	if(!fe) {
+	if (!fe)
+    {
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), linenumber,
                       "Error - undefined function: %s\n", funcname);
 		return (-1);
@@ -1097,8 +1286,7 @@ int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
     // -- push the function offset placeholder
 	uint32* funcoffset = instrptr;
 	uint32 empty = 0;
-	size += PushInstructionRaw(countonly, instrptr, (void*)&empty, 1, DBG_NULL,
-							   "placeholder for func offset");
+	size += PushInstructionRaw(countonly, instrptr, (void*)&empty, 1, DBG_NULL, "placeholder for func offset");
 
     // -- function context - parameters + local vartable
     size += CompileFunctionContext(fe, instrptr, countonly);
@@ -1109,12 +1297,12 @@ int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
     // -- we want to skip over the entire body, as it's not for immediate execution
     size += PushInstruction(countonly, instrptr, OP_Branch, DBG_instr);
 	uint32* branchwordcount = instrptr;
-	size += PushInstructionRaw(countonly, instrptr, (void*)&empty, 1, DBG_NULL,
-							   "placeholder for branch");
+	size += PushInstructionRaw(countonly, instrptr, (void*)&empty, 1, DBG_NULL, "placeholder for branch");
     int32 cursize = size;
 
     // -- we're now at the start of the function body
-    if(!countonly) {
+    if (!countonly)
+    {
         // -- fill in the missing offset
         uint32 offset = codeblock->CalcOffset(instrptr);
 
@@ -1132,6 +1320,7 @@ int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 
             return (-1);
         }
+
         fe->SetCodeBlockOffset(codeblock, offset);
         *funcoffset = offset;
     }
@@ -1140,14 +1329,14 @@ int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
     size += CompileVarTable(fe->GetLocalVarTable(), instrptr, countonly);
 
     // -- compile the function body
-    assert(leftchild != NULL);
     int32 tree_size = leftchild->Eval(instrptr, returntype, countonly);
     if (tree_size < 0)
         return (-1);
     size += tree_size;
 
     // -- fill in the jumpcount
-    if(!countonly) {
+    if (!countonly)
+    {
         int32 jumpcount = size - cursize;
 	    *branchwordcount = jumpcount;
     }
@@ -1160,6 +1349,9 @@ int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 	return size;
 }
 
+// ====================================================================================================================
+// Dump():  Outputs the text version of the instructions compiled from this node.
+// ====================================================================================================================
 void CFuncDeclNode::Dump(char*& output, int32& length) const
 {
 	sprintf_s(output, length, "type: %s, funcname: %s", gCompileNodeTypes[type], funcname);
@@ -1168,24 +1360,32 @@ void CFuncDeclNode::Dump(char*& output, int32& length) const
 	length -= debuglength;
 }
 
-// ------------------------------------------------------------------------------------------------
+// == class CFuncCallNode =============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CFuncCallNode::CFuncCallNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
                              const char* _funcname, int32 _length, const char* _nsname,
-                             int32 _nslength, bool8 _ismethod) :
-                             CCompileTreeNode(_codeblock, _link, eFuncCall, _linenumber) {
+                             int32 _nslength, bool8 _ismethod)
+    : CCompileTreeNode(_codeblock, _link, eFuncCall, _linenumber)
+{
     SafeStrcpy(funcname, _funcname, _length + 1);
     SafeStrcpy(nsname, _nsname, _nslength + 1);
     ismethod = _ismethod;
 }
 
-int32 CFuncCallNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CFuncCallNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
     // -- if this function is *not* a method call, we need to push a 0 objectID
     /*
-    if(!ismethod) {
+    if (!ismethod) {
         uint32 empty = 0;
         size += PushInstruction(countonly, instrptr, OP_Push, DBG_instr);
 		size += PushInstructionRaw(countonly, instrptr, (void*)&empty, 1, DBG_NULL,
@@ -1199,24 +1399,29 @@ int32 CFuncCallNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 
     // -- first we push the function to the call stack
     // -- for methods, we want to find the method searching from the top of the objects hierarchy
-    if(ismethod) {
+    if (ismethod)
+    {
         size += PushInstruction(countonly, instrptr, OP_MethodCallArgs, DBG_instr);
         size += PushInstruction(countonly, instrptr, 0, DBG_nshash);
     }
-    else {
+    else
+    {
         // -- if this isn't a method, but we specified a namespace, then it's a
         // -- method from a specific namespace in an object's hierarchy.
         // -- PushSelf, since this will have been called via NS::Func() instead of obj.Func();
-        if(nshash != 0) {
+        if (nshash != 0)
+        {
             size += PushInstruction(countonly, instrptr, OP_PushSelf, DBG_self);
             size += PushInstruction(countonly, instrptr, OP_MethodCallArgs, DBG_instr);
             size += PushInstruction(countonly, instrptr, nshash, DBG_nshash);
         }
-        else {
+        else
+        {
             size += PushInstruction(countonly, instrptr, OP_FuncCallArgs, DBG_instr);
             size += PushInstruction(countonly, instrptr, nshash, DBG_nshash);
         }
     }
+
     size += PushInstruction(countonly, instrptr, funchash, DBG_func);
 
     // -- then evaluate all the argument assignments
@@ -1229,7 +1434,8 @@ int32 CFuncCallNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
     size += PushInstruction(countonly, instrptr, OP_FuncCall, DBG_instr);
 
     // -- if we're not looking for a return value
-    if(pushresult <= TYPE_void) {
+    if (pushresult <= TYPE_void)
+    {
         // -- all functions will return a value - by default, a "" for void functions
         size += PushInstruction(countonly, instrptr, OP_Pop, DBG_instr);
     }
@@ -1237,6 +1443,9 @@ int32 CFuncCallNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 	return size;
 }
 
+// ====================================================================================================================
+// Dump():  Outputs the text version of the instructions compiled from this node.
+// ====================================================================================================================
 void CFuncCallNode::Dump(char*& output, int32& length) const
 {
 	sprintf_s(output, length, "type: %s, funcname: %s", gCompileNodeTypes[type], funcname);
@@ -1245,19 +1454,24 @@ void CFuncCallNode::Dump(char*& output, int32& length) const
 	length -= debuglength;
 }
 
-// ------------------------------------------------------------------------------------------------
-CFuncReturnNode::CFuncReturnNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
-                                 int32 _linenumber) : CCompileTreeNode(_codeblock, _link,
-                                                                     eFuncReturn, _linenumber) {
+// == class CFuncReturnNode ===========================================================================================
 
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CFuncReturnNode::CFuncReturnNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber)
+    : CCompileTreeNode(_codeblock, _link, eFuncReturn, _linenumber)
+{
     int32 stacktopdummy = 0;
     CObjectEntry* dummy = NULL;
     functionentry = _codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
 }
 
-int32 CFuncReturnNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-    Unused_(pushresult);
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CFuncReturnNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
@@ -1268,16 +1482,16 @@ int32 CFuncReturnNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counto
     CVariableEntry* returntype = context->GetParameter(0);
 
     // -- all functions are required to return a value, to keep the virtual machine consistent
-    if(!leftchild) {
-        ScriptAssert_(codeblock->GetScriptContext(), leftchild != NULL, codeblock->GetFileName(),
-                      linenumber,
+    if (!leftchild)
+    {
+        ScriptAssert_(codeblock->GetScriptContext(), leftchild != NULL, codeblock->GetFileName(), linenumber,
                       "Error - CFuncReturnNode::Eval() - invalid return from function %s()\n",
                       functionentry->GetName());
         return (-1);
     }
 
     int32 tree_size = 0;
-    if(returntype->GetType() <= TYPE_void)
+    if (returntype->GetType() <= TYPE_void)
         tree_size = leftchild->Eval(instrptr, TYPE_int, countonly);
     else
         tree_size = leftchild->Eval(instrptr, returntype->GetType(), countonly);
@@ -1291,20 +1505,29 @@ int32 CFuncReturnNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counto
 	return size;
 }
 
-// ------------------------------------------------------------------------------------------------
+// == class CObjMethodNode ============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CObjMethodNode::CObjMethodNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
-                               const char* _methodname, int32 _methodlength) :
-                               CCompileTreeNode(_codeblock, _link, eObjMethod, _linenumber) {
+                               const char* _methodname, int32 _methodlength)
+    : CCompileTreeNode(_codeblock, _link, eObjMethod, _linenumber)
+{
 	SafeStrcpy(methodname, _methodname, _methodlength + 1);
 }
 
-int32 CObjMethodNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CObjMethodNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
 	// -- ensure we have a left child
-	if(!leftchild) {
+	if (!leftchild)
+    {
 		printf("Error - CObjMemberNode with no left child\n");
 		return (-1);
 	}
@@ -1324,6 +1547,9 @@ int32 CObjMethodNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 	return size;
 }
 
+// ====================================================================================================================
+// Dump():  Outputs the text version of the instructions compiled from this node.
+// ====================================================================================================================
 void CObjMethodNode::Dump(char*& output, int32& length) const
 {
 	sprintf_s(output, length, "type: %s, %s", gCompileNodeTypes[type], methodname);
@@ -1332,26 +1558,34 @@ void CObjMethodNode::Dump(char*& output, int32& length) const
 	length -= debuglength;
 }
 
-// ------------------------------------------------------------------------------------------------
-CArrayHashNode::CArrayHashNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
-                                 int32 _linenumber) : CCompileTreeNode(_codeblock, _link,
-                                                                     eArrayHash, _linenumber) {
+// == class CArrayHashNode ============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CArrayHashNode::CArrayHashNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber)
+    : CCompileTreeNode(_codeblock, _link, eArrayHash, _linenumber)
+{
 }
 
-int32 CArrayHashNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-    Unused_(pushresult);
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CArrayHashNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
-    if(!leftchild) {
+    if (!leftchild)
+    {
         ScriptAssert_(codeblock->GetScriptContext(), leftchild != NULL, codeblock->GetFileName(),
                       linenumber,
                       "Error - CArrayHashNode::Eval() - missing leftchild\n");
         return (-1);
     }
 
-    if(!rightchild) {
+    if (!rightchild)
+    {
         ScriptAssert_(codeblock->GetScriptContext(), rightchild != NULL, codeblock->GetFileName(),
                       linenumber,
                       "Error - CArrayHashNode::Eval() - missing rightchild\n");
@@ -1378,12 +1612,19 @@ int32 CArrayHashNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 	return size;
 }
 
-// ------------------------------------------------------------------------------------------------
+// == class CArrayVarNode =============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CArrayVarNode::CArrayVarNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber)
     : CCompileTreeNode(_codeblock, _link, eArrayVar, _linenumber)
 {
 }
 
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
 int32 CArrayVarNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
 {
     Unused_(pushresult);
@@ -1426,29 +1667,36 @@ int32 CArrayVarNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 	return size;
 }
 
-// ------------------------------------------------------------------------------------------------
-CArrayVarDeclNode::CArrayVarDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber, eVarType _type)
+// == class CArrayVarDeclNode =========================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CArrayVarDeclNode::CArrayVarDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
+                                     eVarType _type)
     : CCompileTreeNode(_codeblock, _link, eArrayVarDecl, _linenumber)
 {
     type = _type;
 }
 
-int32 CArrayVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-    Unused_(pushresult);
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CArrayVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
-    if(!leftchild) {
-        ScriptAssert_(codeblock->GetScriptContext(), leftchild != NULL, codeblock->GetFileName(),
-                      linenumber,
+    if (!leftchild)
+    {
+        ScriptAssert_(codeblock->GetScriptContext(), leftchild != NULL, codeblock->GetFileName(), linenumber,
                       "Error - CArrayVarDeclNode::Eval() - missing leftchild\n");
         return (-1);
     }
 
-    if(!rightchild) {
-        ScriptAssert_(codeblock->GetScriptContext(), rightchild != NULL, codeblock->GetFileName(),
-                      linenumber,
+    if (!rightchild)
+    {
+        ScriptAssert_(codeblock->GetScriptContext(), rightchild != NULL, codeblock->GetFileName(), linenumber,
                       "Error - CArrayVarDeclNode::Eval() - missing rightchild\n");
         return (-1);
     }
@@ -1471,7 +1719,11 @@ int32 CArrayVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 coun
 	return size;
 }
 
-// ------------------------------------------------------------------------------------------------
+// == class CArrayDeclNode ============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CArrayDeclNode::CArrayDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int _linenumber, int32 _size)
     : CCompileTreeNode(_codeblock, _link, eArrayDecl, _linenumber)
 {
@@ -1480,6 +1732,9 @@ CArrayDeclNode::CArrayDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
         mSize = 1;
 }
 
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
 int32 CArrayDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const
 {
 	DebugEvaluateNode(*this, countonly, instrptr);
@@ -1531,7 +1786,11 @@ int32 CArrayDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool countonl
     return (size);
 }
 
-// ------------------------------------------------------------------------------------------------
+// == class CSelfVarDeclNode ==========================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CSelfVarDeclNode::CSelfVarDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
                                    int32 _linenumber, const char* _varname, int32 _varnamelength,
                                    eVarType _type, int32 _array_size)
@@ -1542,9 +1801,11 @@ CSelfVarDeclNode::CSelfVarDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _l
     mArraySize = _array_size;
 }
 
-int32 CSelfVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-    Unused_(pushresult);
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CSelfVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
@@ -1557,6 +1818,9 @@ int32 CSelfVarDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 count
 	return size;
 }
 
+// ====================================================================================================================
+// Dump():  Outputs the text version of the instructions compiled from this node.
+// ====================================================================================================================
 void CSelfVarDeclNode::Dump(char*& output, int32& length) const
 {
     if (mArraySize > 1)
@@ -1568,7 +1832,11 @@ void CSelfVarDeclNode::Dump(char*& output, int32& length) const
 	length -= debuglength;
 }
 
-// ------------------------------------------------------------------------------------------------
+// == class CObjMemberDeclNode ========================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CObjMemberDeclNode::CObjMemberDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
                                        int32 _linenumber, const char* _varname, int32 _varnamelength,
                                        eVarType _type, int32 _array_size)
@@ -1579,6 +1847,9 @@ CObjMemberDeclNode::CObjMemberDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*
     mArraySize = _array_size;
 }
 
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
 int32 CObjMemberDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
 
 	DebugEvaluateNode(*this, countonly, instrptr);
@@ -1608,6 +1879,9 @@ int32 CObjMemberDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 cou
 	return size;
 }
 
+// ====================================================================================================================
+// Dump():  Outputs the text version of the instructions compiled from this node.
+// ====================================================================================================================
 void CObjMemberDeclNode::Dump(char*& output, int32& length) const
 {
     if (mArraySize > 1)
@@ -1619,26 +1893,35 @@ void CObjMemberDeclNode::Dump(char*& output, int32& length) const
 	length -= debuglength;
 }
 
-// ------------------------------------------------------------------------------------------------
-CScheduleNode::CScheduleNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
-                             int32 _delaytime) :
-                             CCompileTreeNode(_codeblock, _link, eSched, _linenumber) {
+// == class CScheduleNode =============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CScheduleNode::CScheduleNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber, int32 _delaytime)
+    : CCompileTreeNode(_codeblock, _link, eSched, _linenumber)
+{
     delaytime = _delaytime;
 };
 
-int32 CScheduleNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CScheduleNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
 	// -- ensure we have a left child
-	if(!leftchild) {
+	if (!leftchild)
+    {
 		printf("Error - CScheduleNode with no left child\n");
 		return (-1);
 	}
 
 	// -- ensure we have a right child
-	if(!rightchild) {
+	if (!rightchild)
+    {
 		printf("Error - CScheduleNode with no right child\n");
 		return (-1);
 	}
@@ -1664,25 +1947,35 @@ int32 CScheduleNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 	return size;
 }
 
-// ------------------------------------------------------------------------------------------------
-CSchedFuncNode::CSchedFuncNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
-                               int32 _linenumber, bool8 _immediate) :
-                               CCompileTreeNode(_codeblock, _link, eSched, _linenumber) {
+// == class CScheduleNode =============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CSchedFuncNode::CSchedFuncNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber, bool8 _immediate)
+    : CCompileTreeNode(_codeblock, _link, eSched, _linenumber)
+{
     mImmediate = _immediate;
 }
 
-int CSchedFuncNode::Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const {
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int CSchedFuncNode::Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const
+{
     DebugEvaluateNode(*this, countonly, instrptr);
     int32 size = 0;
 
     // -- ensure we have a left child
-    if(!leftchild) {
+    if (!leftchild)
+    {
         printf("Error - CScheduleNode with no left child\n");
         return (-1);
     }
 
     // -- ensure we have a right child
-    if(!rightchild) {
+    if (!rightchild)
+    {
         printf("Error - CScheduleNode with no right child\n");
         return (-1);
     }
@@ -1707,7 +2000,8 @@ int CSchedFuncNode::Eval(uint32*& instrptr, eVarType pushresult, bool countonly)
     size += PushInstruction(countonly, instrptr, OP_ScheduleEnd, DBG_instr);
 
     // -- if we're not looking for a return value (e.g. not assigning this schedule call)
-    if(pushresult <= TYPE_void) {
+    if (pushresult <= TYPE_void)
+    {
         // -- all functions will return a value - by default, a "" for void functions
         size += PushInstruction(countonly, instrptr, OP_Pop, DBG_instr);
     }
@@ -1715,21 +2009,29 @@ int CSchedFuncNode::Eval(uint32*& instrptr, eVarType pushresult, bool countonly)
 	return size;
 }
 
-// ------------------------------------------------------------------------------------------------
+// == class CSchedParamNode ===========================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CSchedParamNode::CSchedParamNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
-                                 int32 _paramindex) :
-                                 CCompileTreeNode(_codeblock, _link, eSchedParam, _linenumber) {
+                                 int32 _paramindex)
+    : CCompileTreeNode(_codeblock, _link, eSchedParam, _linenumber)
+{
     paramindex = _paramindex;
 }
 
-int32 CSchedParamNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-    Unused_(pushresult);
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CSchedParamNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
 	// -- ensure we have a left child
-	if(!leftchild) {
+	if (!leftchild)
+    {
 		printf("Error - CScheduleNode with no left child\n");
 		return (-1);
 	}
@@ -1749,17 +2051,23 @@ int32 CSchedParamNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counto
     return size;
 };
 
-// ------------------------------------------------------------------------------------------------
-CCreateObjectNode::CCreateObjectNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
-                                     int32 _linenumber, const char* _classname,
-                                     uint32 _classlength) :
-                                     CCompileTreeNode(_codeblock, _link, eCreateObject,
-                                                      _linenumber) {
+// == class CCreateObjectNode =========================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CCreateObjectNode::CCreateObjectNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
+                                     const char* _classname, uint32 _classlength)
+    : CCompileTreeNode(_codeblock, _link, eCreateObject, _linenumber)
+{
 	SafeStrcpy(classname, _classname, _classlength + 1);
 }
 
-int32 CCreateObjectNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CCreateObjectNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
@@ -1775,23 +2083,27 @@ int32 CCreateObjectNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 coun
 	size += PushInstruction(countonly, instrptr, classhash, DBG_hash);
 
     // -- if we're not looking to assign the new object ID to anything, pop the stack
-    if(pushresult <= TYPE_void) {
+    if (pushresult <= TYPE_void)
         size += PushInstruction(countonly, instrptr, OP_Pop, DBG_instr);
-    }
 
 	return size;
 }
 
-// ------------------------------------------------------------------------------------------------
-CDestroyObjectNode::CDestroyObjectNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link,
-                                       int32 _linenumber) :
-                                       CCompileTreeNode(_codeblock, _link, eDestroyObject,
-                                                        _linenumber) {
+// == class CDestroyObjectNode ========================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CDestroyObjectNode::CDestroyObjectNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber)
+    : CCompileTreeNode(_codeblock, _link, eDestroyObject, _linenumber)
+{
 }
 
-int32 CDestroyObjectNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const {
-    Unused_(pushresult);
-
+// ====================================================================================================================
+// Eval():  Generates the byte code instruction compiled from this node.
+// ====================================================================================================================
+int32 CDestroyObjectNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) const
+{
 	DebugEvaluateNode(*this, countonly, instrptr);
 	int32 size = 0;
 
@@ -1807,9 +2119,13 @@ int32 CDestroyObjectNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 cou
 	return size;
 }
 
-// ------------------------------------------------------------------------------------------------
-// CodeBlock implementation
-CCodeBlock::CCodeBlock(CScriptContext* script_context, const char* _filename) {
+// == class CCodeBlock ================================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CCodeBlock::CCodeBlock(CScriptContext* script_context, const char* _filename)
+{
     mContextOwner = script_context;
 
     mIsParsing = true;
@@ -1825,7 +2141,8 @@ CCodeBlock::CCodeBlock(CScriptContext* script_context, const char* _filename) {
     // -- add to the resident list of codeblocks, if a name was given
     mFileName[0] = '\0';
     mFileNameHash = 0;
-    if(_filename && _filename[0]) {
+    if (_filename && _filename[0])
+    {
         SafeStrcpy(mFileName, _filename, kMaxNameLength);
         mFileNameHash = Hash(mFileName);
         script_context->GetCodeBlockList()->AddItem(*this, mFileNameHash);
@@ -1837,15 +2154,20 @@ CCodeBlock::CCodeBlock(CScriptContext* script_context, const char* _filename) {
     mLineNumbers = NULL;
 }
 
-CCodeBlock::~CCodeBlock() {
-	if(mInstrBlock)
+// ====================================================================================================================
+// Destructor
+// ====================================================================================================================
+CCodeBlock::~CCodeBlock()
+{
+	if (mInstrBlock)
 		TinFreeArray(mInstrBlock);
+
     smCurrentGlobalVarTable->DestroyAll();
     TinFree(smCurrentGlobalVarTable);
     mFunctionList->DestroyAll();
     TinFree(mFunctionList);
 
-    if(mLineNumbers)
+    if (mLineNumbers)
         TinFreeArray(mLineNumbers);
 
     // -- clear out the breakpoints list
@@ -1853,8 +2175,11 @@ CCodeBlock::~CCodeBlock() {
     TinFree(mBreakpoints);
 }
 
-int32 CCodeBlock::CalcInstrCount(const CCompileTreeNode& root) {
-
+// ====================================================================================================================
+// CalcInstrCount():  Calculate the entire size of code block, including the instructions and the var table.
+// ====================================================================================================================
+int32 CCodeBlock::CalcInstrCount(const CCompileTreeNode& root)
+{
 	// -- the root is always a NOP, which will loop through and eval its siblings
 	uint32* instrptr = NULL;
     int32 mInstrCount = 0;
@@ -1877,6 +2202,7 @@ int32 CCodeBlock::CalcInstrCount(const CCompileTreeNode& root) {
                       "Error - Unable to compile file: %s\n", GetFileName());
         return (-1);
     }
+
 	mInstrCount += instruction_count;
 
     // -- add one to account for the OP_EOF added to the end of every code block
@@ -1885,9 +2211,11 @@ int32 CCodeBlock::CalcInstrCount(const CCompileTreeNode& root) {
     return mInstrCount;
 }
 
-// ------------------------------------------------------------------------------------------------
-bool8 CCodeBlock::CompileTree(const CCompileTreeNode& root) {
-
+// ====================================================================================================================
+// CompileTree():  Recursively compile the nodes of the parse tree.
+// ====================================================================================================================
+bool8 CCodeBlock::CompileTree(const CCompileTreeNode& root)
+{
 	// -- the root is always a NOP, which will loop through and eval its siblings
 	uint32* instrptr = mInstrBlock;
 
@@ -1911,16 +2239,21 @@ bool8 CCodeBlock::CompileTree(const CCompileTreeNode& root) {
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
-// -- debugger interface
+// ====================================================================================================================
+// HasBreakpoints():  Method used by the debugger, returns true if there are debug breakpoints set in this codeblock.
+// ====================================================================================================================
 bool8 CCodeBlock::HasBreakpoints()
 {
     return (mBreakpoints->Used() > 0);
 }
 
-int32 CCodeBlock::AdjustLineNumber(int32 line_number) {
+// ====================================================================================================================
+// AdjustLineNumber():  Given a line number, return the line number for an actual breakable line.
+// ====================================================================================================================
+int32 CCodeBlock::AdjustLineNumber(int32 line_number)
+{
     // -- sanity check
-    if(mLineNumberCount == 0)
+    if (mLineNumberCount == 0)
         return (0);
 
     // -- ensure the line number we're attempting to set, is one that will actually execute
@@ -1937,6 +2270,9 @@ int32 CCodeBlock::AdjustLineNumber(int32 line_number) {
     return (mLineNumbers[mLineNumberCount - 1] & 0xffff);
 }
 
+// ====================================================================================================================
+// AddBreakpoint():  Add notification that the debugger wants to break on the given line.
+// ====================================================================================================================
 int32 CCodeBlock::AddBreakpoint(int32 line_number, bool8 break_enabled, const char* conditional, const char* trace,
                                 bool8 trace_on_condition)
 {
@@ -1951,13 +2287,14 @@ int32 CCodeBlock::AddBreakpoint(int32 line_number, bool8 break_enabled, const ch
 
     // -- othwerwise, just set the expression
     else
-    {
         watch->SetAttributes(break_enabled, conditional, trace, trace_on_condition);
-    }
 
     return (adjusted_line_number);
 }
 
+// ====================================================================================================================
+// RemoveBreakpoint():  Remove the breakpoint for a given line.
+// ====================================================================================================================
 int32 CCodeBlock::RemoveBreakpoint(int32 line_number)
 {
     int32 adjusted_line_number = AdjustLineNumber(line_number);
@@ -1971,28 +2308,40 @@ int32 CCodeBlock::RemoveBreakpoint(int32 line_number)
     return (adjusted_line_number);
 }
 
+// ====================================================================================================================
+// RemoveAllBreakpoints():  Remove all breakpoints from the code block.
+// ====================================================================================================================
 void CCodeBlock::RemoveAllBreakpoints()
 {
     mBreakpoints->DestroyAll();
 }
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // -- debugging suppport
 
+// ====================================================================================================================
+// SetDebugCodeBlock():  Registered function to enable the debug output when compiling a code block.
+// ====================================================================================================================
 void SetDebugCodeBlock(bool8 torf)
 {
     CScriptContext::gDebugCodeBlock = torf;
 }
 
+// ====================================================================================================================
+// GetDebugCodeBlock():  Returns true if we're dumping the debug output during compiliation.
+// ====================================================================================================================
 bool8 GetDebugCodeBlock()
 {
     return (CScriptContext::gDebugCodeBlock);
 }
 
+// ====================================================================================================================
+// -- function registration
+
 REGISTER_FUNCTION_P1(SetDebugCodeBlock, SetDebugCodeBlock, void, bool8);
 
 } // TinScript
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

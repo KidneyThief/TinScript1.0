@@ -19,9 +19,9 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // TinStringTable.cpp
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 
 // -- includes
 #include "string.h"
@@ -31,7 +31,10 @@
 #include "TinRegistration.h"
 #include "TinStringTable.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
+
+namespace TinScript
+{
 
 // == CStringTable ====================================================================================================
 
@@ -47,8 +50,7 @@ CStringTable::CStringTable(CScriptContext* owner, uint32 _size)
     mBuffer = TinAllocArray(ALLOC_StringTable, char, mSize);
     mBufptr = mBuffer;
 
-    mStringDictionary = TinAlloc(ALLOC_StringTable, CHashTable<tStringEntry>,
-                                kStringTableDictionarySize);
+    mStringDictionary = TinAlloc(ALLOC_StringTable, CHashTable<tStringEntry>, kStringTableDictionarySize);
 }
 
 // ====================================================================================================================
@@ -70,24 +72,24 @@ CStringTable::~CStringTable()
 const char* CStringTable::AddString(const char* s, int length, uint32 hash, bool inc_refcount)
 {
     // -- sanity check
-    if(!s)
+    if (!s)
         return "";
 
-    if(hash == 0) {
+    if (hash == 0)
         hash = Hash(s, length);
-    }
 
     // -- see if the string is already in the dictionary
     const char* exists = FindString(hash);
-    if(!exists)
+    if (!exists)
     {
-        if(length < 0)
+        if (length < 0)
             length = (int32)strlen(s);
 
         // -- space left
         int32 remaining = int32(mSize - (kPointerToUInt32(mBufptr) -
                                             kPointerToUInt32(mBuffer)));
-        if(remaining < length + 1) {
+        if (remaining < length + 1)
+        {
             ScriptAssert_(mContextOwner, 0,
                             "<internal>", -1, "Error - StringTable of size %d is full!\n",
                             mSize);
@@ -107,15 +109,16 @@ const char* CStringTable::AddString(const char* s, int length, uint32 hash, bool
         if (inc_refcount)
             new_entry->mRefCount++;
 
-        return stringptr;
+        return (stringptr);
     }
 
     // -- else check for a collision
     else
     {
-        if(length < 0)
+        if (length < 0)
             length = (int32)strlen(s);
-        if(strncmp(exists, s, length) != 0)
+
+        if (strncmp(exists, s, length) != 0)
         {
             ScriptAssert_(mContextOwner, 0, "<internal>", -1,
                             "Error - Hash collision: '%s', '%s'\n", exists, s);
@@ -135,8 +138,8 @@ const char* CStringTable::AddString(const char* s, int length, uint32 hash, bool
 const char* CStringTable::FindString(uint32 hash)
 {
     // -- sanity check
-    if(hash == 0)
-        return "";
+    if (hash == 0)
+        return ("");
 
     tStringEntry* ste = mStringDictionary->FindItem(hash);
     return (ste ? ste->mString : NULL);
@@ -148,7 +151,7 @@ const char* CStringTable::FindString(uint32 hash)
 void CStringTable::RefCountIncrement(uint32 hash)
 {
     // -- sanity check
-    if(hash == 0)
+    if (hash == 0)
         return;
 
     tStringEntry* ste = mStringDictionary->FindItem(hash);
@@ -162,7 +165,7 @@ void CStringTable::RefCountIncrement(uint32 hash)
 void CStringTable::RefCountDecrement(uint32 hash)
 {
     // -- sanity check
-    if(hash == 0)
+    if (hash == 0)
         return;
 
     tStringEntry* ste = mStringDictionary->FindItem(hash);
@@ -238,15 +241,15 @@ const char* StringCat(const char* str0, const char* str1, const char* str2, cons
     char buf[2048];
     if (!str2 || !str2[0])
         sprintf_s(buf, "%s%s", str0, str1);
-    else if(!str3 || !str3[0])
+    else if (!str3 || !str3[0])
         sprintf_s(buf, "%s%s%s", str0, str1, str2);
-    else if(!str4 || !str4[0])
+    else if (!str4 || !str4[0])
         sprintf_s(buf, "%s%s%s%s", str0, str1, str2, str3);
-    else if(!str5 || !str5[0])
+    else if (!str5 || !str5[0])
         sprintf_s(buf, "%s%s%s%s%s", str0, str1, str2, str3, str4);
-    else if(!str6 || !str6[0])
+    else if (!str6 || !str6[0])
         sprintf_s(buf, "%s%s%s%s%s%s", str0, str1, str2, str3, str4, str5);
-    else if(!str7 || !str7[0])
+    else if (!str7 || !str7[0])
         sprintf_s(buf, "%s%s%s%s%s%s%s", str0, str1, str2, str3, str4, str5, str6);
     else
         sprintf_s(buf, "%s%s%s%s%s%s%s%s", str0, str1, str2, str3, str4, str5, str6, str7);

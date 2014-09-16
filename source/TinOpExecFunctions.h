@@ -19,12 +19,21 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
+// ====================================================================================================================
+// TinOpExecFunctions.h
+// ====================================================================================================================
+
 #pragma once
+
+// -- includes
 
 #include "integration.h"
 #include "TinCompile.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
+
+namespace TinScript
+{
 
 typedef bool8 (*OpExecuteFunction)(CCodeBlock* cb, eOpCode op, const uint32*& instrptr,
                                    CExecStack& execstack, CFunctionCallStack& funccallstack);
@@ -70,7 +79,7 @@ bool8 PerformBitAssignOp(CScriptContext* script_context, CExecStack& execstack,
 bool8 PerformUnaryOp(CScriptContext* script_context, CExecStack& execstack,
                      CFunctionCallStack& funccallstack, eOpCode op);
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // -- use a macro to declare the function prototypes for each of the OpExec functions
 #define OperationEntry(a) bool8 OpExec##a(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack, CFunctionCallStack& funccallstack);
 OperationTuple
@@ -78,6 +87,6 @@ OperationTuple
 
 }  // TinScript
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

@@ -19,17 +19,20 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // TinExecute.cpp : Implementation of the virtual machine
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 
+// -- lib includes
 #include "stdafx.h"
 #include "assert.h"
 #include "string.h"
 #include "stdio.h"
 
+// -- external includes
 #include "socket.h"
 
+// -- TinScript includes
 #include "TinScript.h"
 #include "TinCompile.h"
 #include "TinNamespace.h"
@@ -37,14 +40,23 @@
 #include "TinExecute.h"
 #include "TinOpExecFunctions.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
 
-OpExecuteFunction gOpExecFunctions[OP_COUNT] = {
+namespace TinScript
+{
+
+// ====================================================================================================================
+// -- this is the table of function pointers, one to execute each operation
+OpExecuteFunction gOpExecFunctions[OP_COUNT] =
+{
     #define OperationEntry(a) OpExec##a,
     OperationTuple
     #undef OperationEntry
 };
 
+// ====================================================================================================================
+// CopyStackParameters():  At the start of a function call, copy the argument values onto the stack.
+// ====================================================================================================================
 bool8 CopyStackParameters(CFunctionEntry* fe, CExecStack& execstack, CFunctionCallStack& funccallstack)
 {
     // -- sanity check
@@ -86,6 +98,9 @@ bool8 CopyStackParameters(CFunctionEntry* fe, CExecStack& execstack, CFunctionCa
     return (true);
 }
 
+// ====================================================================================================================
+// DebuggerGetCallstack():  Fill in the arrays storing the current call stack information, to send to the debugger.
+// ====================================================================================================================
 int32 CFunctionCallStack::DebuggerGetCallstack(uint32* codeblock_array, uint32* objid_array,
                                                uint32* namespace_array, uint32* func_array,
                                                uint32* linenumber_array, int32 max_array_size)
@@ -116,6 +131,9 @@ int32 CFunctionCallStack::DebuggerGetCallstack(uint32* codeblock_array, uint32* 
     return (entry_count);
 }
 
+// ====================================================================================================================
+// DebuggerGetStackVarEntries():  Fills in the array of variables for a given stack frame, to send to the debugger.
+// ====================================================================================================================
 int32 CFunctionCallStack::DebuggerGetStackVarEntries(CScriptContext* script_context, CExecStack& execstack,
                                                      CDebuggerWatchVarEntry* entry_array, int32 max_array_size)
 {
@@ -271,6 +289,9 @@ int32 CFunctionCallStack::DebuggerGetStackVarEntries(CScriptContext* script_cont
     return (entry_count);
 }
 
+// ====================================================================================================================
+// DebuggerFindStackTopVar():  Find the variable entry by hash, existing in the top stack frame.
+// ====================================================================================================================
 bool CFunctionCallStack::DebuggerFindStackTopVar(CScriptContext* script_context, CExecStack& execstack,
                                                  uint32 var_hash, CDebuggerWatchVarEntry& watch_entry,
 												 CVariableEntry*& found_ve)
@@ -390,12 +411,16 @@ bool CFunctionCallStack::DebuggerFindStackTopVar(CScriptContext* script_context,
 	return (false);
 }
 
-// ------------------------------------------------------------------------------------------------
-void CFunctionCallStack::BeginExecution(const uint32* instrptr) {
+// ====================================================================================================================
+// BeginExecution():  Begin execution of the function we've prepared to call (assigned args, etc...)
+// ====================================================================================================================
+void CFunctionCallStack::BeginExecution(const uint32* instrptr)
+{
     // -- the top entry on the function stack is what we're about to call...
     // -- the stacktop - 2, therefore, is the calling function (if it exists)...
     // -- tag it with the offset into the codeblock, for a debugger callstack
-    if (stacktop >= 2 && funcentrystack[stacktop - 2].funcentry->GetType() == eFuncTypeScript) {
+    if (stacktop >= 2 && funcentrystack[stacktop - 2].funcentry->GetType() == eFuncTypeScript)
+    {
         CCodeBlock* callingfunc_cb = NULL;
         funcentrystack[stacktop - 2].funcentry->GetCodeBlockOffset(callingfunc_cb);
         funcentrystack[stacktop - 2].linenumberfunccall = callingfunc_cb->CalcLineNumber(instrptr);
@@ -404,15 +429,22 @@ void CFunctionCallStack::BeginExecution(const uint32* instrptr) {
     BeginExecution();
 }
 
-void CFunctionCallStack::BeginExecution() {
+// ====================================================================================================================
+// BeginExecution():  Notify execution has begun for the stack top function entry.
+// ====================================================================================================================
+void CFunctionCallStack::BeginExecution()
+{
 	assert(stacktop > 0);
     assert(funcentrystack[stacktop - 1].isexecuting == false);
     funcentrystack[stacktop - 1].isexecuting = true;
 }
 
+// ====================================================================================================================
+// CodeBlockCallFunction():  Begin execution of a function, given the function entry and execution stacks.
+// ====================================================================================================================
 bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
-                            CFunctionCallStack& funccallstack) {
-
+                            CFunctionCallStack& funccallstack)
+{
     // -- at this point, the funccallstack has the CFunctionEntry pushed
     // -- and all parameters have been copied - either to the function's local var table
     // -- for registered 'C' functions, or to the execstack for scripted functions
@@ -479,15 +511,21 @@ bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
     return true;
 }
 
+// ====================================================================================================================
+// ExecuteCodeBlock():  Execute a code block, including immediate instructions and defining functions.
+// ====================================================================================================================
 bool8 ExecuteCodeBlock(CCodeBlock& codeblock)
 {
 	// -- create the stack to use for the execution
 	CExecStack execstack(codeblock.GetScriptContext(), kExecStackSize);
     CFunctionCallStack funccallstack(kExecFuncCallDepth);
 
-    return codeblock.Execute(0, execstack, funccallstack);
+    return (codeblock.Execute(0, execstack, funccallstack));
 }
 
+// ====================================================================================================================
+// ExecuteScheduledFunction():  Execute a scheduled function.
+// ====================================================================================================================
 bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, uint32 funchash,
                                CFunctionContext* parameters)
 {
@@ -539,10 +577,12 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
 
     // -- initialize the parameters of our fe with the function context
     int32 srcparamcount = parameters->GetParameterCount();
-    for(int32 i = 0; i < srcparamcount; ++i) {
+    for (int32 i = 0; i < srcparamcount; ++i)
+    {
         CVariableEntry* src = parameters->GetParameter(i);
         CVariableEntry* dst = fe->GetContext()->GetParameter(i);
-        if(!dst) {
+        if (!dst)
+        {
             ScriptAssert_(script_context, 0, "<internal>", -1,
                           "Error - unable to assign parameter %d, calling function %s()\n",
                           i, UnHash(funchash));
@@ -551,7 +591,7 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
 
         // -- ensure the type of the parameter value is converted to the type required
         void* srcaddr = NULL;
-        if(src && dst->GetType() >= FIRST_VALID_TYPE)
+        if (src && dst->GetType() >= FIRST_VALID_TYPE)
             srcaddr = TypeConvert(script_context, src->GetType(), src->GetAddr(NULL), dst->GetType());
         else
             srcaddr = nullvalue;
@@ -562,7 +602,8 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
 
     // -- initialize any remaining parameters
     int32 dstparamcount = fe->GetContext()->GetParameterCount();
-    for(int32 i = srcparamcount; i < dstparamcount; ++i) {
+    for (int32 i = srcparamcount; i < dstparamcount; ++i)
+    {
         CVariableEntry* dst = fe->GetContext()->GetParameter(i);
         dst->SetValue(NULL, nullvalue);
     }
@@ -583,7 +624,8 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
 
     // -- call the function
     bool8 result = CodeBlockCallFunction(fe, oe, execstack, funccallstack);
-    if(!result) {
+    if (!result)
+    {
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - Unable to call function: %s()\n",
                       UnHash(fe->GetHash()));
@@ -594,7 +636,8 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
     // -- copy it to the _return parameter of this scheduled function
     eVarType contenttype;
     void* contentptr = execstack.Pop(contenttype);
-    if(!contentptr) {
+    if (!contentptr)
+    {
         ScriptAssert_(script_context, 0, "<internal>", -1,
                                          "Error - no return value for scheduled func: %s()\n",
                                           UnHash(fe->GetHash()));
@@ -630,7 +673,11 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
     return (true);
 }
 
-OpExecuteFunction GetOpExecFunction(eOpCode curoperation) {
+// ====================================================================================================================
+// GetOpExecFunction():  Get the function pointer from the table tied to the enum of operations.
+// ====================================================================================================================
+OpExecuteFunction GetOpExecFunction(eOpCode curoperation)
+{
     return (gOpExecFunctions[curoperation]);
 }
 
@@ -805,6 +852,9 @@ bool8 DebuggerBreakLoop(CCodeBlock* cb, const uint32* instrptr, CExecStack& exec
     return (true);
 }
 
+// ====================================================================================================================
+// DebuggerFindStackTopVar():  Interface to retrieve the variable entry for a currently executing function.
+// ====================================================================================================================
 bool8 DebuggerFindStackTopVar(CScriptContext* script_context, uint32 var_hash, CDebuggerWatchVarEntry& watch_entry,
 							  CVariableEntry*& ve)
 {
@@ -821,10 +871,15 @@ bool8 DebuggerFindStackTopVar(CScriptContext* script_context, uint32 var_hash, C
 													var_hash, watch_entry, ve));
 }
 
-bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
-                         CFunctionCallStack& funccallstack) {
+// ====================================================================================================================
+// Execute():  Execute a code block
+// ====================================================================================================================
+bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack, CFunctionCallStack& funccallstack)
+{
+
 #if DEBUG_CODEBLOCK
-    if(GetDebugCodeBlock()) {
+    if (GetDebugCodeBlock())
+    {
         printf("\n*** EXECUTING: %s\n\n", mFileName && mFileName[0] ? mFileName : "<stdin>");
     }
 #endif
@@ -835,7 +890,8 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
     const uint32* instrptr = GetInstructionPtr();
     instrptr += offset;
 
-	while (instrptr != NULL) {
+	while (instrptr != NULL)
+    {
 
 // -- Debugging is done through a remote connection, which right now is only supported through WIN32
 #ifdef WIN32
@@ -929,7 +985,7 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 
         // -- execute the op - check the return value to ensure all operations are successful
         bool8 success = GetOpExecFunction(curoperation)(this, curoperation, instrptr, execstack, funccallstack);
-        if(! success) {
+        if (! success) {
             ScriptAssert_(GetScriptContext(), false, GetFileName(), CalcLineNumber(instrptr - 1),
                           "Error - Unable to execute OP:  %s\n", GetOperationString(curoperation));
             return (false);
@@ -937,7 +993,7 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 
         // -- two notable exceptions - if the curoperation was either OP_FuncReturn or OP_EOF,
         // -- we're finished executing this codeblock
-        if(curoperation == OP_FuncReturn || curoperation == OP_EOF) {
+        if (curoperation == OP_FuncReturn || curoperation == OP_EOF) {
             return (true);
         }
 	}
@@ -948,6 +1004,6 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack,
 
 }  // TinScript
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

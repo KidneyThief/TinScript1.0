@@ -19,22 +19,26 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // TinParse.h : Parsing methods for TinScript
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 
 #ifndef __TINPARSE_H
 #define __TINPARSE_H
 
+// -- includes
 #include "string.h"
 
 #include "TinTypes.h"
 #include "TinScript.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// forward declarations
+namespace TinScript
+{
+
+// --------------------------------------------------------------------------------------------------------------------
+// -- forward declarations
 
 class CCompileTreeNode;
 class CFunctionEntry;
@@ -47,10 +51,7 @@ class CFunctionEntry;
 typedef CHashTable<CVariableEntry> tVarTable;
 typedef CHashTable<CFunctionEntry> tFuncTable;
 
-//eOpCode GetBinOpInstructionType(eBinaryOpType binoptype);
-//int32 GetBinOpPrecedence(eBinaryOpType binoptype);
-
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // -- tuple defining the token types
 
 #define TokenTypeTuple \
@@ -86,7 +87,7 @@ enum eTokenType {
 	#undef TokenTypeEntry
 };
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // -- tuple defining the binary operators
 
 // -- note:  the two-char tokens must be listed before the single-chars
@@ -95,6 +96,7 @@ enum eTokenType {
 // -- precedence - the higher the number, the higher up the tree
 // -- which means it will be evaluated later, having a lower actual precedence.
 // -- http://msdn.microsoft.com/en-us/library/126fe14k(v=VS.71).aspx
+
 #define BinaryOperatorTuple \
 	BinaryOperatorEntry(NULL,					"NULL",     0)			\
 	BinaryOperatorEntry(BooleanAnd, 		    "&&",       90)			\
@@ -116,7 +118,8 @@ enum eTokenType {
 	BinaryOperatorEntry(BitXor,		            "^",        70)			\
 	BinaryOperatorEntry(BitOr, 		            "|",        80)			\
 
-enum eBinaryOpType {
+enum eBinaryOpType
+{
 	#define BinaryOperatorEntry(a, b, c) BINOP_##a,
 	BinaryOperatorTuple
 	#undef BinaryOperatorEntry
@@ -137,7 +140,8 @@ enum eBinaryOpType {
 	AssignOperatorEntry(AssignBitXor,    	    "^=")			\
 	AssignOperatorEntry(Assign,					"=")			\
 
-enum eAssignOpType {
+enum eAssignOpType
+{
 	#define AssignOperatorEntry(a, b) ASSOP_##a,
 	AssignOperatorTuple
 	#undef AssignOperatorEntry
@@ -153,14 +157,15 @@ enum eAssignOpType {
     UnaryOperatorEntry(UnaryNeg,                "-")           \
     UnaryOperatorEntry(UnaryPos,                "+")           \
 
-enum eUnaryOpType {
+enum eUnaryOpType
+{
 	#define UnaryOperatorEntry(a, b) UNARY_##a,
 	UnaryOperatorTuple
 	#undef UnaryOperatorEntry
 	UNARY_COUNT
 };
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // -- tuple defining the reserved keywords
 
 #define ReservedKeywordTuple \
@@ -178,7 +183,8 @@ enum eUnaryOpType {
 	ReservedKeywordEntry(destroy) 	\
 	ReservedKeywordEntry(self)   	\
 
-enum eReservedKeyword {
+enum eReservedKeyword
+{
 	#define ReservedKeywordEntry(a) KEYWORD_##a,
 	ReservedKeywordTuple
 	#undef ReservedKeywordEntry
@@ -186,11 +192,12 @@ enum eReservedKeyword {
 	KEYWORD_COUNT
 };
 
-// ------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // struct for reading tokens
 struct tReadToken
 {
-	tReadToken(const tReadToken& _in) {
+	tReadToken(const tReadToken& _in)
+    {
 		inbufptr = _in.inbufptr;
 		tokenptr = _in.tokenptr;
 		length = _in.length;
@@ -198,7 +205,8 @@ struct tReadToken
 		linenumber = _in.linenumber;
 	}
 
-	tReadToken(const char* _inbufptr, int32 _linenumber) {
+	tReadToken(const char* _inbufptr, int32 _linenumber)
+    {
 		inbufptr = _inbufptr;
 		tokenptr = NULL;
 		length = 0;
@@ -216,7 +224,9 @@ struct tReadToken
 		tReadToken() { }
 };
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// -- token parsing functions
+
 const char* TokenPrint(tReadToken& token);
 const char* SkipWhiteSpace(const char* inbuf, int32& linenumber);
 bool8 IsIdentifierChar(const char c, bool8 allownumerics);
@@ -228,7 +238,9 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type,	const 
 
 const char* ReadFileAllocBuf(const char* filename);
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// -- complex expression parsing functions
+
 CCompileTreeNode*& AppendToRoot(CCompileTreeNode& root);
 bool8 ParseStatementBlock(CCodeBlock* codeblock, CCompileTreeNode*& root, tReadToken& filebuf,
                          bool8 requiresbraceclose);
@@ -254,7 +266,8 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
 bool8 TryParseDestroyObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// -- functions for declaring and finding variables and functions
 CVariableEntry* AddVariable(CScriptContext* script_context, tVarTable* curglobalvartable,
                             CFunctionEntry* curfuncdefinition, const char* varname,
                             uint32 varhash, eVarType vartype, int array_size);
@@ -270,10 +283,8 @@ CFunctionEntry* FuncDeclaration(CScriptContext* script_context, uint32 namespace
 CFunctionEntry* FuncDeclaration(CScriptContext* script_context, CNamespace* nsentry,
                                 const char* funcname, uint32 funchash, EFunctionType type);
 
-tExprParenDepthStack* GetGlobalParenStack();
-
-// ------------------------------------------------------------------------------------------------
-// debugging methods
+// ====================================================================================================================
+// -- debugging methods
 const char* GetAssOperatorString(eAssignOpType assop);
 
 bool8 DumpFile(const char* filename);
@@ -287,12 +298,12 @@ void DumpVarTable(CScriptContext* script_context, CObjectEntry* oe, const tVarTa
 void DumpFuncTable(CObjectEntry* oe);
 void DumpFuncTable(CScriptContext* script_context, const tFuncTable* functable);
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 
 }  // TinScript
 
 #endif // __TINPARSE_H
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================

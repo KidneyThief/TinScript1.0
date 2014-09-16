@@ -19,6 +19,10 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
+// ====================================================================================================================
+// TinRegistration.cpp
+// ====================================================================================================================
+
 // -- lib includes
 #include "stdafx.h"
 #include "stdio.h"
@@ -27,11 +31,16 @@
 #include "TinCompile.h"
 #include "TinRegistration.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// variable entry
+namespace TinScript
+{
 
+// == class CVariableEntry ============================================================================================
+
+// ====================================================================================================================
+// Constructor:  Used for coded variables, where the address refers to the source of the registered variable.
+// ====================================================================================================================
 CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name, eVarType _type,
                                int32 _array_size, void* _addr)
 {
@@ -67,6 +76,9 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
     }
 }
 
+// ====================================================================================================================
+// Constructor:  Used for dynamic, script, parameter and other variable entries.  Also for object members.
+// ====================================================================================================================
 CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name, uint32 _hash, eVarType _type,
                                int32 _array_size, bool8 isoffset, uint32 _offset, bool8 _isdynamic, bool8 is_param)
 {
@@ -161,6 +173,9 @@ CVariableEntry::CVariableEntry(CScriptContext* script_context, const char* _name
     }
 }
 
+// ====================================================================================================================
+// Destructor
+// ====================================================================================================================
 CVariableEntry::~CVariableEntry()
 {
     // -- if we have a debugger watch, delete it
@@ -200,7 +215,9 @@ CVariableEntry::~CVariableEntry()
     }
 }
 
-// -- variables that are actually arrays, are allocated once the array size is actually known
+// ====================================================================================================================
+// ConvertToArray():  Variables that are arrays, are allocated once the array size is actually known.
+// ====================================================================================================================
 bool8 CVariableEntry::ConvertToArray(int32 array_size)
 {
     if (!mScriptVar || mIsParameter || mOffset != 0)
@@ -244,6 +261,9 @@ bool8 CVariableEntry::ConvertToArray(int32 array_size)
     return (true);
 }
 
+// ====================================================================================================================
+// ClearArrayParameter():  Array parameters are like references, clear the details upon function return.
+// ====================================================================================================================
 void CVariableEntry::ClearArrayParameter()
 {
     // -- ensure we have an array parameter
@@ -255,6 +275,9 @@ void CVariableEntry::ClearArrayParameter()
     mStringHashArray = NULL;
 }
 
+// ====================================================================================================================
+// InitializeArrayParameter():  Array parameters are like references - initialize the details upon function call.
+// ====================================================================================================================
 void CVariableEntry::InitializeArrayParameter(CVariableEntry* assign_from_ve, CObjectEntry* assign_from_oe)
 {
     // -- ensure we have an array parameter
@@ -282,6 +305,10 @@ void CVariableEntry::InitializeArrayParameter(CVariableEntry* assign_from_ve, CO
     mAddr = valueaddr;
 }
 
+// ====================================================================================================================
+// SetValue():  Sets the value of a variable, and notifies the debugger in support of data breakpoints.
+// This method is called from the virtual machine executing a script.
+// ====================================================================================================================
 void CVariableEntry::SetValue(void* objaddr, void* value, CExecStack* execstack, CFunctionCallStack* funccallstack,
                               int32 array_index)
 {
@@ -335,8 +362,10 @@ void CVariableEntry::SetValue(void* objaddr, void* value, CExecStack* execstack,
     NotifyWrite(GetScriptContext(), execstack, funccallstack);
 }
 
-// -- for this method, if the value type is a TYPE_string, then the void* value
-// -- contains an actual const char* string...
+// ====================================================================================================================
+// SetValue():  Sets the value of a variable.
+// This method is called externally, e.g.  from code, as opposed to from the virtual machine.
+// ====================================================================================================================
 void CVariableEntry::SetValueAddr(void* objaddr, void* value, int32 array_index)
 {
     // -- strings have their own implementation, as they have to manage both the hash value of the string
@@ -377,9 +406,9 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value, int32 array_index)
     NotifyWrite(GetScriptContext(), NULL, NULL);
 }
 
- // -------------------------------------------------------------------------------------------------------------------
- // -- Type_string implementations
- // -- Here the void* is a hash value, called while processing the VM
+// ====================================================================================================================
+// SetStringArrayHashValue():  Sets the value of a TYPE_string variable, from the VM, where the void* is a hash value.
+// ====================================================================================================================
  void CVariableEntry::SetStringArrayHashValue(void* objaddr, void* value, CExecStack* execstack,
                                               CFunctionCallStack* funccallstack, int32 array_index)
 {
@@ -408,7 +437,7 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value, int32 array_index)
         const char* string_value = GetScriptContext()->GetStringTable()->FindString(string_hash_value);
 
         void* valueaddr = NULL;
-        if(objaddr && !mIsDynamic)
+        if (objaddr && !mIsDynamic)
             valueaddr = (void*)((char*)objaddr + mOffset);
         else
             valueaddr = mAddr;
@@ -423,7 +452,10 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value, int32 array_index)
     NotifyWrite(GetScriptContext(), execstack, funccallstack);
 }
 
- // -- Here the void* is const char*, called when setting the value externally (from code)
+// ====================================================================================================================
+// SetStringArrayLiteralValue():  Sets the value of a TYPE_string variable, called externally.
+// The value of the void* is the actual const char* instead of a hash.
+// ====================================================================================================================
  void CVariableEntry::SetStringArrayLiteralValue(void* objaddr, void* value, int32 array_index)
 {
     // -- ensure we have type string, etc...
@@ -455,7 +487,7 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value, int32 array_index)
         const char* string_value = GetScriptContext()->GetStringTable()->FindString(string_hash_value);
 
         void* valueaddr = NULL;
-        if(objaddr && !mIsDynamic)
+        if (objaddr && !mIsDynamic)
             valueaddr = (void*)((char*)objaddr + mOffset);
         else
             valueaddr = mAddr;
@@ -467,24 +499,32 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value, int32 array_index)
     GetScriptContext()->GetStringTable()->RefCountIncrement(string_hash_value);
 }
 
-// ------------------------------------------------------------------------------------------------
-// CFunctionContext
-CFunctionContext::CFunctionContext(CScriptContext* script_context) {
+// == class CFunctionContext ==========================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CFunctionContext::CFunctionContext(CScriptContext* script_context)
+{
     mContextOwner = script_context;
     localvartable = TinAlloc(ALLOC_VarTable, tVarTable, eMaxLocalVarCount);
     paramcount = 0;
-    for(int32 i = 0; i < eMaxParameterCount; ++i) {
+    for (int32 i = 0; i < eMaxParameterCount; ++i)
         parameterlist[i] = NULL;
-    }
 }
 
-CFunctionContext::~CFunctionContext() {
-
+// ====================================================================================================================
+// Destructor
+// ====================================================================================================================
+CFunctionContext::~CFunctionContext()
+{
     // -- delete all the variable entries
     int32 tablesize = localvartable->Size();
-	for(int32 i = 0; i < tablesize; ++i) {
+	for (int32 i = 0; i < tablesize; ++i)
+    {
 		CVariableEntry* ve = localvartable->FindItemByBucket(i);
-		while (ve) {
+		while (ve)
+        {
 			uint32 hash = ve->GetHash();
 			localvartable->RemoveItem(hash);
 			TinFree(ve);
@@ -496,29 +536,31 @@ CFunctionContext::~CFunctionContext() {
     TinFree(localvartable);
 }
 
+// ====================================================================================================================
+// AddParameter():  Parameter declaration for a function definition, for a specific index.
+// ====================================================================================================================
 bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type, int32 array_size,
                                      int32 paramindex, uint32 actual_type_id)
 {
-    assert(varname != NULL);
-
     // add the entry to the parameter list as well
     assert(paramindex >= 0 && paramindex < eMaxParameterCount);
     if (paramindex >= eMaxParameterCount)
     {
         printf("Error - Max parameter count %d exceeded, parameter: %s\n",
                 eMaxParameterCount, varname);
-        return false;
+        return (false);
     }
+
     if (parameterlist[paramindex] != NULL)
     {
         printf("Error - parameter %d has already been added\n", paramindex);
-        return false;
+        return (false);
     }
 
     // -- create the Variable entry
     CVariableEntry* ve = AddLocalVar(varname, varhash, type, array_size, true);
     if (!ve)
-        return false;
+        return (false);
 
     // -- parameters that are registered as TYPE_object, but are actually
     // -- pointers to registered classes, can be automatically
@@ -529,31 +571,37 @@ bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarTy
     }
 
     // -- bump the count if we need to
-    if(paramindex >= paramcount)
+    if (paramindex >= paramcount)
         paramcount = paramindex + 1;
     parameterlist[paramindex] = ve;
 
-    return true;
+    return (true);
 }
 
-bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type, int32 array_size, uint32 actual_type_id)
+// ====================================================================================================================
+// AddParameter():  Parameter declaration for a function definition.
+// ====================================================================================================================
+bool8 CFunctionContext::AddParameter(const char* varname, uint32 varhash, eVarType type, int32 array_size,
+                                     uint32 actual_type_id)
 {
-    assert(varname != NULL);
-
     // -- adding automatically increments the paramcount if needed
     AddParameter(varname, varhash, type, array_size, paramcount, actual_type_id);
-    return true;
+    return (true);
 }
 
+// ====================================================================================================================
+// AddLocalVar():  Local variable declaration for a function definition.
+// ====================================================================================================================
 CVariableEntry* CFunctionContext::AddLocalVar(const char* varname, uint32 varhash, eVarType type, int array_size,
                                               bool8 is_param)
 {
 
     // -- ensure the variable doesn't already exist
     CVariableEntry* exists = localvartable->FindItem(varhash);
-    if(exists != NULL) {
+    if (exists != NULL)
+    {
         printf("Error - variable already exists: %s\n", varname);
-        return NULL;
+        return (NULL);
     }
 
     // -- create the Variable entry
@@ -562,26 +610,45 @@ CVariableEntry* CFunctionContext::AddLocalVar(const char* varname, uint32 varhas
 	uint32 hash = ve->GetHash();
 	localvartable->AddItem(*ve, hash);
 
-    return ve;
+    return (ve);
 }
 
-int32 CFunctionContext::GetParameterCount() {
-    return paramcount;
+// ====================================================================================================================
+// GetParameterCount():  Returns the number of parameters for a function definition.
+// ====================================================================================================================
+int32 CFunctionContext::GetParameterCount()
+{
+    return (paramcount);
 }
 
-CVariableEntry* CFunctionContext::GetParameter(int32 index) {
+// ====================================================================================================================
+// GetParameter():  Returns the variable entry for a paremeter, by index.
+// ====================================================================================================================
+CVariableEntry* CFunctionContext::GetParameter(int32 index)
+{
     assert(index >= 0 && index < paramcount);
-    return parameterlist[index];
+    return (parameterlist[index]);
 }
 
-CVariableEntry* CFunctionContext::GetLocalVar(uint32 varhash) {
-    return localvartable->FindItem(varhash);
+// ====================================================================================================================
+// GetLocalVar():  Get the variable entry for a local variable.
+// ====================================================================================================================
+CVariableEntry* CFunctionContext::GetLocalVar(uint32 varhash)
+{
+    return (localvartable->FindItem(varhash));
 }
 
-tVarTable* CFunctionContext::GetLocalVarTable() {
-    return localvartable;
+// ====================================================================================================================
+// GetLocalVarTable():  Get the variable table for all local variables and parameters.
+// ====================================================================================================================
+tVarTable* CFunctionContext::GetLocalVarTable()
+{
+    return (localvartable);
 }
 
+// ====================================================================================================================
+// CalculateLocalVarStackSize():  Calculate the space needed to be reserved on the stack, for a function call.
+// ====================================================================================================================
 int32 CFunctionContext::CalculateLocalVarStackSize()
 {
     int32 count = 0;
@@ -599,17 +666,25 @@ int32 CFunctionContext::CalculateLocalVarStackSize()
     return (count);
 }
 
-bool8 CFunctionContext::IsParameter(CVariableEntry* ve) {
-    if(!ve)
-        return false;
-    for(int32 i = 0; i < paramcount; ++i) {
-        if(parameterlist[i]->GetHash() == ve->GetHash())
-            return true;
+// ====================================================================================================================
+// IsParameter():  Returns true if the given variable is a parameter, and not just a local variable.
+// ====================================================================================================================
+bool8 CFunctionContext::IsParameter(CVariableEntry* ve)
+{
+    if (!ve)
+        return (false);
+    for (int32 i = 0; i < paramcount; ++i)
+    {
+        if (parameterlist[i]->GetHash() == ve->GetHash())
+            return (true);
     }
 
-    return false;
+    return (false);
 }
 
+// ====================================================================================================================
+// ClearParameters():  Reset the value of all parameters so ensure a "clean" function call.
+// ====================================================================================================================
 void CFunctionContext::ClearParameters()
 {
     // -- first, clear the parameters
@@ -641,14 +716,17 @@ void CFunctionContext::ClearParameters()
     }
 }
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// InitStackVarOffsets():  Initialize the offset where the memory for a local variable can be found.
+// ====================================================================================================================
 void CFunctionContext::InitStackVarOffsets(CFunctionEntry* fe)
 {
     int32 stackoffset = 0;
 
     // -- loop the parameters
     int32 paramcount = GetParameterCount();
-    for(int32 i = 0; i < paramcount; ++i) {
+    for (int32 i = 0; i < paramcount; ++i)
+    {
         CVariableEntry* ve = GetParameter(i);
         assert(ve);
 
@@ -690,11 +768,15 @@ void CFunctionContext::InitStackVarOffsets(CFunctionEntry* fe)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
-// CFunctionEntry implementation
-CFunctionEntry::CFunctionEntry(CScriptContext* script_context, uint32 _nshash, const char* _name,
-                               uint32 _hash, EFunctionType _type, void* _addr) :
-                               mContext(script_context) {
+// == class CFunctionEntry ============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CFunctionEntry::CFunctionEntry(CScriptContext* script_context, uint32 _nshash, const char* _name, uint32 _hash,
+                               EFunctionType _type, void* _addr)
+    : mContext(script_context)
+{
     mContextOwner = script_context;
 	SafeStrcpy(mName, _name, kMaxNameLength);
 	mType = _type;
@@ -706,9 +788,13 @@ CFunctionEntry::CFunctionEntry(CScriptContext* script_context, uint32 _nshash, c
     mRegObject = NULL;
 }
 
-CFunctionEntry::CFunctionEntry(CScriptContext* script_context, uint32 _nshash, const char* _name,
-                               uint32 _hash, EFunctionType _type, CRegFunctionBase* _func) :
-                               mContext(script_context) {
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CFunctionEntry::CFunctionEntry(CScriptContext* script_context, uint32 _nshash, const char* _name, uint32 _hash,
+                               EFunctionType _type, CRegFunctionBase* _func)
+    : mContext(script_context)
+{
     mContextOwner = script_context;
 	SafeStrcpy(mName, _name, kMaxNameLength);
 	mType = _type;
@@ -719,55 +805,86 @@ CFunctionEntry::CFunctionEntry(CScriptContext* script_context, uint32 _nshash, c
     mRegObject = _func;
 }
 
-CFunctionEntry::~CFunctionEntry() {
+// ====================================================================================================================
+// Destructor
+// ====================================================================================================================
+CFunctionEntry::~CFunctionEntry()
+{
     // -- notify the codeblock that this entry no longer exists
-    if(mCodeblock)
+    if (mCodeblock)
         mCodeblock->RemoveFunction(this);
 }
 
-void* CFunctionEntry::GetAddr() const {
+// ====================================================================================================================
+// GetAddr():  Return the address of a registered (non scripted) function.
+// ====================================================================================================================
+void* CFunctionEntry::GetAddr() const
+{
     assert(mType != eFuncTypeScript);
 	return mAddr;
 }
 
+// ====================================================================================================================
+// SetCodeBlockOffset():  Set the offset where the byte code begins for a scripted function.
+// ====================================================================================================================
 void CFunctionEntry::SetCodeBlockOffset(CCodeBlock* _codeblock, uint32 _offset)
 {
     // -- if we're switching codeblocks (recompiling...) change owners
-    if(mCodeblock && mCodeblock != _codeblock) {
+    if (mCodeblock && mCodeblock != _codeblock)
         mCodeblock->RemoveFunction(this);
-    }
+
     mCodeblock = _codeblock;
     mInstrOffset = _offset;
-    if(mCodeblock)
+    if (mCodeblock)
         mCodeblock->AddFunction(this);
 }
 
-uint32 CFunctionEntry::GetCodeBlockOffset(CCodeBlock*& _codeblock) const {
+// ====================================================================================================================
+// GetCodeBlockOffset():  Get the offset from within a codeblock for the start of the byte code.
+// ====================================================================================================================
+uint32 CFunctionEntry::GetCodeBlockOffset(CCodeBlock*& _codeblock) const
+{
     assert(mType == eFuncTypeScript);
     _codeblock = mCodeblock;
     return mInstrOffset;
 }
 
-CFunctionContext* CFunctionEntry::GetContext() {
+// ====================================================================================================================
+// GetContext():  Return the function context.
+// ====================================================================================================================
+CFunctionContext* CFunctionEntry::GetContext()
+{
     return &mContext;
 }
 
-eVarType CFunctionEntry::GetReturnType() {
+// ====================================================================================================================
+// GetReturnType():  Get the value type returned by the function.
+// ====================================================================================================================
+eVarType CFunctionEntry::GetReturnType()
+{
     // -- return value is always the first var entry in the array
     assert(mContext.GetParameterCount() > 0);
     return (mContext.GetParameter(0)->GetType());
 }
 
-tVarTable* CFunctionEntry::GetLocalVarTable() {
+// ====================================================================================================================
+// GetLocalVarTable():  Get the variable table for all local variables and parameters for the function.
+// ====================================================================================================================
+tVarTable* CFunctionEntry::GetLocalVarTable()
+{
     return mContext.GetLocalVarTable();
 }
 
-CRegFunctionBase* CFunctionEntry::GetRegObject() {
+// ====================================================================================================================
+// GetRegObject():  Get the registration 
+// ====================================================================================================================
+CRegFunctionBase* CFunctionEntry::GetRegObject()
+{
     return mRegObject;
 }
 
 }  // TinScript
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

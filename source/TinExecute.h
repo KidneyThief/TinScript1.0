@@ -19,17 +19,30 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
+// ====================================================================================================================
+// TinExecute.h
+// ====================================================================================================================
+
 #ifndef __TINEXECUTE_H
 #define __TINEXECUTE_H
 
+// -- includes
 #include "integration.h"
 #include "TinCompile.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
 
-class CExecStack {
+namespace TinScript
+{
+
+// ====================================================================================================================
+// class CExecStack: The class used to push and pop entries (values, variables, etc...) during VM execution.
+// ====================================================================================================================
+class CExecStack
+{
 	public:
-		CExecStack(CScriptContext* script_context, uint32 _size = 0) {
+		CExecStack(CScriptContext* script_context, uint32 _size = 0)
+        {
             mContextOwner = script_context;
 
 			mStack = NULL;
@@ -40,14 +53,13 @@ class CExecStack {
 			mStackTop = mStack;
 		}
 
-		virtual ~CExecStack() {
-			if(mStack)
+		virtual ~CExecStack()
+        {
+			if (mStack)
                 TinFreeArray(mStack);
 		}
 
-        CScriptContext* GetContextOwner() {
-            return (mContextOwner);
-        }
+        CScriptContext* GetContextOwner() { return (mContextOwner); }
 
 		void Push(void* content, eVarType contenttype)
 		{
@@ -86,7 +98,8 @@ class CExecStack {
             }
 		}
 
-		void* Pop(eVarType& contenttype) {
+		void* Pop(eVarType& contenttype)
+        {
 			uint32 stacksize = kPointerDiffUInt32(mStackTop, mStack) / sizeof(uint32);
             Unused_(stacksize);
             if (stacksize == 0)
@@ -100,7 +113,8 @@ class CExecStack {
 
             // -- if what's on the stack isn't a valid content type, leave the stack alone, but
             // -- return NULL - the calling operation should catch the NULL and assert
-            if(contenttype < 0 || contenttype >= TYPE_COUNT) {
+            if (contenttype < 0 || contenttype >= TYPE_COUNT)
+            {
                 ++mStackTop;
                 return (NULL);
             }
@@ -140,7 +154,7 @@ class CExecStack {
 
                 // -- if what's on the stack isn't a valid content type, leave the stack alone, but
                 // -- return NULL - the calling operation should catch the NULL and assert
-                if(contenttype < 0 || contenttype >= TYPE_COUNT)
+                if (contenttype < 0 || contenttype >= TYPE_COUNT)
                     return (NULL);
 
 
@@ -157,14 +171,16 @@ class CExecStack {
                 --depth;
             }
 
-			return (void*)cur_stack_top;
+			return ((void*)cur_stack_top);
 		}
 
-        void Reserve(int32 wordcount) {
+        void Reserve(int32 wordcount)
+        {
             mStackTop += wordcount;
         }
 
-        void UnReserve(int32 wordcount) {
+        void UnReserve(int32 wordcount)
+        {
             mStackTop -= wordcount;
         }
 
@@ -183,11 +199,13 @@ class CExecStack {
             mStackTop = mStack + new_stack_top;
         }
 
-        int32 GetStackTop() {
+        int32 GetStackTop()
+        {
             return (kPointerDiffUInt32(mStackTop, mStack) / sizeof(uint32));
         }
 
-        void* GetStackVarAddr(int32 varstacktop, int32 varoffset) {
+        void* GetStackVarAddr(int32 varstacktop, int32 varoffset)
+        {
             uint32* varaddr = &mStack[varstacktop];
 
             // -- increment by (varoffset * MAX_TYPE_SIZE), so we're pointing
@@ -195,18 +213,20 @@ class CExecStack {
             varaddr += varoffset * MAX_TYPE_SIZE;
 
             // -- validate and return the addr
-            if(varaddr < mStack || varaddr >= mStackTop) {
+            if (varaddr < mStack || varaddr >= mStackTop)
+            {
                 ScriptAssert_(GetContextOwner(), 0, "<internal>", -1,
                               "Error - GetStackVarAddr() out of range\n");
                 return NULL;
             }
-            return varaddr;
+            return (varaddr);
         }
 
-        void DebugDump(CScriptContext* script_context) {
+        void DebugDump(CScriptContext* script_context)
+        {
             uint32* stacktop_ptr = mStackTop;
-            while(stacktop_ptr > mStack) {
-
+            while (stacktop_ptr > mStack)
+            {
                 eVarType contenttype = (eVarType)(*(--stacktop_ptr));
                 assert(contenttype >= 0 && contenttype < TYPE_COUNT);
                 uint32 contentsize = kBytesToWordCount(gRegisteredTypeSize[contenttype]);
@@ -228,10 +248,15 @@ class CExecStack {
 		uint32* mStackTop;
 };
 
-class CFunctionCallStack {
+// ====================================================================================================================
+// class CFunctionCallStack:  The class used to push/pop function entries as they are called and exited.
+// ====================================================================================================================
+class CFunctionCallStack
+{
 	public:
         struct tFunctionCallEntry;
-		CFunctionCallStack(uint32 _size = 0) {
+		CFunctionCallStack(uint32 _size = 0)
+        {
    			size = _size;
 			assert(size > 0);
 			funcentrystack = TinAllocArray(ALLOC_FuncCallEntry, tFunctionCallEntry, size);
@@ -243,8 +268,9 @@ class CFunctionCallStack {
             mDebuggerBreakOnStackDepth = -1;
 		}
 
-		virtual ~CFunctionCallStack() {
-			if(funcentrystack)
+		virtual ~CFunctionCallStack()
+        {
+			if (funcentrystack)
 				delete[] funcentrystack;
 		}
 
@@ -259,15 +285,18 @@ class CFunctionCallStack {
             ++stacktop;
 		}
 
-		CFunctionEntry* Pop(CObjectEntry*& objentry, int32& var_offset) {
+		CFunctionEntry* Pop(CObjectEntry*& objentry, int32& var_offset)
+        {
 			assert(stacktop > 0);
             objentry = funcentrystack[stacktop - 1].objentry;
             var_offset = funcentrystack[stacktop - 1].stackvaroffset;
             return funcentrystack[--stacktop].funcentry;
 		}
 
-   		CFunctionEntry* GetTop(CObjectEntry*& objentry, int32& varoffset) {
-            if(stacktop > 0) {
+   		CFunctionEntry* GetTop(CObjectEntry*& objentry, int32& varoffset)
+        {
+            if (stacktop > 0)
+            {
                 objentry = funcentrystack[stacktop - 1].objentry;
                 varoffset = funcentrystack[stacktop - 1].stackvaroffset;
                 return funcentrystack[stacktop - 1].funcentry;
@@ -299,8 +328,10 @@ class CFunctionCallStack {
 
         CFunctionEntry* GetExecuting(CObjectEntry*& objentry, int32& varoffset) {
             int32 temp = stacktop - 1;
-            while(temp >= 0) {
-                if(funcentrystack[temp].isexecuting) {
+            while (temp >= 0)
+            {
+                if (funcentrystack[temp].isexecuting)
+                {
                     objentry = funcentrystack[temp].objentry;
                     varoffset = funcentrystack[temp].stackvaroffset;
                     return funcentrystack[temp].funcentry;
@@ -310,11 +341,14 @@ class CFunctionCallStack {
             return NULL;
         }
 
-   		CFunctionEntry* GetTopMethod(CObjectEntry*& objentry) {
+   		CFunctionEntry* GetTopMethod(CObjectEntry*& objentry)
+        {
             int32 depth = 0;
-            while(stacktop - depth > 0) {
+            while (stacktop - depth > 0)
+            {
                 ++depth;
-                if(funcentrystack[stacktop - depth].objentry) {
+                if (funcentrystack[stacktop - depth].objentry)
+                {
                     objentry = funcentrystack[stacktop - depth].objentry;
                     return funcentrystack[stacktop - depth].funcentry;
                 }
@@ -325,7 +359,8 @@ class CFunctionCallStack {
             return NULL;
         }
 
-        struct tFunctionCallEntry {
+        struct tFunctionCallEntry
+        {
             tFunctionCallEntry(CFunctionEntry* _funcentry = NULL, CObjectEntry* _objentry = NULL,
                                int32 _varoffset = -1) {
                 funcentry = _funcentry;
@@ -375,7 +410,7 @@ bool8 DebuggerFindStackTopVar(CScriptContext* script_context, uint32 var_hash, C
 // -- debugger to provide insight into the issue (callstack variables can be examined for a bad value/object/etc...)
 #define DebuggerAssert_(condition, cb, intstrptr, execstack, funccallstack, fmt, ...) \
     {                                                                                                               \
-        if(!(condition) && (!cb->GetScriptContext()->mDebuggerConnected ||		      								\
+        if (!(condition) && (!cb->GetScriptContext()->mDebuggerConnected ||		      								\
 							!cb->GetScriptContext()->mDebuggerBreakLoopGuard))				                        \
         {                                                                                                           \
             if (!DebuggerAssertLoop(#condition, cb, instrptr, execstack, funccallstack, fmt, ##__VA_ARGS__))        \
@@ -393,6 +428,6 @@ bool8 DebuggerFindStackTopVar(CScriptContext* script_context, uint32 var_hash, C
 
 #include "registrationexecs.h"
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

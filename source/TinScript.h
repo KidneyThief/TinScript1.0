@@ -19,13 +19,14 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
-// TinScript.h
-//
+// ====================================================================================================================
+// TinScript.h  This is the main header file to be included by every source file requiring access to TinScript.
+// ====================================================================================================================
 
 #ifndef __TINSCRIPT_H
 #define __TINSCRIPT_H
 
+// -- includes
 #include "stddef.h"
 #include "stdarg.h"
 
@@ -33,6 +34,8 @@
 #include "TinTypes.h"
 #include "TinNamespace.h"
 
+// --------------------------------------------------------------------------------------------------------------------
+// -- compile flags
 #define DEBUG_CODEBLOCK 1
 #define FORCE_COMPILE 1
 #define CASE_SENSITIVE 1
@@ -40,14 +43,17 @@
 #define DEBUG_COMPILE_SYMBOLS 0
 #define TIN_DEBUGGER 1
 
+// --------------------------------------------------------------------------------------------------------------------
+// -- only case_sensitive has been extensively tested, however theoretically TinScript should function as a
+// -- insensitive language by affecting just a few functions, such as Hash().
 #if CASE_SENSITIVE
     #define Strncmp_ strncmp
 #else
     #define Strncmp_ _strnicmp
 #endif
 
-// ------------------------------------------------------------------------------------------------
-// Registration macros
+// ====================================================================================================================
+// -- Registration macros
 #define DECLARE_SCRIPT_CLASS(classname, parentclass)                                              \
     static const char* GetParentName() { return #parentclass; }                                   \
     static const char* GetClassName() { return #classname; }                                      \
@@ -102,8 +108,8 @@
     g_##filename##_registered = true;
 
 
-// ------------------------------------------------------------------------------------------------
-// constants
+// ====================================================================================================================
+// -- constants
 
 const int32 kCompilerVersion = 1;
 
@@ -156,9 +162,10 @@ const int32 k_DebuggerMaxPacketID                   = 0xff;
 
 // == namespace TinScript =============================================================================================
 
-namespace TinScript {
+namespace TinScript
+{
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // forward declarations
 
 class CVariableEntry;
@@ -195,8 +202,11 @@ class CThreadMutex
         void* mThreadMutex;
 };
 
-// --Global Var Registration-----------------------------------------------------------------------
-class CRegisterGlobal {
+// ====================================================================================================================
+// class CRegisterGlobal:  Instantiated in the global namespace to stor info needed to register global variables.
+// ====================================================================================================================
+class CRegisterGlobal
+{
     public:
         CRegisterGlobal(const char* _name = NULL, eVarType _type = TYPE_NULL, void* _addr = NULL,
                         int32 _array_size = 1);
@@ -212,10 +222,11 @@ class CRegisterGlobal {
         int32 array_size;
 };
 
-bool8 AssertHandled(const char* condition, const char* file, int32 linenumber,
-                    const char* fmt, ...);
+bool8 AssertHandled(const char* condition, const char* file, int32 linenumber, const char* fmt, ...);
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// class CDebuggerWatchVarEntry:  Class used to send variable details to the debugger.
+// ====================================================================================================================
 class CDebuggerWatchVarEntry
 {
     public:
@@ -269,9 +280,11 @@ class CDebuggerWatchExpression
         CFunctionEntry* mTraceFunctionEntry;
 };
 
-// ------------------------------------------------------------------------------------------------
-class CScriptContext {
-
+// ====================================================================================================================
+// class CScriptContext:  The singleton (per thread) root of all access to TinScript.
+// ====================================================================================================================
+class CScriptContext
+{
     public:
         // -- static constructor/destructor, to create without having to directly use allocators
         static CScriptContext* Create(TinPrintHandler printhandler = NULL, TinAssertHandler asserthandler = NULL,
@@ -305,41 +318,16 @@ class CScriptContext {
         static const char* kGlobalNamespace;
         static uint32 kGlobalNamespaceHash;
 
-        CNamespace* GetGlobalNamespace() {
-            return (mGlobalNamespace);
-        }
+        CNamespace* GetGlobalNamespace() { return (mGlobalNamespace); }
+        CStringTable* GetStringTable() { return (mStringTable); }
+        CHashTable<CCodeBlock>* GetCodeBlockList() { return (mCodeBlockList); }
+        CScheduler* GetScheduler() { return (mScheduler); }
+        CMasterMembershipList* GetMasterMembershipList() { return (mMasterMembershipList); }
 
-        CStringTable* GetStringTable() {
-            return (mStringTable);
-        }
-
-        CHashTable<CCodeBlock>* GetCodeBlockList() {
-            return (mCodeBlockList);
-        }
-
-        CScheduler* GetScheduler() {
-            return (mScheduler);
-        }
-
-        CMasterMembershipList* GetMasterMembershipList() {
-            return (mMasterMembershipList);
-        }
-
-        CHashTable<CNamespace>* GetNamespaceDictionary() {
-            return (mNamespaceDictionary);
-        }
-
-        CHashTable<CObjectEntry>* GetObjectDictionary() {
-            return (mObjectDictionary);
-        }
-
-        CHashTable<CObjectEntry>* GetAddressDictionary() {
-            return (mAddressDictionary);
-        }
-
-        CHashTable<CObjectEntry>* GetNameDictionary() {
-            return (mNameDictionary);
-        }
+        CHashTable<CNamespace>* GetNamespaceDictionary() { return (mNamespaceDictionary); }
+        CHashTable<CObjectEntry>* GetObjectDictionary() { return (mObjectDictionary); }
+        CHashTable<CObjectEntry>* GetAddressDictionary() { return (mAddressDictionary); }
+        CHashTable<CObjectEntry>* GetNameDictionary() { return (mNameDictionary); }
 
         CNamespace* FindOrCreateNamespace(const char* _nsname, bool create);
         CNamespace* FindNamespace(uint32 nshash);
@@ -512,6 +500,6 @@ class CScriptContext {
 
 #endif // __TINSCRIPT_H
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// EOF
+// ====================================================================================================================

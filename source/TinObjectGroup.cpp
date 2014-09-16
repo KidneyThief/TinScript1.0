@@ -19,31 +19,54 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
+// ====================================================================================================================
+// TinObjectGroup.cpp
+// ====================================================================================================================
+
+// -- includes
 #include "assert.h"
 
 #include "TinScript.h"
 #include "TinRegistration.h"
 #include "TinObjectGroup.h"
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
 
-// ------------------------------------------------------------------------------------------------
-CMasterMembershipList::CMasterMembershipList(CScriptContext* script_context, int _size) {
+namespace TinScript
+{
+
+// == class CMasterMembershipList =====================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CMasterMembershipList::CMasterMembershipList(CScriptContext* script_context, int _size)
+{
     assert(script_context != NULL && _size > 0);
     mContextOwner = script_context;
 
     mMasterMembershipList = TinAlloc(ALLOC_ObjectGroup, CHashTable<tMembershipList>, _size);
 }
 
-CMasterMembershipList::~CMasterMembershipList() {
-    if(mMasterMembershipList) {
+// ====================================================================================================================
+// Destructor
+// ====================================================================================================================
+CMasterMembershipList::~CMasterMembershipList()
+{
+    if (mMasterMembershipList)
+    {
         mMasterMembershipList->DestroyAll();
         TinFree(mMasterMembershipList);
     }
 }
 
-void CMasterMembershipList::AddMembership(CObjectEntry* oe, CObjectSet* group) {
-    if(!oe || !group)
+// ====================================================================================================================
+// AddMembership():  Notify the master list that an object has been added to an object set.
+// ====================================================================================================================
+void CMasterMembershipList::AddMembership(CObjectEntry* oe, CObjectSet* group)
+{
+    // -- sanity check
+    if (!oe || !group)
         return;
 
     uint32 group_id = GetScriptContext()->FindIDByAddress(group);
@@ -53,19 +76,24 @@ void CMasterMembershipList::AddMembership(CObjectEntry* oe, CObjectSet* group) {
 
     // -- get the member list for the specific object, and add this group to it
     tMembershipList* member_list = mMasterMembershipList->FindItem(object_id);
-    if(!member_list) {
+    if (!member_list)
+    {
         member_list = TinAlloc(ALLOC_ObjectGroup, tMembershipList, kObjectGroupTableSize);
         mMasterMembershipList->AddItem(*member_list, object_id);
     }
 
     // -- ensure we don't add this group twice
-    if(!member_list->FindItem(group_id)) {
+    if (!member_list->FindItem(group_id))
         member_list->AddItem(*group, group_id);
-    }
 }
 
-void CMasterMembershipList::RemoveMembership(CObjectEntry* oe, CObjectSet* group) {
-    if(!oe || !group)
+// ====================================================================================================================
+// RemoveMembership():  Notify the master list that an object has been removed from an object set.
+// ====================================================================================================================
+void CMasterMembershipList::RemoveMembership(CObjectEntry* oe, CObjectSet* group)
+{
+    // -- sanity check
+    if (!oe || !group)
         return;
 
     uint32 group_id = GetScriptContext()->FindIDByAddress(group);
@@ -73,39 +101,51 @@ void CMasterMembershipList::RemoveMembership(CObjectEntry* oe, CObjectSet* group
 
     // -- get the member list for the specific object, and add this group to it
     tMembershipList* member_list = mMasterMembershipList->FindItem(object_id);
-    if(!member_list) {
+    if (!member_list)
+    {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
                       "Error - RemoveMembership() - no membership list for object %d\n", object_id);
         return;
     }
 
     // -- ensure the object is actually in the group
-    if(member_list->FindItem(group_id)) {
+    if (member_list->FindItem(group_id))
+    {
         member_list->RemoveItem(group_id);
 
         // -- if this is the last group the object is a member of, we can delete the group
-        if(member_list->Used() == 0) {
+        if (member_list->Used() == 0)
+        {
             mMasterMembershipList->RemoveItem(object_id);
             TinFree(member_list);
         }
     }
 }
 
-void CMasterMembershipList::OnDelete(CObjectEntry* oe) {
-    if(!oe)
+// ====================================================================================================================
+// OnDelete():  Notify the master list that an object is being deleted - this will remove it from all object sets.
+// ====================================================================================================================
+void CMasterMembershipList::OnDelete(CObjectEntry* oe)
+{
+    // -- sanity check
+    if (!oe)
         return;
+
     uint32 objectid = oe->GetID();
     // -- see if this object belongs to any groups
     tMembershipList* member_list = mMasterMembershipList->FindItem(oe->GetID());
-    if(member_list) {
+    if (member_list)
+    {
         int32 cur_count = member_list->Used();
-        while(cur_count > 1) {
+        while (cur_count > 1)
+        {
             CObjectSet* group = member_list->First();
             group->RemoveObject(objectid);
 
             // -- ensure our count actually went down
             int32 new_count = member_list->Used();
-            if(new_count != (cur_count - 1)) {
+            if (new_count != (cur_count - 1))
+            {
                 //Assert_(false, "Error - CMasterMembershipList::OnDelete() failed to remove object");
                 Assert_(false);
             }
@@ -115,24 +155,34 @@ void CMasterMembershipList::OnDelete(CObjectEntry* oe) {
         // -- delete the last membership entry separately since empty lists
         // -- auto-delete themselves
         CObjectSet* group = member_list->First();
-        if(group)
+        if (group)
             group->RemoveObject(objectid);
     }
 }
 
-// ------------------------------------------------------------------------------------------------
-CObjectSet::CObjectSet() {
-    mContextOwner = TinScript::GetContext();
+// == class CObjectSet ================================================================================================
 
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CObjectSet::CObjectSet()
+{
+    mContextOwner = TinScript::GetContext();
     mObjectList = TinAlloc(ALLOC_ObjectGroup, CHashTable<CObjectEntry>, kObjectGroupTableSize);
 }
 
-CObjectSet::~CObjectSet() {
+// ====================================================================================================================
+// Destructor
+// ====================================================================================================================
+CObjectSet::~CObjectSet()
+{
     // -- go through the object list, and remove membership of all objects
     CMasterMembershipList* membership_list = GetScriptContext()->GetMasterMembershipList();
-    if(mObjectList) {
+    if (mObjectList)
+    {
         CObjectEntry* oe = mObjectList->First();
-        while(oe) {
+        while (oe)
+        {
             membership_list->RemoveMembership(oe, this);
             mObjectList->RemoveItem(oe->GetID());
             oe = mObjectList->First();
@@ -141,70 +191,93 @@ CObjectSet::~CObjectSet() {
     }
 }
 
-// ------------------------------------------------------------------------------------------------
-bool8 CObjectSet::Contains(uint32 objectid) {
+// ====================================================================================================================
+// Contains():  Returns true if the set contains the object.
+// ====================================================================================================================
+bool8 CObjectSet::Contains(uint32 objectid)
+{
     bool8 result = mObjectList->FindItem(objectid) != NULL;
     return (result);
 }
 
-void CObjectSet::AddObject(uint32 objectid) {
+// ====================================================================================================================
+// AddObject():  Add an object to this object set.
+// ====================================================================================================================
+void CObjectSet::AddObject(uint32 objectid)
+{
     // -- find the object entry
     CObjectEntry* oe = GetScriptContext()->FindObjectEntry(objectid);
-    if(!oe) {
+    if (!oe)
+    {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
                       "Error - [%d] CObjectSet::AddObject(): unable to find object %d\n",
                       GetScriptContext()->FindObjectByAddress(this)->GetID(), objectid);
         return;
     }
 
-    if(!mObjectList->FindItem(objectid)) {
+    if (!mObjectList->FindItem(objectid))
+    {
         mObjectList->AddItem(*oe, objectid);
         
         // -- notify the master membership list that an object has been added to a group
         GetScriptContext()->GetMasterMembershipList()->AddMembership(oe, this);
 
         // -- automatically call "OnAdd" for the group
-        if(GetScriptContext()->HasMethod(this, "OnAdd")) {
+        if (GetScriptContext()->HasMethod(this, "OnAdd"))
+        {
             int32 dummy = 0;
             ObjExecF(this, dummy, "OnAdd(%d);", objectid);
         }
     }
 }
 
-void CObjectSet::RemoveObject(uint32 objectid) {
+// ====================================================================================================================
+// RemoveObject():  Remove an object from this object set.
+// ====================================================================================================================
+void CObjectSet::RemoveObject(uint32 objectid)
+{
     // -- find the object entry
     CObjectEntry* oe = GetScriptContext()->FindObjectEntry(objectid);
-    if(!oe) {
+    if (!oe)
+    {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
                       "Error - [%d] CObjectSet::RemoveObject(): unable to find object %d\n",
                       GetScriptContext()->FindObjectByAddress(this)->GetID(), objectid);
         return;
     }
 
-    if(mObjectList->FindItem(objectid)) {
+    if (mObjectList->FindItem(objectid))
+    {
         mObjectList->RemoveItem(objectid);
 
         // -- notify the master membership list that an object has been added to a group
         GetScriptContext()->GetMasterMembershipList()->RemoveMembership(oe, this);
 
         // -- automatically call "OnAdd" for the group
-        if(GetScriptContext()->HasMethod(this, "OnRemove")) {
+        if (GetScriptContext()->HasMethod(this, "OnRemove"))
+        {
             int32 dummy = 0;
             ObjExecF(this, dummy, "OnRemove(%d);", objectid);
         }
     }
 }
 
-void CObjectSet::ListObjects(int32 indent) {
-    if(indent == 0) {
+// ====================================================================================================================
+// ListObjects():  Debug method to dump the contents of this object set to standard out.
+// ====================================================================================================================
+void CObjectSet::ListObjects(int32 indent)
+{
+    if (indent == 0)
         TinPrint(GetScriptContext(), "\n");
-    }
+
     CObjectEntry* oe = mObjectList->First();
-    while(oe) {
+    while (oe)
+    {
         GetScriptContext()->PrintObject(oe, indent);
 
         // -- if the object is an ObjectSet, list it's objects
-        if(GetScriptContext()->HasMethod(oe->GetID(), "ListObjects")) {
+        if (GetScriptContext()->HasMethod(oe->GetID(), "ListObjects"))
+        {
             int32 dummy = 0;
             ObjExecF(oe->GetID(), dummy, "ListObjects(%d);", indent + 1);
         }
@@ -214,66 +287,102 @@ void CObjectSet::ListObjects(int32 indent) {
     }
 }
 
-void CObjectSet::RemoveAll() {
-    while(mObjectList->Used() > 0) {
+// ====================================================================================================================
+// RemoveAll():  Remove all objects contained in this object set.
+// ====================================================================================================================
+void CObjectSet::RemoveAll()
+{
+    while (mObjectList->Used() > 0)
+    {
         CObjectEntry* oe = mObjectList->First();
         RemoveObject(oe->GetID());
     }
 }
 
-uint32 CObjectSet::First() {
+// ====================================================================================================================
+// First():  Returns the first object in this set.  Note:  sets the internal iterator, in anticipation of Next().
+// ====================================================================================================================
+uint32 CObjectSet::First()
+{
     CObjectEntry* oe = mObjectList->First();
-    if(oe)
+    if (oe)
         return (oe->GetID());
     else
         return (0);
 }
 
-uint32 CObjectSet::Next() {
+// ====================================================================================================================
+// Next():  Returns the next object added to the set, updating the internal iterator.
+// ====================================================================================================================
+uint32 CObjectSet::Next()
+{
     CObjectEntry* oe = mObjectList->Next();
-    if(oe)
+    if (oe)
         return (oe->GetID());
     else
         return (0);
 }
 
-int32 CObjectSet::Used() {
+// ====================================================================================================================
+// Used():  Returns the number of objects contained in tis object set.
+// ====================================================================================================================
+int32 CObjectSet::Used()
+{
     return mObjectList->Used();
 }
 
-uint32 CObjectSet::GetObjectByIndex(int32 index) {
-    if(index < 0 || index >= Used())
+// ====================================================================================================================
+// GetObjectByIndex():  Returns the nth object added to this object set.  Also sets the internal iterator.
+// ====================================================================================================================
+uint32 CObjectSet::GetObjectByIndex(int32 index)
+{
+    // -- sanity check
+    if (index < 0 || index >= Used())
         return 0;
 
     // $$$TZA Really crappy implementation - need to convert to CTable<>?
     CObjectEntry* oe = mObjectList->First();
-    while(--index >= 0) {
+    while (--index >= 0)
         oe = mObjectList->Next();
-    }
 
     return (oe->GetID());
 }
 
-// ------------------------------------------------------------------------------------------------
+// == class CObjectGroup ==============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CObjectGroup::CObjectGroup() : CObjectSet()
 {
 }
 
-CObjectGroup::~CObjectGroup() {
+// ====================================================================================================================
+// Destructor
+// ====================================================================================================================
+CObjectGroup::~CObjectGroup()
+{
     // -- object groups actually delete their children
-    if(mObjectList) {
+    if (mObjectList)
+    {
         CObjectEntry* oe = mObjectList->First();
-        while(oe) {
+        while (oe)
+        {
             GetScriptContext()->DestroyObject(oe->GetID());
             oe = mObjectList->First();
         }
     }
 }
 
-void CObjectGroup::AddObject(uint32 objectid) {
+// ====================================================================================================================
+// AddObject():  Adds an object to this object group - automatically removes it from it's previous object group.
+// ====================================================================================================================
+void CObjectGroup::AddObject(uint32 objectid)
+{
     // -- find the object entry
     CObjectEntry* oe = GetScriptContext()->FindObjectEntry(objectid);
-    if(!oe) {
+    if (!oe)
+    {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
                       "Error - [%d] CObjectGroup::AddObject(): unable to find object %d\n",
                       GetScriptContext()->FindObjectByAddress(this)->GetID(), objectid);
@@ -282,22 +391,26 @@ void CObjectGroup::AddObject(uint32 objectid) {
 
     // -- if we have a current owner, different this group, remove us from it
     CObjectGroup* current_owner = oe->GetObjectGroup();
-    if(current_owner == this)
+    if (current_owner == this)
         return;
-    if(current_owner) {
+
+    if (current_owner)
         current_owner->RemoveObject(objectid);
-    }
 
     // -- add the object to this group
     CObjectSet::AddObject(objectid);
     oe->SetObjectGroup(this);
 }
 
-// ------------------------------------------------------------------------------------------------
-void CObjectGroup::RemoveObject(uint32 objectid) {
+// ====================================================================================================================
+// RemoveObject():  Remove an object from this object group.
+// ====================================================================================================================
+void CObjectGroup::RemoveObject(uint32 objectid)
+{
     // -- find the object entry
     CObjectEntry* oe = GetScriptContext()->FindObjectEntry(objectid);
-    if(!oe) {
+    if (!oe)
+    {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
                       "Error - [%d] CObjectGroup::RemoveObject(): unable to find object %d\n",
                       GetScriptContext()->FindObjectByAddress(this)->GetID(), objectid);
@@ -309,9 +422,10 @@ void CObjectGroup::RemoveObject(uint32 objectid) {
     oe->SetObjectGroup(NULL);
 }
 
-// ------------------------------------------------------------------------------------------------
-// -- CObjectSet Registration of members/methods
+// == Registration =====================================================================================================
 
+// =====================================================================================================================
+// -- CObjectSet member/method registration
 IMPLEMENT_SCRIPT_CLASS_BEGIN(CObjectSet, VOID)
 IMPLEMENT_SCRIPT_CLASS_END()
 
@@ -326,6 +440,8 @@ REGISTER_METHOD_P0(CObjectSet, Next, Next, uint32);
 REGISTER_METHOD_P0(CObjectSet, Used, Used, int32);
 REGISTER_METHOD_P1(CObjectSet, GetObjectByIndex, GetObjectByIndex, uint32, int32);
 
+// =====================================================================================================================
+// -- CObjectGroup member/method registration
 IMPLEMENT_SCRIPT_CLASS_BEGIN(CObjectGroup, CObjectSet)
 IMPLEMENT_SCRIPT_CLASS_END()
 
@@ -334,6 +450,6 @@ REGISTER_METHOD_P1(CObjectGroup, RemoveObject, RemoveObject, void, uint32);
 
 } // TinScript
 
-// ------------------------------------------------------------------------------------------------
-// eof
-// ------------------------------------------------------------------------------------------------
+// =====================================================================================================================
+// EOF
+// =====================================================================================================================

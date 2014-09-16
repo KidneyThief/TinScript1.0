@@ -19,23 +19,35 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
+// ====================================================================================================================
+// TinObjectGroup.h
+// ====================================================================================================================
+
 #ifndef __TINOBJECTGROUP_H
 #define __TINOBJECTGROUP_H
 
-namespace TinScript {
+// == namespace TinScript =============================================================================================
 
+namespace TinScript
+{
+
+// --------------------------------------------------------------------------------------------------------------------
+// -- forward declarations
 class CObjectSet;
 
-class CMasterMembershipList {
+// ====================================================================================================================
+// class CMasterMembershipList: This class is a "reverse lookup", where the has is the objectID, it returns
+// a list of all CObjectSet's that the object is a member of. 
+// ====================================================================================================================
+class CMasterMembershipList
+{
     public:
         typedef CHashTable<CObjectSet> tMembershipList;
 
         CMasterMembershipList(CScriptContext* script_context = NULL, int32 _size = 0);
         virtual ~CMasterMembershipList();
 
-        CScriptContext* GetScriptContext() {
-            return (mContextOwner);
-        }
+        CScriptContext* GetScriptContext() { return (mContextOwner); }
 
         void AddMembership(CObjectEntry* oe, CObjectSet* group);
         void RemoveMembership(CObjectEntry* oe, CObjectSet* group);
@@ -47,17 +59,18 @@ class CMasterMembershipList {
         CHashTable<tMembershipList>* mMasterMembershipList;
 };
 
-// -- a basic storage class for sets of registered objects
-class CObjectSet {
+// ====================================================================================================================
+// class CObjectSet: A basic storage class for sets of registered objects
+// ====================================================================================================================
+class CObjectSet
+{
     public:
         DECLARE_SCRIPT_CLASS(CObjectSet, VOID);
 
         CObjectSet();
         virtual ~CObjectSet();
 
-        CScriptContext* GetScriptContext() {
-            return (mContextOwner);
-        }
+        CScriptContext* GetScriptContext() { return (mContextOwner); }
 
         virtual bool8 Contains(uint32 objectid);
         virtual void AddObject(uint32 objectid);
@@ -76,9 +89,11 @@ class CObjectSet {
         CHashTable<CObjectEntry>* mObjectList;
 };
 
-// -- a the derived class implies ownership - delete the group, it deletes its children
-// -- also, only 
-class CObjectGroup : public CObjectSet {
+// ====================================================================================================================
+// class CObjectGroup:  A derived class implies exclusive ownership - delete the group, it deletes its children.
+// ====================================================================================================================
+class CObjectGroup : public CObjectSet
+{
     public:
         DECLARE_SCRIPT_CLASS(CObjectGroup, CObjectSet);
 
@@ -93,6 +108,6 @@ class CObjectGroup : public CObjectSet {
 
 #endif
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
 // eof
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
