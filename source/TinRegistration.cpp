@@ -425,6 +425,10 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value, int32 array_index)
 	int32 size = gRegisteredTypeSize[mType];
     void* hash_addr = GetStringArrayHashAddr(objaddr, array_index);
 
+    // -- decrement the ref count for the current value
+    uint32 current_hash_value = *(uint32*)hash_addr;
+    GetScriptContext()->GetStringTable()->RefCountDecrement(current_hash_value);
+
     // -- if this is a script variable, we simply store the hash value at the address
     uint32 string_hash_value = *(uint32*)value;
     *(uint32*)hash_addr = string_hash_value;
@@ -475,7 +479,8 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value, int32 array_index)
     uint32 current_hash_value = *(uint32*)hash_addr;
     GetScriptContext()->GetStringTable()->RefCountDecrement(current_hash_value);
 
-    // -- hash the new value (which includes a ref count)
+    // -- hash the new value
+    // note:  we're assigning a value, so include ref count increment
     uint32 string_hash_value = Hash((const char*)value, -1, true);
     *(uint32*)hash_addr = string_hash_value;
 
@@ -494,9 +499,6 @@ void CVariableEntry::SetValueAddr(void* objaddr, void* value, int32 array_index)
 
         ((const char**)(valueaddr))[array_index] = string_value;
     } 
-
-    // -- the act of assigning a string value means incrementing the reference int the string dictionary
-    GetScriptContext()->GetStringTable()->RefCountIncrement(string_hash_value);
 }
 
 // == class CFunctionContext ==========================================================================================

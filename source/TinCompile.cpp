@@ -515,7 +515,7 @@ int32 CValueNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonly) 
 										   DBG_value);
 
                 // -- if the value type is a string, we need to ensure it's added to the dictionary
-                if (pushtype == TYPE_string)
+                if (pushtype == TYPE_string && !countonly)
                     codeblock->GetScriptContext()->GetStringTable()->RefCountIncrement(*(uint32*)valuebuf);
     		}
 			else
