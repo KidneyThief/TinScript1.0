@@ -93,7 +93,8 @@ public:
 
     bool8 ConvertToArray(int32 array_size);
     void ClearArrayParameter();
-    void InitializeArrayParameter(CVariableEntry* assign_from_ve, CObjectEntry* assign_from_oe);
+    void InitializeArrayParameter(CVariableEntry* assign_from_ve, CObjectEntry* assign_from_oe,
+                                  CExecStack& execstack, CFunctionCallStack& funccallstack);
 
     // -- this method is used only for registered arrays of const char*
     // -- the address is actually a const char*[], and there's a parallel
@@ -213,6 +214,8 @@ public:
         return (mIsParameter);
     }
 
+    bool8 IsStackVariable(CFunctionCallStack& funccallstack) const;
+
     void SetValue(void* objaddr, void* value, CExecStack* execstack = NULL, CFunctionCallStack* funccallstack = NULL,
                   int32 array_index = 0);
     void SetValueAddr(void* objaddr, void* value, int32 array_index = 0);
@@ -310,9 +313,9 @@ public:
         mFuncEntry = _funcentry;
     }
 
-    CFunctionEntry* GetFunctionEntry()
+    CFunctionEntry* GetFunctionEntry() const
     {
-        return mFuncEntry;
+        return (mFuncEntry);
     }
 
     // -- if true, and this is the parameter of a registered function,

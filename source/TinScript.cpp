@@ -1201,6 +1201,9 @@ void CScriptContext::InitWatchEntryFromVarEntry(CVariableEntry& ve, void* obj_ad
 	SafeStrcpy(watch_entry.mVarName, UnHash(ve.GetHash()), kMaxNameLength);
 	gRegisteredTypeToString[ve.GetType()](ve.GetValueAddr(obj_addr), watch_entry.mValue, kMaxNameLength);
 
+    // -- fill in the array size
+    watch_entry.mArraySize = ve.GetArraySize();
+
 	watch_entry.mVarHash = ve.GetHash();
 	watch_entry.mVarObjectID = 0;
 
@@ -1230,6 +1233,7 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
 	    // -- looping through, as long as at each step, we find a valid object
 	    CDebuggerWatchVarEntry found_variable;
 	    found_variable.mType = TYPE_void;
+        found_variable.mArraySize = 0;
 	    CObjectEntry* parent_oe = NULL;
 	    CObjectEntry* oe = NULL;
 	    CVariableEntry* ve = NULL;
@@ -1284,10 +1288,11 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
 			    found_variable.mObjectID = 0;
 			    found_variable.mNamespaceHash = 0;
 
-			    // -- type, name, and value string
+			    // -- type, name, and value string, and array size
 			    found_variable.mType = TYPE_object;
 			    SafeStrcpy(found_variable.mVarName, UnHash(oe->GetNameHash()), kMaxNameLength);
 			    sprintf_s(found_variable.mValue, "%d", object_id);
+                found_variable.mArraySize = 1;
 
 			    found_variable.mVarHash = oe->GetNameHash();
 			    found_variable.mVarObjectID = object_id;
@@ -1423,10 +1428,11 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
 		        watch_result.mObjectID = 0;
 		        watch_result.mNamespaceHash = 0;
 
-		        // -- type, name, and value string
+		        // -- type, name, and value string, and array size
 		        watch_result.mType = returnType;
 		        SafeStrcpy(watch_result.mVarName, variable_watch, kMaxNameLength);
                 gRegisteredTypeToString[returnType](returnValue, watch_result.mValue, kMaxNameLength);
+                watch_result.mArraySize = 1;
 
 		        watch_result.mVarHash = Hash(variable_watch);
 		        watch_result.mVarObjectID = 0;
@@ -1528,12 +1534,15 @@ bool8 CScriptContext::InitWatchExpression(CDebuggerWatchExpression& debugger_wat
         else
         {
             // -- create a cloned local variable
-            temp_context->AddLocalVar(cur_ve->GetName(), cur_ve->GetHash(), cur_ve->GetType(), 1, true);
+            temp_context->AddLocalVar(cur_ve->GetName(), cur_ve->GetHash(), cur_ve->GetType(), 1, false);
         }
 
         // -- get the next local var
         cur_ve = cur_var_table->Next();
     }
+
+    // -- initialize the stack offsets
+    temp_context->InitStackVarOffsets(fe);
 
     // -- push the temporary function entry onto the temp code block, so we can compile our watch function
     codeblock->smFuncDefinitionStack->Push(fe, cur_object, 0);
@@ -1653,7 +1662,7 @@ bool8 CScriptContext::EvalWatchExpression(CDebuggerWatchExpression& debugger_wat
 
     // -- call the function
     funccallstack.BeginExecution();
-    bool8 result = CodeBlockCallFunction(watch_function, NULL, execstack, funccallstack);
+    bool8 result = CodeBlockCallFunction(watch_function, NULL, execstack, funccallstack, false);
 
     // -- if we executed succesfully...
     if (result)
@@ -1794,7 +1803,7 @@ bool8 CScriptContext::EvaluateWatchExpression(const char* expression, bool8 cond
 
                 // -- call the function
                 funccallstack.BeginExecution();
-                bool8 result = CodeBlockCallFunction(fe, NULL, execstack, funccallstack);
+                bool8 result = CodeBlockCallFunction(fe, NULL, execstack, funccallstack, false);
 
                 // -- if we executed succesfully...
                 if (result)
@@ -2188,6 +2197,9 @@ void CScriptContext::DebuggerSendWatchVariable(CDebuggerWatchVarEntry* watch_var
     // -- var type
     total_size += sizeof(int32);
 
+    // -- array size
+    total_size += sizeof(int32);
+
     // -- the next will be mName - we'll round up to a 4-byte aligned length (including the EOL)
     int32 nameLength = strlen(watch_var_entry->mVarName) + 1;
     nameLength += 4 - (nameLength % 4);
@@ -2249,6 +2261,9 @@ void CScriptContext::DebuggerSendWatchVariable(CDebuggerWatchVarEntry* watch_var
     // -- write the type
     *dataPtr++ = watch_var_entry->mType;
 
+    // -- write the array size
+    *dataPtr++ = watch_var_entry->mArraySize;
+
     // -- write the name string length
     *dataPtr++ = nameLength;
 
@@ -2303,6 +2318,9 @@ void CScriptContext::DebuggerSendObjectMembers(CDebuggerWatchVarEntry* callingFu
         SafeStrcpy(watch_entry.mVarName, "self", kMaxNameLength);
         SafeStrcpy(watch_entry.mValue, oe->GetName(), kMaxNameLength);
 
+        // -- zero out the size
+        watch_entry.mArraySize = 0;
+
         // -- fill in the cached members
         watch_entry.mVarHash = watch_entry.mNamespaceHash;
         watch_entry.mVarObjectID = 0;
@@ -2334,6 +2352,9 @@ void CScriptContext::DebuggerSendObjectMembers(CDebuggerWatchVarEntry* callingFu
         ns_entry.mType = TYPE_void;
         SafeStrcpy(ns_entry.mVarName, UnHash(ns->GetHash()), kMaxNameLength);
         ns_entry.mValue[0] = '\0';
+
+        // -- zero out the size
+        ns_entry.mArraySize = 0;
 
         // -- fill in the cached members
         ns_entry.mVarHash = ns_entry.mNamespaceHash;
@@ -2376,8 +2397,9 @@ void CScriptContext::DebuggerSendObjectVarTable(CDebuggerWatchVarEntry* callingF
         member_entry.mObjectID = oe->GetID();
         member_entry.mNamespaceHash = ns_hash;
 
-        // -- set the type
+        // -- set the type and size
         member_entry.mType = member->GetType();
+        member_entry.mArraySize = member->GetArraySize();
 
         // -- member name
         SafeStrcpy(member_entry.mVarName, UnHash(member->GetHash()), kMaxNameLength);

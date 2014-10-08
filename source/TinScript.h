@@ -249,6 +249,7 @@ class CDebuggerWatchVarEntry
         // -- if the mType is void, and we have an objectID and namespace hash,
         // -- then we have a namespace label
         eVarType mType;
+        int mArraySize;
         char mVarName[kMaxNameLength];
         char mValue[kMaxNameLength];
 

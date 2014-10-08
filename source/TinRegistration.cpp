@@ -30,6 +30,7 @@
 #include "TinScript.h"
 #include "TinCompile.h"
 #include "TinRegistration.h"
+#include "TinOpExecFunctions.h"
 
 // == namespace TinScript =============================================================================================
 
@@ -278,7 +279,8 @@ void CVariableEntry::ClearArrayParameter()
 // ====================================================================================================================
 // InitializeArrayParameter():  Array parameters are like references - initialize the details upon function call.
 // ====================================================================================================================
-void CVariableEntry::InitializeArrayParameter(CVariableEntry* assign_from_ve, CObjectEntry* assign_from_oe)
+void CVariableEntry::InitializeArrayParameter(CVariableEntry* assign_from_ve, CObjectEntry* assign_from_oe,
+                                              CExecStack& execstack, CFunctionCallStack& funccallstack)
 {
     // -- ensure we have an array parameter
     if (!mIsParameter || mArraySize != -1 || !assign_from_ve)
@@ -298,11 +300,33 @@ void CVariableEntry::InitializeArrayParameter(CVariableEntry* assign_from_ve, CO
 
     // -- the address is the usual complication, based on object member, dynamic var, global, registered, ...
     void* valueaddr = NULL;
-    if (assign_from_oe && !assign_from_ve->mIsDynamic)
+    if (assign_from_ve->IsStackVariable(funccallstack))
+    {
+        valueaddr = GetStackVarAddr(GetScriptContext(), execstack, funccallstack, assign_from_ve->GetStackOffset());
+        if (mStringHashArray != NULL)
+        {
+            mStringHashArray = (uint32*)valueaddr;
+        }
+    }
+    else if (assign_from_oe && !assign_from_ve->mIsDynamic)
         valueaddr = (void*)((char*)assign_from_oe->GetAddr() + assign_from_ve->mOffset);
     else
         valueaddr = assign_from_ve->mAddr;
     mAddr = valueaddr;
+}
+
+// ====================================================================================================================
+// IsStackVariable():  Returns true if this variable is to use space on the stack as it's function is executing.
+// ====================================================================================================================
+bool8 CVariableEntry::IsStackVariable(CFunctionCallStack& funccallstack) const
+{
+    int32 stackoffset = 0;
+    CObjectEntry* oe = NULL;
+    CFunctionEntry* fe_executing = funccallstack.GetExecuting(oe, stackoffset);
+    CFunctionEntry* fe_top = funccallstack.GetTop(oe, stackoffset);
+    return (((fe_executing && fe_executing == GetFunctionEntry()) || (IsParameter() && fe_top &&
+                                                                      fe_top == GetFunctionEntry())) &&
+            GetType() != TYPE_hashtable && mStackOffset >= 0 && (!IsArray() || !IsParameter()));
 }
 
 // ====================================================================================================================

@@ -4,6 +4,11 @@ void Remy::OnCreate()
     int self.coffeePercent = 0;
 }
 
+void TestFunc(int a int b)
+{
+    Print("FOO");
+}
+
 void Remy::SayHello()
 {
     if (self.coffeePercent < 25)

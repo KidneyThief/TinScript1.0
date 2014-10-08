@@ -2639,7 +2639,7 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 
         // -- see if we've got a comma
         tReadToken peektoken(filebuf);
-        if (!GetToken(peektoken))
+        if (!GetToken(peektoken) || (peektoken.type != TOKEN_COMMA && peektoken.type != TOKEN_PAREN_CLOSE))
         {
             ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                           filebuf.linenumber, "Error - expecting ')'\n");

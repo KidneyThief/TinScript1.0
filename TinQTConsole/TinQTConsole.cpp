@@ -1248,6 +1248,9 @@ void CConsoleOutput::HandlePacketWatchVarEntry(int32* dataPtr)
     // -- var type
     watch_var_entry.mType = (TinScript::eVarType)(*dataPtr++);
 
+    // -- array size
+    watch_var_entry.mArraySize = (TinScript::eVarType)(*dataPtr++);
+
     // -- name string length
     int32 name_str_length = *dataPtr++;
 

@@ -61,7 +61,61 @@ void DebugTrace(eOpCode opcode, const char* fmt, ...)
 }
 
 // ====================================================================================================================
-// GetStackVarAddr():  Get the address of a stack veriable.
+// GetStackVarAddr():  Get the address of a stack veriable, given the actual variable entry
+// ====================================================================================================================
+void* GetStackVarAddr(CScriptContext* script_context, CExecStack& execstack, CFunctionCallStack& funccallstack,
+                      CVariableEntry& ve, int32 array_var_index)
+{
+    // -- ensure the variable is a stack variable
+    if (!ve.IsStackVariable(funccallstack))
+    {
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - GetStackVarAddr() failed\n");
+        return NULL;
+    }
+
+    int32 executing_stacktop = 0;
+    CObjectEntry* oe = NULL;
+    CFunctionEntry* fe_executing = funccallstack.GetExecuting(oe, executing_stacktop);
+
+    int32 calling_stacktop = 0;
+    CFunctionEntry* fe_top = funccallstack.GetTop(oe, calling_stacktop);
+
+    CFunctionEntry* use_fe = ve.IsParameter() && fe_top && ve.GetFunctionEntry() == fe_top ? fe_top :
+                             fe_executing && ve.GetFunctionEntry() == fe_executing ? fe_executing :
+                             NULL;
+
+    int32 use_stacktop = ve.IsParameter() && fe_top && ve.GetFunctionEntry() == fe_top ? calling_stacktop :
+                             fe_executing && ve.GetFunctionEntry() == fe_executing ? executing_stacktop :
+                             0;
+
+    if (!use_fe || ve.GetStackOffset() < 0)
+    {
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - GetStackVarAddr() failed\n");
+        return NULL;
+    }
+
+    void* varaddr = execstack.GetStackVarAddr(use_stacktop, ve.GetStackOffset());
+
+    // -- see if this is an array
+    if (varaddr && ve.IsArray() && array_var_index > 0)
+    {
+        if (array_var_index >= ve.GetArraySize())
+        {
+            ScriptAssert_(script_context, 0, "<internal>", -1, "Error - Array index out of range: %s[%d]\n",
+                          UnHash(ve.GetHash()), array_var_index);
+            return NULL;
+        }
+
+        // -- offset the address by the array index - all variables on the stack, including arrays
+        // -- are reserved the max type size amount of space.
+        varaddr = (void*)((char*)varaddr + (gRegisteredTypeSize[ve.GetType()] * array_var_index));
+    }
+
+    return (varaddr);
+}
+
+// ====================================================================================================================
+// GetStackVarAddr():  Get the address of a stack veriable, given the local variable index
 // ====================================================================================================================
 void* GetStackVarAddr(CScriptContext* script_context, CExecStack& execstack, CFunctionCallStack& funccallstack,
                       int32 stackvaroffset)
@@ -99,7 +153,7 @@ bool8 GetStackValue(CScriptContext* script_context, CExecStack& execstack,
         uint32 val1hash = ((uint32*)valaddr)[2];
 
         // -- one more level of dereference for variables that are actually hashtables or arrays
-        uint32 ve_array_hash_index = (valtype == TYPE__hashvarindex) ? ((uint32*)valaddr)[3] : 0;
+        int32 ve_array_hash_index = (valtype == TYPE__hashvarindex) ? ((int32*)valaddr)[3] : 0;
 
         // -- this method will return the object, if the 4x parameters resolve to an object member
         ve = GetObjectMember(script_context, oe, val1ns, val1func, val1hash, ve_array_hash_index);
@@ -117,12 +171,23 @@ bool8 GetStackValue(CScriptContext* script_context, CExecStack& execstack,
             return (false);
         }
 
-        // -- if the variable is not a hashtable, but an array, we need to get the address of the array element
-        if (ve->IsArray())
-            valaddr = ve->GetArrayVarAddr(oe ? oe->GetAddr() : NULL, ve_array_hash_index);
+        // -- set the type
+        valtype = ve->GetType();
+
+        // -- if the ve belongs to a function, and is not a hash table or parameter array, we need
+        // -- to find the stack address, as all local variable live on the stack
+        if (ve && ve->IsStackVariable(funccallstack))
+        {
+            valaddr = GetStackVarAddr(script_context, execstack, funccallstack, *ve, ve_array_hash_index);
+        }
         else
-		    valaddr = ve->GetAddr(NULL);
-		valtype = ve->GetType();
+        {
+            // -- if the variable is not a hashtable, but an array, we need to get the address of the array element
+            if (ve->IsArray())
+                valaddr = ve->GetArrayVarAddr(oe ? oe->GetAddr() : NULL, ve_array_hash_index);
+            else
+		        valaddr = ve->GetAddr(oe ? oe->GetAddr() : NULL);
+        }
 	}
 
 	// -- if a member was pushed, use the var addr instead
@@ -179,11 +244,10 @@ bool8 GetStackValue(CScriptContext* script_context, CExecStack& execstack,
         // -- as part of "ClearParameters"
         if (valtype != TYPE_hashtable)
         {
-            valaddr = GetStackVarAddr(script_context, execstack, funccallstack, stackvaroffset);
+            valaddr = GetStackVarAddr(script_context, execstack, funccallstack, local_var_index);
             if (!valaddr)
             {
-                ScriptAssert_(script_context, 0, "<internal>", -1,
-                              "Error - Unable to find stack var\n");
+                ScriptAssert_(script_context, 0, "<internal>", -1, "Error - Unable to find stack var\n");
                 return false;
             }
 
@@ -414,6 +478,9 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack, CFu
         return (false);
     }
 
+    // -- if the variable is a local variable, we also have the actual address already
+    use_var_addr = use_var_addr || (ve0 && ve0->IsStackVariable(funccallstack));
+
     // -- ensure we're assigning to a variable, an object member, or a local stack variable
     if (!ve0 && !use_var_addr)
     {
@@ -470,7 +537,7 @@ bool8 PerformAssignOp(CScriptContext* script_context, CExecStack& execstack, CFu
         if (ve0->IsParameter() && ve0->GetArraySize() == -1 && ve1 && ve1->IsArray() &&
             ve0->GetType() == ve1->GetType())
         {
-            ve0->InitializeArrayParameter(ve1, oe1);
+            ve0->InitializeArrayParameter(ve1, oe1, execstack, funccallstack);
         }
 
         else if (!ve0->IsArray())
@@ -1129,7 +1196,7 @@ bool8 OpExecPushArrayValue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
                         "Error - ExecStack should contain TYPE_int\n");
         return false;
     }
-    uint32 arrayvarhash = *(uint32*)contentptr;
+    int32 arrayvarhash = *(int32*)contentptr;
 
     // -- next, pop the hash table variable off the stack
     // -- pull the hashtable variable off the stack
@@ -1193,9 +1260,18 @@ bool8 OpExecPushArrayValue(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
     }
 
     // -- push the variable onto the stack
+    // -- if the variable is a stack parameter, we need to push it's value from the stack
     eVarType vetype = ve->GetType();
-    void* veaddr = ve->IsArray() ? ve->GetArrayVarAddr(oe0 ? oe0->GetAddr() : NULL, arrayvarhash)
-                                 : ve->GetAddr(oe0 ? oe0->GetAddr() : NULL);
+    void* veaddr = NULL;
+    if (ve->IsStackVariable(funccallstack))
+    {
+        veaddr = GetStackVarAddr(cb->GetScriptContext(), execstack, funccallstack, *ve, arrayvarhash);
+    }
+    else
+    {
+        veaddr = ve->IsArray() ? ve->GetArrayVarAddr(oe0 ? oe0->GetAddr() : NULL, arrayvarhash)
+                               : ve->GetAddr(oe0 ? oe0->GetAddr() : NULL);
+    }
 
     execstack.Push(veaddr, vetype);
     if (oe0)
@@ -1935,7 +2011,7 @@ bool8 OpExecMethodCallArgs(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, 
 // OpExecFuncCall():  Call a function.
 // ====================================================================================================================
 extern bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
-                                   CFunctionCallStack& funccallstack);
+                                   CFunctionCallStack& funccallstack, bool copy_stack_parameters);
 
 bool8 OpExecFuncCall(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecStack& execstack,
                      CFunctionCallStack& funccallstack)
@@ -1952,7 +2028,7 @@ bool8 OpExecFuncCall(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
 
     DebugTrace(op, "func: %s", UnHash(fe->GetHash()));
 
-    bool8 result = CodeBlockCallFunction(fe, oe, execstack, funccallstack);
+    bool8 result = CodeBlockCallFunction(fe, oe, execstack, funccallstack, false);
     if (!result) {
         DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
                         "Error - Unable to call function: %s()\n",

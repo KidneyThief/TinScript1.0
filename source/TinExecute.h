@@ -176,7 +176,12 @@ class CExecStack
 
         void Reserve(int32 wordcount)
         {
+            uint32* cur_stack_top = mStackTop;
             mStackTop += wordcount;
+            if (wordcount > 0)
+            {
+                memset(cur_stack_top, 0, sizeof(uint32) * wordcount);
+            }
         }
 
         void UnReserve(int32 wordcount)
@@ -395,7 +400,7 @@ bool8 ExecuteCodeBlock(CCodeBlock& codeblock);
 bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, uint32 funchash,
                                CFunctionContext* parameters);
 bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
-                            CFunctionCallStack& funccallstack);
+                            CFunctionCallStack& funccallstack, bool copy_stack_parameters);
 
 bool8 DebuggerBreakLoop(CCodeBlock* cb, const uint32* instrptr, CExecStack& execstack,
                         CFunctionCallStack& funccallstack, const char* assert_msg = NULL);

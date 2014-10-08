@@ -163,6 +163,7 @@ int32 CFunctionCallStack::DebuggerGetStackVarEntries(CScriptContext* script_cont
 
 	// -- copy the var type, name and value
 	cur_entry->mType = funcReturnType;
+    cur_entry->mArraySize = 1;
 	strcpy_s(cur_entry->mVarName, "_return");
 
     // -- copy the value, as a string (to a max length)
@@ -214,6 +215,7 @@ int32 CFunctionCallStack::DebuggerGetStackVarEntries(CScriptContext* script_cont
 
                 // -- copy the var type, name and value
                 cur_entry->mType = TYPE_object;
+                cur_entry->mArraySize = 1;
                 strcpy_s(cur_entry->mVarName, "self");
                 sprintf_s(cur_entry->mValue, "%d", cur_entry->mFunctionObjectID);
 
@@ -252,6 +254,7 @@ int32 CFunctionCallStack::DebuggerGetStackVarEntries(CScriptContext* script_cont
 
                 // -- copy the var type
                 cur_entry->mType = ve->GetType();
+                cur_entry->mArraySize = ve->GetArraySize();
 
                 // -- copy the var name
                 SafeStrcpy(cur_entry->mVarName, UnHash(ve->GetHash()), kMaxNameLength);
@@ -443,7 +446,7 @@ void CFunctionCallStack::BeginExecution()
 // CodeBlockCallFunction():  Begin execution of a function, given the function entry and execution stacks.
 // ====================================================================================================================
 bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
-                            CFunctionCallStack& funccallstack)
+                            CFunctionCallStack& funccallstack, bool copy_stack_parameters)
 {
     // -- at this point, the funccallstack has the CFunctionEntry pushed
     // -- and all parameters have been copied - either to the function's local var table
@@ -452,9 +455,10 @@ bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
     // -- scripted function
     if (fe->GetType() == eFuncTypeScript)
     {
-        // -- for scripted functions, we need to copy the localvartable onto the stack,
-        // -- to ensure threaded or recursive function calls don't stomp each other
-        CopyStackParameters(fe, execstack, funccallstack);
+        // -- for scheduled function calls, the stack parameters are still stored in the context
+        // -- for regular function calls, GetStackVarAddr() will already have used the stack
+        if (copy_stack_parameters)
+            CopyStackParameters(fe, execstack, funccallstack);
 
         CCodeBlock* funccb = NULL;
         uint32 funcoffset = fe->GetCodeBlockOffset(funccb);
@@ -623,7 +627,7 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
     funccallstack.BeginExecution();
 
     // -- call the function
-    bool8 result = CodeBlockCallFunction(fe, oe, execstack, funccallstack);
+    bool8 result = CodeBlockCallFunction(fe, oe, execstack, funccallstack, true);
     if (!result)
     {
         ScriptAssert_(script_context, 0, "<internal>", -1,
@@ -732,8 +736,8 @@ bool8 DebuggerBreakLoop(CCodeBlock* cb, const uint32* instrptr, CExecStack& exec
         if (assert_msg && assert_msg[0])
         {
             TinPrint(script_context, assert_msg);
-            return (true);
         }
+        return (true);
     }
 
     // -- set the guard and cache the current exec stack and function call stack
