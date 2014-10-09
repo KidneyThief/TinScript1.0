@@ -173,6 +173,13 @@ class CConsoleInput : public QLineEdit
         explicit CConsoleInput(QWidget* parent);
         virtual ~CConsoleInput() { }
 
+        void NotifyConnectionStatus(bool is_connected)
+        {
+	        QPalette myPalette = mInputLabel->palette();
+	        myPalette.setColor(QPalette::WindowText, is_connected ? Qt::darkGreen : Qt::red);	
+	        mInputLabel->setPalette(myPalette);
+        }
+
     public slots:
         void OnButtonConnectPressed();
         void OnConnectIPReturnPressed();
@@ -224,12 +231,21 @@ class CConsoleInput : public QLineEdit
 // ====================================================================================================================
 // class CConsoleOutput:  An output window, receiving any form of output message from the debug target.
 // ====================================================================================================================
-class CConsoleOutput : public QListWidget {
+class CConsoleOutput : public QListWidget
+{
     Q_OBJECT;
 
     public:
         explicit CConsoleOutput(QWidget* parent);
         virtual ~CConsoleOutput();
+
+        void NotifyConnectionStatus(bool is_connected)
+        {
+            QDockWidget* parent_widget = static_cast<QDockWidget*>(parent());
+	        QPalette myPalette = parent_widget->palette();
+	        myPalette.setColor(QPalette::WindowText, is_connected ? Qt::darkGreen : Qt::red);	
+	        parent_widget->setPalette(myPalette);
+        }
 
         virtual void paintEvent(QPaintEvent* e)
         {

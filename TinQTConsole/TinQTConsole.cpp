@@ -65,6 +65,12 @@
 bool PushDebuggerAssertDialog(const char* assertmsg, bool& ignore);
 
 // ------------------------------------------------------------------------------------------------
+// -- statics
+static const char* kConsoleSendPrefix = ">> ";
+static const char* kConsoleRecvPrefix = "";
+static const char* kLocalSendPrefix = "> ";
+
+// ------------------------------------------------------------------------------------------------
 CConsoleWindow* CConsoleWindow::gConsoleWindow = NULL;
 CConsoleWindow::CConsoleWindow()
 {
@@ -311,6 +317,9 @@ bool PushAssertDialog(const char* assertmsg, const char* errormsg, bool& skip, b
 
 int ConsolePrint(const char* fmt, ...)
 {
+    static bool initialized = false;
+    static char last_msg[4096] = { '\0' };
+
     // -- write the string into the buffer
     va_list args;
     va_start(args, fmt);
@@ -318,7 +327,54 @@ int ConsolePrint(const char* fmt, ...)
     vsprintf_s(buffer, 2048, fmt, args);
     va_end(args);
 
-    CConsoleWindow::GetInstance()->AddText(buffer);
+    // -- if the last label exists, it means we want to append because it didn't end in a '\n'
+    if (last_msg[0] != '\0')
+    {
+        int last_msg_length = strlen(last_msg);
+        TinScript::SafeStrcpy(&last_msg[last_msg_length], buffer, 4096 - last_msg_length);
+        int msg_count = CConsoleWindow::GetInstance()->GetOutput()->count();
+        CConsoleWindow::GetInstance()->GetOutput()->takeItem(msg_count - 1);
+    }
+    else
+    {
+        TinScript::SafeStrcpy(last_msg, buffer, 4096);
+    }
+
+    // -- print the buffer
+    char* buf_ptr = last_msg;
+    while (buf_ptr && *buf_ptr != '\0')
+    {
+        // -- add a separate line at every newline character
+        char* eol_ptr = strchr(buf_ptr, '\n');
+        if (eol_ptr)
+        {
+            *eol_ptr = '\0';
+            CConsoleWindow::GetInstance()->AddText(const_cast<char*>(buf_ptr));
+            buf_ptr = eol_ptr + 1;
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    // -- if the buffer didn't end on a newline
+    if (*buf_ptr != '\0')
+    {
+        // -- add the last message
+        CConsoleWindow::GetInstance()->AddText(const_cast<char*>(buf_ptr));
+
+        // -- copy the message to the beginning of the buffer
+        if (buf_ptr > last_msg)
+            TinScript::SafeStrcpy(last_msg, buf_ptr, 4096);
+    }
+
+    // -- otherwise, zero out the last msg so we don't append
+    else
+    {
+        last_msg[0] = '\0';
+    }
+
     return(0);
 }
 
@@ -329,7 +385,7 @@ bool8 AssertHandler(TinScript::CScriptContext* script_context, const char* condi
     if (!script_context->IsAssertStackSkipped() || script_context->IsAssertEnableTrace())
     {
         if(!script_context->IsAssertStackSkipped())
-            ConsolePrint("*************************************************************\n");
+            ConsolePrint("\n*************************************************************\n");
         else
             ConsolePrint("\n");
 
@@ -397,11 +453,15 @@ void CConsoleWindow::NotifyOnConnect()
     // -- resend our list of breakpoints
     GetDebugBreakpointsWin()->NotifyOnConnect();
 
+    // -- Console Input label is colored to reflect connection status
+    mConsoleOutput->NotifyConnectionStatus(true);
+    mConsoleInput->NotifyConnectionStatus(true);
+
     // -- add some details
-    ConsolePrint("*******************************************************************");
-    ConsolePrint("*                                 Debugger Connected                                     *");
-    ConsolePrint("*  All console input will be redirected to the connected target.  *");
-    ConsolePrint("*******************************************************************");
+    ConsolePrint("*******************************************************************\n");
+    ConsolePrint("*                                 Debugger Connected                                     *\n");
+    ConsolePrint("*  All console input will be redirected to the connected target.  *\n");
+    ConsolePrint("*******************************************************************\n");
 }
 
 void CConsoleWindow::NotifyOnDisconnect()
@@ -419,6 +479,10 @@ void CConsoleWindow::NotifyOnDisconnect()
     // -- set the status message
     SetStatusMessage("Not Connected");
     SetTargetInfoMessage("");
+
+    // -- update the input label to reflrect our connection status
+    mConsoleOutput->NotifyConnectionStatus(false);
+    mConsoleInput->NotifyConnectionStatus(false);
 }
 
 void CConsoleWindow::NotifyOnClose()
@@ -757,6 +821,9 @@ CConsoleInput::CConsoleInput(QWidget* parent) : QLineEdit(parent)
 
     // -- create the label as well
     mInputLabel = new QLabel("==>", parent);
+
+    // -- initialize the connection status
+    NotifyConnectionStatus(false);
 }
 
 void CConsoleInput::OnButtonConnectPressed()
@@ -799,9 +866,9 @@ void CConsoleInput::OnReturnPressed()
 
     bool8 is_connected = CConsoleWindow::GetInstance()->IsConnected();
     if (is_connected)
-        ConsolePrint("SEND> %s", input_text);
+        ConsolePrint("%s%s\n", kConsoleSendPrefix, input_text);
     else
-        ConsolePrint("> %s", input_text);
+        ConsolePrint("%s%s\n", kLocalSendPrefix, input_text);
 
     // -- add this to the history buf
     const char* historyptr = (mHistoryLastIndex < 0) ? NULL : mHistory[mHistoryLastIndex];
@@ -928,9 +995,13 @@ CConsoleOutput::CConsoleOutput(QWidget* parent) : QListWidget(parent)
     mTimer = new QTimer(this);
     connect(mTimer, SIGNAL(timeout()), this, SLOT(Update()));
     mTimer->start(kUpdateTime);
+
+    // -- initialize the connection status (sets the color)
+    NotifyConnectionStatus(false);
 }
 
-CConsoleOutput::~CConsoleOutput() {
+CConsoleOutput::~CConsoleOutput()
+{
     delete mTimer;
 }
 
@@ -1319,7 +1390,7 @@ void CConsoleOutput::HandlePacketPrintMsg(int32* dataPtr)
     dataPtr += (msg_length / 4);
 
     // -- add the message, preceeded with some indication that it's a remote message
-    ConsolePrint("RECV> %s", msg);
+    ConsolePrint("%s%s", kConsoleRecvPrefix, msg);
 }
 
 // ====================================================================================================================
@@ -1366,8 +1437,8 @@ bool PushDebuggerAssertDialog(const char* assertmsg, bool& ignore)
     QString dialog_msg = QString(assertmsg);
     msgBox.setText(dialog_msg);
 
-    ConsolePrint("RECV> *** ASSERT ***");
-    ConsolePrint("RECV> %s", assertmsg);
+    ConsolePrint("*** ASSERT ***\n");
+    ConsolePrint("%s\n", assertmsg);
 
     QPushButton *ignore_button = msgBox.addButton("Ignore", QMessageBox::ActionRole);
     QPushButton *break_button = msgBox.addButton("Break", QMessageBox::ActionRole);
