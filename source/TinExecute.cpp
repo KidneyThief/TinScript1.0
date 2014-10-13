@@ -150,6 +150,9 @@ int32 CFunctionCallStack::DebuggerGetStackVarEntries(CScriptContext* script_cont
 	// -- debugger stack dumps are well defined and aren't a response to a dynamic request
 	cur_entry->mWatchRequestID = 0;
 
+    // -- set the stack level
+    cur_entry->mStackLevel = -1;
+
 	// -- copy the calling function info
 	// -- use the top level function being called, since it's the only function that can use
 	// -- the return value from the last function executed
@@ -164,7 +167,7 @@ int32 CFunctionCallStack::DebuggerGetStackVarEntries(CScriptContext* script_cont
 	// -- copy the var type, name and value
 	cur_entry->mType = funcReturnType;
     cur_entry->mArraySize = 1;
-	strcpy_s(cur_entry->mVarName, "_return");
+	strcpy_s(cur_entry->mVarName, "__return");
 
     // -- copy the value, as a string (to a max length)
 	if (funcReturnType >= FIRST_VALID_TYPE)
@@ -173,7 +176,7 @@ int32 CFunctionCallStack::DebuggerGetStackVarEntries(CScriptContext* script_cont
 		cur_entry->mValue[0] = '\0';
 
 	// -- fill in the cached members
-	cur_entry->mVarHash = Hash("_return");
+	cur_entry->mVarHash = Hash("__return");
 	cur_entry->mVarObjectID = 0;
     if (funcReturnType == TYPE_object)
     {
@@ -204,6 +207,9 @@ int32 CFunctionCallStack::DebuggerGetStackVarEntries(CScriptContext* script_cont
 				// -- debugger stack dumps are well defined and aren't a response to a dynamic request
 				cur_entry->mWatchRequestID = 0;
 
+                // -- set the stack level
+                cur_entry->mStackLevel = stack_index;
+
                 // -- copy the calling function info
                 cur_entry->mFuncNamespaceHash = funcentrystack[stack_index].funcentry->GetNamespaceHash();
                 cur_entry->mFunctionHash = funcentrystack[stack_index].funcentry->GetHash();
@@ -229,6 +235,13 @@ int32 CFunctionCallStack::DebuggerGetStackVarEntries(CScriptContext* script_cont
             CVariableEntry* ve = func_vt->First();
             while (ve)
             {
+                // -- the first variable is usually the "__return", which we handle separately
+                if (ve->GetHash() == Hash("__return"))
+                {
+                    ve = func_vt->Next();
+                    continue;
+                }
+
                 // -- limit of kDebuggerWatchWindowSize
                 if (entry_count >= max_array_size)
                     return (entry_count);
@@ -240,6 +253,9 @@ int32 CFunctionCallStack::DebuggerGetStackVarEntries(CScriptContext* script_cont
 
 				// -- clear the dynamic watch request ID
 				cur_entry->mWatchRequestID = 0;
+
+                // -- set the stack level
+                cur_entry->mStackLevel = stack_index;
 
                 // -- copy the calling function info
                 cur_entry->mFuncNamespaceHash = funcentrystack[stack_index].funcentry->GetNamespaceHash();
@@ -311,6 +327,9 @@ bool CFunctionCallStack::DebuggerFindStackTopVar(CScriptContext* script_context,
 				// -- clear the dynamic watch request ID
 				watch_entry.mWatchRequestID = 0;
 
+                // -- set the stack level
+                watch_entry.mStackLevel = stack_index;
+
 				// -- copy the calling function info
 				watch_entry.mFuncNamespaceHash = funcentrystack[stack_index].funcentry->GetNamespaceHash();
 				watch_entry.mFunctionHash = funcentrystack[stack_index].funcentry->GetHash();
@@ -349,6 +368,9 @@ bool CFunctionCallStack::DebuggerFindStackTopVar(CScriptContext* script_context,
 
 						// -- clear the dynamic watch request ID
 						watch_entry.mWatchRequestID = 0;
+
+                        // -- set the stack level
+                        watch_entry.mStackLevel = stack_index;
 
 						// -- copy the calling function info
 						watch_entry.mFuncNamespaceHash = funcentrystack[stack_index].funcentry->GetNamespaceHash();

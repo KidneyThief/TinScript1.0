@@ -260,6 +260,26 @@ void CDebugBreakpointsWin::keyPressEvent(QKeyEvent* event)
                 SocketManager::SendCommandf("DebuggerToggleVarWatch(%d, %d, %d, false, ``, ``, false);",
                                             cur_item->mWatchRequestID, cur_item->mWatchVarObjectID,
                                             cur_item->mWatchVarNameHash);
+
+                // -- find and remove the breakpoint
+                int found_index = -1;
+                CBreakpointEntry* breakpoint = NULL;
+                for(int i = 0; i < mBreakpoints.size(); ++i)
+                {
+                    CBreakpointEntry* temp = mBreakpoints.at(i);
+                    if (temp->mWatchRequestID == cur_item->mWatchRequestID)
+                    {
+                        breakpoint = temp;
+                        found_index = i;
+                        break;
+                    }
+                }
+
+                if (found_index >= 0)
+                {
+                    mBreakpoints.removeAt(found_index);
+                    delete breakpoint;
+                }
             }
         }
         return;
@@ -788,11 +808,25 @@ int CDebugCallstackWin::GetSelectedStackEntry(uint32& func_ns_hash, uint32& func
         func_hash = stack_entry->mFunctionHash;
         func_obj_id = stack_entry->mObjectID;
 
-        return (stack_index);
+        return (mCallstack.size() - stack_index - 1);
     }
 
     // -- fail
     return (-1);
+}
+
+int CDebugCallstackWin::GetTopStackEntry(uint32& func_ns_hash, uint32& func_hash, uint32& func_obj_id)
+{
+    if (mCallstack.size() <= 0)
+        return (-1);
+
+    QListWidgetItem* cur_item = mCallstack.at(0);
+    CCallstackEntry* stack_entry = static_cast<CCallstackEntry*>(cur_item);
+    func_ns_hash = stack_entry->mNamespaceHash;
+    func_hash = stack_entry->mFunctionHash;
+    func_obj_id = stack_entry->mObjectID;
+
+    return (mCallstack.size() - 1);
 }
 
 // ====================================================================================================================
@@ -810,7 +844,7 @@ int CDebugCallstackWin::ValidateStackEntry(uint32 func_ns_hash, uint32 func_hash
         if (callstack_entry && callstack_entry->mNamespaceHash == func_ns_hash &&
             callstack_entry->mFunctionHash == func_hash && callstack_entry->mObjectID == func_obj_id)
         {
-            return (stack_index);
+            return (mCallstack.size() - stack_index - 1);
         }
 
         // -- not yet found

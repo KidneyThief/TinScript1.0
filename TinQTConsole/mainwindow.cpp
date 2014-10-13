@@ -71,38 +71,111 @@
 #include "TinQTBreakpointsWin.h"
 
 // ====================================================================================================================
+// -- class implementation for ensuring we have a const char* value for a QLineEdit
+class SafeLineEdit : public QLineEdit
+{
+    public:
+        SafeLineEdit(QWidget* parent) : QLineEdit()
+        {
+            mStringValue[0] = '\0';
+        }
+
+        void SetStringValue(const char* value)
+        {
+            const char* new_value = value ? value : "";
+            TinScript::SafeStrcpy(mStringValue, new_value, TinScript::kMaxNameLength);
+            setText(new_value);
+        }
+
+        const char* GetStringValue() const
+        {
+            return (mStringValue);
+        }
+
+    protected:
+        virtual void keyPressEvent(QKeyEvent *e)
+        {
+            // -- pass the event along
+            QLineEdit::keyPressEvent(e);
+
+            // -- store the current value of the string
+            TinScript::SafeStrcpy(mStringValue, text().toUtf8(), TinScript::kMaxNameLength);
+        }
+
+    private:
+        char mStringValue[TinScript::kMaxNameLength];
+};
+
+// ====================================================================================================================
 // -- class implementation for add variable watch dialog
 class CreateVarWatchDialog : public QDialog
 {
 public:
     CreateVarWatchDialog(QWidget *parent = 0);
 
-    void SetVariableName(const char* variable_name);
-    QString GetVariableName() const;
-    bool IsBreakOnWrite() const;
+    void SetRequestID(int32 request_id)
+    {
+        mRequestID = request_id;
+    }
+
+    int32 GetRequestID() const
+    {
+        return (mRequestID);
+    }
+
+    void SetVariableName(const char* variable_name)
+    {
+        mVariableName->SetStringValue(variable_name);
+    }
+    const char* GetVariableName() const
+    {
+        return (mVariableName->GetStringValue());
+    }
+    void SetUpdateValue(const char* value)
+    {
+        mUpdateValue->SetStringValue(value);
+    }
+    const char* GetUpdateValue() const
+    {
+        return (mUpdateValue->GetStringValue());
+    }
+    bool IsBreakOnWrite() const
+    {
+        return (mBreakOnWrite->isChecked());
+    }
 
 private:
-    QLineEdit *mVariableName;
+    int32 mRequestID;
+    SafeLineEdit *mVariableName;
+    SafeLineEdit *mUpdateValue;
     QCheckBox* mBreakOnWrite;
 };
 
 CreateVarWatchDialog::CreateVarWatchDialog(QWidget *parent)
     : QDialog(parent)
 {
-	setWindowTitle("Add Variable Watch");
+    mRequestID = -1;
+
+	setWindowTitle("Add/Edit Variable Watch");
 	setMinimumWidth(280);
     QGridLayout *layout = new QGridLayout(this);
 
     layout->addWidget(new QLabel(tr("Variable:")), 0, 0);
-    mVariableName = new QLineEdit;
+    mVariableName = new SafeLineEdit(parent);
     layout->addWidget(mVariableName, 0, 1);
 
+    QPushButton *new_value_button = new QPushButton(tr("Update:"));
+    connect(new_value_button, SIGNAL(clicked()), parent, SLOT(menuUpdateVarWatchValue()));
+    layout->addWidget(new_value_button, 1, 0);
+    mUpdateValue = new SafeLineEdit(parent);
+    layout->addWidget(mUpdateValue, 1, 1);
+
     mBreakOnWrite = new QCheckBox;
-    layout->addWidget(mBreakOnWrite, 1, 0);
-    layout->addWidget(new QLabel(tr("Break On Write")), 1, 1);
+    layout->addWidget(mBreakOnWrite, 2, 0);
+    layout->addWidget(new QLabel(tr("Break On Write")), 2, 1);
 
     QHBoxLayout *buttonLayout = new QHBoxLayout;
-    layout->addLayout(buttonLayout, 2, 0, 1, 2);
+    layout->addLayout(buttonLayout, 3, 0, 1, 2);
     buttonLayout->addStretch();
 
     QPushButton *cancelButton = new QPushButton(tr("Cancel"));
@@ -113,21 +186,6 @@ CreateVarWatchDialog::CreateVarWatchDialog(QWidget *parent)
     buttonLayout->addWidget(okButton);
 
     okButton->setDefault(true);
-}
-
-void CreateVarWatchDialog::SetVariableName(const char* variable_name)
-{
-    mVariableName->setText(QString(variable_name));
-}
-
-QString CreateVarWatchDialog::GetVariableName() const
-{
-    return (mVariableName->text());
-}
-
-bool CreateVarWatchDialog::IsBreakOnWrite() const
-{
-    return (mBreakOnWrite->isChecked());
 }
 
 // ====================================================================================================================
@@ -282,16 +340,21 @@ bool CreateBreakConditionDialog::IsTraceOnCondition() const
 }
 
 // ====================================================================================================================
+static CreateVarWatchDialog* gVarWatchDialog = NULL;
 void MainWindow::menuAddVariableWatch()
 {
     CreateVarWatchDialog dialog(this);
+
+    // -- while the dialog is active, we have a global pointer to access it
+    gVarWatchDialog = &dialog;
     int ret = dialog.exec();
+    gVarWatchDialog = NULL;
+
     if (ret == QDialog::Rejected)
         return;
 
-	CConsoleWindow::GetInstance()->GetDebugWatchesWin()->
-                                  AddVariableWatch(dialog.GetVariableName().toUtf8(),
-                                                   dialog.IsBreakOnWrite());
+	CConsoleWindow::GetInstance()->GetDebugWatchesWin()->AddVariableWatch(dialog.GetVariableName(),
+                                                                          dialog.IsBreakOnWrite());
 }
 
 void MainWindow::menuCreateVariableWatch()
@@ -300,6 +363,24 @@ void MainWindow::menuCreateVariableWatch()
 	    CConsoleWindow::GetInstance()->GetDebugWatchesWin()->CreateSelectedWatch();
     else if (CConsoleWindow::GetInstance()->GetDebugAutosWin()->hasFocus())
 	    CConsoleWindow::GetInstance()->GetDebugAutosWin()->CreateSelectedWatch();
+}
+
+void MainWindow::menuUpdateVarWatchValue()
+{
+    if (gVarWatchDialog)
+    {
+        int32 request_id = gVarWatchDialog->GetRequestID();
+        const char* watch_name = gVarWatchDialog->GetVariableName();
+        const char* update_value = gVarWatchDialog->GetUpdateValue();
+        if (watch_name && watch_name[0])
+        {
+            SocketManager::SendCommandf("DebuggerModifyVariableWatch(%d, `%s`, `%s`);", request_id, watch_name,
+                                        update_value ? update_value : "");
+        }
+
+        // -- close the dialog
+        gVarWatchDialog->reject();
+    }
 }
 
 void MainWindow::menuSetBreakCondition()
@@ -409,15 +490,21 @@ void MainWindow::AddScriptOpenAction(const char* fullPath)
 // ====================================================================================================================
 // CreateVariableWatch():  Called when using the dialog to create a watch, but with an initial string
 // ====================================================================================================================
-void MainWindow::CreateVariableWatch(const char* watch_string)
+void MainWindow::CreateVariableWatch(int32 request_id, const char* watch_string, const char* cur_value)
 {
     CreateVarWatchDialog dialog(this);
+    dialog.SetRequestID(request_id);
     dialog.SetVariableName(watch_string);
+    dialog.SetUpdateValue(cur_value);
+
+    gVarWatchDialog = &dialog;
     int ret = dialog.exec();
+    gVarWatchDialog = NULL;
+
     if (ret == QDialog::Rejected)
         return;
 
-	CConsoleWindow::GetInstance()->GetDebugWatchesWin()->AddVariableWatch(dialog.GetVariableName().toUtf8(),
+	CConsoleWindow::GetInstance()->GetDebugWatchesWin()->AddVariableWatch(dialog.GetVariableName(),
                                                                           dialog.IsBreakOnWrite());
 }
 

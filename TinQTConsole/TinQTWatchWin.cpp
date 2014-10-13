@@ -135,7 +135,7 @@ CDebugWatchWin::~CDebugWatchWin()
 void CDebugWatchWin::UpdateReturnValueEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry)
 {
     // -- find the current "return value" entry
-    static uint32 _return_hash = TinScript::Hash("_return");
+    static uint32 _return_hash = TinScript::Hash("__return");
     int entry_index = 0;
     while (entry_index < mWatchList.size())
     {
@@ -172,6 +172,10 @@ void CDebugWatchWin::UpdateReturnValueEntry(const TinScript::CDebuggerWatchVarEn
             // -- and we're done
             return;
         }
+        else
+        {
+            ++entry_index;
+        }
     }
 
     // -- we didn't already find it - add it
@@ -180,7 +184,7 @@ void CDebugWatchWin::UpdateReturnValueEntry(const TinScript::CDebuggerWatchVarEn
     mWatchList.insert(0, new_entry);
 }
 
-void CDebugWatchWin::AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry)
+void CDebugWatchWin::AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry, bool update_only)
 {
     // -- find out what function call is currently selected on the stack
     uint32 cur_func_ns_hash = 0;
@@ -196,7 +200,7 @@ void CDebugWatchWin::AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& w
 
     // -- "_return" is special, as it's the value returned by th last function call, and not
     // -- part of any individual stack
-    static uint32 _return_hash = TinScript::Hash("_return");
+    static uint32 _return_hash = TinScript::Hash("__return");
     if (watch_var_entry.mFuncNamespaceHash == 0 && watch_var_entry.mFunctionHash == 0 && 
         watch_var_entry.mFunctionObjectID == 0 && watch_var_entry.mVarHash == _return_hash)
     {
@@ -221,7 +225,9 @@ void CDebugWatchWin::AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& w
                 entry->mDebuggerEntry.mFunctionHash == watch_var_entry.mFunctionHash &&
                 entry->mDebuggerEntry.mFunctionObjectID == watch_var_entry.mFunctionObjectID &&
                 entry->mDebuggerEntry.mType == watch_var_entry.mType && 
-                entry->mDebuggerEntry.mVarHash == watch_var_entry.mVarHash)
+                entry->mDebuggerEntry.mVarHash == watch_var_entry.mVarHash &&
+                (entry->mDebuggerEntry.mStackLevel == watch_var_entry.mStackLevel ||
+                 entry->mDebuggerEntry.mWatchRequestID > 0))
             {
                 // -- update the value (if it's not a label)
                 if (entry->mDebuggerEntry.mType != TinScript::TYPE_void)
@@ -251,7 +257,14 @@ void CDebugWatchWin::AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& w
     }
 
     // -- if we did not find the entry for the current callstack...
-    if (!found_callstack_entry)
+    uint32 top_func_ns_hash = 0;
+    uint32 top_func_hash = 0;
+    uint32 top_func_object_id = 0;
+    int32 top_stack_index = CConsoleWindow::GetInstance()->GetDebugCallstackWin()->
+                                                           GetTopStackEntry(top_func_ns_hash, top_func_hash,
+                                                                            top_func_object_id);
+
+    if (!found_callstack_entry && watch_var_entry.mStackLevel == top_stack_index && !update_only)
     {
         // -- see if this is for the 
         CWatchEntry* new_entry = new CWatchEntry(watch_var_entry);
@@ -259,9 +272,7 @@ void CDebugWatchWin::AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& w
         mWatchList.append(new_entry);
 
         // -- see if this entry should be hidden
-        bool hidden = (watch_var_entry.mFuncNamespaceHash != cur_func_ns_hash ||
-                       watch_var_entry.mFunctionHash != cur_func_hash ||
-                       watch_var_entry.mFunctionObjectID != cur_func_object_id);
+        bool hidden = (watch_var_entry.mStackLevel != current_stack_index && watch_var_entry.mWatchRequestID == 0);
         if (hidden)
         {
             new_entry->setHidden(hidden);
@@ -269,7 +280,7 @@ void CDebugWatchWin::AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& w
     }
 }
 
-void CDebugWatchWin::AddObjectMemberEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry)
+void CDebugWatchWin::AddObjectMemberEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry, bool update_only)
 {
     // -- find out what function call is currently selected on the stack
     uint32 cur_func_ns_hash = 0;
@@ -319,8 +330,9 @@ void CDebugWatchWin::AddObjectMemberEntry(const TinScript::CDebuggerWatchVarEntr
         {
             CWatchEntry* entry = mWatchList.at(entry_index);
             if (entry->mDebuggerEntry.mObjectID == watch_var_entry.mObjectID &&
-                entry->mDebuggerEntry.mNamespaceHash == watch_var_entry.mNamespaceHash &&
                 entry->mDebuggerEntry.mType == watch_var_entry.mType &&
+                (entry->mDebuggerEntry.mType != TinScript::TYPE_void ||
+                 entry->mDebuggerEntry.mNamespaceHash == watch_var_entry.mNamespaceHash) &&
                 entry->mDebuggerEntry.mVarHash == watch_var_entry.mVarHash)
             {
                 member_entry = entry;
@@ -336,6 +348,12 @@ void CDebugWatchWin::AddObjectMemberEntry(const TinScript::CDebuggerWatchVarEntr
             // -- not yet found - increment the index
             else
                 ++entry_index;
+        }
+
+        // -- if we didn't find a label, and we're only permitted to update, then we're done
+        if (member_entry == NULL && update_only)
+        {
+            return;
         }
 
         // -- if we didn't find a label, add one
@@ -404,6 +422,7 @@ void CDebugWatchWin::AddVariableWatch(const char* variableWatch, bool breakOnWri
 	// -- set the request ID, so if/when we receive an update from the target, we'll know what it
 	// -- is in response to
 	new_watch.mWatchRequestID = gVariableWatchRequestID++;
+    new_watch.mStackLevel = -1;
 
 	new_watch.mFuncNamespaceHash = 0;
     new_watch.mFunctionHash = 0;
@@ -450,6 +469,7 @@ void CDebugWatchWin::CreateSelectedWatch()
     {
         // -- create the string to use as a watch
         char watch_string[TinScript::kMaxNameLength];
+        char cur_value[TinScript::kMaxNameLength];
 
         // -- see if we have a variable or a member
         if (cur_item->mDebuggerEntry.mObjectID > 0)
@@ -457,7 +477,11 @@ void CDebugWatchWin::CreateSelectedWatch()
         else
             strcpy_s(watch_string, cur_item->mDebuggerEntry.mVarName);
 
-        CConsoleWindow::GetInstance()->GetMainWindow()->CreateVariableWatch(watch_string);
+        // -- set the current value
+        strcpy_s(cur_value, cur_item->mDebuggerEntry.mValue);
+
+        CConsoleWindow::GetInstance()->GetMainWindow()->CreateVariableWatch(cur_item->mDebuggerEntry.mWatchRequestID,
+                                                                            watch_string, cur_value);
     }
 }
 
@@ -508,7 +532,7 @@ void CDebugWatchWin::RemoveWatchVarChildren(int32 object_entry_index)
 }
 
 // ------------------------------------------------------------------------------------------------
-void CDebugWatchWin::NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry)
+void CDebugWatchWin::NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry, bool update_only)
 {
 	// -- sanity check
     if (!watch_var_entry)
@@ -529,13 +553,13 @@ void CDebugWatchWin::NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watc
     // -- if we're adding a namespace label
     if (watch_var_entry->mObjectID > 0)
     {
-        AddObjectMemberEntry(*watch_var_entry);
+        AddObjectMemberEntry(*watch_var_entry, update_only);
     }
 
     // -- else see if we're adding a top level entry
     else if (watch_var_entry->mObjectID == 0 && watch_var_entry->mType != TinScript::TYPE_void)
     {
-        AddTopLevelEntry(*watch_var_entry);
+        AddTopLevelEntry(*watch_var_entry, update_only);
     }
 }
 
@@ -569,6 +593,12 @@ void CDebugWatchWin::NotifyVarWatchResponse(TinScript::CDebuggerWatchVarEntry* w
 
                 // -- update the type (it may have been undetermined)
                 entry->UpdateType(watch_var_entry->mType);
+
+                // -- watch entries are contextual - copy the source of the variable
+                entry->mDebuggerEntry.mFuncNamespaceHash = watch_var_entry->mFuncNamespaceHash;
+                entry->mDebuggerEntry.mFunctionHash = watch_var_entry->mFunctionHash;
+                entry->mDebuggerEntry.mFunctionObjectID = watch_var_entry->mFunctionObjectID;
+                entry->mDebuggerEntry.mVarHash = watch_var_entry->mVarHash;
 
                 // -- if the type is a variable, copy the object ID as well
                 if (watch_var_entry->mType == TinScript::TYPE_object)
@@ -748,7 +778,8 @@ void CDebugWatchWin::NotifyUpdateCallstack(bool breakpointHit)
             // -- otherwise, see if we need to hide the items
             else
             {
-                bool hidden = (stack_index != current_stack_index);
+                bool hidden = (entry->mDebuggerEntry.mStackLevel != current_stack_index &&
+                               entry->mDebuggerEntry.mWatchRequestID == 0);
                 entry->setHidden(hidden);
 
                 // -- if this entry is an object, we need to hide all of its children

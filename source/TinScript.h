@@ -200,6 +200,7 @@ class CThreadMutex
 
     protected:
         void* mThreadMutex;
+        bool8 mIsLocked;
 };
 
 // ====================================================================================================================
@@ -235,6 +236,7 @@ class CDebuggerWatchVarEntry
 		// -- we'll use a request ID, if we're able to match a watch expression
 		// -- with a type and value
 		uint32 mWatchRequestID;
+        int32 mStackLevel;
 
         // -- three members identifying the calling function
         uint32 mFuncNamespaceHash;
@@ -374,9 +376,9 @@ class CScriptContext
         void SetBreakActionStep(bool8 torf, bool8 step_in = false, bool8 step_out = false);
         void SetBreakActionRun(bool8 torf);
 
-		void InitWatchEntryFromVarEntry(CVariableEntry& ve, void* obj_addr, CDebuggerWatchVarEntry& watch_entry,
-										CObjectEntry*& oe);
-		void AddVariableWatch(int32 request_id, const char* expression, bool breakOnWrite);
+		void InitWatchEntryFromVarEntry(CVariableEntry& ve, CObjectEntry* parent_oe,
+                                        CDebuggerWatchVarEntry& watch_entry, CObjectEntry*& oe);
+		void AddVariableWatch(int32 request_id, const char* expression, bool breakOnWrite, const char* new_value);
 
         bool8 HasWatchExpression(CDebuggerWatchExpression& debugger_watch);
         bool8 HasTraceExpression(CDebuggerWatchExpression& debugger_watch);

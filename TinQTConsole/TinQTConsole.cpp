@@ -759,7 +759,7 @@ void NotifyCurrentDir(const char* cwd)
 // ====================================================================================================================
 void NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry)
 {
-    CConsoleWindow::GetInstance()->GetDebugAutosWin()->NotifyWatchVarEntry(watch_var_entry);
+    CConsoleWindow::GetInstance()->GetDebugAutosWin()->NotifyWatchVarEntry(watch_var_entry, false);
 }
         
 // ====================================================================================================================
@@ -1301,6 +1301,9 @@ void CConsoleOutput::HandlePacketWatchVarEntry(int32* dataPtr)
 	// -- variable watch request ID (unused for stack dumps)
 	watch_var_entry.mWatchRequestID = *dataPtr++;
 
+	// -- variable watch request ID (unused for stack dumps)
+	watch_var_entry.mStackLevel = *dataPtr++;
+
     // -- function namespace hash
     watch_var_entry.mFuncNamespaceHash = *dataPtr++;
 
@@ -1342,11 +1345,10 @@ void CConsoleOutput::HandlePacketWatchVarEntry(int32* dataPtr)
     // -- cached var object ID
     watch_var_entry.mVarObjectID = *dataPtr++;
 
-    // -- notify the debugger - if we've got a request ID > 0, it's a watch variable, not an auto var
-	if (watch_var_entry.mWatchRequestID > 0)
-		CConsoleWindow::GetInstance()->GetDebugWatchesWin()->NotifyVarWatchResponse(&watch_var_entry);
-	else
-		CConsoleWindow::GetInstance()->GetDebugAutosWin()->NotifyWatchVarEntry(&watch_var_entry);
+    // -- notify the debugger - see if we can find matching entries, and update them all, both autos and watches
+	CConsoleWindow::GetInstance()->GetDebugWatchesWin()->NotifyVarWatchResponse(&watch_var_entry);
+	CConsoleWindow::GetInstance()->GetDebugWatchesWin()->NotifyWatchVarEntry(&watch_var_entry, true);
+	CConsoleWindow::GetInstance()->GetDebugAutosWin()->NotifyWatchVarEntry(&watch_var_entry, false);
 }
 
 // ====================================================================================================================

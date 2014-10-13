@@ -1,17 +1,17 @@
 // ------------------------------------------------------------------------------------------------
 //  The MIT License
-//  
+//
 //  Copyright (c) 2013 Tim Andersen
-//  
+//
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
 //  and associated documentation files (the "Software"), to deal in the Software without
 //  restriction, including without limitation the rights to use, copy, modify, merge, publish,
 //  distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
 //  Software is furnished to do so, subject to the following conditions:
-//  
+//
 //  The above copyright notice and this permission notice shall be included in all copies or
 //  substantial portions of the Software.
-//  
+//
 //  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
 //  BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
 //  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
@@ -46,6 +46,7 @@
 #include "TinObjectGroup.h"
 #include "TinStringTable.h"
 #include "TinRegistration.h"
+#include "TinOpExecFunctions.h"
 
 #include "socket.h"
 
@@ -398,7 +399,7 @@ CScriptContext::~CScriptContext()
     // -- note:  the global namespace is owned by the namespace dictionary
     // -- within the context - it'll be automatically cleaned up
     ShutdownDictionaries();
-    
+
     // -- cleanup all related codeblocks
     // -- by deleting the namespace dictionaries, all codeblocks should now be unused
     CCodeBlock::DestroyUnusedCodeBlocks(mCodeBlockList);
@@ -1180,7 +1181,7 @@ void CScriptContext::SetBreakActionRun(bool torf)
 // ====================================================================================================================
 // InitWatchEntryFromVarEntry():  Helper method to fill in the members of a watch entry.
 // ====================================================================================================================
-void CScriptContext::InitWatchEntryFromVarEntry(CVariableEntry& ve, void* obj_addr,
+void CScriptContext::InitWatchEntryFromVarEntry(CVariableEntry& ve, CObjectEntry* parent_oe,
 												CDebuggerWatchVarEntry& watch_entry, CObjectEntry*& oe)
 {
 	// -- initialize the return result
@@ -1189,17 +1190,30 @@ void CScriptContext::InitWatchEntryFromVarEntry(CVariableEntry& ve, void* obj_ad
 	// -- we'll initialize the request ID later, if applicable
 	watch_entry.mWatchRequestID = 0;
 
+    // -- set the stack level
+    watch_entry.mStackLevel = -1;
+
+    CFunctionEntry* fe = ve.GetFunctionEntry();
+
 	// -- fill in the watch entry
-	watch_entry.mFuncNamespaceHash = 0;
-	watch_entry.mFunctionHash = 0;
+	watch_entry.mFuncNamespaceHash = fe ? fe->GetNamespaceHash() : 0;
+	watch_entry.mFunctionHash = fe ? fe->GetHash() : 0;
 	watch_entry.mFunctionObjectID = 0;
-	watch_entry.mObjectID = 0;
+	watch_entry.mObjectID = parent_oe ? parent_oe->GetID() : 0;
 	watch_entry.mNamespaceHash = 0;
+
+    // -- get the variable address - if it's a stack variable, pull it off the stack
+    void* value_addr = ve.GetValueAddr(parent_oe ? parent_oe->GetAddr() : NULL);
+    if (mDebuggerBreakFuncCallStack && ve.IsStackVariable(*mDebuggerBreakFuncCallStack))
+    {
+        value_addr = GetStackVarAddr(this, *mDebuggerBreakExecStack,
+                                     *mDebuggerBreakFuncCallStack, ve.GetStackOffset());
+    }
 
 	// -- type, name, and value string
 	watch_entry.mType = ve.GetType();
 	SafeStrcpy(watch_entry.mVarName, UnHash(ve.GetHash()), kMaxNameLength);
-	gRegisteredTypeToString[ve.GetType()](ve.GetValueAddr(obj_addr), watch_entry.mValue, kMaxNameLength);
+	gRegisteredTypeToString[ve.GetType()](value_addr, watch_entry.mValue, kMaxNameLength);
 
     // -- fill in the array size
     watch_entry.mArraySize = ve.GetArraySize();
@@ -1209,7 +1223,7 @@ void CScriptContext::InitWatchEntryFromVarEntry(CVariableEntry& ve, void* obj_ad
 
 	if (ve.GetType() == TYPE_object)
 	{
-		uint32 objectID = *(uint32*)ve.GetAddr(NULL);
+		uint32 objectID = *(uint32*)value_addr;
 		oe = FindObjectEntry(objectID);
 		if (oe)
 			watch_entry.mVarObjectID = objectID;
@@ -1217,155 +1231,162 @@ void CScriptContext::InitWatchEntryFromVarEntry(CVariableEntry& ve, void* obj_ad
 }
 
 // ====================================================================================================================
-// AddBreakpoint():  Method to find a codeblock, and set a line to notify the debugger, if executed
+// AddVariableWatch():  Method to find a a variable entry, return or update it's value, and mark it as a data break.
 // ====================================================================================================================
-void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_watch, bool breakOnWrite)
+void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_watch, bool breakOnWrite,
+                                      const char* new_value)
 {
     // -- sanity check
-    if (request_id < 0 || !variable_watch || !variable_watch[0])
+    bool update_value = (new_value && new_value[0]);
+    if ((request_id < 0 && !update_value) || !variable_watch || !variable_watch[0])
         return;
 
-    // -- the only reason to "manually" parse the variable watch, is to see if we can find the actual
-    // -- variable we're trying to break on
-    if (breakOnWrite)
-    {
-	    // -- the first pattern will be an object.member (.member.member...)
-	    // -- looping through, as long as at each step, we find a valid object
-	    CDebuggerWatchVarEntry found_variable;
-	    found_variable.mType = TYPE_void;
-        found_variable.mArraySize = 0;
-	    CObjectEntry* parent_oe = NULL;
-	    CObjectEntry* oe = NULL;
-	    CVariableEntry* ve = NULL;
+    // -- if we're updating, we're not breaking
+    if (update_value)
+        breakOnWrite = false;
 
-	    // -- first we look for an identifier, or 'self' and find a matching variable entry
-	    tReadToken token(variable_watch, 0);
-	    bool8 found_token = GetToken(token);
-	    if (found_token && (token.type == TOKEN_IDENTIFIER ||
-		    (token.type == TOKEN_KEYWORD && GetReservedKeywordType(token.tokenptr, token.length) == KEYWORD_self)))
-	    {
-		    // -- see if this token is a stack var
-		    uint32 var_hash = Hash(token.tokenptr, token.length);
+    // -- see if we can manually parse the expression, to find the specific function/member/variable
+	// -- the first pattern will be an object.member (.member.member...)
+	// -- looping through, as long as at each step, we find a valid object
+	CDebuggerWatchVarEntry found_variable;
+	found_variable.mType = TYPE_void;
+    found_variable.mArraySize = 0;
+	CObjectEntry* parent_oe = NULL;
+	CObjectEntry* oe = NULL;
+	CVariableEntry* ve = NULL;
 
-		    // -- if this isn't a stack variable, see if it's a global variable
-		    if (DebuggerFindStackTopVar(this, var_hash, found_variable, ve))
-		    {
-			    // -- if this refers to an object, find the object entry
-			    if (found_variable.mType == TYPE_object)
-			    {
-				    oe = FindObjectEntry(found_variable.mVarObjectID);
-			    }
-		    }
-		    else
-		    {
-			    ve = GetGlobalNamespace()->GetVarTable()->FindItem(var_hash);
-			    if (ve)
-			    {
-				    // -- use the helper function to fill in the results, including the oe pointer
-				    InitWatchEntryFromVarEntry(*ve, NULL, found_variable, oe);
-			    }
-		    }
-	    }
+	// -- first we look for an identifier, or 'self' and find a matching variable entry
+	tReadToken token(variable_watch, 0);
+	bool8 found_token = GetToken(token);
+	if (found_token && (token.type == TOKEN_IDENTIFIER ||
+		(token.type == TOKEN_KEYWORD && GetReservedKeywordType(token.tokenptr, token.length) == KEYWORD_self)))
+	{
+		// -- see if this token is a stack var
+		uint32 var_hash = Hash(token.tokenptr, token.length);
 
-	    // -- else see if we have an integer - we're going to assume any integer is meant to be an object ID
-	    else if (found_token && token.type == TOKEN_INTEGER)
-	    {
-		    // -- see if there's a valid oe for this
-		    uint32 object_id = Atoi(token.tokenptr, token.length);
-		    oe = FindObjectEntry(object_id);
-		    parent_oe = oe;
+		// -- if this isn't a stack variable, see if it's a global variable
+		if (DebuggerFindStackTopVar(this, var_hash, found_variable, ve))
+		{
+			// -- if this refers to an object, find the object entry
+			if (found_variable.mType == TYPE_object)
+			{
+				oe = FindObjectEntry(found_variable.mVarObjectID);
+			}
+		}
+		else
+		{
+			ve = GetGlobalNamespace()->GetVarTable()->FindItem(var_hash);
+			if (ve)
+			{
+				// -- use the helper function to fill in the results, including the oe pointer
+				InitWatchEntryFromVarEntry(*ve, NULL, found_variable, oe);
+			}
+		}
+	}
 
-		    // -- if we found one, fill in the watch entry
-		    if (oe)
-		    {
-			    // -- we'll initialize the request ID later, if applicable
-			    found_variable.mWatchRequestID = 0;
+	// -- else see if we have an integer - we're going to assume any integer is meant to be an object ID
+	else if (found_token && token.type == TOKEN_INTEGER)
+	{
+		// -- see if there's a valid oe for this
+		uint32 object_id = Atoi(token.tokenptr, token.length);
+		oe = FindObjectEntry(object_id);
+		parent_oe = oe;
 
-			    // -- fill in the watch entry
-			    found_variable.mFuncNamespaceHash = 0;
-			    found_variable.mFunctionHash = 0;
-			    found_variable.mFunctionObjectID = 0;
-			    found_variable.mObjectID = 0;
-			    found_variable.mNamespaceHash = 0;
+		// -- if we found one, fill in the watch entry
+		if (oe)
+		{
+			// -- we'll initialize the request ID later, if applicable
+			found_variable.mWatchRequestID = 0;
+            found_variable.mStackLevel = -1;
 
-			    // -- type, name, and value string, and array size
-			    found_variable.mType = TYPE_object;
-			    SafeStrcpy(found_variable.mVarName, UnHash(oe->GetNameHash()), kMaxNameLength);
-			    sprintf_s(found_variable.mValue, "%d", object_id);
-                found_variable.mArraySize = 1;
+			// -- fill in the watch entry
+			found_variable.mFuncNamespaceHash = 0;
+			found_variable.mFunctionHash = 0;
+			found_variable.mFunctionObjectID = 0;
+			found_variable.mObjectID = 0;
+			found_variable.mNamespaceHash = 0;
 
-			    found_variable.mVarHash = oe->GetNameHash();
-			    found_variable.mVarObjectID = object_id;
-		    }
-	    }
+			// -- type, name, and value string, and array size
+			found_variable.mType = TYPE_object;
+			SafeStrcpy(found_variable.mVarName, UnHash(oe->GetNameHash()), kMaxNameLength);
+			sprintf_s(found_variable.mValue, "%d", object_id);
+            found_variable.mArraySize = 1;
 
-	    // -- at this point, if we found a variable (type will be valid)
-	    // -- either return what we've found, or if the current variable is an object, and the next
-	    // -- token is a period followed by a member, keep digging
-	    if (found_variable.mType != TYPE_void)
-	    {
-		    bool8 success = true;
-		    while (true)
-		    {
-			    // -- if we have a period, and a valid object
-			    tReadToken next_token(token);
-			    bool8 found_token = GetToken(next_token);
-			    if (found_token && next_token.type == TOKEN_PERIOD && oe != NULL)
-			    {
-				    // -- if our period is followed by a valid member
-				    tReadToken member_token(next_token);
-				    if (GetToken(member_token) && member_token.type == TOKEN_IDENTIFIER)
-				    {
-					    // -- at this point, we're dereferencing a the member of an object, so update the parent oe
-					    parent_oe = oe;
+			found_variable.mVarHash = oe->GetNameHash();
+			found_variable.mVarObjectID = object_id;
+		}
+	}
 
-					    // -- update the token pointer
-					    token = member_token;
+	// -- at this point, if we found a variable (type will be valid)
+	// -- either return what we've found, or if the current variable is an object, and the next
+	// -- token is a period followed by a member, keep digging
+	if (found_variable.mType != TYPE_void)
+	{
+		bool8 success = true;
+		while (true)
+		{
+			// -- if we have a period, and a valid object
+			tReadToken next_token(token);
+			bool8 found_token = GetToken(next_token);
+			if (found_token && next_token.type == TOKEN_PERIOD && oe != NULL)
+			{
+				// -- if our period is followed by a valid member
+				tReadToken member_token(next_token);
+				if (GetToken(member_token) && member_token.type == TOKEN_IDENTIFIER)
+				{
+					// -- at this point, we're dereferencing a the member of an object, so update the parent oe
+					parent_oe = oe;
 
-					    // -- if the member token is for a valid member, update the token pointer, and continue the pattern
-					    uint32 var_hash = Hash(token.tokenptr, token.length);
-					    ve = oe->GetVariableEntry(var_hash);
-					    if (ve)
-					    {
-						    // -- use the helper function to fill in the results, including the oe pointer
-						    InitWatchEntryFromVarEntry(*ve, oe->GetAddr(), found_variable, oe);
-					    }
+					// -- update the token pointer
+					token = member_token;
 
-					    // -- else we have an invalid member
-					    else
-					    {
-						    success = false;
-						    break;
-					    }
-				    }
+					// -- if the member token is for a valid member, update the token pointer, and continue the pattern
+					uint32 var_hash = Hash(token.tokenptr, token.length);
+					ve = oe->GetVariableEntry(var_hash);
+					if (ve)
+					{
+						// -- use the helper function to fill in the results, including the oe pointer
+						InitWatchEntryFromVarEntry(*ve, parent_oe, found_variable, oe);
+					}
 
-				    // -- else, whatever we found doesn't fit this pattern
-				    else
-				    {
-					    success = false;
-					    break;
-				    }
-			    }
+					// -- else we have an invalid member
+					else
+					{
+						success = false;
+						break;
+					}
+				}
 
-			    // -- else if we found a token, but it's not a period, or we don't have an object, we fail this pattern
-			    else if (found_token)
-			    {
-				    success = false;
-				    break;
-			    }
+				// -- else, whatever we found doesn't fit this pattern
+				else
+				{
+					success = false;
+					break;
+				}
+			}
 
-			    // -- else there are no more tokens - we're at the end of a successful chain
-			    else
-			    {
-				    break;
-			    }
-		    }
+			// -- else if we found a token, but it's not a period, or we don't have an object, we fail this pattern
+			else if (found_token)
+			{
+				success = false;
+				break;
+			}
 
-		    // -- once we've finished the pattern search, see if we still have a valid result to send
-		    if (success)
-		    {
+			// -- else there are no more tokens - we're at the end of a successful chain
+			else
+			{
+				break;
+			}
+		}
+
+		// -- once we've finished the pattern search, see if we still have a valid result to send
+		if (success)
+		{
+            if (!update_value)
+            {
 			    // -- set the request ID back in the result
 			    found_variable.mWatchRequestID = request_id;
+                found_variable.mStackLevel = -1;
 
 			    // -- send the response
 			    DebuggerSendWatchVariable(&found_variable);
@@ -1385,18 +1406,66 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
 				    DebuggerVarWatchConfirm(request_id, parent_oe ? parent_oe->GetID() : 0, ve->GetHash());
 			    }
 
-			    // -- and we're done
+				// -- and we're done
 			    return;
-		    }
-	    }
-    }
+            }
+
+            // -- if we are updating the value, set it now, without any confirmation or other access
+            else if (ve)
+            {
+                // -- if the variable is owned by a function, we can only change it
+                // -- if the function is currently executing, and we're at a break point
+                uint32 hash_val = Hash(new_value);
+                void* value_addr = TypeConvert(this, TYPE_string, (void*)&hash_val, ve->GetType());
+                void* stack_addr = NULL;
+                if (value_addr)
+                {
+                    if (ve->GetFunctionEntry())
+                    {
+                        if (mDebuggerBreakFuncCallStack && ve->IsStackVariable(*mDebuggerBreakFuncCallStack))
+                        {
+                            stack_addr = GetStackVarAddr(this, *mDebuggerBreakExecStack,
+                                                            *mDebuggerBreakFuncCallStack, ve->GetStackOffset());
+                            if (stack_addr)
+                            {
+                                memcpy(stack_addr, value_addr, gRegisteredTypeSize[ve->GetType()]);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        ve->SetValueAddr(parent_oe ? parent_oe->GetAddr() : NULL, value_addr);
+                    }
+
+                    // -- send the variable update
+                    InitWatchEntryFromVarEntry(*ve, parent_oe, found_variable, oe);
+
+			        // -- send the response
+                    found_variable.mWatchRequestID = request_id;
+                    found_variable.mStackLevel = -1;
+
+			        DebuggerSendWatchVariable(&found_variable);
+			        if (found_variable.mType == TYPE_object)
+			        {
+				        DebuggerSendObjectMembers(&found_variable, found_variable.mVarObjectID);
+			        }
+                }
+            }
+		}
+
+        // -- if we were successful, or only wanting to update the value, we're done
+        if (success || update_value)
+        {
+			return;
+        }
+	}
 
     // -- if we were unable to evaluate the watch expression from above
     // -- evaluate it as a watch expression.
     // -- this will correctly evaluate any valid syntax, bot doesn't give us a variable on which to break
     // -- for that, we'd probably have to flag certain operations in the VM to find out which variable it
     // -- found, etc...
-    
+
     // -- we require a callstack to evaluate a variable watch as a complete expression
 	if (!mDebuggerBreakFuncCallStack || !mDebuggerBreakExecStack)
 		return;
@@ -1420,6 +1489,7 @@ void CScriptContext::AddVariableWatch(int32 request_id, const char* variable_wat
     	        CDebuggerWatchVarEntry watch_result;
 
 		        watch_result.mWatchRequestID = request_id;
+                watch_result.mStackLevel = -1;
 
 		        // -- fill in the watch entry
 		        watch_result.mFuncNamespaceHash = 0;
@@ -1612,7 +1682,7 @@ bool8 CScriptContext::InitWatchExpression(CDebuggerWatchExpression& debugger_wat
 // EvaluateWatchExpression():  Used by the debugger for watches and breakpoints conditionals.
 // ====================================================================================================================
 bool8 CScriptContext::EvalWatchExpression(CDebuggerWatchExpression& debugger_watch, bool use_trace,
-                                          CFunctionCallStack& cur_call_stack, CExecStack& cur_exec_stack) 
+                                          CFunctionCallStack& cur_call_stack, CExecStack& cur_exec_stack)
 {
     // -- depending on whether we're initializing the trace expression or the conditional, set the local vars
     const char* expression = use_trace ? debugger_watch.mTrace : debugger_watch.mConditional;
@@ -1643,7 +1713,7 @@ bool8 CScriptContext::EvalWatchExpression(CDebuggerWatchExpression& debugger_wat
 
     // -- push the function entry onto the call stack
     funccallstack.Push(watch_function, cur_object, 0);
-    
+
     // -- create space on the execstack for the local variables
     int32 localvarcount = watch_function->GetContext()->CalculateLocalVarStackSize();
     execstack.Reserve(localvarcount * MAX_TYPE_SIZE);
@@ -1724,7 +1794,7 @@ bool8 CScriptContext::EvaluateWatchExpression(const char* expression, bool8 cond
     CFunctionContext* cur_func_context = cur_function->GetContext();
     CFunctionContext* temp_context = fe->GetContext();
 
-    // -- first parameter is always "_return"
+    // -- first parameter is always "__return"
     bool returnAdded = false;
     tVarTable* cur_var_table = cur_func_context->GetLocalVarTable();
     CVariableEntry* cur_ve = cur_var_table->First();
@@ -1786,7 +1856,7 @@ bool8 CScriptContext::EvaluateWatchExpression(const char* expression, bool8 cond
 
                 // -- push the function entry onto the call stack
                 funccallstack.Push(fe, NULL, 0);
-    
+
                 // -- create space on the execstack, if this is a script function
                 int32 localvarcount = fe->GetContext()->CalculateLocalVarStackSize();
                 execstack.Reserve(localvarcount * MAX_TYPE_SIZE);
@@ -1810,7 +1880,7 @@ bool8 CScriptContext::EvaluateWatchExpression(const char* expression, bool8 cond
                 {
                     eVarType returnType;
                     void* returnValue = execstack.Pop(returnType);
-                    if (returnValue) 
+                    if (returnValue)
                     {
                         char resultString[kMaxNameLength];
                         gRegisteredTypeToString[returnType](returnValue, resultString, kMaxNameLength);
@@ -2179,6 +2249,9 @@ void CScriptContext::DebuggerSendWatchVariable(CDebuggerWatchVarEntry* watch_var
 	// -- request ID (only used for dynamic watch requests)
 	total_size += sizeof(int32);
 
+	// -- stack level
+	total_size += sizeof(int32);
+
     // -- function namespace hash
     total_size += sizeof(int32);
 
@@ -2243,6 +2316,9 @@ void CScriptContext::DebuggerSendWatchVariable(CDebuggerWatchVarEntry* watch_var
 	// -- write the request ID
 	*dataPtr++ = watch_var_entry->mWatchRequestID;
 
+	// -- write the stack level
+	*dataPtr++ = watch_var_entry->mStackLevel;
+
     // -- write the function namespace
     *dataPtr++ = watch_var_entry->mFuncNamespaceHash;
 
@@ -2305,6 +2381,7 @@ void CScriptContext::DebuggerSendObjectMembers(CDebuggerWatchVarEntry* callingFu
 
 		// -- Inherit the calling function request ID
 		watch_entry.mWatchRequestID = callingFunction ? callingFunction->mWatchRequestID : 0;
+        watch_entry.mStackLevel = callingFunction ? callingFunction->mStackLevel : -1;
 
         watch_entry.mFuncNamespaceHash = callingFunction ? callingFunction->mFuncNamespaceHash : 0;
         watch_entry.mFunctionHash = callingFunction ? callingFunction->mFunctionHash : 0;
@@ -2340,6 +2417,7 @@ void CScriptContext::DebuggerSendObjectMembers(CDebuggerWatchVarEntry* callingFu
 
 		// -- Inherit the calling function request ID
 		ns_entry.mWatchRequestID = callingFunction ? callingFunction->mWatchRequestID : 0;;
+        ns_entry.mStackLevel = callingFunction ? callingFunction->mStackLevel : -1;
 
         ns_entry.mFuncNamespaceHash = callingFunction ? callingFunction->mFuncNamespaceHash : 0;
         ns_entry.mFunctionHash = callingFunction ? callingFunction->mFunctionHash : 0;
@@ -2388,6 +2466,7 @@ void CScriptContext::DebuggerSendObjectVarTable(CDebuggerWatchVarEntry* callingF
 
 		// -- Inherit the calling function request ID
 		member_entry.mWatchRequestID = callingFunction ? callingFunction->mWatchRequestID : 0;
+		member_entry.mStackLevel = callingFunction ? callingFunction->mStackLevel : -1;
 
         member_entry.mFuncNamespaceHash = callingFunction ? callingFunction->mFuncNamespaceHash : 0;
         member_entry.mFunctionHash = callingFunction ? callingFunction->mFunctionHash : 0;
@@ -2600,12 +2679,18 @@ void CScriptContext::ProcessThreadCommands()
     // -- reset the bufPtr
     mThreadBufPtr = NULL;
 
-    // -- execute the buffer
-    //TinPrint(this, "Remote: %s\n", mThreadExecBuffer);
-    ExecCommand(mThreadExecBuffer);
+    // -- because the act of executing the command could trigger a breakpoint, we need to unlock this thread
+    // -- *before* executing the command, or the run/step command will never actually be received.
+    // -- this means, we copy current buffer so we can begin filling it again from the socket thread
+    char local_exec_buffer[kThreadExecBufferSize];
+    int bytes_to_copy = strlen(mThreadExecBuffer) + 1;
+    memcpy(local_exec_buffer, mThreadExecBuffer, bytes_to_copy);
 
     // -- unlock the thread
     mThreadLock.Unlock();
+
+    // -- execute the buffer
+    ExecCommand(local_exec_buffer);
 }
 
 #endif // WIN32
@@ -2726,7 +2811,25 @@ void DebuggerAddVariableWatch(int32 request_id, const char* variable_watch, bool
 		return;
 
     // -- this must be threadsafe - only ProcessThreadCommands should ever lead to this function
-    script_context->AddVariableWatch(request_id, variable_watch, breakOnWrite);
+    script_context->AddVariableWatch(request_id, variable_watch, breakOnWrite, NULL);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// DebuggerModifyVariableWatch():  Modifies a variable, using the same mechanism as setting a variable watch.
+// --------------------------------------------------------------------------------------------------------------------
+void DebuggerModifyVariableWatch(int32 request_id, const char* variable_watch, const char* new_value)
+{
+    // -- ensure we have a script context
+    CScriptContext* script_context = GetContext();
+    if (!script_context)
+        return;
+
+	// -- ensure we have a valid request_id and an expression
+	if (!variable_watch || !variable_watch[0])
+		return;
+
+    // -- this must be threadsafe - only ProcessThreadCommands should ever lead to this function
+    script_context->AddVariableWatch(request_id, variable_watch, false, new_value);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2762,6 +2865,7 @@ REGISTER_FUNCTION_P0(DebuggerBreakRun, DebuggerBreakRun, void);
 
 REGISTER_FUNCTION_P3(DebuggerAddVariableWatch, DebuggerAddVariableWatch, void, int32, const char*, bool8);
 REGISTER_FUNCTION_P7(DebuggerToggleVarWatch, DebuggerToggleVarWatch, void, int32, uint32, int32, bool8, const char*, const char*, bool8);
+REGISTER_FUNCTION_P3(DebuggerModifyVariableWatch, DebuggerModifyVariableWatch, void, int32, const char*, const char*);
 
 // == class CThreadMutex ==============================================================================================
 // -- CThreadMutex is only functional in WIN32
@@ -2770,6 +2874,7 @@ REGISTER_FUNCTION_P7(DebuggerToggleVarWatch, DebuggerToggleVarWatch, void, int32
 // Constructor
 // ====================================================================================================================
 CThreadMutex::CThreadMutex()
+    : mIsLocked(false)
 {
     #ifdef WIN32
         mThreadMutex = CreateMutex(NULL, false, NULL);
@@ -2781,6 +2886,8 @@ CThreadMutex::CThreadMutex()
 // ====================================================================================================================
 void CThreadMutex::Lock()
 {
+    mIsLocked = true;
+    //printf("[0x%x] Thread locked: %s\n", (unsigned int)this, mIsLocked ? "true" : "false");
     #ifdef WIN32
         WaitForSingleObject(mThreadMutex, INFINITE);
     #endif
@@ -2794,8 +2901,9 @@ void CThreadMutex::Unlock()
     #ifdef WIN32
         ReleaseMutex(mThreadMutex);
     #endif
+    mIsLocked = false;
+    //printf("[0x%x] Thread locked: %s\n", (unsigned int)this, mIsLocked ? "true" : "false");
 }
-
 
 // == class CDebuggerWatchExpression ==================================================================================
 

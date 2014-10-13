@@ -177,6 +177,9 @@ class CDebugCallstackWin : public QListWidget {
         // -- returns the index of the currently selected stack entry, as well as the calling attributes
         int GetSelectedStackEntry(uint32& funcHash, uint32& objectID, uint32& nsHash);
 
+        // -- returns the index of the currently selected stack entry, as well as the calling attributes
+        int GetTopStackEntry(uint32& funcHash, uint32& objectID, uint32& nsHash);
+
         // -- returns the stack entry matching the given attributes, or -1 if it doesn't exist
         int ValidateStackEntry(uint32 func_ns_hash, uint32 func_hash, uint32 func_obj_id);
 

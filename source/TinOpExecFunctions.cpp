@@ -244,7 +244,7 @@ bool8 GetStackValue(CScriptContext* script_context, CExecStack& execstack,
         // -- as part of "ClearParameters"
         if (valtype != TYPE_hashtable)
         {
-            valaddr = GetStackVarAddr(script_context, execstack, funccallstack, local_var_index);
+            valaddr = GetStackVarAddr(script_context, execstack, funccallstack, ve->GetStackOffset());
             if (!valaddr)
             {
                 ScriptAssert_(script_context, 0, "<internal>", -1, "Error - Unable to find stack var\n");

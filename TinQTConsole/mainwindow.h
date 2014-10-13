@@ -75,7 +75,7 @@ public:
     ~MainWindow();
 
     void AddScriptOpenAction(const char* fullPath);
-    void CreateVariableWatch(const char* watch_string);
+    void CreateVariableWatch(int32 request_id, const char* watch_string, const char* cur_value);
 
 protected:
     virtual void showEvent(QShowEvent *event);
@@ -101,6 +101,7 @@ public slots:
 
 	void menuAddVariableWatch();
 	void menuCreateVariableWatch();
+	void menuUpdateVarWatchValue();
     void menuSetBreakCondition();
     void menuGoToLine();
     void menuSearch();

@@ -90,8 +90,8 @@ class CDebugWatchWin : public QTreeWidget {
         CWatchEntry* FindWatchEntry(uint32 funcHash, uint32 objectID, uint32 nsHash, uint32 memberHash, bool isMember);
 
         void UpdateReturnValueEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry);
-        void AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry);
-        void AddObjectMemberEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry);
+        void AddTopLevelEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry, bool update_only);
+        void AddObjectMemberEntry(const TinScript::CDebuggerWatchVarEntry& watch_var_entry, bool update_only);
 
 		void AddVariableWatch(const char* variableWatch, bool breakOnWrite = false);
         void CreateSelectedWatch();
@@ -99,7 +99,7 @@ class CDebugWatchWin : public QTreeWidget {
         void ClearWatchWin();
 
         void RemoveWatchVarChildren(int32 object_entry_index);
-        void NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry);
+        void NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry, bool update_only);
         void NotifyVarWatchResponse(TinScript::CDebuggerWatchVarEntry* watch_var_entry);
         void NotifyVarWatchMember(int32 parent_entry_index, TinScript::CDebuggerWatchVarEntry* watch_var_entry);
 
