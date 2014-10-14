@@ -756,6 +756,23 @@ int32 CConsoleWindow::ToolsWindowAddButton(const char* window_name, const char* 
     return (entry_id);
 }
 
+// ====================================================================================================================
+// ToolsWindowAddSlider():  Find the tools window, and adds a slider to it.
+// ====================================================================================================================
+int32 CConsoleWindow::ToolsWindowAddSlider(const char* window_name, const char* name, const char* description,
+                                           int32 min_value, int32 max_value, int32 cur_value, const char* command)
+{
+    // -- find the window - return 0 (invalid index) if we are unable to find or create
+    CDebugToolsWin* tools_win = FindOrCreateToolsWindow(window_name);
+    if (!tools_win)
+        return (0);
+
+    // -- add the entry
+    int32 entry_id = tools_win->AddSlider(name, description, min_value, max_value, cur_value, command);
+
+    return (entry_id);
+}
+
 // == Global Interface ================================================================================================
 
 // ====================================================================================================================
@@ -1608,11 +1625,51 @@ static int32 ToolPaletteAddButton(const char* win_name, const char* name, const 
     return (index);
 }
 
+// ====================================================================================================================
+// ToolPaletteAddSlider():  Finds or creates a tools window, and adds a message to it.
+// ====================================================================================================================
+static int32 ToolPaletteAddSlider(const char* win_name, const char* name, const char* description, int32 min_value,
+                                  int32 max_value, int32 cur_value, const char* command)
+{
+    int32 index = CConsoleWindow::GetInstance()->ToolsWindowAddSlider(win_name, name, description, min_value,
+                                                                      max_value, cur_value, command);
+    return (index);
+}
+
+// ====================================================================================================================
+// ToolPaletteSetName():  Given a DebugEntry ID, update the name.
+// ====================================================================================================================
+static void ToolPaletteSetName(int32 entry_id, const char* new_name)
+{
+    CDebugToolsWin::SetEntryName(entry_id, new_name);
+}
+
+// ====================================================================================================================
+// ToolPaletteSetDescription():  Given a DebugEntry ID, update the name.
+// ====================================================================================================================
+static void ToolPaletteSetDescription(int32 entry_id, const char* new_description)
+{
+    CDebugToolsWin::SetEntryDescription(entry_id, new_description);
+}
+
+// ====================================================================================================================
+// ToolPaletteSetValue():  Given a DebugEntry ID, update the value.
+// ====================================================================================================================
+static void ToolPaletteSetValue(int32 entry_id, const char* new_value)
+{
+    CDebugToolsWin::SetEntryValue(entry_id, new_value);
+}
+
 // == ToolPalette Registration ========================================================================================
 
 REGISTER_FUNCTION_P1(ToolPaletteClear, ToolPaletteClear, void, const char*);
 REGISTER_FUNCTION_P2(ToolPaletteAddMessage, ToolPaletteAddMessage, int32, const char*, const char*);
 REGISTER_FUNCTION_P5(ToolPaletteAddButton, ToolPaletteAddButton, int32, const char*, const char*, const char*, const char*, const char*);
+REGISTER_FUNCTION_P7(ToolPaletteAddSlider, ToolPaletteAddSlider, int32, const char*, const char*, const char*, int32, int32, int32, const char*);
+
+REGISTER_FUNCTION_P2(ToolPaletteSetName, ToolPaletteSetName, void, int32, const char*);
+REGISTER_FUNCTION_P2(ToolPaletteSetDescription, ToolPaletteSetDescription, void, int32, const char*);
+REGISTER_FUNCTION_P2(ToolPaletteSetValue, ToolPaletteSetValue, void, int32, const char*);
 
 // --------------------------------------------------------------------------------------------------------------------
 int _tmain(int argc, _TCHAR* argv[])

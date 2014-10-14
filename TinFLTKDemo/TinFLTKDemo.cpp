@@ -330,6 +330,9 @@ public:
         }
         int delta_ms = current_tick - gSystemTickCount;
 
+        // -- scale the elapsed time
+        delta_ms = int(gTimeScale * float(delta_ms));
+
         // -- limit the sim update frequency
         if (delta_ms >= 3)
         {
@@ -357,6 +360,7 @@ public:
     static int gCurrentTimeMS;
     static DWORD gSystemTickCount;
     static bool gPaused;
+    static float gTimeScale;
 
 private:
     // -- store a vector of lines
@@ -369,6 +373,7 @@ private:
 int Canvas::gCurrentTimeMS = 0;
 DWORD Canvas::gSystemTickCount = 0;
 bool Canvas::gPaused = false;
+float Canvas::gTimeScale = 1.0f;
 
 // -- application entry point -----------------------------------------------------------------------------------------
 
@@ -474,10 +479,16 @@ int32 GetSimTime()
     return (Canvas::gCurrentTimeMS);
 }
 
+void SimSetTimeScale(float scale)
+{
+    Canvas::gTimeScale = scale;
+}
+
 REGISTER_FUNCTION_P0(SimPause, SimPause, void);
 REGISTER_FUNCTION_P0(SimUnpause, SimUnpause, void);
 REGISTER_FUNCTION_P0(SimIsPaused, SimIsPaused, bool8);
 REGISTER_FUNCTION_P0(GetSimTime, GetSimTime, int32);
+REGISTER_FUNCTION_P1(SimSetTimeScale, SimSetTimeScale, void, float);
 
 // --------------------------------------------------------------------------------------------------------------------
 // EOF

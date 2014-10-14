@@ -155,6 +155,8 @@ class CConsoleWindow
         int32 ToolsWindowAddMessage(const char* window_name, const char* message);
         int32 ToolsWindowAddButton(const char* window_name, const char* name, const char* description,
                                    const char* value, const char* command);
+        int32 ToolsWindowAddSlider(const char* window_name, const char* name, const char* description,
+                                   int32 min_value, int32 max_value, int32 cur_value, const char* command);
 
         // -- breakpoint members
         bool mBreakpointHit;

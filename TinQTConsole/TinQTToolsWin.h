@@ -54,6 +54,10 @@ class CDebugToolEntry : public QWidget
             return (mEntryID);
         }
 
+        void SetName(const char* new_name);
+        void SetDescription(const char* new_description);
+        virtual void SetValue(const char* new_value) { }
+
     protected:
         static int32 gToolsWindowElementIndex;
         int32 mEntryID;
@@ -72,6 +76,8 @@ class CDebugToolMessage : public CDebugToolEntry
         CDebugToolMessage(const char* message, CDebugToolsWin* parent);
         virtual ~CDebugToolMessage();
 
+        virtual void SetValue(const char* new_value) override;
+
     protected:
         QLabel* mMessage;
 };
@@ -88,11 +94,35 @@ class CDebugToolButton : public CDebugToolEntry
                          CDebugToolsWin* parent);
         virtual ~CDebugToolButton();
 
+        virtual void SetValue(const char* new_value) override;
+
     public slots:
         void OnButtonPressed();
 
     protected:
         QPushButton* mButton;
+        char mCommand[TinScript::kMaxTokenLength];
+};
+
+// ====================================================================================================================
+// CDebugToolSlider:  Gui element of type "slider", to be added to a ToolPalette
+// ====================================================================================================================
+class CDebugToolSlider : public CDebugToolEntry
+{
+    Q_OBJECT
+
+    public:
+        CDebugToolSlider(const char* name, const char* description, int32 min_value, int32 max_value,
+                         int32 cur_value, const char* command, CDebugToolsWin* parent);
+        virtual ~CDebugToolSlider();
+
+        virtual void SetValue(const char* new_value) override;
+
+    public slots:
+        void OnSliderReleased();
+
+    protected:
+        QSlider* mSlider;
         char mCommand[TinScript::kMaxTokenLength];
 };
 
@@ -139,6 +169,16 @@ class CDebugToolsWin : public QWidget
 
         int32 AddMessage(const char* message);
         int32 AddButton(const char* name, const char* description, const char* value, const char* command);
+        int32 AddSlider(const char* name, const char* description, int32 min_value, int32 max_value, int32 cur_value,
+                        const char* command);
+
+        // -- setting the value of a DebugEntry by ID, regardless of which window it belongs to
+        static void SetEntryName(int32 entry_id, const char* new_name);
+        static void SetEntryDescription(int32 entry_id, const char* new_description);
+        static void SetEntryValue(int32 entry_id, const char* new_value);
+
+        // -- static map of all entries, regardless of which tool window it actually belongs to
+        static QMap<int32, CDebugToolEntry*> gDebugToolEntryMap;
 
     private:
         char mWindowName[TinScript::kMaxNameLength];

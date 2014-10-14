@@ -43,6 +43,7 @@
 // --------------------------------------------------------------------------------------------------------------------
 // -- statics
 int32 CDebugToolEntry::gToolsWindowElementIndex = 0;
+QMap<int32, CDebugToolEntry*> CDebugToolsWin::gDebugToolEntryMap;
 
 // == CDebugToolEntry =================================================================================================
 
@@ -63,6 +64,12 @@ CDebugToolEntry::~CDebugToolEntry()
     // -- delete the elements
     delete mName;
     delete mDescription;
+
+    // -- remove this entry from the global map
+    if (CDebugToolsWin::gDebugToolEntryMap[mEntryID] == this)
+    {
+        CDebugToolsWin::gDebugToolEntryMap[mEntryID] = NULL;
+    }
 }
 
 // ====================================================================================================================
@@ -95,7 +102,30 @@ int32 CDebugToolEntry::Initialize(const char* name, const char* description, QWi
     mParent->GetContent()->updateGeometry();
     mParent->ExpandToParentSize();
 
+    // -- add the entry to the global map
+    CDebugToolsWin::gDebugToolEntryMap[mEntryID] = this;
+
     return (mEntryID);
+}
+
+// ====================================================================================================================
+// SetName():  Update the name of the CDebugToolEntry
+// ====================================================================================================================
+void CDebugToolEntry::SetName(const char* new_name)
+{
+    if (!new_name)
+        new_name = "";
+    mName->setText(new_name);
+}
+
+// ====================================================================================================================
+// SetDescription():  Update the description of the CDebugToolEntry
+// ====================================================================================================================
+void CDebugToolEntry::SetDescription(const char* new_description)
+{
+    if (!new_description)
+        new_description = "";
+    mDescription->setText(new_description);
 }
 
 // == CDebugToolMessage ===============================================================================================
@@ -115,6 +145,17 @@ CDebugToolMessage::CDebugToolMessage(const char* message, CDebugToolsWin* parent
 CDebugToolMessage::~CDebugToolMessage()
 {
     delete mMessage;
+}
+
+// ====================================================================================================================
+// SetValue():  Update the message text
+// ====================================================================================================================
+void CDebugToolMessage::SetValue(const char* new_value)
+{
+    if (!new_value)
+        new_value = "";
+
+    mMessage->setText(new_value);
 }
 
 // == CDebugToolButton ==================================================================================================
@@ -146,6 +187,16 @@ CDebugToolButton::~CDebugToolButton()
 }
 
 // ====================================================================================================================
+// SetValue():  Update the button text.
+// ====================================================================================================================
+void CDebugToolButton::SetValue(const char* new_value)
+{
+    if (!new_value)
+        new_value = "";
+    mButton->setText(new_value);
+}
+
+// ====================================================================================================================
 // OnButtonPressed():  Slot hooked up to the button, to execute the command when pressed.
 // ====================================================================================================================
 void CDebugToolButton::OnButtonPressed()
@@ -160,6 +211,80 @@ void CDebugToolButton::OnButtonPressed()
     {
         ConsolePrint("%s%s\n", kLocalSendPrefix, mCommand);
         TinScript::ExecCommand(mCommand);
+    }
+}
+
+// == CDebugToolSlider ================================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CDebugToolSlider::CDebugToolSlider(const char* name, const char* description, int32 min_value, int32 max_value,
+                                   int32 cur_value, const char* command, CDebugToolsWin* parent)
+
+    : CDebugToolEntry(parent)
+{
+    // -- copy the command
+    TinScript::SafeStrcpy(mCommand, command, TinScript::kMaxTokenLength);
+
+    // -- create the button
+    mSlider = new QSlider(Qt::Horizontal);
+    mSlider->setRange(min_value, max_value);
+    mSlider->setValue(cur_value);
+    mSlider->setMinimumWidth(160);
+    mSlider->setTickPosition(QSlider::TicksBelow);
+    mSlider->setTickInterval((max_value - min_value) / 10);
+    Initialize(name, description, mSlider);
+
+    // -- hook up the button
+    QObject::connect(mSlider, SIGNAL(sliderReleased()), this, SLOT(OnSliderReleased()));
+};
+
+// ====================================================================================================================
+// Deconstructor
+// ====================================================================================================================
+CDebugToolSlider::~CDebugToolSlider()
+{
+    delete mSlider;
+}
+
+// ====================================================================================================================
+// SetValue():  Update the button text.
+// ====================================================================================================================
+void CDebugToolSlider::SetValue(const char* new_value)
+{
+    if (!new_value)
+        new_value = "";
+
+    int32 int_value = TinScript::Atoi(new_value);
+    mSlider->setValue(int_value);
+}
+
+// ====================================================================================================================
+// OnButtonPressed():  Slot hooked up to the button, to execute the command when pressed.
+// ====================================================================================================================
+void CDebugToolSlider::OnSliderReleased()
+{
+    // -- create the command, by inserting the slider value as the first parameter
+    char command_buf[TinScript::kMaxTokenLength];
+    if (!mCommand[0])
+        sprintf_s(command_buf, "Print(%d);", mSlider->value());
+    else
+    {
+        sprintf_s(command_buf, "%s(%d);", mCommand, mSlider->value());
+    }
+
+    bool8 is_connected = CConsoleWindow::GetInstance()->IsConnected();
+    if (is_connected)
+    {
+        // -- for sliders, we need to embed the value, so the command is only the function name
+        ConsolePrint("%s%s\n", kConsoleSendPrefix, command_buf);
+        SocketManager::SendCommandf(command_buf);
+    }
+    else
+    {
+        ConsolePrint("%s%s\n", kLocalSendPrefix, command_buf);
+        TinScript::ExecCommand(command_buf);
     }
 }
 
@@ -221,7 +346,7 @@ int32 CDebugToolsWin::AddMessage(const char* message)
 }
 
 // ====================================================================================================================
-// AddMessage():  Adds a gui entry of type "message" to the ToolPalette window
+// AddButton():  Adds a gui entry of type "button" to the ToolPalette window
 // ====================================================================================================================
 int32 CDebugToolsWin::AddButton(const char* name, const char* description, const char* value, const char* command)
 {
@@ -232,6 +357,58 @@ int32 CDebugToolsWin::AddButton(const char* name, const char* description, const
 
     // -- failed to create the message
     return (0);
+}
+
+// ====================================================================================================================
+// AddSlider():  Adds a gui entry of type "slider" to the ToolPalette window
+// ====================================================================================================================
+int32 CDebugToolsWin::AddSlider(const char* name, const char* description, int32 min_value, int32 max_value,
+                                int32 cur_value, const char* command)
+{
+    // -- create the message entry
+    CDebugToolSlider* new_entry = new CDebugToolSlider(name, description, min_value, max_value, cur_value,
+                                                       command, this);
+    if (new_entry)
+        return (new_entry->GetEntryID());
+
+    // -- failed to create the message
+    return (0);
+}
+
+// ====================================================================================================================
+// SetEntryName():  Given an entry ID, update the DebugEntry's name.
+// ====================================================================================================================
+void CDebugToolsWin::SetEntryName(int32 entry_id, const char* new_name)
+{
+    if (gDebugToolEntryMap.contains(entry_id))
+    {
+        CDebugToolEntry* entry = gDebugToolEntryMap[entry_id];
+        entry->SetName(new_name);
+    }
+}
+
+// ====================================================================================================================
+// SetEntryDescription():  Given an entry ID, update the DebugEntry's description.
+// ====================================================================================================================
+void CDebugToolsWin::SetEntryDescription(int32 entry_id, const char* new_description)
+{
+    if (gDebugToolEntryMap.contains(entry_id))
+    {
+        CDebugToolEntry* entry = gDebugToolEntryMap[entry_id];
+        entry->SetDescription(new_description);
+    }
+}
+
+// ====================================================================================================================
+// SetEntryValue():  Given an entry ID, update the DebugEntry's value.
+// ====================================================================================================================
+void CDebugToolsWin::SetEntryValue(int32 entry_id, const char* new_value)
+{
+    if (gDebugToolEntryMap.contains(entry_id))
+    {
+        CDebugToolEntry* entry = gDebugToolEntryMap[entry_id];
+        entry->SetValue(new_value);
+    }
 }
 
 // ------------------------------------------------------------------------------------------------

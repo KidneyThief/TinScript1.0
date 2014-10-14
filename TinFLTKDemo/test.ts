@@ -104,5 +104,6 @@ void CScriptObject::SayHello()
 
 
 
+ToolPaletteAddSlider("foobar", "foobar", "foobar", 0, 100, 20, "Print");
 
 
