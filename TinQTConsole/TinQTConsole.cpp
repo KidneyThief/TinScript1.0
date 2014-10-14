@@ -54,6 +54,7 @@
 #include "TinQTSourceWin.h"
 #include "TinQTBreakpointsWin.h"
 #include "TinQTWatchWin.h"
+#include "TinQTToolsWin.h"
 
 #include "mainwindow.h"
 
@@ -63,12 +64,6 @@
 #define TinPrint Print
 
 bool PushDebuggerAssertDialog(const char* assertmsg, bool& ignore);
-
-// ------------------------------------------------------------------------------------------------
-// -- statics
-static const char* kConsoleSendPrefix = ">> ";
-static const char* kConsoleRecvPrefix = "";
-static const char* kLocalSendPrefix = "> ";
 
 // ------------------------------------------------------------------------------------------------
 CConsoleWindow* CConsoleWindow::gConsoleWindow = NULL;
@@ -94,6 +89,7 @@ CConsoleWindow::CConsoleWindow()
     outputDockWidget->setWindowTitle("Console Output");
     mConsoleOutput = new CConsoleOutput(outputDockWidget);
     mConsoleOutput->addItem("Welcome to the TinConsole!");
+    outputDockWidget->setMinimumHeight(200);
 
     // -- create the consoleinput
     mConsoleInput = new CConsoleInput(outputDockWidget);
@@ -170,10 +166,10 @@ CConsoleWindow::CConsoleWindow()
     mMainWindow->addToolBar(toolbar);
 
     // -- create the source window
-    QDockWidget* sourceWinDockWidget = new QDockWidget();
-    sourceWinDockWidget->setObjectName("Source View");
-    sourceWinDockWidget->setWindowTitle("Source View");
-    mDebugSourceWin = new CDebugSourceWin(sourceWinDockWidget);
+    mSourceWinDockWidget = new QDockWidget();
+    mSourceWinDockWidget->setObjectName("Source View");
+    mSourceWinDockWidget->setWindowTitle("Source View");
+    mDebugSourceWin = new CDebugSourceWin(mSourceWinDockWidget);
 
     // -- create the callstack window
     QDockWidget* callstackDockWidget = new QDockWidget();
@@ -272,7 +268,7 @@ CConsoleWindow::CConsoleWindow()
     QShortcut* shortcut_SearchAgain = new QShortcut(QKeySequence("F3"), mMainWindow);
     QObject::connect(shortcut_SearchAgain, SIGNAL(activated()), mConsoleInput, SLOT(OnFindEditReturnPressed()));
 
-    mMainWindow->addDockWidget(Qt::TopDockWidgetArea, sourceWinDockWidget);
+    mMainWindow->addDockWidget(Qt::TopDockWidgetArea, mSourceWinDockWidget);
     mMainWindow->addDockWidget(Qt::LeftDockWidgetArea, outputDockWidget);
     mMainWindow->addDockWidget(Qt::TopDockWidgetArea, callstackDockWidget);
     mMainWindow->addDockWidget(Qt::RightDockWidgetArea, breakpointsDockWidget);
@@ -649,6 +645,115 @@ void CConsoleWindow::ClearAssert(bool8 set_break)
         // -- send the message to run
         SocketManager::SendCommand("DebuggerBreakRun();");
     }
+}
+
+// ====================================================================================================================
+// FindOrCreateToolsWindow():  Finds a tools window by name, creates if one is not found
+// ====================================================================================================================
+CDebugToolsWin* CConsoleWindow::FindOrCreateToolsWindow(const char* window_name)
+{
+    // - sanity check
+    if (!window_name || !window_name[0])
+        return (NULL);
+
+    // -- see if the window already exists
+    CDebugToolsWin* found = NULL;
+    uint32 name_hash = TinScript::Hash(window_name);
+    if (mToolsWindowMap.contains(name_hash))
+    {
+        found = mToolsWindowMap[name_hash];
+    }
+
+    // -- not found - create the tools window
+    else
+    {
+        QDockWidget* new_tools_window_dock = new QDockWidget();
+        new_tools_window_dock->setObjectName(window_name);
+        new_tools_window_dock->setWindowTitle(window_name);
+        found = new CDebugToolsWin(window_name, new_tools_window_dock);
+        found->setGeometry(0, 0, 320, 240); 
+        mToolsWindowMap[name_hash] = found;
+
+        // -- see if we can find an existing tools window to join
+        const QList<CDebugToolsWin*> tool_windows = mToolsWindowMap.values();
+
+        QDockWidget* dock_parent = NULL;
+        int count = tool_windows.size();
+        for (int index = count - 1; index >= 0; --index)
+        {
+            CDebugToolsWin* last_dock = tool_windows.at(index);
+            if (last_dock && last_dock->isVisible())
+            {
+                dock_parent = static_cast<QDockWidget*>(last_dock->parent());
+                break;
+            }
+        }
+
+        // -- if we still haven't found a dock parent, try the source window
+        if (!dock_parent && mSourceWinDockWidget && mSourceWinDockWidget->isVisible())
+            dock_parent = mSourceWinDockWidget;
+
+        // -- dock the window initially, so it shows up
+        if (dock_parent)
+        {
+            GetMainWindow()->tabifyDockWidget(dock_parent, new_tools_window_dock);
+            new_tools_window_dock->show();
+            new_tools_window_dock->raise();
+        }
+
+        // -- no parent to dock to - simply dock it tot he top of the application
+        else
+        {
+            GetMainWindow()->addDockWidget(Qt::TopDockWidgetArea, new_tools_window_dock, Qt::Horizontal);
+        }
+    }
+
+    // -- return the window
+    return (found);
+}
+
+// ====================================================================================================================
+// ToolsWindowClear():  Find the tools window, and clears all its elements.
+// ====================================================================================================================
+void CConsoleWindow::ToolsWindowClear(const char* window_name)
+{
+    // -- find the window - return 0 (invalid index) if we are unable to find or create
+    CDebugToolsWin* tools_win = FindOrCreateToolsWindow(window_name);
+    if (tools_win)
+        tools_win->ClearAll();
+}
+
+// ====================================================================================================================
+// ToolsWindowAddMessage():  Find the tools window, and adds a text message (separtor) to it.
+// ====================================================================================================================
+int32 CConsoleWindow::ToolsWindowAddMessage(const char* window_name, const char* message)
+{
+    // -- find the window - return 0 (invalid index) if we are unable to find or create
+    CDebugToolsWin* tools_win = FindOrCreateToolsWindow(window_name);
+    if (!tools_win)
+        return (0);
+
+    // -- add the entry
+    int32 entry_id = tools_win->AddMessage(message);
+
+    return (entry_id);
+}
+
+// ====================================================================================================================
+// ToolsWindowAddButton():  Find the tools window, and adds a button to it.
+// ====================================================================================================================
+int32 CConsoleWindow::ToolsWindowAddButton(const char* window_name, const char* name, const char* description,
+                                           const char* value, const char* command)
+{
+    // -- find the window - return 0 (invalid index) if we are unable to find or create
+    CDebugToolsWin* tools_win = FindOrCreateToolsWindow(window_name);
+    if (!tools_win)
+        return (0);
+
+    // -- add the entry
+    int32 entry_id = tools_win->AddButton(name, description, value, command);
+
+    return (entry_id);
 }
 
 // == Global Interface ================================================================================================
@@ -1475,6 +1580,39 @@ static void DebuggerRecvDataCallback(SocketManager::tDataPacket* packet)
     // -- let the CConsoleOutput (which owns the update loop) deal with it
     CConsoleWindow::GetInstance()->GetOutput()->ReceiveDataPacket(packet);
 }
+
+// ====================================================================================================================
+// ToolPaletteClear():  Finds or creates a tools window, and clears all current entries.
+// ====================================================================================================================
+static void ToolPaletteClear(const char* win_name)
+{
+    CConsoleWindow::GetInstance()->ToolsWindowClear(win_name);
+}
+
+// ====================================================================================================================
+// ToolPaletteAddMessage():  Finds or creates a tools window, and adds a message to it.
+// ====================================================================================================================
+static int32 ToolPaletteAddMessage(const char* win_name, const char* message)
+{
+    int32 index = CConsoleWindow::GetInstance()->ToolsWindowAddMessage(win_name, message);
+    return (index);
+}
+
+// ====================================================================================================================
+// ToolPaletteAddMessage():  Finds or creates a tools window, and adds a message to it.
+// ====================================================================================================================
+static int32 ToolPaletteAddButton(const char* win_name, const char* name, const char* description, const char* value,
+                                  const char* command)
+{
+    int32 index = CConsoleWindow::GetInstance()->ToolsWindowAddButton(win_name, name, description, value, command);
+    return (index);
+}
+
+// == ToolPalette Registration ========================================================================================
+
+REGISTER_FUNCTION_P1(ToolPaletteClear, ToolPaletteClear, void, const char*);
+REGISTER_FUNCTION_P2(ToolPaletteAddMessage, ToolPaletteAddMessage, int32, const char*, const char*);
+REGISTER_FUNCTION_P5(ToolPaletteAddButton, ToolPaletteAddButton, int32, const char*, const char*, const char*, const char*, const char*);
 
 // --------------------------------------------------------------------------------------------------------------------
 int _tmain(int argc, _TCHAR* argv[])

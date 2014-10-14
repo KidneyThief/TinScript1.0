@@ -38,6 +38,12 @@
 #include "socket.h"
 
 // --------------------------------------------------------------------------------------------------------------------
+// -- statics
+static const char* kConsoleSendPrefix = ">> ";
+static const char* kConsoleRecvPrefix = "";
+static const char* kLocalSendPrefix = "> ";
+
+// --------------------------------------------------------------------------------------------------------------------
 // -- Forward declarations
 
 class CConsoleInput;
@@ -48,6 +54,7 @@ class QGridLayout;
 class CDebugBreakpointsWin;
 class CDebugCallstackWin;
 class CDebugWatchWin;
+class CDebugToolsWin;
 
 // -- new "dock widget" framework
 class MainWindow;
@@ -102,6 +109,7 @@ class CConsoleWindow
         QLineEdit* mConnectIP;
         QPushButton* mButtonConnect;
 
+        QDockWidget* mSourceWinDockWidget;
         CDebugSourceWin* mDebugSourceWin;
         CDebugBreakpointsWin* mBreakpointsWin;
         CDebugCallstackWin* mCallstackWin;
@@ -141,6 +149,13 @@ class CConsoleWindow
         bool HasAssert(const char*& assert_msg, uint32& codeblock_hash, int32& line_number);
         void ClearAssert(bool set_break);
 
+        // -- interface supporting multiple tools windows
+        CDebugToolsWin* FindOrCreateToolsWindow(const char* window_name);
+        void ToolsWindowClear(const char* window_name);
+        int32 ToolsWindowAddMessage(const char* window_name, const char* message);
+        int32 ToolsWindowAddButton(const char* window_name, const char* name, const char* description,
+                                   const char* value, const char* command);
+
         // -- breakpoint members
         bool mBreakpointHit;
         int32 mBreakpointWatchRequestID;
@@ -157,6 +172,8 @@ class CConsoleWindow
 
     private:
         static CConsoleWindow* gConsoleWindow;
+
+        QMap<uint32, CDebugToolsWin*> mToolsWindowMap;
 
         // -- store whether we're connected
         bool8 mIsConnected;
@@ -180,6 +197,23 @@ class CConsoleInput : public QLineEdit
 	        mInputLabel->setPalette(myPalette);
         }
 
+        void ExpandToParentSize()
+        {
+            // -- leave room at the start for the input label
+            QSize parentSize = parentWidget()->size();
+            int newWidth = parentSize.width() - 24;
+            if (newWidth < 0)
+                newWidth = 0;
+            int newYOffset = parentSize.height() - 24;
+            if (newYOffset < 0)
+                newYOffset = 0;
+            setGeometry(24, newYOffset, newWidth, 24);
+            updateGeometry();
+
+            // -- update the label as well
+            mInputLabel->setGeometry(0, newYOffset, 24, 24);
+        }
+
     public slots:
         void OnButtonConnectPressed();
         void OnConnectIPReturnPressed();
@@ -200,23 +234,6 @@ class CConsoleInput : public QLineEdit
         {
             ExpandToParentSize();
             QLineEdit::paintEvent(e);
-        }
-
-        void ExpandToParentSize()
-        {
-            // -- leave room at the start for the input label
-            QSize parentSize = parentWidget()->size();
-            int newWidth = parentSize.width() - 24;
-            if (newWidth < 0)
-                newWidth = 0;
-            int newYOffset = parentSize.height() - 24;
-            if (newYOffset < 0)
-                newYOffset = 0;
-            setGeometry(24, newYOffset, newWidth, 24);
-            updateGeometry();
-
-            // -- update the label as well
-            mInputLabel->setGeometry(0, newYOffset, 24, 24);
         }
 
     private:
@@ -264,6 +281,10 @@ class CConsoleOutput : public QListWidget
                 newHeight = 20;
             setGeometry(0, 20, newWidth, newHeight);
             updateGeometry();
+
+            // -- reposition the console input
+            CConsoleInput* console_input = CConsoleWindow::GetInstance()->GetInput();
+            console_input->ExpandToParentSize();
         }
 
         static const unsigned int kUpdateTime = 33;
