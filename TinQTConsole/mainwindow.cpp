@@ -71,42 +71,6 @@
 #include "TinQTBreakpointsWin.h"
 
 // ====================================================================================================================
-// -- class implementation for ensuring we have a const char* value for a QLineEdit
-class SafeLineEdit : public QLineEdit
-{
-    public:
-        SafeLineEdit(QWidget* parent) : QLineEdit()
-        {
-            mStringValue[0] = '\0';
-        }
-
-        void SetStringValue(const char* value)
-        {
-            const char* new_value = value ? value : "";
-            TinScript::SafeStrcpy(mStringValue, new_value, TinScript::kMaxNameLength);
-            setText(new_value);
-        }
-
-        const char* GetStringValue() const
-        {
-            return (mStringValue);
-        }
-
-    protected:
-        virtual void keyPressEvent(QKeyEvent *e)
-        {
-            // -- pass the event along
-            QLineEdit::keyPressEvent(e);
-
-            // -- store the current value of the string
-            TinScript::SafeStrcpy(mStringValue, text().toUtf8(), TinScript::kMaxNameLength);
-        }
-
-    private:
-        char mStringValue[TinScript::kMaxNameLength];
-};
-
-// ====================================================================================================================
 // -- class implementation for add variable watch dialog
 class CreateVarWatchDialog : public QDialog
 {

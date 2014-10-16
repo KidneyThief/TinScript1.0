@@ -261,7 +261,7 @@ void CDebugToolSlider::SetValue(const char* new_value)
 }
 
 // ====================================================================================================================
-// OnButtonPressed():  Slot hooked up to the button, to execute the command when pressed.
+// OnSliderReleased():  Slot hooked up to the slider, to be executed when the slider is released.
 // ====================================================================================================================
 void CDebugToolSlider::OnSliderReleased()
 {
@@ -270,9 +270,142 @@ void CDebugToolSlider::OnSliderReleased()
     if (!mCommand[0])
         sprintf_s(command_buf, "Print(%d);", mSlider->value());
     else
-    {
         sprintf_s(command_buf, "%s(%d);", mCommand, mSlider->value());
+
+    bool8 is_connected = CConsoleWindow::GetInstance()->IsConnected();
+    if (is_connected)
+    {
+        // -- for sliders, we need to embed the value, so the command is only the function name
+        ConsolePrint("%s%s\n", kConsoleSendPrefix, command_buf);
+        SocketManager::SendCommandf(command_buf);
     }
+    else
+    {
+        ConsolePrint("%s%s\n", kLocalSendPrefix, command_buf);
+        TinScript::ExecCommand(command_buf);
+    }
+}
+
+// == CDebugToolTextEdit ==============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CDebugToolTextEdit::CDebugToolTextEdit(const char* name, const char* description, const char* cur_value,
+                                       const char* command, CDebugToolsWin* parent)
+
+    : CDebugToolEntry(parent)
+{
+    // -- copy the command
+    TinScript::SafeStrcpy(mCommand, command, TinScript::kMaxTokenLength);
+
+    // -- create the button
+    mLineEdit = new SafeLineEdit();
+    mLineEdit->setText(cur_value ? cur_value : "");
+    mLineEdit->setMinimumWidth(160);
+    Initialize(name, description, mLineEdit);
+
+    // -- hook up the button
+    QObject::connect(mLineEdit, SIGNAL(returnPressed()), this, SLOT(OnReturnPressed()));
+};
+
+// ====================================================================================================================
+// Deconstructor
+// ====================================================================================================================
+CDebugToolTextEdit::~CDebugToolTextEdit()
+{
+    delete mLineEdit;
+}
+
+// ====================================================================================================================
+// SetValue():  Update the button text.
+// ====================================================================================================================
+void CDebugToolTextEdit::SetValue(const char* new_value)
+{
+    if (!new_value)
+        new_value = "";
+
+    mLineEdit->setText(new_value ? new_value : "");
+}
+
+// ====================================================================================================================
+// OnReturnPressed():  Slot hooked up to the line edit, to be executed when the return is pressed.
+// ====================================================================================================================
+void CDebugToolTextEdit::OnReturnPressed()
+{
+    // -- create the command, by inserting the slider value as the first parameter
+    char command_buf[TinScript::kMaxTokenLength];
+    if (!mCommand[0])
+        sprintf_s(command_buf, "Print(`%s`);", mLineEdit->GetStringValue());
+    else
+        sprintf_s(command_buf, "%s(`%d`);", mCommand, mLineEdit->GetStringValue());
+
+    bool8 is_connected = CConsoleWindow::GetInstance()->IsConnected();
+    if (is_connected)
+    {
+        // -- for sliders, we need to embed the value, so the command is only the function name
+        ConsolePrint("%s%s\n", kConsoleSendPrefix, command_buf);
+        SocketManager::SendCommandf(command_buf);
+    }
+    else
+    {
+        ConsolePrint("%s%s\n", kLocalSendPrefix, command_buf);
+        TinScript::ExecCommand(command_buf);
+    }
+}
+
+// == CDebugToolCheckBox ==============================================================================================
+
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
+CDebugToolCheckBox::CDebugToolCheckBox(const char* name, const char* description, bool cur_value,
+                                       const char* command, CDebugToolsWin* parent)
+
+    : CDebugToolEntry(parent)
+{
+    // -- copy the command
+    TinScript::SafeStrcpy(mCommand, command, TinScript::kMaxTokenLength);
+
+    // -- create the button
+    mCheckBox = new QCheckBox();
+    mCheckBox->setCheckState(cur_value ? Qt::Checked : Qt::Unchecked);
+    Initialize(name, description, mCheckBox);
+
+    // -- hook up the button
+    QObject::connect(mCheckBox, SIGNAL(clicked()), this, SLOT(OnClicked()));
+};
+
+// ====================================================================================================================
+// Deconstructor
+// ====================================================================================================================
+CDebugToolCheckBox::~CDebugToolCheckBox()
+{
+    delete mCheckBox;
+}
+
+// ====================================================================================================================
+// SetValue():  Update the button text.
+// ====================================================================================================================
+void CDebugToolCheckBox::SetValue(const char* new_value)
+{
+    bool bool_value = false;
+    TinScript::StringToBool(&bool_value, (char*)new_value);
+    mCheckBox->setCheckState(bool_value ? Qt::Checked : Qt::Unchecked);
+}
+
+// ====================================================================================================================
+// OnClicked():  Slot hooked up to the line edit, to be executed when the return is pressed.
+// ====================================================================================================================
+void CDebugToolCheckBox::OnClicked()
+{
+    // -- create the command, by inserting the slider value as the first parameter
+    bool value = (mCheckBox->checkState() == Qt::Checked);
+    char command_buf[TinScript::kMaxTokenLength];
+    if (!mCommand[0])
+        sprintf_s(command_buf, "Print(%s);", value ? "true" : "false");
+    else
+        sprintf_s(command_buf, "%s(`%d`);", mCommand, value ? "true" : "false");
 
     bool8 is_connected = CConsoleWindow::GetInstance()->IsConnected();
     if (is_connected)
@@ -368,6 +501,35 @@ int32 CDebugToolsWin::AddSlider(const char* name, const char* description, int32
     // -- create the message entry
     CDebugToolSlider* new_entry = new CDebugToolSlider(name, description, min_value, max_value, cur_value,
                                                        command, this);
+    if (new_entry)
+        return (new_entry->GetEntryID());
+
+    // -- failed to create the message
+    return (0);
+}
+
+// ====================================================================================================================
+// AddTextEdit():  Adds a gui entry of type "text edit" to the ToolPalette window
+// ====================================================================================================================
+int32 CDebugToolsWin::AddTextEdit(const char* name, const char* description, const char* cur_value,
+                                  const char* command)
+{
+    // -- create the message entry
+    CDebugToolTextEdit* new_entry = new CDebugToolTextEdit(name, description, cur_value, command, this);
+    if (new_entry)
+        return (new_entry->GetEntryID());
+
+    // -- failed to create the message
+    return (0);
+}
+
+// ====================================================================================================================
+// AddCheckBox():  Adds a gui entry of type "text edit" to the ToolPalette window
+// ====================================================================================================================
+int32 CDebugToolsWin::AddCheckBox(const char* name, const char* description, bool cur_value, const char* command)
+{
+    // -- create the message entry
+    CDebugToolCheckBox* new_entry = new CDebugToolCheckBox(name, description, cur_value, command, this);
     if (new_entry)
         return (new_entry->GetEntryID());
 

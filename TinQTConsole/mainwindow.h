@@ -44,6 +44,7 @@
 
 #include <QMainWindow>
 #include <QTextEdit>
+#include <QLineEdit>
 #include <QAction>
 
 #include "TinScript.h"
@@ -55,6 +56,43 @@ QT_FORWARD_DECLARE_CLASS(QSignalMapper)
 
 class CScriptOpenWidget;
 class CScriptOpenAction;
+
+// ====================================================================================================================
+// class SafeLineEdit:  Implementation of a QLineEdit that caches the QString value into a buffer.
+// ====================================================================================================================
+class SafeLineEdit : public QLineEdit
+{
+    public:
+        SafeLineEdit(QWidget* parent = NULL) : QLineEdit(parent)
+        {
+            mStringValue[0] = '\0';
+        }
+
+        void SetStringValue(const char* value)
+        {
+            const char* new_value = value ? value : "";
+            TinScript::SafeStrcpy(mStringValue, new_value, TinScript::kMaxNameLength);
+            setText(new_value);
+        }
+
+        const char* GetStringValue() const
+        {
+            return (mStringValue);
+        }
+
+    protected:
+        virtual void keyPressEvent(QKeyEvent *e)
+        {
+            // -- pass the event along
+            QLineEdit::keyPressEvent(e);
+
+            // -- store the current value of the string
+            TinScript::SafeStrcpy(mStringValue, text().toUtf8(), TinScript::kMaxNameLength);
+        }
+
+    private:
+        char mStringValue[TinScript::kMaxNameLength];
+};
 
 class MainWindow : public QMainWindow
 {

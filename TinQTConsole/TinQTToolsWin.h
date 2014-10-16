@@ -32,6 +32,8 @@
 #include <qbytearray.h>
 #include <qscrollarea.h>
 
+#include "mainwindow.h"
+
 // --------------------------------------------------------------------------------------------------------------------
 // -- forward declarations
 class QLabel;
@@ -127,6 +129,50 @@ class CDebugToolSlider : public CDebugToolEntry
 };
 
 // ====================================================================================================================
+// CDebugToolTextEdit:  Gui element of type "text edit", to be added to a ToolPalette
+// ====================================================================================================================
+class CDebugToolTextEdit : public CDebugToolEntry
+{
+    Q_OBJECT
+
+    public:
+        CDebugToolTextEdit(const char* name, const char* description, const char* cur_value, const char* command,
+                           CDebugToolsWin* parent);
+        virtual ~CDebugToolTextEdit();
+
+        virtual void SetValue(const char* new_value) override;
+
+    public slots:
+        void OnReturnPressed();
+
+    protected:
+        SafeLineEdit* mLineEdit;
+        char mCommand[TinScript::kMaxTokenLength];
+};
+
+// ====================================================================================================================
+// CDebugToolCheckBox:  Gui element of type "check box", to be added to a ToolPalette
+// ====================================================================================================================
+class CDebugToolCheckBox : public CDebugToolEntry
+{
+    Q_OBJECT
+
+    public:
+        CDebugToolCheckBox(const char* name, const char* description, bool cur_value, const char* command,
+                           CDebugToolsWin* parent);
+        virtual ~CDebugToolCheckBox();
+
+        virtual void SetValue(const char* new_value) override;
+
+    public slots:
+        void OnClicked();
+
+    protected:
+        QCheckBox* mCheckBox;
+        char mCommand[TinScript::kMaxTokenLength];
+};
+
+// ====================================================================================================================
 // class CDebugToolsWin:  The base class for ToolPalette windows
 // ====================================================================================================================
 
@@ -171,6 +217,8 @@ class CDebugToolsWin : public QWidget
         int32 AddButton(const char* name, const char* description, const char* value, const char* command);
         int32 AddSlider(const char* name, const char* description, int32 min_value, int32 max_value, int32 cur_value,
                         const char* command);
+        int32 AddTextEdit(const char* name, const char* description, const char* cur_value, const char* command);
+        int32 AddCheckBox(const char* name, const char* description, bool cur_value, const char* command);
 
         // -- setting the value of a DebugEntry by ID, regardless of which window it belongs to
         static void SetEntryName(int32 entry_id, const char* new_name);
