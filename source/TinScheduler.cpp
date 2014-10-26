@@ -102,8 +102,39 @@ void CScheduler::Update(uint32 curtime)
             }
         }
 
-        // -- delete the command
-        TinFree(curcommand);
+        // -- if the command is to be repeated, re-insert it back into the list
+        if (curcommand->mRepeatTime > 0)
+        {
+            // -- first, update the dispatch time
+            curcommand->mDispatchTime = mCurrentSimTime + curcommand->mRepeatTime;
+
+            // -- see if it goes at the front of the list
+            if (!mHead || curcommand->mDispatchTime < mHead->mDispatchTime)
+            {
+                curcommand->mNext = mHead;
+                curcommand->mPrev = NULL;
+                if(mHead)
+                    mHead->mPrev = curcommand;
+                mHead = curcommand;
+            }
+            else
+            {
+                // -- insert it into the list, in after curschedule
+                CCommand* curschedule = mHead;
+                while (curschedule->mNext && curschedule->mDispatchTime < curcommand->mDispatchTime)
+                    curschedule = curschedule->mNext;
+                curcommand->mNext = curschedule->mNext;
+                curcommand->mPrev = curschedule;
+                if (curschedule->mNext)
+                    curschedule->mNext->mPrev = curcommand;
+                curschedule->mNext = curcommand;
+            }
+        }
+        else
+        {
+            // -- delete the command
+            TinFree(curcommand);
+        }
     }
 }
 
@@ -155,9 +186,18 @@ void CScheduler::Dump()
 {
     // -- loop through and delete any schedules pending for this object
     CCommand* curcommand = mHead;
-    while(curcommand) {
-        TinPrint(GetScriptContext(), "ReqID: %d, ObjID: %d, Command: %s\n", curcommand->mReqID,
-                 curcommand->mObjectID, curcommand->mCommandBuf);
+    while (curcommand)
+    {
+        if (curcommand->mFuncHash != 0)
+        {
+            TinPrint(GetScriptContext(), "ReqID: %d, ObjID: %d, Function: %s\n", curcommand->mReqID,
+                     curcommand->mObjectID, UnHash(curcommand->mFuncHash));
+        }
+        else
+        {
+            TinPrint(GetScriptContext(), "ReqID: %d, ObjID: %d, Command: %s\n", curcommand->mReqID,
+                     curcommand->mObjectID, curcommand->mCommandBuf);
+        }
         curcommand = curcommand->mNext;
     }
 }
@@ -168,7 +208,7 @@ void CScheduler::Dump()
 // Constructor: Schedule a raw text statement, to be parsed and executed.
 // ====================================================================================================================
 CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uint32 _objectid,
-                               uint32 _dispatchtime, const char* _command, bool8 immediate)
+                               uint32 _dispatchtime, uint32 _repeat_time, const char* _command, bool8 immediate)
 {
     // -- set the context
     mContextOwner = script_context;
@@ -177,6 +217,7 @@ CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uin
     mReqID = _reqid;
     mObjectID = _objectid;
     mDispatchTime = _dispatchtime;
+    mRepeatTime = _repeat_time;
     mImmediateExec = immediate;
     SafeStrcpy(mCommandBuf, _command, kMaxTokenLength);
 
@@ -189,7 +230,7 @@ CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uin
 // Constructor:  Schedule a specific function/method call - much more efficient than raw text.
 // ====================================================================================================================
 CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uint32 _objectid,
-                               uint32 _dispatchtime, uint32 _funchash, bool8 immediate)
+                               uint32 _dispatchtime, uint32 _repeat_time, uint32 _funchash, bool8 immediate)
 {
     // -- set the context
     mContextOwner = script_context;
@@ -198,6 +239,7 @@ CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uin
     mReqID = _reqid;
     mObjectID = _objectid;
     mDispatchTime = _dispatchtime;
+    mRepeatTime = _repeat_time;
     mImmediateExec = immediate;
     mCommandBuf[0] = '\0';
 
@@ -220,7 +262,7 @@ CScheduler::CCommand::~CCommand()
 // Schedule():  Schedule a raw text command.
 // ====================================================================================================================
 static int32 gScheduleID = 0;
-int32 CScheduler::Schedule(uint32 objectid, int32 delay, const char* commandstring)
+int32 CScheduler::Schedule(uint32 objectid, int32 delay, bool8 repeat, const char* commandstring)
 {
     ++gScheduleID;
 
@@ -229,11 +271,13 @@ int32 CScheduler::Schedule(uint32 objectid, int32 delay, const char* commandstri
         return 0;
 
     // -- calculate the dispatch time - enforce a one-frame delay
-    uint32 dispatchtime = mCurrentSimTime + (delay > 0 ? delay : 1);
+    uint32 delay_time = (delay > 0 ? delay : 1);
+    uint32 dispatchtime = mCurrentSimTime + delay_time;
+    uint32 repeat_time = repeat ? delay_time : 0;
 
     // -- create the new commmand
     CCommand* newcommand = TinAlloc(ALLOC_SchedCmd, CCommand, GetScriptContext(), gScheduleID,
-                                    objectid, dispatchtime, commandstring);
+                                    objectid, dispatchtime, repeat_time, commandstring);
 
     // -- see if it goes at the front of the list
     if (!mHead || dispatchtime <= mHead->mDispatchTime)
@@ -264,17 +308,19 @@ int32 CScheduler::Schedule(uint32 objectid, int32 delay, const char* commandstri
 // ====================================================================================================================
 // ScheduleCreate():  Create a schedule request.
 // ====================================================================================================================
-CScheduler::CCommand* CScheduler::ScheduleCreate(uint32 objectid, int32 delay,
-                                                 uint32 funchash, bool8 immediate)
+CScheduler::CCommand* CScheduler::ScheduleCreate(uint32 objectid, int32 delay, uint32 funchash, bool8 immediate,
+                                                 bool8 repeat)
 {
     ++gScheduleID;
 
     // -- calculate the dispatch time - enforce a one-frame delay
-    uint32 dispatchtime = mCurrentSimTime + (delay > 0 ? delay : 1);
+    uint32 delay_time = (delay > 0 ? delay : 1);
+    uint32 dispatchtime = mCurrentSimTime + delay_time;
+    uint32 repeat_time = repeat ? delay_time : 0;
 
     // -- create the new commmand
     CCommand* newcommand = TinAlloc(ALLOC_SchedCmd, CCommand, GetScriptContext(), gScheduleID,
-                                    objectid, dispatchtime, funchash, immediate);
+                                    objectid, dispatchtime, repeat_time, funchash, immediate);
 
     // -- add space to store a return value
     newcommand->mFuncContext->AddParameter("__return", Hash("__return"), TYPE__resolve, 1, 0);
@@ -313,7 +359,7 @@ CScheduler::CCommand* CScheduler::ScheduleCreate(uint32 objectid, int32 delay,
 int32 CScheduler::Thread(int32 reqid, uint32 objectid, int32 delay, const char* commandstring)
 {
     CancelRequest(reqid);
-    int32 newreqid = Schedule(objectid, delay, commandstring);
+    int32 newreqid = Schedule(objectid, delay, false, commandstring);
     return newreqid;
 }
 

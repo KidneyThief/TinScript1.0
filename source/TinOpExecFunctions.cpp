@@ -2466,7 +2466,17 @@ bool8 OpExecScheduleBegin(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     // -- TYPE_object is actually just an uint32 ID
     uint32 objectid = *(uint32*)contentptr;
 
-    // -- finally pull the delay time off the stack
+    // -- pull the repeat flag off the stack
+    contentptr = execstack.Pop(contenttype);
+    if (contenttype != TYPE_bool)
+    {
+        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                        "Error - ExecStack should contain TYPE_bool\n");
+        return false;
+    }
+    bool8 repeat = *(bool8*)(contentptr);
+
+    // -- pull the delay time off the stack
     contentptr = execstack.Pop(contenttype);
     if (contenttype != TYPE_int)
     {
@@ -2476,10 +2486,12 @@ bool8 OpExecScheduleBegin(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, C
     }
     int32 delaytime = *(int32*)(contentptr);
 
+
     // -- create the schedule 
     cb->GetScriptContext()->GetScheduler()->mCurrentSchedule =
         cb->GetScriptContext()->GetScheduler()->ScheduleCreate(objectid, delaytime, funchash,
-                                                               immediate_execution != 0 ? true : false);
+                                                               immediate_execution != 0 ? true : false,
+                                                               repeat);
 
     if (objectid > 0)
         DebugTrace(op, "Obj Id [%d] Function: %s", objectid, UnHash(funchash));

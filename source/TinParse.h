@@ -179,6 +179,8 @@ enum eUnaryOpType
 	ReservedKeywordEntry(return)	\
 	ReservedKeywordEntry(schedule)	\
     ReservedKeywordEntry(execute)	\
+	ReservedKeywordEntry(repeat)	\
+    ReservedKeywordEntry(hash)	    \
 	ReservedKeywordEntry(create)   	\
 	ReservedKeywordEntry(destroy) 	\
 	ReservedKeywordEntry(self)   	\
@@ -262,6 +264,7 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link,
                       bool8 ismethod);
 bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
+bool8 TryParseHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
 bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
 bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
 bool8 TryParseDestroyObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);

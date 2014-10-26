@@ -1898,10 +1898,14 @@ void CObjMemberDeclNode::Dump(char*& output, int32& length) const
 // ====================================================================================================================
 // Constructor
 // ====================================================================================================================
-CScheduleNode::CScheduleNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber, int32 _delaytime)
+CScheduleNode::CScheduleNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber, int32 _delaytime,
+                             bool8 _repeat)
     : CCompileTreeNode(_codeblock, _link, eSched, _linenumber)
 {
     delaytime = _delaytime;
+    if (delaytime < 1)
+        delaytime = 1;
+    mRepeat = _repeat;
 };
 
 // ====================================================================================================================
@@ -1930,6 +1934,9 @@ int32 CScheduleNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
     size += PushInstruction(countonly, instrptr, OP_Push, DBG_instr);
     size += PushInstruction(countonly, instrptr, TYPE_int, DBG_vartype);
     size += PushInstruction(countonly, instrptr, delaytime, DBG_value);
+    size += PushInstruction(countonly, instrptr, OP_Push, DBG_instr);
+    size += PushInstruction(countonly, instrptr, TYPE_bool, DBG_vartype);
+    size += PushInstruction(countonly, instrptr, mRepeat ? 1 : 0, DBG_value);
 
     // -- evaluate the left child, to get the object ID
     int32 tree_size = leftchild->Eval(instrptr, TYPE_object, countonly);

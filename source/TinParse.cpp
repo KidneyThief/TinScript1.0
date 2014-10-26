@@ -1694,6 +1694,10 @@ bool8 TryParseExpression(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTre
         return (true);
     }
 
+    // -- a hash() completes an expression
+    if (TryParseHash(codeblock, filebuf, exprlink))
+        return (true);
+
     // -- after the potential unary op, an expression may start with:
     // -- a 'self'
     // -- a function call (not a method)
@@ -3064,6 +3068,65 @@ bool8 TryParseArrayHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTree
     }
 
     return (true);
+
+}
+// ====================================================================================================================
+// TryParseHash():  The keyword "hash" has a well defined syntax.
+// ====================================================================================================================
+bool8 TryParseHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link)
+{
+    // -- ensure the next token is the 'hash' keyword
+    tReadToken peektoken(filebuf);
+    if (!GetToken(peektoken) || peektoken.type != TOKEN_KEYWORD)
+        return (false);
+
+	int32 reservedwordtype = GetReservedKeywordType(peektoken.tokenptr, peektoken.length);
+    if (reservedwordtype != KEYWORD_hash)
+        return (false);
+
+    // -- we're committed to a hash expression
+    filebuf = peektoken; 
+
+    // -- the complete format is: hash("string")
+    // -- read an open parenthesis
+    if (!GetToken(peektoken) || peektoken.type != TOKEN_PAREN_OPEN)
+    {
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), filebuf.linenumber,
+                      "Error - hash() expression, expecting '('\n");
+        return (false);
+    }
+
+    // -- next, we read a non-empty string
+    tReadToken string_token(peektoken);
+    if (!GetToken(string_token) || string_token.type != TOKEN_STRING || string_token.length == 0)
+    {
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), filebuf.linenumber,
+                      "Error - hash() expression, expecting a non-empty string literal\n");
+        return (false);
+    }
+
+    // -- read the closing parenthesis
+    peektoken = string_token;
+    if (!GetToken(peektoken) || peektoken.type != TOKEN_PAREN_CLOSE)
+    {
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), filebuf.linenumber,
+                      "Error - hash() expression, expecting ')'\n");
+        return (false);
+    }
+
+    // -- update the file buf
+    filebuf = peektoken;
+
+    // -- hash expressions resolve at *compile* time, directly into values.
+    // -- because these are literals, add the string to the dictionary, as it may help debugging
+    uint32 hash_value = Hash(string_token.tokenptr, string_token.length, true);
+    char hash_value_buf[32];
+    sprintf_s(hash_value_buf, 32, "%d", hash_value);
+    CValueNode* hash_node = TinAlloc(ALLOC_TreeNode, CValueNode, codeblock, link, filebuf.linenumber, hash_value_buf,
+                                     strlen(hash_value_buf), false, TYPE_int);
+
+    // -- success
+    return (true);
 }
 
 // ====================================================================================================================
@@ -3077,12 +3140,14 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
         return (false);
 
 	int32 reservedwordtype = GetReservedKeywordType(peektoken.tokenptr, peektoken.length);
-    if (reservedwordtype != KEYWORD_schedule && reservedwordtype != KEYWORD_execute)
+    if (reservedwordtype != KEYWORD_schedule && reservedwordtype != KEYWORD_execute &&
+        reservedwordtype != KEYWORD_repeat)
         return (false);
 
     // -- see if we're parsing an execute statement - same as a schedule, but executes immediately
     // -- (right there in place, not the same as a schedule with a '0' duration on the next frame)
     bool8 immediate_execution = (reservedwordtype == KEYWORD_execute);
+    bool8 repeat_execution = (reservedwordtype == KEYWORD_repeat);
 
     // -- format is schedule(objid, time, funchash, arg1, ... argn);
     // -- formate is execute(objid, funchash, arg1, ... argn);
@@ -3104,8 +3169,7 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
     bool8 result = TryParseStatement(codeblock, filebuf, templink);
     if (!result)
     {
-        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                      filebuf.linenumber,
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), filebuf.linenumber,
                       "Error - Unable to resolve object ID in schedule/execute() call\n");
         return (false);
     }
@@ -3114,8 +3178,7 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
     peektoken = filebuf;
     if (!GetToken(peektoken))
     {
-        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                      filebuf.linenumber,
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), filebuf.linenumber,
                       "Error - expecting ',' in schedule/execute() call\n");
         return (false);
     }
@@ -3123,7 +3186,7 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
     // -- read the delay (msec)
     // $$$TZA read a statement?  tree resolving to the scheduled delay time?
     int32 delaytime = 0;
-    if (! immediate_execution)
+    if (!immediate_execution)
     {
         tReadToken delaytoken(peektoken);
         if (!GetToken(delaytoken) || delaytoken.type != TOKEN_INTEGER)
@@ -3156,7 +3219,7 @@ bool8 TryParseSchedule(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
 
     // -- add a CScheduleNode node
     CScheduleNode* schedulenode = TinAlloc(ALLOC_TreeNode, CScheduleNode, codeblock, link,
-                                           filebuf.linenumber, delaytime);
+                                           filebuf.linenumber, delaytime, repeat_execution);
 
     // -- set its left child to be the tree resolving to an object ID
     schedulenode->leftchild = templink;
@@ -3262,8 +3325,8 @@ bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileT
     tReadToken classtoken(filebuf);
     if (!GetToken(classtoken) || classtoken.type != TOKEN_IDENTIFIER)
     {
-        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                      filebuf.linenumber, "Error - expecting class name\n");
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), filebuf.linenumber,
+                      "Error - expecting class name\n");
         gGlobalCreateStatement = false;
         return (false);
     }
@@ -3272,8 +3335,8 @@ bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileT
     tReadToken nexttoken(classtoken);
     if (!GetToken(nexttoken) || nexttoken.type != TOKEN_PAREN_OPEN)
     {
-        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
-                      nexttoken.linenumber, "Error - expecting '('\n");
+        ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(), nexttoken.linenumber,
+                      "Error - expecting '('\n");
         gGlobalCreateStatement = false;
         return (false);
     }

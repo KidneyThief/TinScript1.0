@@ -95,8 +95,26 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\source\integration.h" />
+    <ClInclude Include="..\source\registrationclasses.h" />
+    <ClInclude Include="..\source\registrationexecs.h" />
+    <ClInclude Include="..\source\registrationmacros.h" />
     <ClInclude Include="..\source\stdafx.h" />
     <ClInclude Include="..\source\targetver.h" />
+    <ClInclude Include="..\source\TinCompile.h" />
+    <ClInclude Include="..\source\TinExecute.h" />
+    <ClInclude Include="..\source\TinHash.h" />
+    <ClInclude Include="..\source\TinInterface.h" />
+    <ClInclude Include="..\source\TinNamespace.h" />
+    <ClInclude Include="..\source\TinObjectGroup.h" />
+    <ClInclude Include="..\source\TinOpExecFunctions.h" />
+    <ClInclude Include="..\source\TinParse.h" />
+    <ClInclude Include="..\source\TinRegistration.h" />
+    <ClInclude Include="..\source\TinScheduler.h" />
+    <ClInclude Include="..\source\TinScript.h" />
+    <ClInclude Include="..\source\TinStringTable.h" />
+    <ClInclude Include="..\source\TinTypes.h" />
+    <ClInclude Include="..\source\TinVariableEntry.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

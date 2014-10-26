@@ -614,13 +614,14 @@ class CScheduleNode : public CCompileTreeNode
 {
 	public:
 		CScheduleNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int _linenumber,
-                      int _delaytime);
+                      int32 _delaytime, bool8 repeat);
 
 		virtual int Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const;
 
 	protected:
 		char funcname[kMaxNameLength];
         int32 delaytime;
+        bool8 mRepeat;
 
 	protected:
 		CScheduleNode() { }
