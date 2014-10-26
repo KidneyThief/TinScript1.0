@@ -18,7 +18,7 @@ The fastest way to explore it is:
 *  You should see both the console input echo'd, as well as the actual "hello world" text.
 *  Finally, execute the command:
   *  BeginUnitTests();
-*  The spam of about 20 unit tests should stream by.  Open up files:
+*  The spam of about 150 unit tests should stream by.  Open up files:
   *  source/TinScript.h  - at the bottom, are the function prototypes for using tinscript
   *  source/unittest.cpp - for an example of just about every aspect of the integration
   *  scripts/unittest.ts - for the script side of the unit test examples.
@@ -26,4 +26,4 @@ The fastest way to explore it is:
 Enjoy,
 
 ~Tim Andersen
-
+kidneythief@shaw.ca
