@@ -48,30 +48,60 @@ bool8 CmdShellAssertHandler(TinScript::CScriptContext* script_context, const cha
     if (!script_context->IsAssertStackSkipped() || script_context->IsAssertEnableTrace())
     {
         if (!script_context->IsAssertStackSkipped())
-            printf("*************************************************************\n");
+        {
+            TinPrint(script_context, "*************************************************************\n");
+        }
         else
-            printf("\n");
+        {
+            TinPrint(script_context, "\n");
+        }
 
         if (linenumber >= 0)
-            printf("Assert(%s) file: %s, line %d:\n", condition, file, linenumber + 1);
+        {
+            TinPrint(script_context, "Assert(%s) file: %s, line %d:\n", condition, file, linenumber + 1);
+        }
         else
-            printf("Exec Assert(%s):\n", condition);
+        {
+            TinPrint(script_context, "Exec Assert(%s):\n", condition);
+        }
 
         va_list args;
         va_start(args, fmt);
         char msgbuf[2048];
         vsprintf_s(msgbuf, 2048, fmt, args);
         va_end(args);
-        printf(msgbuf);
+        TinPrint(script_context, msgbuf);
 
         if (!script_context->IsAssertStackSkipped())
-            printf("*************************************************************\n");
-        if (!script_context->IsAssertStackSkipped()) {
-            printf("Press 'b' to break, 't' to trace, otherwise skip...\n");
-            char ch = getchar();
-            if (ch == 'b')
+        {
+            TinPrint(script_context, "*************************************************************\n");
+
+            // -- see if we should break, trace (dump the rest of the assert stack), or skip
+            bool assert_trace = false;
+            bool assert_break = false;
+
+            int32 debugger_session = 0;
+            if (script_context->IsDebuggerConnected(debugger_session))
+            {
+                // $$$TZA trace, or simply skip?
+                assert_trace = false;
+            }
+            else
+            {
+                TinPrint(script_context, "Press 'b' to break, 't' to trace, otherwise skip...\n");
+                char ch = getchar();
+                if (ch == 'b')
+                    assert_break = true;
+                else if (ch == 't')
+                    assert_trace = true;
+            }
+
+            // -- handle the result
+            if (assert_break)
+            {
                 return false;
-            else if (ch == 't')
+            }
+            else if (assert_trace)
             {
                 script_context->SetAssertStackSkipped(true);
                 script_context->SetAssertEnableTrace(true);

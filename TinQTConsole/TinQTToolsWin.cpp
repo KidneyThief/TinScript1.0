@@ -338,7 +338,7 @@ void CDebugToolTextEdit::OnReturnPressed()
     if (!mCommand[0])
         sprintf_s(command_buf, "Print(`%s`);", mLineEdit->GetStringValue());
     else
-        sprintf_s(command_buf, "%s(`%d`);", mCommand, mLineEdit->GetStringValue());
+        sprintf_s(command_buf, "%s(`%s`);", mCommand, mLineEdit->GetStringValue());
 
     bool8 is_connected = CConsoleWindow::GetInstance()->IsConnected();
     if (is_connected)
@@ -405,7 +405,7 @@ void CDebugToolCheckBox::OnClicked()
     if (!mCommand[0])
         sprintf_s(command_buf, "Print(%s);", value ? "true" : "false");
     else
-        sprintf_s(command_buf, "%s(`%d`);", mCommand, value ? "true" : "false");
+        sprintf_s(command_buf, "%s(%s);", mCommand, value ? "true" : "false");
 
     bool8 is_connected = CConsoleWindow::GetInstance()->IsConnected();
     if (is_connected)
