@@ -642,7 +642,7 @@ void MainWindow::menuSaveLayout()
 // ====================================================================================================================
 void MainWindow::autoSaveLayout()
 {
-    QString fileName = "TinScript Debugger Layout";
+    QString fileName = "TinScript_Auto_Layout.cfg";
     QFile file(fileName);
     if (!file.open(QFile::WriteOnly))
         return;
@@ -664,7 +664,8 @@ void MainWindow::writeLayout(QFile& file)
     if (ok)
         ok = file.write(layout_data) == layout_data.size();
 
-    if (!ok) {
+    if (!ok)
+    {
         QString msg = tr("Error writing to %1\n%2")
                         .arg(file.fileName())
                         .arg(file.errorString());
@@ -678,12 +679,13 @@ void MainWindow::writeLayout(QFile& file)
 // ====================================================================================================================
 void MainWindow::menuLoadLayout()
 {
-    QString fileName
-        = QFileDialog::getOpenFileName(this, tr("Load layout"));
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Load layout"));
+
     if (fileName.isEmpty())
         return;
     QFile file(fileName);
-    if (!file.open(QFile::ReadOnly)) {
+    if (!file.open(QFile::ReadOnly))
+    {
         QString msg = tr("Failed to open %1\n%2")
                         .arg(fileName)
                         .arg(file.errorString());
@@ -699,8 +701,8 @@ void MainWindow::menuLoadLayout()
 // ====================================================================================================================
 void MainWindow::autoLoadLayout()
 {
-    QString fileName = "TinScript Debugger Layout";
-    QString defaultFileName = "TinScript Default Layout";
+    QString fileName = "TinScript_Auto_Layout.cfg";
+    QString defaultFileName = "TinScript_Default_Layout.cfg";
     QFile file(fileName);
     QFile defaultFile(defaultFileName);
     QFile* activeFile = &file;
@@ -722,7 +724,7 @@ void MainWindow::autoLoadLayout()
 // ====================================================================================================================
 void MainWindow::defaultLoadLayout()
 {
-    QString defaultFileName = "TinScript Default Layout";
+    QString defaultFileName = "TinScript_Default_Layout.cfg";
     QFile defaultFile(defaultFileName);
     bool result = defaultFile.open(QFile::ReadOnly);
     if (!result)

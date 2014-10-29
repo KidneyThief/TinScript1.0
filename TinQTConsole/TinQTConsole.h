@@ -55,6 +55,7 @@ class CDebugBreakpointsWin;
 class CDebugCallstackWin;
 class CDebugWatchWin;
 class CDebugToolsWin;
+class CDebugObjectBrowserWin;
 
 // -- new "dock widget" framework
 class MainWindow;
@@ -87,6 +88,7 @@ class CConsoleWindow
         CDebugCallstackWin* GetDebugCallstackWin() { return (mCallstackWin); }
         CDebugWatchWin* GetDebugAutosWin() { return (mAutosWin); }
         CDebugWatchWin* GetDebugWatchesWin() { return (mWatchesWin); }
+        CDebugObjectBrowserWin* GetDebugObjectBrowserWin() { return (mObjectBrowserWin); }
 
         void SetStatusMessage(const char* message);
         void SetTargetInfoMessage(const char* message);
@@ -115,6 +117,7 @@ class CConsoleWindow
         CDebugCallstackWin* mCallstackWin;
         CDebugWatchWin* mAutosWin;
         CDebugWatchWin* mWatchesWin;
+        CDebugObjectBrowserWin* mObjectBrowserWin;
 
         QHBoxLayout* mToolbarLayout;
         QLineEdit* mFileLineEdit;

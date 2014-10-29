@@ -2626,6 +2626,108 @@ void CScriptContext::DebuggerSendPrint(const char* fmt, ...)
     SocketManager::SendDataPacket(newPacket);
 }
 
+
+// ====================================================================================================================
+// DebuggerSendObjectEntry():  Send an object entry to the debugger, with the object's parent, and derivation.
+// ====================================================================================================================
+void CScriptContext::DebuggerSendObjectEntry(uint32 parent_id, CObjectEntry* oe)
+{
+    // -- sanity check
+    if (!oe)
+        return;
+
+    // -- create the name string
+    char name_buf[kMaxNameLength];
+    sprintf_s(name_buf, kMaxNameLength, "[%d] %s:", oe->GetID(), oe->GetNameHash() != 0 ? oe->GetName() : "");
+
+    // -- create the derivation string
+    char derivation_buf[kMaxNameLength * 2];
+    char* derivation_ptr = derivation_buf;
+    *derivation_ptr = '\0';
+    int32 remaining = kMaxNameLength;
+    bool8 first = true;
+    CNamespace* ns = oe->GetNamespace();
+    while (ns && remaining > 0)
+    {
+        // -- if this is registered class, highlight it
+        if (ns->IsRegisteredClass())
+            sprintf_s(derivation_ptr, remaining, "%s[%s]", !first ? "-->" : " ", UnHash(ns->GetHash()));
+        else
+            sprintf_s(derivation_ptr, remaining, "%s%s", !first ? "-->" : " ", UnHash(ns->GetHash()));
+
+        // -- update the pointer
+        int32 length = strlen(derivation_ptr);
+        remaining -= length;
+        derivation_ptr += length;
+
+        // -- next namespace in the hierarchy
+        first = false;
+        ns = ns->GetNext();
+    }
+
+    // -- ensure the buffer is null terminated
+    derivation_buf[kMaxNameLength - 1] = '\0';
+
+    // -- send the entry
+    SocketManager::SendCommandf("DebuggerAddObjectEntry(%d, %d, `%s`, `%s`);", parent_id, oe->GetID(), name_buf,
+                                derivation_buf);
+}
+
+// ====================================================================================================================
+// DebuggerListObjects():  Instead of printing the hierarchy of objects, this method send the entries to the debugger.
+// ====================================================================================================================
+void CScriptContext::DebuggerListObjects(uint32 parent_id, uint32 object_id)
+{
+    // -- ensure we have a debugger connected
+	int32 debugger_session = 0;
+    if (!IsDebuggerConnected(debugger_session))
+        return;
+
+    // -- see if we're supposed to list all objects
+    if (object_id == 0)
+    {
+        CObjectEntry* oe = GetObjectDictionary()->First();
+        while (oe)
+        {
+            // -- if we're listing all objects, then we only iterate through the 
+            if (oe->GetObjectGroup() == NULL)
+            {
+                DebuggerListObjects(0, oe->GetID());
+            }
+
+            // -- next object
+            oe = GetObjectDictionary()->Next();
+        }
+    }
+
+    // -- else we have a specific object to dump
+    else
+    {
+        CObjectEntry* oe = FindObjectEntry(object_id);
+        if (oe)
+        {
+            // -- if we found the object entry, send it to the debugger
+            DebuggerSendObjectEntry(parent_id, oe);
+
+            // -- if the object is an object set, recursively send its children
+            static uint32 object_set_hash = Hash("CObjectSet");
+            if (oe->HasNamespace(object_set_hash))
+            {
+                CObjectSet* object_set = static_cast<CObjectSet*>(FindObject(oe->GetID()));
+                if (object_set)
+                {
+                    uint32 child_id = object_set->First();
+                    while (child_id != 0)
+                    {
+                        DebuggerListObjects(oe->GetID(), child_id);
+                        child_id = object_set->Next();
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ====================================================================================================================
 // AddThreadCommand():  This enqueues a command, to be process during the normal update
 // ====================================================================================================================
@@ -2852,6 +2954,29 @@ void DebuggerToggleVarWatch(int32 watch_request_id, uint32 object_id, int32 var_
                                    trace_on_cond);
 }
 
+
+// --------------------------------------------------------------------------------------------------------------------
+// DebuggerListObjects():  Send the connected debugger, a dump of all the object entries.
+// --------------------------------------------------------------------------------------------------------------------
+void DebuggerListObjects(int32 root_object_id)
+{
+    // -- ensure we have a script context
+    CScriptContext* script_context = GetContext();
+    if (!script_context)
+        return;
+
+    // -- ensure we're connected
+    int32 debugger_session = 0;
+    if (!script_context->IsDebuggerConnected(debugger_session))
+        return;
+
+    // -- as we've just received the request, send the initial "clear" response
+    SocketManager::SendCommand("DebuggerClearObjectBrowser();");
+
+    // -- send the list of objects
+    script_context->DebuggerListObjects(0, root_object_id);
+}
+
 // -------------------------------------------------------------------------------------------------------------------
 // -- Registration
 REGISTER_FUNCTION_P1(DebuggerSetConnected, DebuggerSetConnected, void, bool8);
@@ -2866,6 +2991,8 @@ REGISTER_FUNCTION_P0(DebuggerBreakRun, DebuggerBreakRun, void);
 REGISTER_FUNCTION_P3(DebuggerAddVariableWatch, DebuggerAddVariableWatch, void, int32, const char*, bool8);
 REGISTER_FUNCTION_P7(DebuggerToggleVarWatch, DebuggerToggleVarWatch, void, int32, uint32, int32, bool8, const char*, const char*, bool8);
 REGISTER_FUNCTION_P3(DebuggerModifyVariableWatch, DebuggerModifyVariableWatch, void, int32, const char*, const char*);
+
+REGISTER_FUNCTION_P1(DebuggerListObjects, DebuggerListObjects, void, int32);
 
 // == class CThreadMutex ==============================================================================================
 // -- CThreadMutex is only functional in WIN32

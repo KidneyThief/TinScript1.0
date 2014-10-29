@@ -55,6 +55,7 @@
 #include "TinQTBreakpointsWin.h"
 #include "TinQTWatchWin.h"
 #include "TinQTToolsWin.h"
+#include "TinQTObjectBrowserWin.h"
 
 #include "mainwindow.h"
 
@@ -195,6 +196,12 @@ CConsoleWindow::CConsoleWindow()
     watchesDockWidget->setWindowTitle("Watches");
     mWatchesWin = new CDebugWatchWin(watchesDockWidget);
 
+    // -- create the object browser window
+    QDockWidget* browserDockWidget = new QDockWidget();
+    browserDockWidget->setObjectName("Object Browser");
+    browserDockWidget->setWindowTitle("Object Browser");
+    mObjectBrowserWin = new CDebugObjectBrowserWin(browserDockWidget);
+
     // -- connect the widgets
     QObject::connect(mButtonConnect, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonConnectPressed()));
     QObject::connect(mConnectIP, SIGNAL(returnPressed()), mConsoleInput, SLOT(OnConnectIPReturnPressed()));
@@ -274,6 +281,7 @@ CConsoleWindow::CConsoleWindow()
     mMainWindow->addDockWidget(Qt::RightDockWidgetArea, breakpointsDockWidget);
     mMainWindow->addDockWidget(Qt::BottomDockWidgetArea, autosDockWidget);
     mMainWindow->addDockWidget(Qt::BottomDockWidgetArea, watchesDockWidget);
+    mMainWindow->addDockWidget(Qt::BottomDockWidgetArea, browserDockWidget);
 
     mMainWindow->show();
 
@@ -1728,6 +1736,28 @@ REGISTER_FUNCTION_P5(ToolPaletteAddCheckBox, ToolPaletteAddCheckBox, int32, cons
 REGISTER_FUNCTION_P2(ToolPaletteSetName, ToolPaletteSetName, void, int32, const char*);
 REGISTER_FUNCTION_P2(ToolPaletteSetDescription, ToolPaletteSetDescription, void, int32, const char*);
 REGISTER_FUNCTION_P2(ToolPaletteSetValue, ToolPaletteSetValue, void, int32, const char*);
+
+// ====================================================================================================================
+// DebuggerClearObjectBrowser():  Method to clear the ObjectBrowser
+// ====================================================================================================================
+void DebuggerClearObjectBrowser()
+{
+    CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->RemoveAll();
+}
+
+// ====================================================================================================================
+// DebuggerAddObjectEntry():  Add an entry for an object to the ObjectBrowser
+// ====================================================================================================================
+void DebuggerAddObjectEntry(int32 parent_id, int32 object_id, const char* object_name, const char* derivation)
+{
+    CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->AddObject(parent_id, object_id, object_name,
+                                                                         derivation);
+}
+
+// == ObjectBrowser Registration ======================================================================================
+
+REGISTER_FUNCTION_P0(DebuggerClearObjectBrowser, DebuggerClearObjectBrowser, void);
+REGISTER_FUNCTION_P4(DebuggerAddObjectEntry, DebuggerAddObjectEntry, void, int32, int32, const char*, const char*);
 
 // --------------------------------------------------------------------------------------------------------------------
 int _tmain(int argc, _TCHAR* argv[])

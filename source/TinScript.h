@@ -420,6 +420,8 @@ class CScriptContext
                                         tVarTable* var_table);
         void DebuggerSendAssert(const char* assert_msg, uint32 codeblock_hash, int32 line_number);
         void DebuggerSendPrint(const char* fmt, ...);
+        void DebuggerSendObjectEntry(uint32 parent_id, CObjectEntry* oe);
+        void DebuggerListObjects(uint32 parent_id, uint32 object_id);
 
         // -- useful debugging statics
         static bool8 gDebugParseTree;
