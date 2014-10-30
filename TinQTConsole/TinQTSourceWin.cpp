@@ -35,6 +35,10 @@
 #include "TinQTBreakpointsWin.h"
 #include "mainwindow.h"
 
+// --------------------------------------------------------------------------------------------------------------------
+// -- statics
+char CDebugSourceWin::mDebuggerDir[kMaxArgLength];
+
 // ------------------------------------------------------------------------------------------------
 char* ReadFileAllocBuf(const char* filename) {
 
@@ -443,27 +447,44 @@ const char* CDebugSourceWin::GetFileName(const char* fullPath)
     if (!fullPath)
         return ("");
 
-    // -- see if we actually need to reload this file
-    const char* fileNamePtr = fullPath;
-    const char* pathPtr0 = strrchr(fullPath, '/');
-    const char* pathPtr1 = strrchr(fullPath, '\\');
-    if (pathPtr0 || pathPtr1)
+    // -- the filename (which must match the target's filename exactly), is the string remaining
+    // -- after we strip off the mDebuggerDir
+    const char* file_name_ptr = fullPath;
+    const char* debug_dir_ptr = mDebuggerDir;
+
+    // -- loop through until we find one of the strings is different.
+    while (true)
     {
-        // -- if we actually found both path delineators in the same name (ugh)
-        if (pathPtr0 && pathPtr1)
+        // -- we're done, if one of the strings has ended
+        if (*file_name_ptr == '\0' || *debug_dir_ptr == '\0')
+            break;
+
+        // -- see if both ptrs are file separators
+        if (*debug_dir_ptr == '/' || *debug_dir_ptr == '\\')
         {
-            if ((uint32)pathPtr0 > (uint32)pathPtr1)
-                fileNamePtr = &pathPtr0[1];
-            else
-                fileNamePtr = &pathPtr1[1];
+            if (*file_name_ptr != '/' && *file_name_ptr != '\\')
+                break;
         }
-        else
-            fileNamePtr = pathPtr0 ? &pathPtr0[1] : &pathPtr1[1];
+
+        // -- see if both ptrs are the same alphabetical character (compare lower cases)
+        char file_char = *file_name_ptr;
+        if (file_char >= 'A' && file_char <= 'Z')
+            file_char = 'a' + (file_char - 'A');
+        char dir_char = *debug_dir_ptr;
+        if (dir_char >= 'A' && dir_char <= 'Z')
+            dir_char = 'a' + (dir_char - 'A');
+
+        // -- if the two characters are not the same, we're done
+        if (file_char != dir_char)
+            break;
+
+        // -- otherwise, advance both pointers
+        ++file_name_ptr;
+        ++debug_dir_ptr;
     }
 
     // -- return the result
-    return (fileNamePtr);
-}
+    return (file_name_ptr);}
 
 // ------------------------------------------------------------------------------------------------
 #include "TinQTSourceWinMoc.cpp"

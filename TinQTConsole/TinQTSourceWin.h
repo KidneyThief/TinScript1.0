@@ -91,7 +91,7 @@ class CDebugSourceWin : public QListWidget
         int32 mCurrentLineNumber;
 
         // -- we need to store the current working directory of our debug target
-        char mDebuggerDir[kMaxArgLength];
+        static char mDebuggerDir[kMaxArgLength];
 
         // -- cache the current visible line (different from the current PC line)
         int32 mViewLineNumber;

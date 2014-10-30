@@ -42,17 +42,13 @@ class CConsoleWindow;
 class CBrowserEntry : public QTreeWidgetItem
 {
     public:
-        CBrowserEntry(CBrowserEntry* parent_entry, uint32 object_id, const char* object_name, const char* derivation);
+        CBrowserEntry(uint32 parent_id, uint32 object_id, const char* object_name, const char* derivation);
         virtual ~CBrowserEntry();
 
-        void AddChild(CBrowserEntry* child);
-        void RemoveChild(CBrowserEntry* child);
-
-        CBrowserEntry* mParent;
         uint32 mObjectID;
+        uint32 mParentID;
         char mName[TinScript::kMaxNameLength];
         char mDerivation[TinScript::kMaxNameLength];
-        QList<CBrowserEntry*> mChildList;
 
         bool mExpanded;
 };
@@ -66,8 +62,10 @@ class CDebugObjectBrowserWin : public QTreeWidget
         CDebugObjectBrowserWin(QWidget* parent);
         virtual ~CDebugObjectBrowserWin();
 
-        void AddObject(uint32 parent_id, uint32 object_id, const char* object_name, const char* derivation);
-        void RemoveObject(uint32 object_id);
+        void NotifyCreateObject(uint32 object_id, const char* object_name, const char* derivation);
+        void NotifyDestroyObject(uint32 object_id);
+        void NotifySetAddObject(uint32 set_id, uint32 object_id);
+        void NotifySetRemoveObject(uint32 set_id, uint32 object_id);
         void RemoveAll();
 
         virtual void paintEvent(QPaintEvent* e)
@@ -98,11 +96,16 @@ class CDebugObjectBrowserWin : public QTreeWidget
         virtual void keyPressEvent(QKeyEvent * event);
 
     private:
-        QList<CBrowserEntry*> mRootObjectList;
-
-        // -- create a lookup dictionary, so every browser entry matching an object can be found
-        // -- this allows a parent object in multiple places to have a child added in all the same places
+        // -- the dictionary of objects, each list is another instance of the same entry, with a different parent instance
         QMap<uint32, QList<CBrowserEntry*>* > mObjectDictionary;
+
+        // -- the parentOf dictionary is a list of all the children belonging to the object
+        // -- all children in the parentOf dictionary will show up in the TreeView, they must be allocated
+        QMap<uint32, QMap<uint32, CBrowserEntry*>* > mParentOfDictionary;
+
+        // -- the childOf dictionary is a list of all the sets the object belongs to
+        // -- the CBrowserEntries in this list are allocated, as they show up in the TreeView, so they must be deleted
+        QMap<uint32, QMap<uint32, CBrowserEntry*>* > mChildOfDictionary;
 };
 
 #endif //__TINQTOBJECTBROWSERWIN_H

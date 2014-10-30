@@ -2626,14 +2626,14 @@ void CScriptContext::DebuggerSendPrint(const char* fmt, ...)
     SocketManager::SendDataPacket(newPacket);
 }
 
-
 // ====================================================================================================================
-// DebuggerSendObjectEntry():  Send an object entry to the debugger, with the object's parent, and derivation.
+// DebuggerNotifyCreateObject():  Send an object entry to the debugger, with the object's name and derivation.
 // ====================================================================================================================
-void CScriptContext::DebuggerSendObjectEntry(uint32 parent_id, CObjectEntry* oe)
+void CScriptContext::DebuggerNotifyCreateObject(CObjectEntry* oe)
 {
     // -- sanity check
-    if (!oe)
+    int32 debugger_session = 0;
+    if (!oe || !IsDebuggerConnected(debugger_session))
         return;
 
     // -- create the name string
@@ -2669,8 +2669,49 @@ void CScriptContext::DebuggerSendObjectEntry(uint32 parent_id, CObjectEntry* oe)
     derivation_buf[kMaxNameLength - 1] = '\0';
 
     // -- send the entry
-    SocketManager::SendCommandf("DebuggerAddObjectEntry(%d, %d, `%s`, `%s`);", parent_id, oe->GetID(), name_buf,
-                                derivation_buf);
+    SocketManager::SendCommandf("DebuggerNotifyCreateObject(%d, `%s`, `%s`);", oe->GetID(), name_buf, derivation_buf);
+}
+
+// ====================================================================================================================
+// DebuggerNotifyDestroyObject():  Send notification to the debugger of an object's destruction.
+// ====================================================================================================================
+void CScriptContext::DebuggerNotifyDestroyObject(uint32 object_id)
+{
+    // -- sanity check
+    int32 debugger_session = 0;
+    if (object_id == 0 || !IsDebuggerConnected(debugger_session))
+        return;
+
+    // -- send the entry
+    SocketManager::SendCommandf("DebuggerNotifyDestroyObject(%d);", object_id);
+}
+
+// ====================================================================================================================
+// DebuggerNotifySetAddObject():  Send notification to the debugger of an object's new membership.
+// ====================================================================================================================
+void CScriptContext::DebuggerNotifySetAddObject(uint32 parent_id, uint32 object_id)
+{
+    // -- sanity check
+    int32 debugger_session = 0;
+    if (parent_id == 0 || object_id == 0 || !IsDebuggerConnected(debugger_session))
+        return;
+
+    // -- send the entry
+    SocketManager::SendCommandf("DebuggerNotifySetAddObject(%d, %d);", parent_id, object_id);
+}
+
+// ====================================================================================================================
+// DebuggerNotifySetRemoveObject():  Send notification to the debugger of an object's discontinued membership.
+// ====================================================================================================================
+void CScriptContext::DebuggerNotifySetRemoveObject(uint32 parent_id, uint32 object_id)
+{
+    // -- sanity check
+    int32 debugger_session = 0;
+    if (parent_id == 0 || object_id == 0 || !IsDebuggerConnected(debugger_session))
+        return;
+
+    // -- send the entry
+    SocketManager::SendCommandf("DebuggerNotifySetRemoveObject(%d, %d);", parent_id, object_id);
 }
 
 // ====================================================================================================================
@@ -2707,7 +2748,13 @@ void CScriptContext::DebuggerListObjects(uint32 parent_id, uint32 object_id)
         if (oe)
         {
             // -- if we found the object entry, send it to the debugger
-            DebuggerSendObjectEntry(parent_id, oe);
+            DebuggerNotifyCreateObject(oe);
+
+            // -- if we have a parent_id, then notify the debugger of the membership
+            if (parent_id != 0)
+            {
+                DebuggerNotifySetAddObject(parent_id, oe->GetID());
+            }
 
             // -- if the object is an object set, recursively send its children
             static uint32 object_set_hash = Hash("CObjectSet");

@@ -420,7 +420,12 @@ class CScriptContext
                                         tVarTable* var_table);
         void DebuggerSendAssert(const char* assert_msg, uint32 codeblock_hash, int32 line_number);
         void DebuggerSendPrint(const char* fmt, ...);
-        void DebuggerSendObjectEntry(uint32 parent_id, CObjectEntry* oe);
+
+        // -- methods to send object status updates to the debugger
+        void DebuggerNotifyCreateObject(CObjectEntry* oe);
+        void DebuggerNotifyDestroyObject(uint32 object_id);
+        void DebuggerNotifySetAddObject(uint32 parent_id, uint32 object_id);
+        void DebuggerNotifySetRemoveObject(uint32 parent_id, uint32 object_id);
         void DebuggerListObjects(uint32 parent_id, uint32 object_id);
 
         // -- useful debugging statics

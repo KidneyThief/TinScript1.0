@@ -85,6 +85,9 @@ void CMasterMembershipList::AddMembership(CObjectEntry* oe, CObjectSet* group)
     // -- ensure we don't add this group twice
     if (!member_list->FindItem(group_id))
         member_list->AddItem(*group, group_id);
+
+    // -- notify the debugger of the discontinued membership
+    GetScriptContext()->DebuggerNotifySetAddObject(group_id, object_id);
 }
 
 // ====================================================================================================================
@@ -120,6 +123,9 @@ void CMasterMembershipList::RemoveMembership(CObjectEntry* oe, CObjectSet* group
             TinFree(member_list);
         }
     }
+
+    // -- notify the debugger of the discontinued membership
+    GetScriptContext()->DebuggerNotifySetRemoveObject(group_id, object_id);
 }
 
 // ====================================================================================================================

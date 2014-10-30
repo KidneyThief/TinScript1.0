@@ -1746,18 +1746,44 @@ void DebuggerClearObjectBrowser()
 }
 
 // ====================================================================================================================
-// DebuggerAddObjectEntry():  Add an entry for an object to the ObjectBrowser
+// DebuggerNotifyAddObject():  Add an entry for an object to the ObjectBrowser.
 // ====================================================================================================================
-void DebuggerAddObjectEntry(int32 parent_id, int32 object_id, const char* object_name, const char* derivation)
+void DebuggerNotifyCreateObject(int32 object_id, const char* object_name, const char* derivation)
 {
-    CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->AddObject(parent_id, object_id, object_name,
-                                                                         derivation);
+    CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->NotifyCreateObject(object_id, object_name, derivation);
+}
+
+// ====================================================================================================================
+// DebuggerNotifyDestroyObject():  Remove the entry for an object from the ObjectBrowser.
+// ====================================================================================================================
+void DebuggerNotifyDestroyObject(int32 object_id)
+{
+    CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->NotifyDestroyObject(object_id);
+}
+
+// ====================================================================================================================
+// DebuggerSetAddObject():  Add the object to a set, mirrored in the ObjectBrowser's tree view.
+// ====================================================================================================================
+void DebuggerNotifySetAddObject(int32 set_id, int32 object_id)
+{
+    CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->NotifySetAddObject(set_id, object_id);
+}
+
+// ====================================================================================================================
+// DebuggerSetRemoveObject():  Add the object to a set, mirrored in the ObjectBrowser's tree view.
+// ====================================================================================================================
+void DebuggerNotifySetRemoveObject(int32 set_id, int32 object_id)
+{
+    CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->NotifySetRemoveObject(set_id, object_id);
 }
 
 // == ObjectBrowser Registration ======================================================================================
 
 REGISTER_FUNCTION_P0(DebuggerClearObjectBrowser, DebuggerClearObjectBrowser, void);
-REGISTER_FUNCTION_P4(DebuggerAddObjectEntry, DebuggerAddObjectEntry, void, int32, int32, const char*, const char*);
+REGISTER_FUNCTION_P3(DebuggerNotifyCreateObject, DebuggerNotifyCreateObject, void, int32, const char*, const char*);
+REGISTER_FUNCTION_P1(DebuggerNotifyDestroyObject, DebuggerNotifyDestroyObject, void, int32);
+REGISTER_FUNCTION_P2(DebuggerNotifySetAddObject, DebuggerNotifySetAddObject, void, int32, int32);
+REGISTER_FUNCTION_P2(DebuggerNotifySetRemoveObject, DebuggerNotifySetRemoveObject, void, int32, int32);
 
 // --------------------------------------------------------------------------------------------------------------------
 int _tmain(int argc, _TCHAR* argv[])

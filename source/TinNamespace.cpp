@@ -452,6 +452,9 @@ uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash)
         if (objnamehash != Hash(""))
             GetNameDictionary()->AddItem(*newobjectentry, objnamehash);
 
+        // -- notify the debugger of the new object (before we call OnCreate(), as that may add the object to a set)
+        DebuggerNotifyCreateObject(newobjectentry);
+
         // -- see if the "OnCreate" has been defined - it's not required to
         CFunctionEntry* createfunc = newobjectentry->GetFunctionEntry(0, Hash("OnCreate"));
         if (createfunc)
@@ -517,6 +520,9 @@ uint32 CScriptContext::RegisterObject(void* objaddr, const char* classname, cons
         GetNameDictionary()->AddItem(*newobjectentry, objnamehash);
     }
 
+    // -- notify the debugger of the new object (before we call OnCreate(), as that may add the object to a set)
+    DebuggerNotifyCreateObject(newobjectentry);
+
     // -- see if the "OnCreate" has been defined - it's not required to
     CFunctionEntry* createfunc = newobjectentry->GetFunctionEntry(0, Hash("OnCreate"));
     if (createfunc) {
@@ -558,6 +564,9 @@ void CScriptContext::DestroyObject(uint32 objectid)
                       "Error - Unable to find object: %d\n", objectid);
         return;
     }
+
+    // -- notify the debugger of the new object (before we call OnCreate(), as that may add the object to a set)
+    DebuggerNotifyDestroyObject(objectid);
 
     // -- notify the master membership list to remove it from all groups
     GetMasterMembershipList()->OnDelete(oe);

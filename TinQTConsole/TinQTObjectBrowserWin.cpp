@@ -41,12 +41,11 @@
 // ====================================================================================================================
 // Constructor
 // ====================================================================================================================
-CBrowserEntry::CBrowserEntry(CBrowserEntry* parent_entry, uint32 object_id, const char* object_name,
-                             const char* derivation)
+CBrowserEntry::CBrowserEntry(uint32 parent_id, uint32 object_id, const char* object_name, const char* derivation)
     : QTreeWidgetItem()
 {
-    mParent = parent_entry;
     mObjectID = object_id;
+    mParentID = parent_id;
     TinScript::SafeStrcpy(mName, object_name, TinScript::kMaxNameLength);
     TinScript::SafeStrcpy(mDerivation, derivation, TinScript::kMaxNameLength);
 
@@ -63,45 +62,6 @@ CBrowserEntry::CBrowserEntry(CBrowserEntry* parent_entry, uint32 object_id, cons
 // ====================================================================================================================
 CBrowserEntry::~CBrowserEntry()
 {
-    // -- notify our parent
-    if (mParent)
-    {
-        mParent->RemoveChild(this);
-    }
-
-    // -- remove all children
-    while (mChildList.size() > 0)
-    {
-        CBrowserEntry* child = mChildList[0];
-        RemoveChild(child);
-        delete child;
-    }
-}
-
-// ====================================================================================================================
-// AddChild():  Add a child to this entry.
-// ====================================================================================================================
-void CBrowserEntry::AddChild(CBrowserEntry* child)
-{
-    // -- add the child entry, if it is not already in the list
-    if (!mChildList.contains(child))
-    {
-        mChildList.append(child);
-        child->mParent = this;
-    }
-}
-
-// ====================================================================================================================
-// RemoveChild():  Remove a child from this entry.
-// ====================================================================================================================
-void CBrowserEntry::RemoveChild(CBrowserEntry* child)
-{
-    // -- remove the child, if it is in the list
-    if (mChildList.contains(child))
-    {
-        mChildList.removeOne(child);
-        child->mParent = NULL;
-    }
 }
 
 // == class CDebugObjectBrowserWin ====================================================================================
@@ -131,57 +91,112 @@ CDebugObjectBrowserWin::~CDebugObjectBrowserWin()
 }
 
 // ====================================================================================================================
-// AddObject():  Given the parent ID and object attributes, add a BrowserEntry to every instance of the parent entry.
+// NotifyCreateObject():  Notify a new object has been created.
 // ====================================================================================================================
-void CDebugObjectBrowserWin::AddObject(uint32 parent_id, uint32 object_id, const char* object_name,
-                                       const char* derivation)
+void CDebugObjectBrowserWin::NotifyCreateObject(uint32 object_id, const char* object_name, const char* derivation)
 {
-    // -- see if we have a parent
-    if (parent_id != 0)
-    {
-        if (!mObjectDictionary.contains(parent_id))
-        {
-            char error_msg[64];
-            sprintf_s(error_msg, 64, "Error - parent object %d not found", parent_id);
-            QMessageBox::warning(this, tr("Error"), QString(error_msg));
-            return;
-        }
+    // -- if we already have an entry for this object, we're done
+    if (mObjectDictionary.contains(object_id))
+        return;
+    
+    // -- create the list, add it to the object dictionary
+    QList<CBrowserEntry*>* entry_list = new QList<CBrowserEntry*>();
+    mObjectDictionary.insert(object_id, entry_list);
 
-        // -- ensure we have an entry for the object
-        QList<CBrowserEntry*>* object_entry_list = mObjectDictionary[object_id];
-        if (!object_entry_list)
-        {
-            object_entry_list = new QList<CBrowserEntry*>();
-            mObjectDictionary.insert(object_id, object_entry_list);
-        }
+    // -- now create the actual entry, and add it to the list
+    CBrowserEntry* new_entry = new CBrowserEntry(0, object_id, object_name, derivation);
+    entry_list->append(new_entry);
 
-        // -- loop through all entries in the parent entry list, and add a child entry for this object
-        QList<CBrowserEntry*>* parent_entry_list = mObjectDictionary[parent_id];
-        for (int i = 0; i < (*parent_entry_list).size(); ++i)
-        {
-            CBrowserEntry* parent_entry = (*parent_entry_list)[i];
-            CBrowserEntry* new_entry = new CBrowserEntry(parent_entry, object_id, object_name, derivation);
-            object_entry_list->append(new_entry);
-            parent_entry->addChild(new_entry);
-        }
-    }
-
-    // -- otherwise, no parent - simply add this top level entry
-    else
-    {
-        CBrowserEntry* new_entry = new CBrowserEntry(NULL, object_id, object_name, derivation);
-        QList<CBrowserEntry*>* new_list = new QList<CBrowserEntry*>();
-        mObjectDictionary.insert(object_id, new_list);
-        new_list->append(new_entry);
-        addTopLevelItem(new_entry);
-    }
+    // -- until we're parented, we want to display the entry
+    addTopLevelItem(new_entry);
 }
 
 // ====================================================================================================================
-// RemoveObject():  Remove all browser entries refering to the given object ID.
+// NotifyDestroyObject():  Notify an object has been destroyed.
 // ====================================================================================================================
-void CDebugObjectBrowserWin::RemoveObject(uint32 object_id)
+void CDebugObjectBrowserWin::NotifyDestroyObject(uint32 object_id)
 {
+    // -- remove all entries from the dictionary
+    if (!mObjectDictionary.contains(object_id))
+        return;
+
+    QList<CBrowserEntry*>* object_entry_list = mObjectDictionary[object_id];
+    while (object_entry_list->size() > 0)
+    {
+        CBrowserEntry* object_entry = (*object_entry_list)[0];
+        object_entry_list->removeOne(object_entry);
+        delete object_entry;
+    }
+
+    // -- remove the list from the dictionary
+    mObjectDictionary.remove(object_id);
+    delete object_entry_list;
+}
+
+// ====================================================================================================================
+// NotifySetAddObject():  Notify an object has been destroyed.
+// ====================================================================================================================
+void CDebugObjectBrowserWin::NotifySetAddObject(uint32 set_id, uint32 object_id)
+{
+    // -- ensure both objects exist
+    if (!mObjectDictionary.contains(set_id) || !mObjectDictionary.contains(object_id))
+        return;
+
+    // -- get the original object entry (so we can clone the name and hierarchy)
+    QList<CBrowserEntry*>* object_entry_list = mObjectDictionary[object_id];
+    QList<CBrowserEntry*>* set_entry_list = mObjectDictionary[set_id];
+    CBrowserEntry* object_entry = (*object_entry_list)[0];
+
+    // -- for each entry in the set_entry_list, add a new object_entry
+    for (int i = 0; i < set_entry_list->size(); ++i)
+    {
+        CBrowserEntry* set_entry = (*set_entry_list)[i];
+        CBrowserEntry* new_entry = new CBrowserEntry(set_id, object_id, object_entry->mName,
+                                                     object_entry->mDerivation);
+
+        // -- add the new entry as a child
+        set_entry->addChild(new_entry);
+
+        // -- add the new entry to our entry list
+        object_entry_list->append(new_entry);
+    }
+
+    // -- and of course, the original object entry (at the root level) is now hidden
+    object_entry->setHidden(true);
+}
+
+// ====================================================================================================================
+// NotifySetRemoveObject():  Notify that an object is no longer a member of a set.
+// ====================================================================================================================
+void CDebugObjectBrowserWin::NotifySetRemoveObject(uint32 set_id, uint32 object_id)
+{
+    // -- ensure the object exists (and we have a valid set_id)
+    if (!mObjectDictionary.contains(object_id) || set_id == 0)
+        return;
+
+    // -- get the list of all instances of the object
+    QList<CBrowserEntry*>* object_entry_list = mObjectDictionary[object_id];
+
+    // -- find the instance belonging to the set
+    for (int i = 1; i < object_entry_list->size(); ++i)
+    {
+        // -- get the entry, see if it's the one matching the set
+        CBrowserEntry* object_entry = (*object_entry_list)[i];
+        if (object_entry->mParentID == set_id)
+        {
+            // -- remove, delete and break
+            object_entry_list->removeOne(object_entry);
+            delete object_entry;
+            break;
+        }
+    }
+
+    // -- if the size of the object_entry_list is now just the original, ensure it is no longer hidden
+    if (object_entry_list->size() == 1)
+    {
+        CBrowserEntry* object_entry = (*object_entry_list)[0];
+        object_entry->setHidden(false);
+    }
 }
 
 // ====================================================================================================================
@@ -189,24 +204,12 @@ void CDebugObjectBrowserWin::RemoveObject(uint32 object_id)
 // ====================================================================================================================
 void CDebugObjectBrowserWin::RemoveAll()
 {
-    while (mRootObjectList.size() > 0)
-    {
-        CBrowserEntry* entry = mRootObjectList[0];
-        mRootObjectList.removeOne(entry);
-        delete entry;
-    }
-
-    // -- clear the dictionary
+    // -- clear the map of all object entries
     while (mObjectDictionary.size() > 0)
     {
         uint32 object_id = mObjectDictionary.begin().key();
-        QList<CBrowserEntry*>* entry_list = mObjectDictionary[object_id];
-        mObjectDictionary.remove(object_id);
-        delete entry_list;
+        NotifyDestroyObject(object_id);
     }
-
-    // -- clear the tree items
-    clear();
 }
 
 // ====================================================================================================================
