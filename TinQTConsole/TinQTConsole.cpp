@@ -56,6 +56,7 @@
 #include "TinQTWatchWin.h"
 #include "TinQTToolsWin.h"
 #include "TinQTObjectBrowserWin.h"
+#include "TinQTObjectInspectWin.h"
 
 #include "mainwindow.h"
 
@@ -259,6 +260,10 @@ CConsoleWindow::CConsoleWindow()
     QShortcut* shortcut_WatchVar = new QShortcut(QKeySequence("Ctrl+Shift+W"), mMainWindow);
     QObject::connect(shortcut_WatchVar, SIGNAL(activated()), mMainWindow, SLOT(menuCreateVariableWatch()));
 
+    // Ctrl + i - Object Inspect
+    QShortcut* shortcut_inspectObj = new QShortcut(QKeySequence("Ctrl+I"), mMainWindow);
+    QObject::connect(shortcut_inspectObj, SIGNAL(activated()), mMainWindow, SLOT(menuCreateObjectInspector()));
+
     // Ctrl + Shift + b - Break condition
     QShortcut* shortcut_BreakCond = new QShortcut(QKeySequence("Ctrl+Shift+B"), mMainWindow);
     QObject::connect(shortcut_BreakCond, SIGNAL(activated()), mMainWindow, SLOT(menuSetBreakCondition()));
@@ -456,6 +461,9 @@ void CConsoleWindow::NotifyOnConnect()
 
     // -- resend our list of breakpoints
     GetDebugBreakpointsWin()->NotifyOnConnect();
+
+    // -- request the ObjectBrowser be repopulated
+    GetDebugObjectBrowserWin()->NotifyOnConnect();
 
     // -- Console Input label is colored to reflect connection status
     mConsoleOutput->NotifyConnectionStatus(true);
@@ -709,7 +717,7 @@ CDebugToolsWin* CConsoleWindow::FindOrCreateToolsWindow(const char* window_name)
             new_tools_window_dock->raise();
         }
 
-        // -- no parent to dock to - simply dock it tot he top of the application
+        // -- no parent to dock to - simply dock it to the top of the application
         else
         {
             GetMainWindow()->addDockWidget(Qt::TopDockWidgetArea, new_tools_window_dock, Qt::Horizontal);
@@ -814,6 +822,106 @@ int32 CConsoleWindow::ToolsWindowAddCheckBox(const char* window_name, const char
 
     return (entry_id);
 }
+
+// ====================================================================================================================
+// FindOrCreateObjectInspectWindow():  Finds a tools window by name, creates if one is not found
+// ====================================================================================================================
+CDebugObjectInspectWin* CConsoleWindow::FindOrCreateObjectInspectWin(uint32 object_id, const char* object_identifier)
+{
+    // - sanity check
+    if (!object_identifier || !object_identifier[0])
+        return (NULL);
+
+    // -- see if the window already exists
+    CDebugObjectInspectWin* found = NULL;
+    if (mObjectInspectWindowMap.contains(object_id))
+    {
+        found = mObjectInspectWindowMap[object_id];
+    }
+
+    // -- not found - create the tools window
+    else
+    {
+        QDockWidget* new_inspect_window_dock = new QDockWidget();
+        new_inspect_window_dock->setObjectName(object_identifier);
+        new_inspect_window_dock->setWindowTitle(object_identifier);
+        found = new CDebugObjectInspectWin(object_id, object_identifier, new_inspect_window_dock);
+        found->setGeometry(0, 0, 320, 240); 
+        mObjectInspectWindowMap[object_id] = found;
+
+        // -- see if we can find an existing inspect window to join
+        const QList<CDebugObjectInspectWin*> inspect_windows = mObjectInspectWindowMap.values();
+
+        QDockWidget* dock_parent = NULL;
+        int count = inspect_windows.size();
+        for (int index = count - 1; index >= 0; --index)
+        {
+            CDebugObjectInspectWin* last_dock = inspect_windows.at(index);
+            if (last_dock && last_dock->isVisible())
+            {
+                dock_parent = static_cast<QDockWidget*>(last_dock->parent());
+                break;
+            }
+        }
+
+        // -- if we still haven't found a dock parent, try the source window
+        if (!dock_parent && mSourceWinDockWidget && mSourceWinDockWidget->isVisible())
+            dock_parent = mSourceWinDockWidget;
+
+        // -- dock the window initially, so it shows up
+        if (dock_parent)
+        {
+            GetMainWindow()->tabifyDockWidget(dock_parent, new_inspect_window_dock);
+            new_inspect_window_dock->show();
+            new_inspect_window_dock->raise();
+        }
+
+        // -- no parent to dock to - simply dock it to the top of the application
+        else
+        {
+            GetMainWindow()->addDockWidget(Qt::TopDockWidgetArea, new_inspect_window_dock, Qt::Horizontal);
+        }
+
+        // -- send the request to populate the inspector
+        if (SocketManager::IsConnected())
+        {
+            SocketManager::SendCommandf("DebuggerInspectObject(%d);", object_id);
+        }
+    }
+
+    // -- return the window
+    return (found);
+}
+
+// ====================================================================================================================
+// NotifyDestroyObject():  Notification that an object has been destroyed.
+// ====================================================================================================================
+void CConsoleWindow::NotifyDestroyObject(uint32 object_id)
+{
+    // -- delete the associated object inspector, if it exists
+    if (mObjectInspectWindowMap.contains(object_id))
+    {
+        CDebugObjectInspectWin* found = mObjectInspectWindowMap[object_id];
+        mObjectInspectWindowMap.remove(object_id);
+        QDockWidget* dock_window = static_cast<QDockWidget*>(found->parentWidget());
+        delete found;
+        delete dock_window;
+    }
+}
+
+// ====================================================================================================================
+// NotifyWatchVarEntry():  Notification that an object value has been updated.
+// ====================================================================================================================
+void CConsoleWindow::NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry)
+{
+    // -- see if this entry is for an object that we're inspecting
+    if (watch_var_entry->mObjectID > 0 && mObjectInspectWindowMap.contains(watch_var_entry->mObjectID))
+    {
+        CDebugObjectInspectWin* found = mObjectInspectWindowMap[watch_var_entry->mObjectID];
+        found->SetEntryValue(*watch_var_entry);
+    }
+}
+
 
 // == Global Interface ================================================================================================
 
@@ -1513,6 +1621,7 @@ void CConsoleOutput::HandlePacketWatchVarEntry(int32* dataPtr)
 	CConsoleWindow::GetInstance()->GetDebugWatchesWin()->NotifyVarWatchResponse(&watch_var_entry);
 	CConsoleWindow::GetInstance()->GetDebugWatchesWin()->NotifyWatchVarEntry(&watch_var_entry, true);
 	CConsoleWindow::GetInstance()->GetDebugAutosWin()->NotifyWatchVarEntry(&watch_var_entry, false);
+    CConsoleWindow::GetInstance()->NotifyWatchVarEntry(&watch_var_entry);
 }
 
 // ====================================================================================================================
@@ -1759,6 +1868,7 @@ void DebuggerNotifyCreateObject(int32 object_id, const char* object_name, const 
 void DebuggerNotifyDestroyObject(int32 object_id)
 {
     CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->NotifyDestroyObject(object_id);
+    CConsoleWindow::GetInstance()->NotifyDestroyObject(object_id);
 }
 
 // ====================================================================================================================

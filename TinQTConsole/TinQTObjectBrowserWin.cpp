@@ -91,6 +91,15 @@ CDebugObjectBrowserWin::~CDebugObjectBrowserWin()
 }
 
 // ====================================================================================================================
+// NotifyOnConnect():  Called when the debugger's connection to the target is initially confirmed.
+// ====================================================================================================================
+void CDebugObjectBrowserWin::NotifyOnConnect()
+{
+    // -- request a fresh population of the existing objects
+    SocketManager::SendCommand("DebuggerListObjects();");
+}
+
+// ====================================================================================================================
 // NotifyCreateObject():  Notify a new object has been created.
 // ====================================================================================================================
 void CDebugObjectBrowserWin::NotifyCreateObject(uint32 object_id, const char* object_name, const char* derivation)
@@ -120,13 +129,12 @@ void CDebugObjectBrowserWin::NotifyDestroyObject(uint32 object_id)
     if (!mObjectDictionary.contains(object_id))
         return;
 
+    // -- only the first entry ever needs to be deleted, as all others are parented
+    // -- and therefore deleted when the parent entry is deleted
     QList<CBrowserEntry*>* object_entry_list = mObjectDictionary[object_id];
-    while (object_entry_list->size() > 0)
-    {
-        CBrowserEntry* object_entry = (*object_entry_list)[0];
-        object_entry_list->removeOne(object_entry);
-        delete object_entry;
-    }
+    CBrowserEntry* object_entry = (*object_entry_list)[0];
+    delete object_entry;
+    object_entry_list->clear();
 
     // -- remove the list from the dictionary
     mObjectDictionary.remove(object_id);
@@ -185,7 +193,7 @@ void CDebugObjectBrowserWin::NotifySetRemoveObject(uint32 set_id, uint32 object_
         if (object_entry->mParentID == set_id)
         {
             // -- remove, delete and break
-            object_entry_list->removeOne(object_entry);
+            object_entry_list->removeAt(i);
             delete object_entry;
             break;
         }
@@ -213,25 +221,34 @@ void CDebugObjectBrowserWin::RemoveAll()
 }
 
 // ====================================================================================================================
-// keyPressEvent():  Handler for key presses, when a watch window is in focus
+// GetSelectedObjectID():  Return the objectID of the currently selected entry.
 // ====================================================================================================================
-void CDebugObjectBrowserWin::keyPressEvent(QKeyEvent* event)
+uint32 CDebugObjectBrowserWin::GetSelectedObjectID()
 {
-    if (!event)
-        return;
-
-    // -- delete the selected, if we have a selected
-    if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace)
+    CBrowserEntry* cur_item = static_cast<CBrowserEntry*>(currentItem());
+    if (cur_item)
     {
-        CBrowserEntry* cur_item = static_cast<CBrowserEntry*>(currentItem());
-        if (cur_item)
-        {
-        }
-        return;
+        return (cur_item->mObjectID);
     }
 
-    // -- pass to the base class for handling
-    QTreeWidget::keyPressEvent(event);
+    // -- no current objects selected
+    return (0);
+}
+
+// ====================================================================================================================
+// GetObjectIdentifier():  Returns the identifier (formated ID and object name) for the requested entry.
+// ====================================================================================================================
+const char* CDebugObjectBrowserWin::GetObjectIdentifier(uint32 object_id)
+{
+    if (mObjectDictionary.contains(object_id))
+    {
+        // -- dereference to get the List, and then again to get the first item in the list
+        CBrowserEntry* entry = (*(mObjectDictionary[object_id]))[0];
+        return (entry->mName);
+    }
+
+    // -- not found
+    return ("");
 }
 
 // --------------------------------------------------------------------------------------------------------------------

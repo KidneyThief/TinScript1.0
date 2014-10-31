@@ -96,6 +96,9 @@ class CDebugWatchWin : public QTreeWidget {
 		void AddVariableWatch(const char* variableWatch, bool breakOnWrite = false);
         void CreateSelectedWatch();
 
+        // -- this is used for creating an ObjectInspector, if the currently selected enty is a variable of type object
+        uint32 GetSelectedObjectID();
+
         void ClearWatchWin();
 
         void RemoveWatchVarChildren(int32 object_entry_index);

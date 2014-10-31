@@ -140,6 +140,8 @@ public slots:
 	void menuAddVariableWatch();
 	void menuCreateVariableWatch();
 	void menuUpdateVarWatchValue();
+    void menuCreateObjectInspector();
+    void menuRefreshObjectBrowser();
     void menuSetBreakCondition();
     void menuGoToLine();
     void menuSearch();

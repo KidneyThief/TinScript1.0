@@ -62,11 +62,17 @@ class CDebugObjectBrowserWin : public QTreeWidget
         CDebugObjectBrowserWin(QWidget* parent);
         virtual ~CDebugObjectBrowserWin();
 
+        void NotifyOnConnect();
+
         void NotifyCreateObject(uint32 object_id, const char* object_name, const char* derivation);
         void NotifyDestroyObject(uint32 object_id);
         void NotifySetAddObject(uint32 set_id, uint32 object_id);
         void NotifySetRemoveObject(uint32 set_id, uint32 object_id);
         void RemoveAll();
+
+        // -- these methods are used to create an ObjectInspector, based on an object_id entry found in the browser
+        uint32 GetSelectedObjectID();
+        const char* GetObjectIdentifier(uint32 object_id);
 
         virtual void paintEvent(QPaintEvent* e)
         {
@@ -92,20 +98,10 @@ class CDebugObjectBrowserWin : public QTreeWidget
             updateGeometry();
         }
 
-    protected:
-        virtual void keyPressEvent(QKeyEvent * event);
-
     private:
-        // -- the dictionary of objects, each list is another instance of the same entry, with a different parent instance
+        // -- the dictionary of objects, each list is another instance of the same entry, with a different object set
+        // hierarchy
         QMap<uint32, QList<CBrowserEntry*>* > mObjectDictionary;
-
-        // -- the parentOf dictionary is a list of all the children belonging to the object
-        // -- all children in the parentOf dictionary will show up in the TreeView, they must be allocated
-        QMap<uint32, QMap<uint32, CBrowserEntry*>* > mParentOfDictionary;
-
-        // -- the childOf dictionary is a list of all the sets the object belongs to
-        // -- the CBrowserEntries in this list are allocated, as they show up in the TreeView, so they must be deleted
-        QMap<uint32, QMap<uint32, CBrowserEntry*>* > mChildOfDictionary;
 };
 
 #endif //__TINQTOBJECTBROWSERWIN_H

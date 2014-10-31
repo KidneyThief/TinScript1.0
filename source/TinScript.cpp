@@ -2638,7 +2638,7 @@ void CScriptContext::DebuggerNotifyCreateObject(CObjectEntry* oe)
 
     // -- create the name string
     char name_buf[kMaxNameLength];
-    sprintf_s(name_buf, kMaxNameLength, "[%d] %s:", oe->GetID(), oe->GetNameHash() != 0 ? oe->GetName() : "");
+    sprintf_s(name_buf, kMaxNameLength, "[%d] %s", oe->GetID(), oe->GetNameHash() != 0 ? oe->GetName() : "");
 
     // -- create the derivation string
     char derivation_buf[kMaxNameLength * 2];
@@ -2772,6 +2772,25 @@ void CScriptContext::DebuggerListObjects(uint32 parent_id, uint32 object_id)
                 }
             }
         }
+    }
+}
+
+// ====================================================================================================================
+// DebuggerInspectObject():  Send the object members and methods to the debugger.
+// ====================================================================================================================
+void CScriptContext::DebuggerInspectObject(uint32 object_id)
+{
+    // -- ensure we have a debugger connected
+	int32 debugger_session = 0;
+    if (!IsDebuggerConnected(debugger_session) || object_id == 0)
+        return;
+
+    // -- see if we're supposed to list all objects
+    CObjectEntry* oe = FindObjectEntry(object_id);
+    if (oe)
+    {
+        // -- send a dump of the object to the debugger
+        DebuggerSendObjectMembers(NULL, object_id);
     }
 }
 
@@ -3024,6 +3043,25 @@ void DebuggerListObjects(int32 root_object_id)
     script_context->DebuggerListObjects(0, root_object_id);
 }
 
+// --------------------------------------------------------------------------------------------------------------------
+// DebuggerInspectObject():  Send the connected debugger, a dump of an object's members and methods.
+// --------------------------------------------------------------------------------------------------------------------
+void DebuggerInspectObject(int32 object_id)
+{
+    // -- ensure we have a script context
+    CScriptContext* script_context = GetContext();
+    if (!script_context)
+        return;
+
+    // -- ensure we're connected
+    int32 debugger_session = 0;
+    if (!script_context->IsDebuggerConnected(debugger_session))
+        return;
+
+    // -- send the list of objects
+    script_context->DebuggerInspectObject(object_id);
+}
+
 // -------------------------------------------------------------------------------------------------------------------
 // -- Registration
 REGISTER_FUNCTION_P1(DebuggerSetConnected, DebuggerSetConnected, void, bool8);
@@ -3040,6 +3078,7 @@ REGISTER_FUNCTION_P7(DebuggerToggleVarWatch, DebuggerToggleVarWatch, void, int32
 REGISTER_FUNCTION_P3(DebuggerModifyVariableWatch, DebuggerModifyVariableWatch, void, int32, const char*, const char*);
 
 REGISTER_FUNCTION_P1(DebuggerListObjects, DebuggerListObjects, void, int32);
+REGISTER_FUNCTION_P1(DebuggerInspectObject, DebuggerInspectObject, void, int32);
 
 // == class CThreadMutex ==============================================================================================
 // -- CThreadMutex is only functional in WIN32

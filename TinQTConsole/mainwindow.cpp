@@ -69,6 +69,7 @@
 #include "TinQTSourceWin.h"
 #include "TinQTWatchWin.h"
 #include "TinQTBreakpointsWin.h"
+#include "TinQTObjectBrowserWin.h"
 
 // ====================================================================================================================
 // -- class implementation for add variable watch dialog
@@ -304,6 +305,69 @@ bool CreateBreakConditionDialog::IsTraceOnCondition() const
 }
 
 // ====================================================================================================================
+// -- class implementation for add variable watch dialog
+class CreateObjectInspectDialog : public QDialog
+{
+public:
+    CreateObjectInspectDialog(QWidget *parent = 0);
+
+    void SetObjectIdentifier(const char* object_identifier)
+    {
+        char title_buf[TinScript::kMaxNameLength];
+        sprintf_s(title_buf, "Object Inspect: ");
+        TinScript::SafeStrcpy(&title_buf[strlen(title_buf)], object_identifier,
+                              TinScript::kMaxNameLength - strlen(title_buf));
+        setWindowTitle(title_buf);
+    }
+
+    void SetObjectID(const char* object_string)
+    {
+        mObjectID->SetStringValue(object_string);
+    }
+
+    const char* GetObjectID() const
+    {
+        return (mObjectID->GetStringValue());
+    }
+
+private:
+    int32 mRequestID;
+    SafeLineEdit *mObjectID;
+};
+
+CreateObjectInspectDialog::CreateObjectInspectDialog(QWidget *parent)
+    : QDialog(parent)
+{
+    mRequestID = -1;
+
+	setWindowTitle("Object Inspector");
+	setMinimumWidth(280);
+    QGridLayout *layout = new QGridLayout(this);
+
+    layout->addWidget(new QLabel(tr("Object ID:")), 1, 0);
+    mObjectID = new SafeLineEdit(parent);
+    layout->addWidget(mObjectID, 1, 1);
+
+    QHBoxLayout *buttonLayout = new QHBoxLayout;
+    layout->addLayout(buttonLayout, 2, 0, 1, 2);
+    buttonLayout->addStretch();
+
+    QPushButton *refresh_objects_button = new QPushButton(tr("Refresh Objects"));
+    connect(refresh_objects_button, SIGNAL(clicked()), parent, SLOT(menuRefreshObjectBrowser()));
+    layout->addWidget(refresh_objects_button, 2, 0);
+
+    QPushButton *cancelButton = new QPushButton(tr("Cancel"));
+    connect(cancelButton, SIGNAL(clicked()), this, SLOT(reject()));
+    buttonLayout->addWidget(cancelButton);
+
+    QPushButton *okButton = new QPushButton(tr("Ok"));
+    connect(okButton, SIGNAL(clicked()), this, SLOT(accept()));
+    buttonLayout->addWidget(okButton);
+
+    okButton->setDefault(true);
+}
+
+// ====================================================================================================================
 static CreateVarWatchDialog* gVarWatchDialog = NULL;
 void MainWindow::menuAddVariableWatch()
 {
@@ -345,6 +409,61 @@ void MainWindow::menuUpdateVarWatchValue()
         // -- close the dialog
         gVarWatchDialog->reject();
     }
+}
+
+static CreateObjectInspectDialog* gObjectInspectDialog = NULL;
+void MainWindow::menuCreateObjectInspector()
+{
+    CreateObjectInspectDialog dialog(this);
+
+    // -- get the object ID and identifier from whichever window has focus
+    uint32 object_id = 0;
+    if (CConsoleWindow::GetInstance()->GetDebugWatchesWin()->hasFocus())
+	    object_id = CConsoleWindow::GetInstance()->GetDebugWatchesWin()->GetSelectedObjectID();
+    else if (CConsoleWindow::GetInstance()->GetDebugAutosWin()->hasFocus())
+	    object_id = CConsoleWindow::GetInstance()->GetDebugAutosWin()->GetSelectedObjectID();
+    else if (CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->hasFocus())
+        object_id = CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->GetSelectedObjectID();
+
+    // -- if we found a valid object, initialize the dialog
+    if (object_id > 0)
+    {
+        char object_id_buf[32];
+        sprintf_s(object_id_buf, "%d", object_id);
+        dialog.SetObjectID(object_id_buf);
+    }
+
+    // -- while the dialog is active, we have a global pointer to access it
+    gObjectInspectDialog = &dialog;
+    int ret = dialog.exec();
+    gObjectInspectDialog = NULL;
+
+    if (ret == QDialog::Rejected)
+        return;
+
+    object_id = TinScript::Atoi(dialog.GetObjectID());
+    if (object_id > 0)
+    {
+        const char* object_identifier =
+            CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->GetObjectIdentifier(object_id);
+
+        char object_buf[TinScript::kMaxNameLength];
+        sprintf_s(object_buf, "Object: %s", object_identifier);
+
+        CDebugObjectInspectWin* object_inspect_win =
+            CConsoleWindow::GetInstance()->FindOrCreateObjectInspectWin(object_id, object_buf);
+    }
+}
+
+void MainWindow::menuRefreshObjectBrowser()
+{
+    if (gObjectInspectDialog)
+    {
+        SocketManager::SendCommandf("DebuggerListObjects();");
+    }
+
+    // -- close the dialog
+    gObjectInspectDialog->reject();
 }
 
 void MainWindow::menuSetBreakCondition()
@@ -571,6 +690,9 @@ void MainWindow::setupMenuBar()
 
     action = debug_menu->addAction(tr("Watch Var  [Ctrl + Shift + W]"));
     connect(action, SIGNAL(triggered()), this, SLOT(menuCreateVariableWatch()));
+
+    action = debug_menu->addAction(tr("Inspect Object  [Ctrl + I]"));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuCreateObjectInspector()));
 
     action = debug_menu->addAction(tr("Break Condition  [Ctrl + Shift + B]"));
     connect(action, SIGNAL(triggered()), this, SLOT(menuSetBreakCondition()));

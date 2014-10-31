@@ -56,6 +56,7 @@ class CDebugCallstackWin;
 class CDebugWatchWin;
 class CDebugToolsWin;
 class CDebugObjectBrowserWin;
+class CDebugObjectInspectWin;
 
 // -- new "dock widget" framework
 class MainWindow;
@@ -165,6 +166,11 @@ class CConsoleWindow
         int32 ToolsWindowAddCheckBox(const char* window_name, const char* name, const char* description,
                                      bool value, const char* command);
 
+        // -- interface supporting multiple object inspect windows
+        CDebugObjectInspectWin* FindOrCreateObjectInspectWin(uint32 object_id, const char* object_identifier);
+        void NotifyDestroyObject(uint32 object_id);
+        void NotifyWatchVarEntry(TinScript::CDebuggerWatchVarEntry* watch_var_entry);
+
         // -- breakpoint members
         bool mBreakpointHit;
         int32 mBreakpointWatchRequestID;
@@ -182,7 +188,11 @@ class CConsoleWindow
     private:
         static CConsoleWindow* gConsoleWindow;
 
+        // -- map of all the tool palette windows, indexed by hash of the window name
         QMap<uint32, CDebugToolsWin*> mToolsWindowMap;
+
+        // -- map of all the object inspect widows, indexed by the object ID
+        QMap<uint32, CDebugObjectInspectWin*> mObjectInspectWindowMap;
 
         // -- store whether we're connected
         bool8 mIsConnected;

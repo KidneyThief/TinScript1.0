@@ -485,6 +485,23 @@ void CDebugWatchWin::CreateSelectedWatch()
     }
 }
 
+// ====================================================================================================================
+// GetSelectedObjectID(): Used for creating an ObjectInspector, if the selected enty is a variable of type object.
+// ====================================================================================================================
+uint32 CDebugWatchWin::GetSelectedObjectID()
+{
+    CWatchEntry* cur_item = static_cast<CWatchEntry*>(currentItem());
+    if (cur_item && cur_item->mDebuggerEntry.mType != TinScript::TYPE_void)
+    {
+        // -- see if we have a variable or a member
+        if (cur_item->mDebuggerEntry.mObjectID > 0)
+            return (cur_item->mDebuggerEntry.mObjectID);
+    }
+
+    // -- no current objects selected
+    return (0);
+}
+
 // ------------------------------------------------------------------------------------------------
 void CDebugWatchWin::ClearWatchWin()
 {

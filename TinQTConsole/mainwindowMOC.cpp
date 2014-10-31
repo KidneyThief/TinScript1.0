@@ -19,8 +19,8 @@
 
 QT_BEGIN_MOC_NAMESPACE
 struct qt_meta_stringdata_MainWindow_t {
-    QByteArrayData data[25];
-    char stringdata[373];
+    QByteArrayData data[27];
+    char stringdata[424];
 };
 #define QT_MOC_LITERAL(idx, ofs, len) \
     Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
@@ -50,10 +50,12 @@ QT_MOC_LITERAL(17, 232, 8),
 QT_MOC_LITERAL(18, 241, 20),
 QT_MOC_LITERAL(19, 262, 23),
 QT_MOC_LITERAL(20, 286, 23),
-QT_MOC_LITERAL(21, 310, 21),
-QT_MOC_LITERAL(22, 332, 12),
-QT_MOC_LITERAL(23, 345, 10),
-QT_MOC_LITERAL(24, 356, 15)
+QT_MOC_LITERAL(21, 310, 25),
+QT_MOC_LITERAL(22, 336, 24),
+QT_MOC_LITERAL(23, 361, 21),
+QT_MOC_LITERAL(24, 383, 12),
+QT_MOC_LITERAL(25, 396, 10),
+QT_MOC_LITERAL(26, 407, 15)
     },
     "MainWindow\0menuSaveLayout\0\0menuLoadLayout\0"
     "autoSaveLayout\0autoLoadLayout\0"
@@ -63,7 +65,9 @@ QT_MOC_LITERAL(24, 356, 15)
     "menuDebugStepOut\0menuOpenScript\0"
     "menuOpenScriptAction\0QAction*\0"
     "menuAddVariableWatch\0menuCreateVariableWatch\0"
-    "menuUpdateVarWatchValue\0menuSetBreakCondition\0"
+    "menuUpdateVarWatchValue\0"
+    "menuCreateObjectInspector\0"
+    "menuRefreshObjectBrowser\0menuSetBreakCondition\0"
     "menuGoToLine\0menuSearch\0menuSearchAgain\0"
 };
 #undef QT_MOC_LITERAL
@@ -74,7 +78,7 @@ static const uint qt_meta_data_MainWindow[] = {
        7,       // revision
        0,       // classname
        0,    0, // classinfo
-      21,   14, // methods
+      23,   14, // methods
        0,    0, // properties
        0,    0, // enums/sets
        0,    0, // constructors
@@ -82,27 +86,29 @@ static const uint qt_meta_data_MainWindow[] = {
        0,       // signalCount
 
  // slots: name, argc, parameters, tag, flags
-       1,    0,  119,    2, 0x0a,
-       3,    0,  120,    2, 0x0a,
-       4,    0,  121,    2, 0x0a,
-       5,    0,  122,    2, 0x0a,
-       6,    0,  123,    2, 0x0a,
-       7,    1,  124,    2, 0x0a,
-       9,    0,  127,    2, 0x0a,
-      10,    0,  128,    2, 0x0a,
-      11,    0,  129,    2, 0x0a,
-      12,    0,  130,    2, 0x0a,
-      13,    0,  131,    2, 0x0a,
-      14,    0,  132,    2, 0x0a,
-      15,    0,  133,    2, 0x0a,
-      16,    1,  134,    2, 0x0a,
-      18,    0,  137,    2, 0x0a,
-      19,    0,  138,    2, 0x0a,
-      20,    0,  139,    2, 0x0a,
-      21,    0,  140,    2, 0x0a,
-      22,    0,  141,    2, 0x0a,
-      23,    0,  142,    2, 0x0a,
-      24,    0,  143,    2, 0x0a,
+       1,    0,  129,    2, 0x0a,
+       3,    0,  130,    2, 0x0a,
+       4,    0,  131,    2, 0x0a,
+       5,    0,  132,    2, 0x0a,
+       6,    0,  133,    2, 0x0a,
+       7,    1,  134,    2, 0x0a,
+       9,    0,  137,    2, 0x0a,
+      10,    0,  138,    2, 0x0a,
+      11,    0,  139,    2, 0x0a,
+      12,    0,  140,    2, 0x0a,
+      13,    0,  141,    2, 0x0a,
+      14,    0,  142,    2, 0x0a,
+      15,    0,  143,    2, 0x0a,
+      16,    1,  144,    2, 0x0a,
+      18,    0,  147,    2, 0x0a,
+      19,    0,  148,    2, 0x0a,
+      20,    0,  149,    2, 0x0a,
+      21,    0,  150,    2, 0x0a,
+      22,    0,  151,    2, 0x0a,
+      23,    0,  152,    2, 0x0a,
+      24,    0,  153,    2, 0x0a,
+      25,    0,  154,    2, 0x0a,
+      26,    0,  155,    2, 0x0a,
 
  // slots: parameters
     QMetaType::Void,
@@ -119,6 +125,8 @@ static const uint qt_meta_data_MainWindow[] = {
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void, 0x80000000 | 17,    2,
+    QMetaType::Void,
+    QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
@@ -152,10 +160,12 @@ void MainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         case 14: _t->menuAddVariableWatch(); break;
         case 15: _t->menuCreateVariableWatch(); break;
         case 16: _t->menuUpdateVarWatchValue(); break;
-        case 17: _t->menuSetBreakCondition(); break;
-        case 18: _t->menuGoToLine(); break;
-        case 19: _t->menuSearch(); break;
-        case 20: _t->menuSearchAgain(); break;
+        case 17: _t->menuCreateObjectInspector(); break;
+        case 18: _t->menuRefreshObjectBrowser(); break;
+        case 19: _t->menuSetBreakCondition(); break;
+        case 20: _t->menuGoToLine(); break;
+        case 21: _t->menuSearch(); break;
+        case 22: _t->menuSearchAgain(); break;
         default: ;
         }
     }
@@ -186,13 +196,13 @@ int MainWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 21)
+        if (_id < 23)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 21;
+        _id -= 23;
     } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 21)
+        if (_id < 23)
             *reinterpret_cast<int*>(_a[0]) = -1;
-        _id -= 21;
+        _id -= 23;
     }
     return _id;
 }

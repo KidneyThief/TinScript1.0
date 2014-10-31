@@ -427,6 +427,7 @@ class CScriptContext
         void DebuggerNotifySetAddObject(uint32 parent_id, uint32 object_id);
         void DebuggerNotifySetRemoveObject(uint32 parent_id, uint32 object_id);
         void DebuggerListObjects(uint32 parent_id, uint32 object_id);
+        void DebuggerInspectObject(uint32 object_id);
 
         // -- useful debugging statics
         static bool8 gDebugParseTree;
