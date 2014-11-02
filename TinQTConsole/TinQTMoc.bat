@@ -5,5 +5,6 @@
 %QT_ROOT%\bin\moc.exe TinQTToolsWin.h  > TinQTToolsWinMoc.cpp
 %QT_ROOT%\bin\moc.exe TinQTObjectBrowserWin.h  > TinQTObjectBrowserWinMoc.cpp
 %QT_ROOT%\bin\moc.exe TinQTObjectInspectWin.h  > TinQTObjectInspectWinMoc.cpp
+%QT_ROOT%\bin\moc.exe TinQTSchedulesWin.h  > TinQTSchedulesWinMoc.cpp
 
 %QT_ROOT%\bin\moc.exe mainwindow.h  > mainwindowMOC.cpp

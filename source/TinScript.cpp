@@ -139,6 +139,16 @@ bool8 ExecScript(const char* filename)
     return (script_context->ExecScript(filename));
 }
 
+// ====================================================================================================================
+// SetTimeScale():  Allows for accurate communication with the debugger, if the application adjusts timescale
+// ====================================================================================================================
+void SetTimeScale(float time_scale)
+{
+    CScriptContext* script_context = GetContext();
+    assert(script_context != NULL);
+    script_context->GetScheduler()->SetSimTimeScale(time_scale);
+}
+
 REGISTER_FUNCTION_P1(Compile, CompileScript, bool8, const char*);
 REGISTER_FUNCTION_P1(Exec, ExecScript, bool8, const char*);
 
@@ -2795,6 +2805,20 @@ void CScriptContext::DebuggerInspectObject(uint32 object_id)
 }
 
 // ====================================================================================================================
+// DebuggerListSchedules():  Send the connected debugger, a dump of the current pending schedules.
+// ====================================================================================================================
+void CScriptContext::DebuggerListSchedules()
+{
+    // -- ensure we have a debugger connected
+	int32 debugger_session = 0;
+    if (!IsDebuggerConnected(debugger_session))
+        return;
+
+    CScriptContext* script_context = TinScript::GetContext();
+    script_context->GetScheduler()->DebuggerListSchedules();
+}
+
+// ====================================================================================================================
 // AddThreadCommand():  This enqueues a command, to be process during the normal update
 // ====================================================================================================================
 // -- Thread commands are only supported in WIN32
@@ -3062,6 +3086,25 @@ void DebuggerInspectObject(int32 object_id)
     script_context->DebuggerInspectObject(object_id);
 }
 
+// --------------------------------------------------------------------------------------------------------------------
+// DebuggerListSchedules():  Send the connected debugger, a dump of the current pending schedules.
+// --------------------------------------------------------------------------------------------------------------------
+void DebuggerListSchedules()
+{
+    // -- ensure we have a script context
+    CScriptContext* script_context = GetContext();
+    if (!script_context)
+        return;
+
+    // -- ensure we're connected
+    int32 debugger_session = 0;
+    if (!script_context->IsDebuggerConnected(debugger_session))
+        return;
+
+    // -- send the list of objects
+    script_context->DebuggerListSchedules();
+}
+
 // -------------------------------------------------------------------------------------------------------------------
 // -- Registration
 REGISTER_FUNCTION_P1(DebuggerSetConnected, DebuggerSetConnected, void, bool8);
@@ -3079,6 +3122,8 @@ REGISTER_FUNCTION_P3(DebuggerModifyVariableWatch, DebuggerModifyVariableWatch, v
 
 REGISTER_FUNCTION_P1(DebuggerListObjects, DebuggerListObjects, void, int32);
 REGISTER_FUNCTION_P1(DebuggerInspectObject, DebuggerInspectObject, void, int32);
+
+REGISTER_FUNCTION_P0(DebuggerListSchedules, DebuggerListSchedules, void);
 
 // == class CThreadMutex ==============================================================================================
 // -- CThreadMutex is only functional in WIN32

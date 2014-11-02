@@ -96,6 +96,7 @@
     <ClInclude Include="TinQTConsole.h" />
     <ClInclude Include="TinQTObjectBrowserWin.h" />
     <ClInclude Include="TinQTObjectInspectWin.h" />
+    <ClInclude Include="TinQTSchedulesWin.h" />
     <ClInclude Include="TinQTSourceWin.h" />
     <ClInclude Include="TinQTToolsWin.h" />
     <ClInclude Include="TinQTWatchWin.h" />
@@ -110,6 +111,7 @@
     <ClCompile Include="TinQTConsole.cpp" />
     <ClCompile Include="TinQTObjectBrowserWin.cpp" />
     <ClCompile Include="TinQTObjectInspectWin.cpp" />
+    <ClCompile Include="TinQTSchedulesWin.cpp" />
     <ClCompile Include="TinQTSourceWin.cpp" />
     <ClCompile Include="TinQTToolsWin.cpp" />
     <ClCompile Include="TinQTWatchWin.cpp" />

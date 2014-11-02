@@ -37,6 +37,7 @@
 #include "TinQTConsole.h"
 #include "TinQTSourceWin.h"
 #include "TinQTBreakpointsWin.h"
+#include "TinQTObjectBrowserWin.h"
 #include "TinQTObjectInspectWin.h"
 #include "mainwindow.h"
 
@@ -73,7 +74,7 @@ CObjectInspectEntry::~CObjectInspectEntry()
 void CObjectInspectEntry::Initialize(const TinScript::CDebuggerWatchVarEntry& debugger_entry)
 {
     // -- get the current number of entries added to this window
-    int count = mParent->GetEntryCount();
+    int count = mParent->GetEntryCount() + 1;
 
     QSize parentSize = mParent->size();
     int newWidth = parentSize.width();
@@ -162,6 +163,16 @@ CDebugObjectInspectWin::CDebugObjectInspectWin(uint32 object_id, const char* obj
     mScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
     mScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
     ExpandToParentSize();
+
+    // -- add the refresh button
+    mRefreshButton = new QPushButton("Refresh");
+    mLayout->addWidget(mRefreshButton, 0, 0);
+    QObject::connect(mRefreshButton, SIGNAL(clicked()), this, SLOT(OnButtonRefreshPressed()));
+
+    const char* object_derivation =
+        CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->GetObjectDerivation(object_id);
+    mLayout->addWidget(new QLabel("Derivation:"), 0, 1);
+    mLayout->addWidget(new QLabel(object_derivation), 0, 2);
 }
 
 // ====================================================================================================================
@@ -203,6 +214,18 @@ void CDebugObjectInspectWin::SetEntryValue(const TinScript::CDebuggerWatchVarEnt
             entry->Initialize(debugger_entry);
             mEntryMap.insert(debugger_entry.mVarHash, entry);
         }
+    }
+}
+
+// ====================================================================================================================
+// OnButtonRefreshPressed():  Called when the refresh button is pressed
+// ====================================================================================================================
+void CDebugObjectInspectWin::OnButtonRefreshPressed()
+{
+    // -- send the request to re-populate the inspector for the window's object
+    if (SocketManager::IsConnected())
+    {
+        SocketManager::SendCommandf("DebuggerInspectObject(%d);", mObjectID);
     }
 }
 

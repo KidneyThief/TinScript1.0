@@ -73,6 +73,7 @@ class CDebugObjectBrowserWin : public QTreeWidget
         // -- these methods are used to create an ObjectInspector, based on an object_id entry found in the browser
         uint32 GetSelectedObjectID();
         const char* GetObjectIdentifier(uint32 object_id);
+        const char* GetObjectDerivation(uint32 object_id);
 
         virtual void paintEvent(QPaintEvent* e)
         {

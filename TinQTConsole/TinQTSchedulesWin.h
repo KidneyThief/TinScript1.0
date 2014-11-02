@@ -20,17 +20,18 @@
 // ------------------------------------------------------------------------------------------------
 
 // ====================================================================================================================
-// TinQTObjectInspectWin.h
+// TinQTSchedulesWin.h
 // ====================================================================================================================
 
-#ifndef __TINQTOBJECTINSPECTWIN_H
-#define __TINQTOBJECTINSPECTWIN_H
+#ifndef __TINQTSCHEDULESWIN_H
+#define __TINQTSCHEDULESWIN_H
 
 #include <qpushbutton.h>
 #include <qgridlayout.h>
 #include <qlineedit.h>
 #include <qbytearray.h>
 #include <qscrollarea.h>
+#include <qcheckbox.h>
 
 #include "mainwindow.h"
 
@@ -39,52 +40,52 @@
 class QLabel;
 class QScroller;
 class QScrollArea;
-class QButton;
-class QCheckBox;
-class SafeLineEdit;
-class CDebugObjectInspectWin;
+class CDebugSchedulesWin;
 
 // ====================================================================================================================
-// class CObjectInspectEntry:  The base class for gui elements to be added to a ObjectInspect window.
+// class CScheduleEntry:  The base class for displaying a pending schedule.
 // ====================================================================================================================
-class CObjectInspectEntry : public QWidget
+class CScheduleEntry : public QWidget
 {
     Q_OBJECT
 
     public:
-        CObjectInspectEntry(CDebugObjectInspectWin* parent);
-        virtual ~CObjectInspectEntry();
+        CScheduleEntry(uint32 sched_id, bool repeat, int32 time_remaining_ms, uint32 object_id, const char* command,
+                       CDebugSchedulesWin* parent);
+        virtual ~CScheduleEntry();
 
-        void Initialize(const TinScript::CDebuggerWatchVarEntry& debugger_entry);
-        void SetValue(const char* new_value);
-
-        uint32 GetHash() const { return (mNameHash); }
+        uint32 GetScheduleID() const { return (mScheduleID); }
+        void Update(int32 delta_time_ms);
+        void SetTimeRemaining(int32 time_remaining_ms);
+        int32 GetTimeRemaining() const { return (mTimeRemaining); }
+        void SetLayoutRow(int32 row);
 
     public slots:
-        void OnReturnPressed();
+        void OnButtonKillPressed();
 
     protected:
-        CDebugObjectInspectWin* mParent;
+        uint32 mScheduleID;
+        int32 mTimeRemaining;
 
-        QLabel* mNameLabel;
-        char mName[TinScript::kMaxNameLength];
-        uint32 mNameHash;
-
-        QLabel* mTypeLabel;
-        TinScript::eVarType mType;
-        SafeLineEdit* mValue;
+        // -- GUI elements that we'll need to shuffle around the different rows
+        CDebugSchedulesWin* mParent;
+        QCheckBox* mKillButton;
+        QLabel* mTimeRemainingLabel;
+        QLabel* mScheduleIDLabel;
+        QLabel* mObjectIDLabel;
+        QLabel* mCommandLabel;
 };
 
 // ====================================================================================================================
-// class CDebugObjectInspectWin:  The base class for ObjectInspector windows
+// class CDebugSchedulesWin:  The class to display all the schedule entries.
 // ====================================================================================================================
-class CDebugObjectInspectWin : public QWidget
+class CDebugSchedulesWin : public QWidget
 {
     Q_OBJECT
 
     public:
-        CDebugObjectInspectWin(uint32 object_id, const char* object_identifier, QWidget* parent);
-        virtual ~CDebugObjectInspectWin();
+        CDebugSchedulesWin(QWidget* parent);
+        virtual ~CDebugSchedulesWin();
 
         virtual void paintEvent(QPaintEvent* e)
         {
@@ -112,24 +113,33 @@ class CDebugObjectInspectWin : public QWidget
         QWidget* GetContent() { return (mScrollContent); }
         QScrollArea* GetScrollArea() { return (mScrollArea); }
 
-        uint32 GetObjectID() const { return (mObjectID); }
-        void AddEntry(CObjectInspectEntry* entry);
-        void SetEntryValue(const TinScript::CDebuggerWatchVarEntry& debugger_entry);
+        void AddSchedule(uint32 sched_id, bool repeat, int32 time_remaining_ms, uint32 object_id, const char* command);
+        void RemoveSchedule(uint32 sched_id);
+        void RemoveAll();
+        void SortSchedules();
+
+        void AddEntry(CScheduleEntry* schedule_entry);
+        void Update(int32 delta_ms);
+
+        void NotifyOnConnect();
+        void NotifyTargetTimeScale(float target_time_scale);
 
     public slots:
         void OnButtonRefreshPressed();
 
     private:
-        uint32 mObjectID;
-        char mWindowName[TinScript::kMaxNameLength];
-        QMap<int32, CObjectInspectEntry*> mEntryMap;
+        QMap<uint32, CScheduleEntry*> mEntryMap;
         QPushButton* mRefreshButton;
         QGridLayout* mLayout;
         QScrollArea* mScrollArea;
         QWidget* mScrollContent;
+
+        // -- we need to track what the target's simulation time is,
+        // -- so if it's paused or time scaled, we can adjust
+        float mTargetTimeScale;
 };
 
-#endif // __TINQTOBJECTINSPECTWIN_H
+#endif // __TINQTSCHEDULESWIN_H
 
 // ====================================================================================================================
 // EOF

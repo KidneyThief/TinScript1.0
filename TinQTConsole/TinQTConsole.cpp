@@ -57,6 +57,7 @@
 #include "TinQTToolsWin.h"
 #include "TinQTObjectBrowserWin.h"
 #include "TinQTObjectInspectWin.h"
+#include "TinQTSchedulesWin.h"
 
 #include "mainwindow.h"
 
@@ -186,10 +187,10 @@ CConsoleWindow::CConsoleWindow()
     mBreakpointsWin = new CDebugBreakpointsWin(breakpointsDockWidget);
 
     // -- create the autos window
-    QDockWidget* autosDockWidget = new QDockWidget();
-    autosDockWidget->setObjectName("Autos");
-    autosDockWidget->setWindowTitle("Autos");
-    mAutosWin = new CDebugWatchWin(autosDockWidget);
+    mAutosWinDockWidget = new QDockWidget();
+    mAutosWinDockWidget->setObjectName("Autos");
+    mAutosWinDockWidget->setWindowTitle("Autos");
+    mAutosWin = new CDebugWatchWin(mAutosWinDockWidget);
 
     // -- create the watches window
     QDockWidget* watchesDockWidget = new QDockWidget();
@@ -202,6 +203,12 @@ CConsoleWindow::CConsoleWindow()
     browserDockWidget->setObjectName("Object Browser");
     browserDockWidget->setWindowTitle("Object Browser");
     mObjectBrowserWin = new CDebugObjectBrowserWin(browserDockWidget);
+
+    // -- create the schedules window
+    QDockWidget* schedulesDockWidget = new QDockWidget();
+    schedulesDockWidget->setObjectName("Scheduler");
+    schedulesDockWidget->setWindowTitle("Scheduler");
+    mSchedulesWin = new CDebugSchedulesWin(schedulesDockWidget);
 
     // -- connect the widgets
     QObject::connect(mButtonConnect, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonConnectPressed()));
@@ -284,9 +291,10 @@ CConsoleWindow::CConsoleWindow()
     mMainWindow->addDockWidget(Qt::LeftDockWidgetArea, outputDockWidget);
     mMainWindow->addDockWidget(Qt::TopDockWidgetArea, callstackDockWidget);
     mMainWindow->addDockWidget(Qt::RightDockWidgetArea, breakpointsDockWidget);
-    mMainWindow->addDockWidget(Qt::BottomDockWidgetArea, autosDockWidget);
+    mMainWindow->addDockWidget(Qt::BottomDockWidgetArea, mAutosWinDockWidget);
     mMainWindow->addDockWidget(Qt::BottomDockWidgetArea, watchesDockWidget);
     mMainWindow->addDockWidget(Qt::BottomDockWidgetArea, browserDockWidget);
+    mMainWindow->addDockWidget(Qt::BottomDockWidgetArea, schedulesDockWidget);
 
     mMainWindow->show();
 
@@ -464,6 +472,9 @@ void CConsoleWindow::NotifyOnConnect()
 
     // -- request the ObjectBrowser be repopulated
     GetDebugObjectBrowserWin()->NotifyOnConnect();
+
+    // -- request the SchedulesWin be repopulated
+    GetDebugSchedulesWin()->NotifyOnConnect();
 
     // -- Console Input label is colored to reflect connection status
     mConsoleOutput->NotifyConnectionStatus(true);
@@ -865,8 +876,8 @@ CDebugObjectInspectWin* CConsoleWindow::FindOrCreateObjectInspectWin(uint32 obje
         }
 
         // -- if we still haven't found a dock parent, try the source window
-        if (!dock_parent && mSourceWinDockWidget && mSourceWinDockWidget->isVisible())
-            dock_parent = mSourceWinDockWidget;
+        if (!dock_parent && mAutosWinDockWidget && mAutosWinDockWidget->isVisible())
+            dock_parent = mAutosWinDockWidget;
 
         // -- dock the window initially, so it shows up
         if (dock_parent)
@@ -1089,7 +1100,7 @@ CConsoleInput::CConsoleInput(QWidget* parent) : QLineEdit(parent)
     mHistoryIndex = -1;
     mHistoryLastIndex = -1;
     for(int32 i = 0; i < kMaxHistory; ++i)
-        *mHistory[i] = '\0';
+        mHistory[i].text[0] = '\0';
 
     // -- create the label as well
     mInputLabel = new QLabel("==>", parent);
@@ -1143,11 +1154,11 @@ void CConsoleInput::OnReturnPressed()
         ConsolePrint("%s%s\n", kLocalSendPrefix, input_text);
 
     // -- add this to the history buf
-    const char* historyptr = (mHistoryLastIndex < 0) ? NULL : mHistory[mHistoryLastIndex];
+    const char* historyptr = (mHistoryLastIndex < 0) ? NULL : mHistory[mHistoryLastIndex].text;
     if(input_text[0] != '\0' && (!historyptr || strcmp(historyptr, input_text) != 0)) {
         mHistoryFull = mHistoryFull || mHistoryLastIndex == kMaxHistory - 1;
         mHistoryLastIndex = (mHistoryLastIndex + 1) % kMaxHistory;
-        strcpy_s(mHistory[mHistoryLastIndex], TinScript::kMaxTokenLength, input_text);
+        strcpy_s(mHistory[mHistoryLastIndex].text, TinScript::kMaxTokenLength, input_text);
     }
     mHistoryIndex = -1;
 
@@ -1225,7 +1236,7 @@ void CConsoleInput::keyPressEvent(QKeyEvent * event)
 
         // -- see if we actually changed
         if(mHistoryIndex != oldhistory && mHistoryIndex >= 0) {
-            setText(mHistory[mHistoryIndex]);
+            setText(mHistory[mHistoryIndex].text);
         }
     }
 
@@ -1243,7 +1254,7 @@ void CConsoleInput::keyPressEvent(QKeyEvent * event)
 
         // -- see if we actually changed
         if(mHistoryIndex != oldhistory && mHistoryIndex >= 0) {
-            setText(mHistory[mHistoryIndex]);
+            setText(mHistory[mHistoryIndex].text);
         }
     }
 
@@ -1324,9 +1335,21 @@ void CConsoleOutput::Update()
         DebuggerBreakpointHit(codeblock_hash, line_number);
     }
 
-    // -- if we're not paused, update TinScript
-    mCurrentTime += kUpdateTime;
+    // -- we'll use GetTickCount(), to try to use a more accurate representation of time
+    static DWORD gSystemTickCount = 0;
+    DWORD current_tick = GetTickCount();
+    if (gSystemTickCount == 0)
+    {
+        gSystemTickCount = current_tick;
+    }
+    int delta_ms = current_tick - gSystemTickCount;
+
+    mCurrentTime += delta_ms;
+    gSystemTickCount = current_tick;
     TinScript::UpdateContext(mCurrentTime);
+
+    // -- this is a bit unusual, but we're going to update the schedules window using the same update time
+    CConsoleWindow::GetInstance()->GetDebugSchedulesWin()->Update(delta_ms);
 }
 
 // ====================================================================================================================
@@ -1887,6 +1910,32 @@ void DebuggerNotifySetRemoveObject(int32 set_id, int32 object_id)
     CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->NotifySetRemoveObject(set_id, object_id);
 }
 
+// ====================================================================================================================
+// DebuggerNotifyTimeScale():  Receive notification of a canceled or completed schedule.
+// ====================================================================================================================
+void DebuggerNotifyTimeScale(float time_scale)
+{
+    CConsoleWindow::GetInstance()->GetDebugSchedulesWin()->NotifyTargetTimeScale(time_scale);
+}
+
+// ====================================================================================================================
+// DebuggerAddSchedule():  Receive notification of a target's pending schedule.
+// ====================================================================================================================
+void DebuggerAddSchedule(int32 schedule_id, bool8 repeat, int32 time_remaining_ms, int32 object_id,
+                         const char* command)
+{
+    CConsoleWindow::GetInstance()->GetDebugSchedulesWin()->AddSchedule(schedule_id, repeat, time_remaining_ms,
+                                                                       object_id, command);
+}
+
+// ====================================================================================================================
+// DebuggerRemoveSchedule():  Receive notification of a canceled or completed schedule.
+// ====================================================================================================================
+void DebuggerRemoveSchedule(int32 schedule_id)
+{
+    CConsoleWindow::GetInstance()->GetDebugSchedulesWin()->RemoveSchedule(schedule_id);
+}
+
 // == ObjectBrowser Registration ======================================================================================
 
 REGISTER_FUNCTION_P0(DebuggerClearObjectBrowser, DebuggerClearObjectBrowser, void);
@@ -1894,6 +1943,10 @@ REGISTER_FUNCTION_P3(DebuggerNotifyCreateObject, DebuggerNotifyCreateObject, voi
 REGISTER_FUNCTION_P1(DebuggerNotifyDestroyObject, DebuggerNotifyDestroyObject, void, int32);
 REGISTER_FUNCTION_P2(DebuggerNotifySetAddObject, DebuggerNotifySetAddObject, void, int32, int32);
 REGISTER_FUNCTION_P2(DebuggerNotifySetRemoveObject, DebuggerNotifySetRemoveObject, void, int32, int32);
+
+REGISTER_FUNCTION_P1(DebuggerNotifyTimeScale, DebuggerNotifyTimeScale, void, float);
+REGISTER_FUNCTION_P5(DebuggerAddSchedule, DebuggerAddSchedule, void, int32, bool8, int32, int32, const char*);
+REGISTER_FUNCTION_P1(DebuggerRemoveSchedule, DebuggerRemoveSchedule, void, int32);
 
 // --------------------------------------------------------------------------------------------------------------------
 int _tmain(int argc, _TCHAR* argv[])

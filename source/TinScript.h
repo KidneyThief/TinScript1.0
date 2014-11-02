@@ -429,6 +429,9 @@ class CScriptContext
         void DebuggerListObjects(uint32 parent_id, uint32 object_id);
         void DebuggerInspectObject(uint32 object_id);
 
+        // -- methods to send schedule updates to the debugger
+        void DebuggerListSchedules();
+
         // -- useful debugging statics
         static bool8 gDebugParseTree;
         static bool8 gDebugCodeBlock;

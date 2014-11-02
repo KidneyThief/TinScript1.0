@@ -47,7 +47,11 @@ class CScheduler
 
         CScriptContext* GetScriptContext() { return (mContextOwner); }
 
+        // -- the update is what really matters, as it's expected to be called accurately by the application.
+        // -- the set/get timescale is for communicating with the debugger, so it's schedule reflection is accurate
         void Update(uint32 curtime);
+        float GetSimTimeScale() const { return (mSimTimeScale); }
+        void SetSimTimeScale(float sim_time_scale);
 
         // ============================================================================================================
         // class CCommand: Stores the details of a a deferred function/method call request.
@@ -86,6 +90,11 @@ class CScheduler
         void Cancel(uint32 objectid, int reqid);
         void Dump();
 
+        // -- debugger hook
+        void DebuggerListSchedules();
+        void DebuggerAddSchedule(const CCommand& command);
+        void DebuggerRemoveSchedule(int32 request_id);
+
         CCommand* ScheduleCreate(uint32 objectid, int delay, uint32 funchash, bool8 immediate, bool8 repeat);
         CScheduler::CCommand* mCurrentSchedule;
 
@@ -94,6 +103,7 @@ class CScheduler
 
         CCommand* mHead;
         uint32 mCurrentSimTime;
+        float mSimTimeScale;
 };
 
 } // TinScript

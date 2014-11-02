@@ -251,6 +251,22 @@ const char* CDebugObjectBrowserWin::GetObjectIdentifier(uint32 object_id)
     return ("");
 }
 
+// ====================================================================================================================
+// GetObjectDerivation():  Returns the derivation for the requested entry.
+// ====================================================================================================================
+const char* CDebugObjectBrowserWin::GetObjectDerivation(uint32 object_id)
+{
+    if (mObjectDictionary.contains(object_id))
+    {
+        // -- dereference to get the List, and then again to get the first item in the list
+        CBrowserEntry* entry = (*(mObjectDictionary[object_id]))[0];
+        return (entry->mDerivation);
+    }
+
+    // -- not found
+    return ("");
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 #include "TinQTObjectBrowserWinMoc.cpp"
 

@@ -117,6 +117,9 @@ class CObjectEntry
         const char* GetName() const { return UnHash(mNameHash); }
         uint32 GetNameHash() const { return mNameHash; }
 
+        void SetDestroyed() { mIsDestroyed = true; }
+        bool8 IsDestroyed() const { return (mIsDestroyed); }
+
         CNamespace* GetNamespace() const { return mObjectNamespace; }
 
         void* GetAddr() const { return mObjectAddr; }
@@ -143,6 +146,7 @@ class CObjectEntry
         void* mObjectAddr;
         CObjectGroup* mGroupOwner;
         bool8 mManualRegister;
+        bool8 mIsDestroyed;
         CHashTable<CVariableEntry>* mDynamicVariables;
 };
 

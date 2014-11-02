@@ -334,7 +334,7 @@ public:
         delta_ms = int(gTimeScale * float(delta_ms));
 
         // -- limit the sim update frequency
-        if (delta_ms >= 3)
+        if (delta_ms >= 33)
         {
             gSystemTickCount = current_tick;
 
@@ -462,11 +462,13 @@ void ScriptNotifyEvent(int32 keypress)
 void SimPause()
 {
     Canvas::gPaused = true;
+    TinScript::SetTimeScale(0.0f);
 }
 
 void SimUnpause()
 {
     Canvas::gPaused = false;
+    TinScript::SetTimeScale(Canvas::gTimeScale);
 }
 
 bool8 SimIsPaused()
@@ -482,6 +484,7 @@ int32 GetSimTime()
 void SimSetTimeScale(float scale)
 {
     Canvas::gTimeScale = scale;
+    TinScript::SetTimeScale(scale);
 }
 
 REGISTER_FUNCTION_P0(SimPause, SimPause, void);

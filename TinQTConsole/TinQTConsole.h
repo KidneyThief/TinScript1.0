@@ -57,6 +57,7 @@ class CDebugWatchWin;
 class CDebugToolsWin;
 class CDebugObjectBrowserWin;
 class CDebugObjectInspectWin;
+class CDebugSchedulesWin;
 
 // -- new "dock widget" framework
 class MainWindow;
@@ -90,6 +91,7 @@ class CConsoleWindow
         CDebugWatchWin* GetDebugAutosWin() { return (mAutosWin); }
         CDebugWatchWin* GetDebugWatchesWin() { return (mWatchesWin); }
         CDebugObjectBrowserWin* GetDebugObjectBrowserWin() { return (mObjectBrowserWin); }
+        CDebugSchedulesWin* GetDebugSchedulesWin() { return (mSchedulesWin); }
 
         void SetStatusMessage(const char* message);
         void SetTargetInfoMessage(const char* message);
@@ -113,12 +115,14 @@ class CConsoleWindow
         QPushButton* mButtonConnect;
 
         QDockWidget* mSourceWinDockWidget;
+        QDockWidget* mAutosWinDockWidget;
         CDebugSourceWin* mDebugSourceWin;
         CDebugBreakpointsWin* mBreakpointsWin;
         CDebugCallstackWin* mCallstackWin;
         CDebugWatchWin* mAutosWin;
         CDebugWatchWin* mWatchesWin;
         CDebugObjectBrowserWin* mObjectBrowserWin;
+        CDebugSchedulesWin* mSchedulesWin;
 
         QHBoxLayout* mToolbarLayout;
         QLineEdit* mFileLineEdit;
@@ -261,7 +265,8 @@ class CConsoleInput : public QLineEdit
         bool8 mHistoryFull;
         int32 mHistoryIndex;
         int32 mHistoryLastIndex;
-        char mHistory[TinScript::kMaxTokenLength][kMaxHistory];
+        typedef struct { char text[TinScript::kMaxTokenLength]; } tHistoryEntry;
+        tHistoryEntry mHistory[kMaxHistory];
 };
 
 // ====================================================================================================================

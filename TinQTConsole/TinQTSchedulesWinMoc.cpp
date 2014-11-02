@@ -1,16 +1,16 @@
 /****************************************************************************
-** Meta object code from reading C++ file 'TinQTObjectInspectWin.h'
+** Meta object code from reading C++ file 'TinQTSchedulesWin.h'
 **
 ** Created by: The Qt Meta Object Compiler version 67 (Qt 5.0.1)
 **
 ** WARNING! All changes made in this file will be lost!
 *****************************************************************************/
 
-#include "TinQTObjectInspectWin.h"
+#include "TinQTSchedulesWin.h"
 #include <QtCore/qbytearray.h>
 #include <QtCore/qmetatype.h>
 #if !defined(Q_MOC_OUTPUT_REVISION)
-#error "The header file 'TinQTObjectInspectWin.h' doesn't include <QObject>."
+#error "The header file 'TinQTSchedulesWin.h' doesn't include <QObject>."
 #elif Q_MOC_OUTPUT_REVISION != 67
 #error "This file was generated using the moc from 5.0.1. It"
 #error "cannot be used with the include files from this version of Qt."
@@ -18,27 +18,26 @@
 #endif
 
 QT_BEGIN_MOC_NAMESPACE
-struct qt_meta_stringdata_CObjectInspectEntry_t {
+struct qt_meta_stringdata_CScheduleEntry_t {
     QByteArrayData data[3];
-    char stringdata[38];
+    char stringdata[37];
 };
 #define QT_MOC_LITERAL(idx, ofs, len) \
     Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
-    offsetof(qt_meta_stringdata_CObjectInspectEntry_t, stringdata) + ofs \
+    offsetof(qt_meta_stringdata_CScheduleEntry_t, stringdata) + ofs \
         - idx * sizeof(QByteArrayData) \
     )
-static const qt_meta_stringdata_CObjectInspectEntry_t qt_meta_stringdata_CObjectInspectEntry = {
+static const qt_meta_stringdata_CScheduleEntry_t qt_meta_stringdata_CScheduleEntry = {
     {
-QT_MOC_LITERAL(0, 0, 19),
-QT_MOC_LITERAL(1, 20, 15),
-QT_MOC_LITERAL(2, 36, 0)
+QT_MOC_LITERAL(0, 0, 14),
+QT_MOC_LITERAL(1, 15, 19),
+QT_MOC_LITERAL(2, 35, 0)
     },
-    "CObjectInspectEntry\0OnReturnPressed\0"
-    "\0"
+    "CScheduleEntry\0OnButtonKillPressed\0\0"
 };
 #undef QT_MOC_LITERAL
 
-static const uint qt_meta_data_CObjectInspectEntry[] = {
+static const uint qt_meta_data_CScheduleEntry[] = {
 
  // content:
        7,       // revision
@@ -60,38 +59,38 @@ static const uint qt_meta_data_CObjectInspectEntry[] = {
        0        // eod
 };
 
-void CObjectInspectEntry::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
+void CScheduleEntry::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
 {
     if (_c == QMetaObject::InvokeMetaMethod) {
-        CObjectInspectEntry *_t = static_cast<CObjectInspectEntry *>(_o);
+        CScheduleEntry *_t = static_cast<CScheduleEntry *>(_o);
         switch (_id) {
-        case 0: _t->OnReturnPressed(); break;
+        case 0: _t->OnButtonKillPressed(); break;
         default: ;
         }
     }
     Q_UNUSED(_a);
 }
 
-const QMetaObject CObjectInspectEntry::staticMetaObject = {
-    { &QWidget::staticMetaObject, qt_meta_stringdata_CObjectInspectEntry.data,
-      qt_meta_data_CObjectInspectEntry,  qt_static_metacall, 0, 0}
+const QMetaObject CScheduleEntry::staticMetaObject = {
+    { &QWidget::staticMetaObject, qt_meta_stringdata_CScheduleEntry.data,
+      qt_meta_data_CScheduleEntry,  qt_static_metacall, 0, 0}
 };
 
 
-const QMetaObject *CObjectInspectEntry::metaObject() const
+const QMetaObject *CScheduleEntry::metaObject() const
 {
     return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;
 }
 
-void *CObjectInspectEntry::qt_metacast(const char *_clname)
+void *CScheduleEntry::qt_metacast(const char *_clname)
 {
     if (!_clname) return 0;
-    if (!strcmp(_clname, qt_meta_stringdata_CObjectInspectEntry.stringdata))
-        return static_cast<void*>(const_cast< CObjectInspectEntry*>(this));
+    if (!strcmp(_clname, qt_meta_stringdata_CScheduleEntry.stringdata))
+        return static_cast<void*>(const_cast< CScheduleEntry*>(this));
     return QWidget::qt_metacast(_clname);
 }
 
-int CObjectInspectEntry::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
+int CScheduleEntry::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
 {
     _id = QWidget::qt_metacall(_c, _id, _a);
     if (_id < 0)
@@ -107,27 +106,27 @@ int CObjectInspectEntry::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     }
     return _id;
 }
-struct qt_meta_stringdata_CDebugObjectInspectWin_t {
+struct qt_meta_stringdata_CDebugSchedulesWin_t {
     QByteArrayData data[3];
-    char stringdata[48];
+    char stringdata[44];
 };
 #define QT_MOC_LITERAL(idx, ofs, len) \
     Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
-    offsetof(qt_meta_stringdata_CDebugObjectInspectWin_t, stringdata) + ofs \
+    offsetof(qt_meta_stringdata_CDebugSchedulesWin_t, stringdata) + ofs \
         - idx * sizeof(QByteArrayData) \
     )
-static const qt_meta_stringdata_CDebugObjectInspectWin_t qt_meta_stringdata_CDebugObjectInspectWin = {
+static const qt_meta_stringdata_CDebugSchedulesWin_t qt_meta_stringdata_CDebugSchedulesWin = {
     {
-QT_MOC_LITERAL(0, 0, 22),
-QT_MOC_LITERAL(1, 23, 22),
-QT_MOC_LITERAL(2, 46, 0)
+QT_MOC_LITERAL(0, 0, 18),
+QT_MOC_LITERAL(1, 19, 22),
+QT_MOC_LITERAL(2, 42, 0)
     },
-    "CDebugObjectInspectWin\0OnButtonRefreshPressed\0"
+    "CDebugSchedulesWin\0OnButtonRefreshPressed\0"
     "\0"
 };
 #undef QT_MOC_LITERAL
 
-static const uint qt_meta_data_CDebugObjectInspectWin[] = {
+static const uint qt_meta_data_CDebugSchedulesWin[] = {
 
  // content:
        7,       // revision
@@ -149,10 +148,10 @@ static const uint qt_meta_data_CDebugObjectInspectWin[] = {
        0        // eod
 };
 
-void CDebugObjectInspectWin::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
+void CDebugSchedulesWin::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
 {
     if (_c == QMetaObject::InvokeMetaMethod) {
-        CDebugObjectInspectWin *_t = static_cast<CDebugObjectInspectWin *>(_o);
+        CDebugSchedulesWin *_t = static_cast<CDebugSchedulesWin *>(_o);
         switch (_id) {
         case 0: _t->OnButtonRefreshPressed(); break;
         default: ;
@@ -161,26 +160,26 @@ void CDebugObjectInspectWin::qt_static_metacall(QObject *_o, QMetaObject::Call _
     Q_UNUSED(_a);
 }
 
-const QMetaObject CDebugObjectInspectWin::staticMetaObject = {
-    { &QWidget::staticMetaObject, qt_meta_stringdata_CDebugObjectInspectWin.data,
-      qt_meta_data_CDebugObjectInspectWin,  qt_static_metacall, 0, 0}
+const QMetaObject CDebugSchedulesWin::staticMetaObject = {
+    { &QWidget::staticMetaObject, qt_meta_stringdata_CDebugSchedulesWin.data,
+      qt_meta_data_CDebugSchedulesWin,  qt_static_metacall, 0, 0}
 };
 
 
-const QMetaObject *CDebugObjectInspectWin::metaObject() const
+const QMetaObject *CDebugSchedulesWin::metaObject() const
 {
     return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;
 }
 
-void *CDebugObjectInspectWin::qt_metacast(const char *_clname)
+void *CDebugSchedulesWin::qt_metacast(const char *_clname)
 {
     if (!_clname) return 0;
-    if (!strcmp(_clname, qt_meta_stringdata_CDebugObjectInspectWin.stringdata))
-        return static_cast<void*>(const_cast< CDebugObjectInspectWin*>(this));
+    if (!strcmp(_clname, qt_meta_stringdata_CDebugSchedulesWin.stringdata))
+        return static_cast<void*>(const_cast< CDebugSchedulesWin*>(this));
     return QWidget::qt_metacast(_clname);
 }
 
-int CDebugObjectInspectWin::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
+int CDebugSchedulesWin::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
 {
     _id = QWidget::qt_metacall(_c, _id, _a);
     if (_id < 0)

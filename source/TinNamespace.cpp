@@ -43,7 +43,6 @@ namespace TinScript
 // --------------------------------------------------------------------------------------------------------------------
 // -- statics
 CNamespaceReg* CNamespaceReg::head = NULL;
-static const char* kGlobalNamespace = "_global";
 
 // == class CObjectEntry ==============================================================================================
 
@@ -61,6 +60,7 @@ CObjectEntry::CObjectEntry(CScriptContext* script_context, uint32 _objid, uint32
     mDynamicVariables = NULL;
     mGroupOwner = NULL;
     mManualRegister = register_manual;
+    mIsDestroyed = false;
 }
 
 // ====================================================================================================================
@@ -565,6 +565,13 @@ void CScriptContext::DestroyObject(uint32 objectid)
         return;
     }
 
+    // -- guard against re-entrant destruction.
+    // -- Happens if ::Unregister() is called from code, causing "OnDestroy()" to be called,
+    // -- which may contain a call back to code which leads to the re-entrant ::Unregister()
+    if (oe->IsDestroyed())
+        return;
+    oe->SetDestroyed();
+
     // -- notify the debugger of the new object (before we call OnCreate(), as that may add the object to a set)
     DebuggerNotifyDestroyObject(objectid);
 
@@ -846,7 +853,7 @@ CNamespace::CNamespace(CScriptContext* script_context, const char* _name, uint32
     mContextOwner = script_context;
     // -- ensure the name lives in the string table
     mName = _name && _name[0] ? script_context->GetStringTable()->AddString(_name)
-                             : script_context->GetStringTable()->AddString(kGlobalNamespace);
+                             : script_context->GetStringTable()->AddString(CScriptContext::kGlobalNamespace);
     mHash = Hash(mName);
     mTypeID = _typeID;
     mNext = NULL;

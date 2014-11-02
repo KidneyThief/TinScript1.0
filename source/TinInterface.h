@@ -71,6 +71,11 @@ bool8 CompileScript(const char* filename);
 bool8 ExecScript(const char* filename);
 
 // ====================================================================================================================
+// SetTimeScale():  Allows for accurate communication with the debugger, if the application adjusts timescale
+// ====================================================================================================================
+void SetTimeScale(float time_scale);
+
+// ====================================================================================================================
 // GetGlobalVar():  Provides access from code, to a registered or scripted global variable
 // Must be used if the global is declared in script (not registered from code)
 // Must be used, of the global is of type const char* (or in string, in script)

@@ -27,6 +27,8 @@
 #include "stdafx.h"
 #include "stdio.h"
 
+#include "../external/socket.h"
+
 #include "TinScript.h"
 #include "TinRegistration.h"
 #include "TinInterface.h"
@@ -49,6 +51,7 @@ CScheduler::CScheduler(CScriptContext* script_context)
     mHead = NULL;
     mCurrentSimTime = 0;
     mCurrentSchedule = NULL;
+    mSimTimeScale = 1.0f;
 }
 
 // ====================================================================================================================
@@ -78,9 +81,12 @@ void CScheduler::Update(uint32 curtime)
         // -- get the current command, and remove it from the list - now, before we execute,
         // -- since executing this command could 
         CCommand* curcommand = mHead;
-        if(curcommand->mNext)
+        if (curcommand->mNext)
             curcommand->mNext->mPrev = NULL;
         mHead = curcommand->mNext;
+
+        // -- notify the debugger
+        DebuggerRemoveSchedule(curcommand->mReqID);
 
         // -- dispatch the command - see if it's a direct function call, or a command buf
         if (curcommand->mFuncHash != 0)
@@ -129,12 +135,32 @@ void CScheduler::Update(uint32 curtime)
                     curschedule->mNext->mPrev = curcommand;
                 curschedule->mNext = curcommand;
             }
+
+            // -- notify the debugger
+            DebuggerAddSchedule(*curcommand);
         }
         else
         {
             // -- delete the command
             TinFree(curcommand);
         }
+    }
+}
+
+// ====================================================================================================================
+// SetSimTimeScale():  Allows the scheduler to communicate with the debugger for accurate reflection of schedules.
+// ====================================================================================================================
+void CScheduler::SetSimTimeScale(float time_scale)
+{
+    mSimTimeScale = time_scale;
+    if (mSimTimeScale < 0.0f)
+        mSimTimeScale = 0.0f;
+
+    // -- if we're connected, notify the debugger
+    int32 debugger_session = 0;
+    if (GetScriptContext()->IsDebuggerConnected(debugger_session))
+    {
+        SocketManager::SendCommandf("DebuggerNotifyTimeScale(%f);", mSimTimeScale);
     }
 }
 
@@ -166,13 +192,19 @@ void CScheduler::Cancel(uint32 objectid, int32 reqid)
     // -- loop through and delete any schedules pending for this object
     CCommand** prevcommand = &mHead;
     CCommand* curcommand = mHead;
-    while(curcommand) {
-        if(curcommand->mObjectID == objectid || curcommand->mReqID == reqid) {
+    while (curcommand)
+    {
+        if (curcommand->mObjectID == objectid || curcommand->mReqID == reqid)
+        {
+            // -- notify the debugger
+            DebuggerRemoveSchedule(curcommand->mReqID);
+
             *prevcommand = curcommand->mNext;
             TinFree(curcommand);
             curcommand = *prevcommand;
         }
-        else {
+        else
+        {
             prevcommand = &curcommand->mNext;
             curcommand = curcommand->mNext;
         }
@@ -202,6 +234,74 @@ void CScheduler::Dump()
     }
 }
 
+// ====================================================================================================================
+// DebuggerListSchedules():  Send the connected debugger a list of schedules
+// ====================================================================================================================
+void CScheduler::DebuggerListSchedules()
+{
+    // -- nothing to send if we're not connected
+    int32 debugger_session = 0;
+    if (!GetScriptContext()->IsDebuggerConnected(debugger_session))
+        return;
+
+    // -- this is a good time to notify the debugger of our current timescale, as it tends to be called "on connect"
+    SocketManager::SendCommandf("DebuggerNotifyTimeScale(%f);", mSimTimeScale);
+
+    // -- loop through and delete any schedules pending for this object
+    CCommand* curcommand = mHead;
+    while (curcommand)
+    {
+        DebuggerAddSchedule(*curcommand);
+        curcommand = curcommand->mNext;
+    }
+}
+
+// ====================================================================================================================
+// DebuggerAddSchedule():  Send the connected debugger notification of a schedule.
+// ====================================================================================================================
+void CScheduler::DebuggerAddSchedule(const CCommand& command)
+{
+    // -- nothing to send if we're not connected
+    int32 debugger_session = 0;
+    if (!GetScriptContext()->IsDebuggerConnected(debugger_session))
+        return;
+
+    int32 time_remaining_ms = static_cast<int32>(command.mDispatchTime) - static_cast<int32>(mCurrentSimTime);
+    if (time_remaining_ms < 0)
+        time_remaining_ms = 0;
+
+    char debug_msg[kMaxTokenLength];
+    if (command.mFuncHash != 0)
+    {
+        sprintf_s(debug_msg, "DebuggerAddSchedule(%d, %s, %d, %d, `%s();`);", command.mReqID,
+                  command.mRepeatTime > 0 ? "true" : "false", time_remaining_ms, command.mObjectID,
+                  UnHash(command.mFuncHash));
+    }
+    else
+    {
+        sprintf_s(debug_msg, "DebuggerAddSchedule(%d, %s, %d, %d, `%s`);", command.mReqID,
+                  command.mRepeatTime > 0 ? "true" : "false", time_remaining_ms, command.mObjectID,
+                  command.mCommandBuf);
+    }
+
+    // -- send the command
+    SocketManager::SendCommand(debug_msg);
+}
+
+// ====================================================================================================================
+// DebuggerRemoveSchedule():  Send the connected debugger notification of a schedule.
+// ====================================================================================================================
+void CScheduler::DebuggerRemoveSchedule(int32 req_id)
+{
+    // -- nothing to send if we're not connected
+    int32 debugger_session = 0;
+    if (!GetScriptContext()->IsDebuggerConnected(debugger_session))
+        return;
+
+    // -- send the command
+    SocketManager::SendCommandf("DebuggerRemoveSchedule(%d);", req_id);
+}
+
 // == class CScheduler::CCommand ======================================================================================
 
 // ====================================================================================================================
@@ -212,6 +312,7 @@ CScheduler::CCommand::CCommand(CScriptContext* script_context, int32 _reqid, uin
 {
     // -- set the context
     mContextOwner = script_context;
+
 
     // --  members copy the command members
     mReqID = _reqid;
@@ -299,7 +400,11 @@ int32 CScheduler::Schedule(uint32 objectid, int32 delay, bool8 repeat, const cha
         if(curschedule->mNext)
             curschedule->mNext->mPrev = newcommand;
         curschedule->mNext = newcommand;
+
     }
+
+    // -- notify the debugger
+    DebuggerAddSchedule(*newcommand);
 
     // -- return the request id, so we have a way to cancel
     return newcommand->mReqID;
@@ -346,6 +451,9 @@ CScheduler::CCommand* CScheduler::ScheduleCreate(uint32 objectid, int32 delay, u
             curschedule->mNext->mPrev = newcommand;
         curschedule->mNext = newcommand;
     }
+
+    // -- notify the debugger
+    DebuggerAddSchedule(*newcommand);
 
     // -- return the actual commmand object, since we'll be updating the parameter values
     return newcommand;

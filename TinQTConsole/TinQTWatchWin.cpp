@@ -494,8 +494,8 @@ uint32 CDebugWatchWin::GetSelectedObjectID()
     if (cur_item && cur_item->mDebuggerEntry.mType != TinScript::TYPE_void)
     {
         // -- see if we have a variable or a member
-        if (cur_item->mDebuggerEntry.mObjectID > 0)
-            return (cur_item->mDebuggerEntry.mObjectID);
+        if (cur_item->mDebuggerEntry.mVarObjectID > 0)
+            return (cur_item->mDebuggerEntry.mVarObjectID);
     }
 
     // -- no current objects selected

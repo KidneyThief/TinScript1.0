@@ -70,6 +70,7 @@
 #include "TinQTWatchWin.h"
 #include "TinQTBreakpointsWin.h"
 #include "TinQTObjectBrowserWin.h"
+#include "TinQTObjectInspectWin.h"
 
 // ====================================================================================================================
 // -- class implementation for add variable watch dialog
@@ -452,6 +453,11 @@ void MainWindow::menuCreateObjectInspector()
 
         CDebugObjectInspectWin* object_inspect_win =
             CConsoleWindow::GetInstance()->FindOrCreateObjectInspectWin(object_id, object_buf);
+        if (object_inspect_win && object_inspect_win->parentWidget())
+        {
+            object_inspect_win->parentWidget()->show();
+            object_inspect_win->parentWidget()->raise();
+        }
     }
 }
 
