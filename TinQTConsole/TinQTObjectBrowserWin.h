@@ -48,6 +48,7 @@ class CBrowserEntry : public QTreeWidgetItem
         uint32 mObjectID;
         uint32 mParentID;
         char mName[TinScript::kMaxNameLength];
+        char mFormattedName[TinScript::kMaxNameLength];
         char mDerivation[TinScript::kMaxNameLength];
 
         bool mExpanded;
@@ -72,8 +73,10 @@ class CDebugObjectBrowserWin : public QTreeWidget
 
         // -- these methods are used to create an ObjectInspector, based on an object_id entry found in the browser
         uint32 GetSelectedObjectID();
+        uint32 FindObjectByName(const char* name);
         const char* GetObjectIdentifier(uint32 object_id);
         const char* GetObjectDerivation(uint32 object_id);
+        void SetSelectedObject(uint32 object_id);
 
         virtual void paintEvent(QPaintEvent* e)
         {

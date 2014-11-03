@@ -2637,6 +2637,172 @@ void CScriptContext::DebuggerSendPrint(const char* fmt, ...)
 }
 
 // ====================================================================================================================
+// DebuggerRequestFunctionAssist():  Sends the debugger a list of function assist entries for each method available.
+// ====================================================================================================================
+void CScriptContext::DebuggerRequestFunctionAssist(uint32 object_id)
+{
+    // -- if we're given an id, ensure we can find the object
+    CObjectEntry* oe = object_id > 0 ? FindObjectEntry(object_id) : NULL;
+    if (object_id > 0 && !oe)
+        return;
+
+    // -- send the function entries through the entire hierarchy (or just the global if requested)
+    tFuncTable* function_table = NULL;
+    CNamespace* current_namespace = NULL;
+
+    // -- if we're sending global functions, we need the global namespace only
+    if (object_id == 0)
+    {
+        function_table = GetGlobalNamespace()->GetFuncTable();
+    }
+    else
+    {
+        current_namespace = oe->GetNamespace();
+        function_table = current_namespace->GetFuncTable();
+    }
+
+    // -- send the hierarchy
+    while (function_table)
+    {
+        // -- populate and send a function assist entry
+        CFunctionEntry* function_entry = function_table->First();
+        while (function_entry)
+        {
+            CDebuggerFunctionAssistEntry entry;
+            entry.mObjectID = object_id;
+            entry.mNamespaceHash = current_namespace ? current_namespace->GetHash() : 0;
+            entry.mFunctionHash = function_entry->GetHash();
+            SafeStrcpy(entry.mFunctionName, function_entry->GetName(), kMaxNameLength);
+
+            // -- fill in the parameters
+            CFunctionContext* function_context = function_entry->GetContext();
+            entry.mParameterCount = function_context->GetParameterCount();
+            if (entry.mParameterCount > kMaxRegisteredParameterCount + 1)
+                entry.mParameterCount = kMaxRegisteredParameterCount + 1;
+            for (int i = 0; i < entry.mParameterCount; ++i)
+            {
+                CVariableEntry* parameter = function_context->GetParameter(i);
+                entry.mType[i] = parameter->GetType();
+                entry.mIsArray[i] = parameter->IsArray();
+                entry.mNameHash[i] = parameter->GetHash();
+            }
+
+            // -- send the entry
+            DebuggerSendFunctionAssistEntry(entry);
+
+            // -- get the next
+            function_entry = function_table->Next();
+        }
+
+        // -- get the next function table
+        if (object_id != 0)
+        {
+            current_namespace = current_namespace->GetNext();
+            if (current_namespace)
+                function_table = current_namespace->GetFuncTable();
+            else
+                function_table = NULL;
+        }
+        else
+            function_table = NULL;
+    }
+}
+
+// ====================================================================================================================
+// DebuggerSendFunctionAssistEntry():  Send a a function and it's parameter list to the debugger
+// ====================================================================================================================
+void CScriptContext::DebuggerSendFunctionAssistEntry(const CDebuggerFunctionAssistEntry& function_assist_entry)
+{
+    // -- calculate the size of the data
+    int32 total_size = 0;
+
+    // -- first int32 will be identifying this data packet
+    total_size += sizeof(int32);
+
+	// -- object ID
+	total_size += sizeof(int32);
+
+	// -- namespace hash
+	total_size += sizeof(int32);
+
+	// -- function hash
+	total_size += sizeof(int32);
+
+    // -- send the length of the assert message, including EOL, and 4-byte aligned
+    int32 nameLength = strlen(function_assist_entry.mFunctionName) + 1;
+    nameLength += 4 - (nameLength % 4);
+
+    // -- we'll be sending the length of the message, followed by the actual message string
+    total_size += sizeof(int32);
+    total_size += nameLength;
+
+    // -- parameter count
+    total_size += sizeof(int32);
+
+    // -- types (x parameter count)
+    total_size += (sizeof(int32) * function_assist_entry.mParameterCount);
+
+    // -- is array (x parameter count)
+    total_size += (sizeof(int32) * function_assist_entry.mParameterCount);;
+
+    // -- parameter name hash (x parameter count)
+    total_size += (sizeof(int32) * function_assist_entry.mParameterCount);;
+
+    // -- declare a header
+    // -- note, if we ever implement a request/acknowledge approach, we can use the mID field
+    SocketManager::tPacketHeader header(k_PacketVersion, SocketManager::tPacketHeader::DATA, total_size);
+
+    // -- create the packet (null data, as we'll fill in the data directly into the packet)
+    SocketManager::tDataPacket* newPacket = SocketManager::CreateDataPacket(&header, NULL);
+    if (!newPacket)
+    {
+        TinPrint(this, "Error - DebuggerSendFunctionAssistEntry():  unable to send\n");
+        return;
+    }
+
+    // -- initialize the ptr to the data buffer
+    int32* dataPtr = (int32*)newPacket->mData;
+
+    // -- write the identifier - defined in the debugger constants near the top of TinScript.h
+    *dataPtr++ = k_DebuggerFunctionAssistPacketID;
+
+	// -- object ID
+	*dataPtr++ = function_assist_entry.mObjectID;
+
+	// -- namespace hash
+	*dataPtr++ = function_assist_entry.mNamespaceHash;
+
+	// -- function hash
+	*dataPtr++ = function_assist_entry.mFunctionHash;
+
+    // -- send the function name length
+    *dataPtr++ = nameLength;
+
+    // -- write the message string
+    SafeStrcpy((char*)dataPtr, function_assist_entry.mFunctionName, nameLength);
+    dataPtr += (nameLength / 4);
+
+    // -- parameter count
+    *dataPtr++ = function_assist_entry.mParameterCount;
+
+    // -- loop through, and send each parameter
+    for (int i = 0; i < function_assist_entry.mParameterCount; ++i)
+    {
+        // -- type
+        *dataPtr++ = (int32)(function_assist_entry.mType[i]);
+
+        // -- is array
+        *dataPtr++ = function_assist_entry.mIsArray[i] ? 1 : 0;
+
+        // -- name hash
+        *dataPtr++ = function_assist_entry.mNameHash[i];
+    }
+
+    // -- send the packet
+    SocketManager::SendDataPacket(newPacket);
+}
+
+// ====================================================================================================================
 // DebuggerNotifyCreateObject():  Send an object entry to the debugger, with the object's name and derivation.
 // ====================================================================================================================
 void CScriptContext::DebuggerNotifyCreateObject(CObjectEntry* oe)
@@ -2645,10 +2811,6 @@ void CScriptContext::DebuggerNotifyCreateObject(CObjectEntry* oe)
     int32 debugger_session = 0;
     if (!oe || !IsDebuggerConnected(debugger_session))
         return;
-
-    // -- create the name string
-    char name_buf[kMaxNameLength];
-    sprintf_s(name_buf, kMaxNameLength, "[%d] %s", oe->GetID(), oe->GetNameHash() != 0 ? oe->GetName() : "");
 
     // -- create the derivation string
     char derivation_buf[kMaxNameLength * 2];
@@ -2679,7 +2841,8 @@ void CScriptContext::DebuggerNotifyCreateObject(CObjectEntry* oe)
     derivation_buf[kMaxNameLength - 1] = '\0';
 
     // -- send the entry
-    SocketManager::SendCommandf("DebuggerNotifyCreateObject(%d, `%s`, `%s`);", oe->GetID(), name_buf, derivation_buf);
+    SocketManager::SendCommandf("DebuggerNotifyCreateObject(%d, `%s`, `%s`);", oe->GetID(),
+                                oe->GetNameHash() != 0 ? oe->GetName() : "", derivation_buf);
 }
 
 // ====================================================================================================================
@@ -3105,6 +3268,25 @@ void DebuggerListSchedules()
     script_context->DebuggerListSchedules();
 }
 
+// --------------------------------------------------------------------------------------------------------------------
+// DebuggerRequestFunctionAssist():  Send the connected debugger, a list of all functions for the given object
+// --------------------------------------------------------------------------------------------------------------------
+void DebuggerRequestFunctionAssist(int32 object_id)
+{
+    // -- ensure we have a script context
+    CScriptContext* script_context = GetContext();
+    if (!script_context)
+        return;
+
+    // -- ensure we're connected
+    int32 debugger_session = 0;
+    if (!script_context->IsDebuggerConnected(debugger_session))
+        return;
+
+    // -- send the list of objects
+    script_context->DebuggerRequestFunctionAssist(object_id);
+}
+
 // -------------------------------------------------------------------------------------------------------------------
 // -- Registration
 REGISTER_FUNCTION_P1(DebuggerSetConnected, DebuggerSetConnected, void, bool8);
@@ -3124,6 +3306,7 @@ REGISTER_FUNCTION_P1(DebuggerListObjects, DebuggerListObjects, void, int32);
 REGISTER_FUNCTION_P1(DebuggerInspectObject, DebuggerInspectObject, void, int32);
 
 REGISTER_FUNCTION_P0(DebuggerListSchedules, DebuggerListSchedules, void);
+REGISTER_FUNCTION_P1(DebuggerRequestFunctionAssist, DebuggerRequestFunctionAssist, void, int32);
 
 // == class CThreadMutex ==============================================================================================
 // -- CThreadMutex is only functional in WIN32

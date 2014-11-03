@@ -80,11 +80,10 @@ class CFunctionContext
         void ClearParameters();
         void InitStackVarOffsets(CFunctionEntry* fe);
 
-    private:
-        CScriptContext* mContextOwner;
-
         enum { eMaxParameterCount = 16, eMaxLocalVarCount = 37 };
 
+    private:
+        CScriptContext* mContextOwner;
         tVarTable* localvartable;
 
         // -- note:  the first parameter in the list is the return value

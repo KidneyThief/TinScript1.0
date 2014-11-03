@@ -58,6 +58,7 @@ class CDebugToolsWin;
 class CDebugObjectBrowserWin;
 class CDebugObjectInspectWin;
 class CDebugSchedulesWin;
+class CDebugFunctionAssistWin;
 
 // -- new "dock widget" framework
 class MainWindow;
@@ -92,6 +93,7 @@ class CConsoleWindow
         CDebugWatchWin* GetDebugWatchesWin() { return (mWatchesWin); }
         CDebugObjectBrowserWin* GetDebugObjectBrowserWin() { return (mObjectBrowserWin); }
         CDebugSchedulesWin* GetDebugSchedulesWin() { return (mSchedulesWin); }
+        CDebugFunctionAssistWin* GetDebugFunctionAssistWin() { return (mFunctionAssistWin); }
 
         void SetStatusMessage(const char* message);
         void SetTargetInfoMessage(const char* message);
@@ -123,6 +125,7 @@ class CConsoleWindow
         CDebugWatchWin* mWatchesWin;
         CDebugObjectBrowserWin* mObjectBrowserWin;
         CDebugSchedulesWin* mSchedulesWin;
+        CDebugFunctionAssistWin* mFunctionAssistWin;
 
         QHBoxLayout* mToolbarLayout;
         QLineEdit* mFileLineEdit;
@@ -237,6 +240,8 @@ class CConsoleInput : public QLineEdit
             mInputLabel->setGeometry(0, newYOffset, 24, 24);
         }
 
+        void SetText(const char* text, int cursor_pos);
+
     public slots:
         void OnButtonConnectPressed();
         void OnConnectIPReturnPressed();
@@ -249,6 +254,7 @@ class CConsoleInput : public QLineEdit
         void OnButtonStepOutPressed();
         void OnFindEditFocus();
         void OnFindEditReturnPressed();
+        void OnFunctionAssistPressed();
 
     protected:
         virtual void keyPressEvent(QKeyEvent * event);
@@ -329,6 +335,7 @@ class CConsoleOutput : public QListWidget
         void HandlePacketWatchVarEntry(int32* dataPtr);
         void HandlePacketAssertMsg(int32* dataPtr);
         void HandlePacketPrintMsg(int32* dataPtr);
+        void HandlePacketFunctionAssist(int32* dataPtr);
 
         // -- called while handling a breakpoint, to ensure we still get to update our own context
         void DebuggerUpdate();

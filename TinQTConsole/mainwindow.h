@@ -146,6 +146,7 @@ public slots:
     void menuGoToLine();
     void menuSearch();
     void menuSearchAgain();
+    void menuFunctionAssist();
 
 private:
     void readLayout(QFile& file);

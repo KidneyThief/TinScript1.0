@@ -703,6 +703,9 @@ void MainWindow::setupMenuBar()
     action = debug_menu->addAction(tr("Break Condition  [Ctrl + Shift + B]"));
     connect(action, SIGNAL(triggered()), this, SLOT(menuSetBreakCondition()));
 
+    action = debug_menu->addAction(tr("Function Assist  [F1]"));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuFunctionAssist()));
+
     // -- Scripts menu
     mScriptsMenu = menuBar()->addMenu(tr("&Scripts"));
 
@@ -958,12 +961,21 @@ void MainWindow::menuSearch()
 }
 
 // ====================================================================================================================
-// menuSearch():  Slot called when the menu option is selected.
+// menuSearchAgain():  Slot called when the menu option is selected.
 // ====================================================================================================================
 void MainWindow::menuSearchAgain()
 {
     CConsoleInput* console_input = CConsoleWindow::GetInstance()->GetInput();
     console_input->OnFindEditReturnPressed();
+}
+
+// ====================================================================================================================
+// menuFunctionAssist():  Slot called when the menu option is selected.
+// ====================================================================================================================
+void MainWindow::menuFunctionAssist()
+{
+    CConsoleInput* console_input = CConsoleWindow::GetInstance()->GetInput();
+    console_input->OnFunctionAssistPressed();
 }
 
 // ====================================================================================================================

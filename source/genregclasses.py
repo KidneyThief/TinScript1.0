@@ -704,7 +704,7 @@ def GenerateExecs(maxparamcount, outputfilename):
         outputfile.write("    uint32 object_id = script_context->FindIDByAddress(obj_addr);\n");
         outputfile.write("    if (object_id == 0)\n");
         outputfile.write("    {\n");
-        outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\\n", kPointerToUInt32(objaddr));\n');
+        outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\\n", kPointerToUInt32(obj_addr));\n');
         outputfile.write("        return false;\n");
         outputfile.write("    }\n\n");
         call_string = "    return (ExecFunctionImpl<R>(return_value, object_id, Hash(method_name)"
@@ -739,7 +739,7 @@ def GenerateExecs(maxparamcount, outputfilename):
         outputfile.write("    uint32 object_id = script_context->FindIDByAddress(obj_addr);\n");
         outputfile.write("    if (object_id == 0)\n");
         outputfile.write("    {\n");
-        outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\\n", kPointerToUInt32(objaddr));\n');
+        outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\\n", kPointerToUInt32(obj_addr));\n');
         outputfile.write("        return false;\n");
         outputfile.write("    }\n\n");
         call_string = "    return (ExecFunctionImpl<R>(return_value, object_id, method_hash"

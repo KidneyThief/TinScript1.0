@@ -19,8 +19,8 @@
 
 QT_BEGIN_MOC_NAMESPACE
 struct qt_meta_stringdata_CConsoleInput_t {
-    QByteArrayData data[13];
-    char stringdata[248];
+    QByteArrayData data[14];
+    char stringdata[272];
 };
 #define QT_MOC_LITERAL(idx, ofs, len) \
     Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
@@ -41,7 +41,8 @@ QT_MOC_LITERAL(8, 142, 19),
 QT_MOC_LITERAL(9, 162, 21),
 QT_MOC_LITERAL(10, 184, 22),
 QT_MOC_LITERAL(11, 207, 15),
-QT_MOC_LITERAL(12, 223, 23)
+QT_MOC_LITERAL(12, 223, 23),
+QT_MOC_LITERAL(13, 247, 23)
     },
     "CConsoleInput\0OnButtonConnectPressed\0"
     "\0OnConnectIPReturnPressed\0OnReturnPressed\0"
@@ -49,6 +50,7 @@ QT_MOC_LITERAL(12, 223, 23)
     "OnButtonRunPressed\0OnButtonStepPressed\0"
     "OnButtonStepInPressed\0OnButtonStepOutPressed\0"
     "OnFindEditFocus\0OnFindEditReturnPressed\0"
+    "OnFunctionAssistPressed\0"
 };
 #undef QT_MOC_LITERAL
 
@@ -58,7 +60,7 @@ static const uint qt_meta_data_CConsoleInput[] = {
        7,       // revision
        0,       // classname
        0,    0, // classinfo
-      11,   14, // methods
+      12,   14, // methods
        0,    0, // properties
        0,    0, // enums/sets
        0,    0, // constructors
@@ -66,19 +68,21 @@ static const uint qt_meta_data_CConsoleInput[] = {
        0,       // signalCount
 
  // slots: name, argc, parameters, tag, flags
-       1,    0,   69,    2, 0x0a,
-       3,    0,   70,    2, 0x0a,
-       4,    0,   71,    2, 0x0a,
-       5,    0,   72,    2, 0x0a,
-       6,    0,   73,    2, 0x0a,
-       7,    0,   74,    2, 0x0a,
-       8,    0,   75,    2, 0x0a,
-       9,    0,   76,    2, 0x0a,
-      10,    0,   77,    2, 0x0a,
-      11,    0,   78,    2, 0x0a,
-      12,    0,   79,    2, 0x0a,
+       1,    0,   74,    2, 0x0a,
+       3,    0,   75,    2, 0x0a,
+       4,    0,   76,    2, 0x0a,
+       5,    0,   77,    2, 0x0a,
+       6,    0,   78,    2, 0x0a,
+       7,    0,   79,    2, 0x0a,
+       8,    0,   80,    2, 0x0a,
+       9,    0,   81,    2, 0x0a,
+      10,    0,   82,    2, 0x0a,
+      11,    0,   83,    2, 0x0a,
+      12,    0,   84,    2, 0x0a,
+      13,    0,   85,    2, 0x0a,
 
  // slots: parameters
+    QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
@@ -110,6 +114,7 @@ void CConsoleInput::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _i
         case 8: _t->OnButtonStepOutPressed(); break;
         case 9: _t->OnFindEditFocus(); break;
         case 10: _t->OnFindEditReturnPressed(); break;
+        case 11: _t->OnFunctionAssistPressed(); break;
         default: ;
         }
     }
@@ -141,13 +146,13 @@ int CConsoleInput::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 11)
+        if (_id < 12)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 11;
+        _id -= 12;
     } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 11)
+        if (_id < 12)
             *reinterpret_cast<int*>(_a[0]) = -1;
-        _id -= 11;
+        _id -= 12;
     }
     return _id;
 }

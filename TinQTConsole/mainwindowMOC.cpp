@@ -19,8 +19,8 @@
 
 QT_BEGIN_MOC_NAMESPACE
 struct qt_meta_stringdata_MainWindow_t {
-    QByteArrayData data[27];
-    char stringdata[424];
+    QByteArrayData data[28];
+    char stringdata[443];
 };
 #define QT_MOC_LITERAL(idx, ofs, len) \
     Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
@@ -55,7 +55,8 @@ QT_MOC_LITERAL(22, 336, 24),
 QT_MOC_LITERAL(23, 361, 21),
 QT_MOC_LITERAL(24, 383, 12),
 QT_MOC_LITERAL(25, 396, 10),
-QT_MOC_LITERAL(26, 407, 15)
+QT_MOC_LITERAL(26, 407, 15),
+QT_MOC_LITERAL(27, 423, 18)
     },
     "MainWindow\0menuSaveLayout\0\0menuLoadLayout\0"
     "autoSaveLayout\0autoLoadLayout\0"
@@ -69,6 +70,7 @@ QT_MOC_LITERAL(26, 407, 15)
     "menuCreateObjectInspector\0"
     "menuRefreshObjectBrowser\0menuSetBreakCondition\0"
     "menuGoToLine\0menuSearch\0menuSearchAgain\0"
+    "menuFunctionAssist\0"
 };
 #undef QT_MOC_LITERAL
 
@@ -78,7 +80,7 @@ static const uint qt_meta_data_MainWindow[] = {
        7,       // revision
        0,       // classname
        0,    0, // classinfo
-      23,   14, // methods
+      24,   14, // methods
        0,    0, // properties
        0,    0, // enums/sets
        0,    0, // constructors
@@ -86,29 +88,30 @@ static const uint qt_meta_data_MainWindow[] = {
        0,       // signalCount
 
  // slots: name, argc, parameters, tag, flags
-       1,    0,  129,    2, 0x0a,
-       3,    0,  130,    2, 0x0a,
-       4,    0,  131,    2, 0x0a,
-       5,    0,  132,    2, 0x0a,
-       6,    0,  133,    2, 0x0a,
-       7,    1,  134,    2, 0x0a,
-       9,    0,  137,    2, 0x0a,
-      10,    0,  138,    2, 0x0a,
-      11,    0,  139,    2, 0x0a,
-      12,    0,  140,    2, 0x0a,
-      13,    0,  141,    2, 0x0a,
-      14,    0,  142,    2, 0x0a,
-      15,    0,  143,    2, 0x0a,
-      16,    1,  144,    2, 0x0a,
-      18,    0,  147,    2, 0x0a,
-      19,    0,  148,    2, 0x0a,
-      20,    0,  149,    2, 0x0a,
-      21,    0,  150,    2, 0x0a,
-      22,    0,  151,    2, 0x0a,
-      23,    0,  152,    2, 0x0a,
-      24,    0,  153,    2, 0x0a,
-      25,    0,  154,    2, 0x0a,
-      26,    0,  155,    2, 0x0a,
+       1,    0,  134,    2, 0x0a,
+       3,    0,  135,    2, 0x0a,
+       4,    0,  136,    2, 0x0a,
+       5,    0,  137,    2, 0x0a,
+       6,    0,  138,    2, 0x0a,
+       7,    1,  139,    2, 0x0a,
+       9,    0,  142,    2, 0x0a,
+      10,    0,  143,    2, 0x0a,
+      11,    0,  144,    2, 0x0a,
+      12,    0,  145,    2, 0x0a,
+      13,    0,  146,    2, 0x0a,
+      14,    0,  147,    2, 0x0a,
+      15,    0,  148,    2, 0x0a,
+      16,    1,  149,    2, 0x0a,
+      18,    0,  152,    2, 0x0a,
+      19,    0,  153,    2, 0x0a,
+      20,    0,  154,    2, 0x0a,
+      21,    0,  155,    2, 0x0a,
+      22,    0,  156,    2, 0x0a,
+      23,    0,  157,    2, 0x0a,
+      24,    0,  158,    2, 0x0a,
+      25,    0,  159,    2, 0x0a,
+      26,    0,  160,    2, 0x0a,
+      27,    0,  161,    2, 0x0a,
 
  // slots: parameters
     QMetaType::Void,
@@ -125,6 +128,7 @@ static const uint qt_meta_data_MainWindow[] = {
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void, 0x80000000 | 17,    2,
+    QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
@@ -166,6 +170,7 @@ void MainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         case 20: _t->menuGoToLine(); break;
         case 21: _t->menuSearch(); break;
         case 22: _t->menuSearchAgain(); break;
+        case 23: _t->menuFunctionAssist(); break;
         default: ;
         }
     }
@@ -196,13 +201,13 @@ int MainWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 23)
+        if (_id < 24)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 23;
+        _id -= 24;
     } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 23)
+        if (_id < 24)
             *reinterpret_cast<int*>(_a[0]) = -1;
-        _id -= 23;
+        _id -= 24;
     }
     return _id;
 }

@@ -58,6 +58,7 @@
 #include "TinQTObjectBrowserWin.h"
 #include "TinQTObjectInspectWin.h"
 #include "TinQTSchedulesWin.h"
+#include "TinQTFunctionAssistWin.h"
 
 #include "mainwindow.h"
 
@@ -210,6 +211,12 @@ CConsoleWindow::CConsoleWindow()
     schedulesDockWidget->setWindowTitle("Scheduler");
     mSchedulesWin = new CDebugSchedulesWin(schedulesDockWidget);
 
+    // -- create the schedules window
+    QDockWidget* functionAssistDockWidget = new QDockWidget();
+    functionAssistDockWidget->setObjectName("Function Assist");
+    functionAssistDockWidget->setWindowTitle("Function Assist");
+    mFunctionAssistWin = new CDebugFunctionAssistWin(functionAssistDockWidget);
+
     // -- connect the widgets
     QObject::connect(mButtonConnect, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonConnectPressed()));
     QObject::connect(mConnectIP, SIGNAL(returnPressed()), mConsoleInput, SLOT(OnConnectIPReturnPressed()));
@@ -287,6 +294,10 @@ CConsoleWindow::CConsoleWindow()
     QShortcut* shortcut_SearchAgain = new QShortcut(QKeySequence("F3"), mMainWindow);
     QObject::connect(shortcut_SearchAgain, SIGNAL(activated()), mConsoleInput, SLOT(OnFindEditReturnPressed()));
 
+    // F1 - Function Assist Window
+    QShortcut* shortcut_FunctionAssist = new QShortcut(QKeySequence("F1"), mMainWindow);
+    QObject::connect(shortcut_FunctionAssist, SIGNAL(activated()), mConsoleInput, SLOT(OnFunctionAssistPressed()));
+
     mMainWindow->addDockWidget(Qt::TopDockWidgetArea, mSourceWinDockWidget);
     mMainWindow->addDockWidget(Qt::LeftDockWidgetArea, outputDockWidget);
     mMainWindow->addDockWidget(Qt::TopDockWidgetArea, callstackDockWidget);
@@ -295,6 +306,7 @@ CConsoleWindow::CConsoleWindow()
     mMainWindow->addDockWidget(Qt::BottomDockWidgetArea, watchesDockWidget);
     mMainWindow->addDockWidget(Qt::BottomDockWidgetArea, browserDockWidget);
     mMainWindow->addDockWidget(Qt::BottomDockWidgetArea, schedulesDockWidget);
+    mMainWindow->addDockWidget(Qt::BottomDockWidgetArea, functionAssistDockWidget);
 
     mMainWindow->show();
 
@@ -1092,7 +1104,9 @@ void CConsoleWindow::SetTargetInfoMessage(const char* message)
         mTargetInfoLabel->setText(QString(message));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// Constructor
+// ====================================================================================================================
 CConsoleInput::CConsoleInput(QWidget* parent) : QLineEdit(parent)
 {
     // -- q&d history implementation
@@ -1107,6 +1121,24 @@ CConsoleInput::CConsoleInput(QWidget* parent) : QLineEdit(parent)
 
     // -- initialize the connection status
     NotifyConnectionStatus(false);
+}
+
+// ====================================================================================================================
+// SetText():  From an external source, set the input string.
+// ====================================================================================================================
+void CConsoleInput::SetText(const char* text, int cursor_pos)
+{
+    if (!text)
+        text = "";
+    setText(text);
+    int length = strlen(text);
+    if (cursor_pos > length)
+        cursor_pos = length;
+
+    if (cursor_pos >= 0)
+    {
+        setCursorPosition(cursor_pos);
+    }
 }
 
 void CConsoleInput::OnButtonConnectPressed()
@@ -1216,50 +1248,71 @@ void CConsoleInput::OnFindEditReturnPressed()
     CConsoleWindow::GetInstance()->GetDebugSourceWin()->FindInFile(search_string.toUtf8());
 }
 
+void CConsoleInput::OnFunctionAssistPressed()
+{
+    // -- ensure the function assist window is focused, and populate it with the currently selected object
+    uint32 object_id = 0;
+    if (CConsoleWindow::GetInstance()->GetDebugWatchesWin()->hasFocus())
+	    object_id = CConsoleWindow::GetInstance()->GetDebugWatchesWin()->GetSelectedObjectID();
+    else if (CConsoleWindow::GetInstance()->GetDebugAutosWin()->hasFocus())
+	    object_id = CConsoleWindow::GetInstance()->GetDebugAutosWin()->GetSelectedObjectID();
+    else if (CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->hasFocus())
+        object_id = CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->GetSelectedObjectID();
+
+    CConsoleWindow::GetInstance()->GetDebugFunctionAssistWin()->SetAssistObjectID(object_id);
+}
+
 // ------------------------------------------------------------------------------------------------
 void CConsoleInput::keyPressEvent(QKeyEvent * event)
 {
-    if(!event)
+    if (!event)
         return;
 
     // -- up arrow
-    if(event->key() == Qt::Key_Up) {
+    if (event->key() == Qt::Key_Up)
+    {
         int32 oldhistory = mHistoryIndex;
-        if(mHistoryIndex < 0)
+        if (mHistoryIndex < 0)
             mHistoryIndex = mHistoryLastIndex;
-        else if(mHistoryLastIndex > 0) {
-            if(mHistoryFull)
+        else if (mHistoryLastIndex > 0)
+        {
+            if (mHistoryFull)
                 mHistoryIndex = (mHistoryIndex + kMaxHistory - 1) % kMaxHistory;
             else
                 mHistoryIndex = (mHistoryIndex + mHistoryLastIndex) % (mHistoryLastIndex + 1);
         }
 
         // -- see if we actually changed
-        if(mHistoryIndex != oldhistory && mHistoryIndex >= 0) {
+        if (mHistoryIndex != oldhistory && mHistoryIndex >= 0)
+        {
             setText(mHistory[mHistoryIndex].text);
         }
     }
 
     // -- down arrow
-    else if (event->key() == Qt::Key_Down) {
+    else if (event->key() == Qt::Key_Down)
+    {
         int32 oldhistory = mHistoryIndex;
-        if(mHistoryIndex < 0)
+        if (mHistoryIndex < 0)
             mHistoryIndex = mHistoryLastIndex;
-        else if(mHistoryLastIndex > 0) {
-            if(mHistoryFull)
+        else if (mHistoryLastIndex > 0)
+        {
+            if (mHistoryFull)
                 mHistoryIndex = (mHistoryIndex + 1) % kMaxHistory;
             else
                 mHistoryIndex = (mHistoryIndex + 1) % (mHistoryLastIndex + 1);
         }
 
         // -- see if we actually changed
-        if(mHistoryIndex != oldhistory && mHistoryIndex >= 0) {
+        if (mHistoryIndex != oldhistory && mHistoryIndex >= 0)
+        {
             setText(mHistory[mHistoryIndex].text);
         }
     }
 
     // -- esc
-    else if (event->key() == Qt::Key_Escape) {
+    else if (event->key() == Qt::Key_Escape)
+    {
         setText("");
         mHistoryIndex = -1;
     }
@@ -1439,6 +1492,10 @@ void CConsoleOutput::ProcessDataPackets()
 
             case k_DebuggerPrintMsgPacketID:
                 HandlePacketPrintMsg(dataPtr);
+                break;
+
+            case k_DebuggerFunctionAssistPacketID:
+                HandlePacketFunctionAssist(dataPtr);
                 break;
 
             default:
@@ -1689,6 +1746,53 @@ void CConsoleOutput::HandlePacketPrintMsg(int32* dataPtr)
 
     // -- add the message, preceeded with some indication that it's a remote message
     ConsolePrint("%s%s", kConsoleRecvPrefix, msg);
+}
+
+// ====================================================================================================================
+// HandlePacketFunctionAssist():  A handler for packet type "function assist entry"
+// ====================================================================================================================
+void CConsoleOutput::HandlePacketFunctionAssist(int32* dataPtr)
+{
+    // -- skip past the packet ID
+    ++dataPtr;
+
+    // -- reconstitute the stuct
+    TinScript::CDebuggerFunctionAssistEntry function_assist_entry;
+
+	// -- object ID
+	function_assist_entry.mObjectID = *dataPtr++;;
+
+	// -- namespace hash
+	function_assist_entry.mNamespaceHash = *dataPtr++;
+
+	// -- function hash
+	function_assist_entry.mFunctionHash = *dataPtr++;
+
+    // -- value string length
+    int32 name_length = *dataPtr++;
+
+    // -- copy the function name string
+    strcpy_s(function_assist_entry.mFunctionName, (const char*)dataPtr);
+    dataPtr += (name_length / 4);
+
+    // -- parameter count
+    function_assist_entry.mParameterCount = *dataPtr++;
+
+    // -- loop through, and send each parameter
+    for (int i = 0; i < function_assist_entry.mParameterCount; ++i)
+    {
+        // -- type
+        function_assist_entry.mType[i] = (TinScript::eVarType)(*dataPtr++);
+
+        // -- is array
+        function_assist_entry.mIsArray[i] = (*dataPtr++ != 0);
+
+        // -- name hash
+        function_assist_entry.mNameHash[i] = *dataPtr++;
+    }
+
+    // -- notify the function assist window
+    CConsoleWindow::GetInstance()->GetDebugFunctionAssistWin()->NotifyFunctionAssistEntry(function_assist_entry);
 }
 
 // ====================================================================================================================

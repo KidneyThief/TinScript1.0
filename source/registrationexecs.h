@@ -63,7 +63,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, const char* method_n
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -80,7 +80,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, uint32 method_hash)
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -178,7 +178,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, const char* method_n
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -195,7 +195,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, uint32 method_hash, 
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -307,7 +307,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, const char* method_n
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -324,7 +324,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, uint32 method_hash, 
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -450,7 +450,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, const char* method_n
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -467,7 +467,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, uint32 method_hash, 
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -607,7 +607,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, const char* method_n
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -624,7 +624,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, uint32 method_hash, 
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -778,7 +778,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, const char* method_n
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -795,7 +795,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, uint32 method_hash, 
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -963,7 +963,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, const char* method_n
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -980,7 +980,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, uint32 method_hash, 
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -1162,7 +1162,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, const char* method_n
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -1179,7 +1179,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, uint32 method_hash, 
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -1375,7 +1375,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, const char* method_n
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 
@@ -1392,7 +1392,7 @@ inline bool8 ObjExecMethod(void* obj_addr, R& return_value, uint32 method_hash, 
     uint32 object_id = script_context->FindIDByAddress(obj_addr);
     if (object_id == 0)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(objaddr));
+        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\n", kPointerToUInt32(obj_addr));
         return false;
     }
 

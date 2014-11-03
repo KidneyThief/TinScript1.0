@@ -116,6 +116,9 @@ const int32 kCompilerVersion = 1;
 const int32 kMaxArgs = 256;
 const int32 kMaxArgLength = 256;
 
+// -- change this constant, if you genregclasses.py -maxparam X, to generate higher count templated bindings
+const int32 kMaxRegisteredParameterCount = 8;
+
 const int32 kMaxVariableArraySize = 256;
 
 const int32 kScriptContextThreadSize = 7;
@@ -158,6 +161,7 @@ const int32 k_DebuggerCallstackPacketID             = 0x06;
 const int32 k_DebuggerWatchVarEntryPacketID         = 0x07;
 const int32 k_DebuggerAssertMsgPacketID             = 0x08;
 const int32 k_DebuggerPrintMsgPacketID              = 0x09;
+const int32 k_DebuggerFunctionAssistPacketID        = 0x0a;
 const int32 k_DebuggerMaxPacketID                   = 0xff;
 
 // == namespace TinScript =============================================================================================
@@ -281,6 +285,26 @@ class CDebuggerWatchExpression
         bool8 mTraceOnCondition;
         CFunctionEntry* mWatchFunctionEntry;
         CFunctionEntry* mTraceFunctionEntry;
+};
+
+// ====================================================================================================================
+// class CDebuggerFunctionAssistEntry:  Class used to send a function assist entry response.
+// ====================================================================================================================
+class CDebuggerFunctionAssistEntry
+{
+    public:
+        // -- the assist requests are for a specific object (or the global namespace)
+		uint32 mObjectID;
+        uint32 mNamespaceHash;
+        uint32 mFunctionHash;
+        char mFunctionName[kMaxNameLength];  // we're searching, so we need the actual string
+
+        // -- next is the parameter list, we'll need a type, if it's an array, and the name
+        // -- the max number of parameters to send includes the return (+1)
+        int32 mParameterCount;
+        eVarType mType[kMaxRegisteredParameterCount + 1];
+        bool8 mIsArray[kMaxRegisteredParameterCount + 1];
+        uint32 mNameHash[kMaxRegisteredParameterCount + 1];
 };
 
 // ====================================================================================================================
@@ -431,6 +455,10 @@ class CScriptContext
 
         // -- methods to send schedule updates to the debugger
         void DebuggerListSchedules();
+
+        // -- methods to send a function assist entry
+        void DebuggerRequestFunctionAssist(uint32 object_id);
+        void DebuggerSendFunctionAssistEntry(const CDebuggerFunctionAssistEntry& function_assist_entry);
 
         // -- useful debugging statics
         static bool8 gDebugParseTree;

@@ -49,11 +49,14 @@ CBrowserEntry::CBrowserEntry(uint32 parent_id, uint32 object_id, const char* obj
     TinScript::SafeStrcpy(mName, object_name, TinScript::kMaxNameLength);
     TinScript::SafeStrcpy(mDerivation, derivation, TinScript::kMaxNameLength);
 
+    // -- create and store the formatted name string
+    sprintf_s(mFormattedName, TinScript::kMaxNameLength, "[%d] %s", object_id, mName);
+
     // -- set the expanded flag
     mExpanded = false;
 
     // -- set the QT elements
-    setText(0, mName);
+    setText(0, mFormattedName);
     setText(1, mDerivation);
 }
 
@@ -236,6 +239,32 @@ uint32 CDebugObjectBrowserWin::GetSelectedObjectID()
 }
 
 // ====================================================================================================================
+// FindObjectByName():  Return the object ID for the given name.
+// ====================================================================================================================
+uint32 CDebugObjectBrowserWin::FindObjectByName(const char* name)
+{
+    // -- sanity check
+    if (!name || !name[0])
+        return (0);
+
+    QList<uint32>& key_list = mObjectDictionary.keys();
+    for (int i = 0; i < key_list.size(); ++i)
+    {
+        QList<CBrowserEntry*>* entry_list = mObjectDictionary[key_list[i]];
+        if (entry_list->size() == 0)
+            continue;
+        CBrowserEntry* entry = (*entry_list)[0];
+        if (!_stricmp(entry->mName, name))
+        {
+            return (entry->mObjectID);
+        }
+    }
+
+    // -- not found
+    return (0);
+}
+
+// ====================================================================================================================
 // GetObjectIdentifier():  Returns the identifier (formated ID and object name) for the requested entry.
 // ====================================================================================================================
 const char* CDebugObjectBrowserWin::GetObjectIdentifier(uint32 object_id)
@@ -244,7 +273,7 @@ const char* CDebugObjectBrowserWin::GetObjectIdentifier(uint32 object_id)
     {
         // -- dereference to get the List, and then again to get the first item in the list
         CBrowserEntry* entry = (*(mObjectDictionary[object_id]))[0];
-        return (entry->mName);
+        return (entry->mFormattedName);
     }
 
     // -- not found
@@ -265,6 +294,26 @@ const char* CDebugObjectBrowserWin::GetObjectDerivation(uint32 object_id)
 
     // -- not found
     return ("");
+}
+
+// ====================================================================================================================
+// SetSelectedObject():  Find the object in the browser window, and set it as the selected item.
+// ====================================================================================================================
+void CDebugObjectBrowserWin::SetSelectedObject(uint32 object_id)
+{
+    if (mObjectDictionary.contains(object_id))
+    {
+        // -- dereference to get the List, and then again to get the first item in the list
+        CBrowserEntry* entry = NULL;
+        QList<CBrowserEntry*>* entry_list = mObjectDictionary[object_id];
+        if (entry_list->size() > 1)
+            entry = (*entry_list)[1];
+        else
+            entry = (*entry_list)[0];
+
+        if (entry != NULL)
+            setCurrentItem(entry);
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------

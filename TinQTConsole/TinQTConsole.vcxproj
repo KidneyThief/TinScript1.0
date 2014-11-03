@@ -94,6 +94,7 @@
     <ClInclude Include="targetver.h" />
     <ClInclude Include="TinQTBreakpointsWin.h" />
     <ClInclude Include="TinQTConsole.h" />
+    <ClInclude Include="TinQTFunctionAssistWin.h" />
     <ClInclude Include="TinQTObjectBrowserWin.h" />
     <ClInclude Include="TinQTObjectInspectWin.h" />
     <ClInclude Include="TinQTSchedulesWin.h" />
@@ -109,6 +110,7 @@
     </ClCompile>
     <ClCompile Include="TinQTBreakpointsWin.cpp" />
     <ClCompile Include="TinQTConsole.cpp" />
+    <ClCompile Include="TinQTFunctionAssistWin.cpp" />
     <ClCompile Include="TinQTObjectBrowserWin.cpp" />
     <ClCompile Include="TinQTObjectInspectWin.cpp" />
     <ClCompile Include="TinQTSchedulesWin.cpp" />
