@@ -1759,6 +1759,9 @@ void CConsoleOutput::HandlePacketFunctionAssist(int32* dataPtr)
     // -- reconstitute the stuct
     TinScript::CDebuggerFunctionAssistEntry function_assist_entry;
 
+    // -- the only packets we receive from the target are actual functions, not object entries
+    function_assist_entry.mIsObjectEntry = false;
+
 	// -- object ID
 	function_assist_entry.mObjectID = *dataPtr++;;
 

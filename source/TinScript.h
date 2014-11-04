@@ -294,6 +294,7 @@ class CDebuggerFunctionAssistEntry
 {
     public:
         // -- the assist requests are for a specific object (or the global namespace)
+        bool8 mIsObjectEntry;
 		uint32 mObjectID;
         uint32 mNamespaceHash;
         uint32 mFunctionHash;

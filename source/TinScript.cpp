@@ -2669,6 +2669,7 @@ void CScriptContext::DebuggerRequestFunctionAssist(uint32 object_id)
         while (function_entry)
         {
             CDebuggerFunctionAssistEntry entry;
+            entry.mIsObjectEntry = false;
             entry.mObjectID = object_id;
             entry.mNamespaceHash = current_namespace ? current_namespace->GetHash() : 0;
             entry.mFunctionHash = function_entry->GetHash();

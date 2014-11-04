@@ -85,8 +85,8 @@ class CDebugFunctionAssistWin : public QWidget
 
         // -- methods to handle selecting and issuing a function
         void SetAssistObjectID(uint32 object_id);
-        void NotifyFunctionClicked(uint32 function_hash);
-        void NotifyFunctionDoubleClicked(uint32 function_hash);
+        void NotifyFunctionClicked(TinScript::CDebuggerFunctionAssistEntry* list_entry);
+        void NotifyFunctionDoubleClicked(TinScript::CDebuggerFunctionAssistEntry* list_entry);
 
     public slots:
         void OnButtonBrowsePressed();
@@ -105,6 +105,7 @@ class CDebugFunctionAssistWin : public QWidget
         uint32 mSearchObjectID;
         char mFilterString[TinScript::kMaxNameLength];
         QMap<uint32, TinScript::CDebuggerFunctionAssistEntry*> mFunctionEntryMap;
+        QMap<uint32, TinScript::CDebuggerFunctionAssistEntry*> mObjectEntryMap;
 };
 
 // ====================================================================================================================
@@ -157,9 +158,9 @@ class CFunctionAssistList : public QTreeWidget
         CFunctionAssistList(CDebugFunctionAssistWin* owner, QWidget* parent);
         virtual ~CFunctionAssistList();
 
-        CFunctionListEntry* FindEntry(uint32 function_hash);
+        CFunctionListEntry* FindEntry(TinScript::CDebuggerFunctionAssistEntry* assist_entry);
         void DisplayEntry(TinScript::CDebuggerFunctionAssistEntry* assist_entry);
-        void FilterEntry(uint32 function_hash);
+        void FilterEntry(TinScript::CDebuggerFunctionAssistEntry* assist_entry);
         void Clear();
 
     public slots:

@@ -267,6 +267,22 @@ uint32 CDebugObjectBrowserWin::FindObjectByName(const char* name)
 // ====================================================================================================================
 // GetObjectIdentifier():  Returns the identifier (formated ID and object name) for the requested entry.
 // ====================================================================================================================
+const char* CDebugObjectBrowserWin::GetObjectName(uint32 object_id)
+{
+    if (mObjectDictionary.contains(object_id))
+    {
+        // -- dereference to get the List, and then again to get the first item in the list
+        CBrowserEntry* entry = (*(mObjectDictionary[object_id]))[0];
+        return (entry->mName);
+    }
+
+    // -- not found
+    return ("");
+}
+
+// ====================================================================================================================
+// GetObjectIdentifier():  Returns the identifier (formated ID and object name) for the requested entry.
+// ====================================================================================================================
 const char* CDebugObjectBrowserWin::GetObjectIdentifier(uint32 object_id)
 {
     if (mObjectDictionary.contains(object_id))
@@ -313,6 +329,18 @@ void CDebugObjectBrowserWin::SetSelectedObject(uint32 object_id)
 
         if (entry != NULL)
             setCurrentItem(entry);
+    }
+}
+
+// ====================================================================================================================
+// PopulateObjectIDList():  Retrieve a list of all object IDs.
+// ====================================================================================================================
+void CDebugObjectBrowserWin::PopulateObjectIDList(QList<uint32>& object_id_list)
+{
+    QList<uint32>& key_list = mObjectDictionary.keys();
+    for (int i = 0; i < key_list.size(); ++i)
+    {
+        object_id_list.push_back(key_list[i]);
     }
 }
 

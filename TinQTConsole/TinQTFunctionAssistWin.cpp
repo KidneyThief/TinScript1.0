@@ -1,17 +1,17 @@
 // ------------------------------------------------------------------------------------------------
 //  The MIT License
-//  
+//
 //  Copyright (c) 2013 Tim Andersen
-//  
+//
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
 //  and associated documentation files (the "Software"), to deal in the Software without
 //  restriction, including without limitation the rights to use, copy, modify, merge, publish,
 //  distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
 //  Software is furnished to do so, subject to the following conditions:
-//  
+//
 //  The above copyright notice and this permission notice shall be included in all copies or
 //  substantial portions of the Software.
-//  
+//
 //  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
 //  BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
 //  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
@@ -90,7 +90,7 @@ CDebugFunctionAssistWin::CDebugFunctionAssistWin(QWidget* parent)
     main_layout->setColumnStretch(1, 1);
 
     // -- ensure we start with a clean search
-    mSearchObjectID = 0;
+    mSearchObjectID = -1;
     mFilterString[0] = '\0';
 
     // -- hook up the browse button
@@ -122,6 +122,15 @@ void CDebugFunctionAssistWin::ClearSearch()
         delete entry;
     }
     mFunctionEntryMap.clear();
+
+    // -- clear the object entry map
+    QList<uint32>& object_id_list = mObjectEntryMap.keys();
+    for (int i = 0; i < object_id_list.size(); ++i)
+    {
+        TinScript::CDebuggerFunctionAssistEntry* entry = mFunctionEntryMap[object_id_list[i]];
+        delete entry;
+    }
+    mObjectEntryMap.clear();
 }
 
 // ====================================================================================================================
@@ -254,6 +263,13 @@ void CDebugFunctionAssistWin::UpdateFilter(const char* filter)
     bool new_object_search = false;
     StringContainsFilter(filter_ptr, exact_match, new_object_search);
 
+    // -- if our search object is invalid, then it's by definition, a new search every time the filter changes
+    if (mSearchObjectID == -1)
+    {
+        new_object_search = true;
+        exact_match = false;
+    }
+
     // -- if we have an exact match, we're done
     if (exact_match)
         return;
@@ -322,12 +338,62 @@ void CDebugFunctionAssistWin::UpdateFilter(const char* filter)
             {
                 SocketManager::SendCommandf("DebuggerRequestFunctionAssist(%d);", mSearchObjectID);
             }
+
+            // -- if the search object is 0, we're in the global space, so the search window will double
+            // -- as a way to search for objects by name as well
+            if (mSearchObjectID == 0)
+            {
+                QList<uint32> object_id_list;
+                CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->PopulateObjectIDList(object_id_list);
+                for (int i = 0; i < object_id_list.size(); ++i)
+                {
+                    // -- make a copy of the received entry, and add it to the map
+                    uint32 display_object_id = object_id_list[i];
+                    const char* object_name = CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->
+                                              GetObjectName(display_object_id);
+                    if (object_name && object_name[0])
+                    {
+                        TinScript::CDebuggerFunctionAssistEntry* new_entry =
+                            new TinScript::CDebuggerFunctionAssistEntry();
+                        new_entry->mIsObjectEntry = true;
+                        new_entry->mObjectID = display_object_id;
+                        new_entry->mNamespaceHash = 0;
+                        new_entry->mFunctionHash = 0;
+                        TinScript::SafeStrcpy(new_entry->mFunctionName, object_name, TinScript::kMaxNameLength);
+                        new_entry->mParameterCount = 0;
+
+                        // -- add the object to the object map
+                        mObjectEntryMap.insert(new_entry->mObjectID, new_entry);
+
+                        // -- see if we need to display it
+                        if (FunctionContainsFilter(new_entry->mFunctionName))
+                        {
+                            mFunctionList->DisplayEntry(new_entry);
+                        }
+                    }
+                }
+            }
         }
     }
 
     // -- else, loop through and see which entries must be toggled
     else
     {
+        // -- list objects first
+        QList<uint32>& object_id_list = mObjectEntryMap.keys();
+        for (int i = 0; i < object_id_list.size(); ++i)
+        {
+            TinScript::CDebuggerFunctionAssistEntry* entry = mObjectEntryMap[object_id_list[i]];
+            if (FunctionContainsFilter(entry->mFunctionName))
+            {
+                mFunctionList->DisplayEntry(entry);
+            }
+            else
+            {
+                mFunctionList->FilterEntry(entry);
+            }
+        }
+
         QList<uint32>& key_list = mFunctionEntryMap.keys();
         for (int i = 0; i < key_list.size(); ++i)
         {
@@ -338,7 +404,7 @@ void CDebugFunctionAssistWin::UpdateFilter(const char* filter)
             }
             else
             {
-                mFunctionList->FilterEntry(entry->mFunctionHash);
+                mFunctionList->FilterEntry(entry);
             }
         }
     }
@@ -375,62 +441,80 @@ void CDebugFunctionAssistWin::SetAssistObjectID(uint32 object_id)
 // ====================================================================================================================
 // NotifyFunctionClicked():  Selecting a function entry populates the parameter list.
 // ====================================================================================================================
-void CDebugFunctionAssistWin::NotifyFunctionClicked(uint32 function_hash)
+void CDebugFunctionAssistWin::NotifyFunctionClicked(TinScript::CDebuggerFunctionAssistEntry* list_entry)
 {
-    if (!mFunctionEntryMap.contains(function_hash))
+    // -- clicking on an object does nothing
+    if (!list_entry || list_entry->mIsObjectEntry)
         return;
 
-    TinScript::CDebuggerFunctionAssistEntry* assist_entry = mFunctionEntryMap[function_hash];
+    if (!mFunctionEntryMap.contains(list_entry->mFunctionHash))
+        return;
+
+    TinScript::CDebuggerFunctionAssistEntry* assist_entry = mFunctionEntryMap[list_entry->mFunctionHash];
     mParameterList->Populate(assist_entry);
 }
 
 // ====================================================================================================================
 // NotifyFunctionDoubleClicked():  Activating a function entry issues a command string to the Console Input.
 // ====================================================================================================================
-void CDebugFunctionAssistWin::NotifyFunctionDoubleClicked(uint32 function_hash)
+void CDebugFunctionAssistWin::NotifyFunctionDoubleClicked(TinScript::CDebuggerFunctionAssistEntry* list_entry)
 {
     // -- ensure we have a valid search
-    if (mSearchObjectID == -1 || !mFunctionEntryMap.contains(function_hash))
+    if (mSearchObjectID == -1)
         return;
 
-    TinScript::CDebuggerFunctionAssistEntry* assist_entry = mFunctionEntryMap[function_hash];
-    mParameterList->Populate(assist_entry);
-
-    // -- create the command string, and send it to the console input
-    char buf[TinScript::kMaxTokenLength];
-    int length_remaining = TinScript::kMaxTokenLength;
-    if (mSearchObjectID > 0)
-        sprintf_s(buf, "%d.%s(", mSearchObjectID, assist_entry->mFunctionName);
-    else
-        sprintf_s(buf, "%s(", assist_entry->mFunctionName);
-
-    int length = strlen(buf);
-    length_remaining -= length;
-    char* buf_ptr = &buf[length];
-
-    // -- note:  we want the cursor to be placed at the beginning of the parameter list
-    int cursor_pos = length;
-
-    // -- fill in the parameters (starting with 1, as we don't include the return value)
-    for (int i = 1; i < assist_entry->mParameterCount; ++i)
+    if (list_entry->mIsObjectEntry)
     {
-        if (i != 1)
-            sprintf_s(buf_ptr, length_remaining, ", %s", TinScript::GetRegisteredTypeName(assist_entry->mType[i]));
-        else
-            strcpy_s(buf_ptr, length_remaining, TinScript::GetRegisteredTypeName(assist_entry->mType[i]));
-
-        // -- update the buf pointer,and the length remaining
-        length = strlen(buf_ptr);
-        length_remaining -= length;
-        buf_ptr += strlen(buf_ptr);
+        // -- on double-click, set the filter to be the "<object_name>."
+        char new_filter[TinScript::kMaxNameLength];
+        sprintf_s(new_filter, "%s.", list_entry->mFunctionName);
+        mFunctionInput->setText(new_filter);
+        UpdateFilter(new_filter);
     }
+    else
+    {
+        if (!mFunctionEntryMap.contains(list_entry->mFunctionHash))
+            return;
 
-    // -- complete the command
-    strcpy_s(buf_ptr, length_remaining, ");");
+        TinScript::CDebuggerFunctionAssistEntry* assist_entry = mFunctionEntryMap[list_entry->mFunctionHash];
+        mParameterList->Populate(assist_entry);
 
-    // -- sedn the command
-    CConsoleWindow::GetInstance()->GetInput()->SetText(buf, cursor_pos);
-    CConsoleWindow::GetInstance()->GetInput()->setFocus();
+        // -- create the command string, and send it to the console input
+        char buf[TinScript::kMaxTokenLength];
+        int length_remaining = TinScript::kMaxTokenLength;
+        if (mSearchObjectID > 0)
+            sprintf_s(buf, "%d.%s(", mSearchObjectID, assist_entry->mFunctionName);
+        else
+            sprintf_s(buf, "%s(", assist_entry->mFunctionName);
+
+        int length = strlen(buf);
+        length_remaining -= length;
+        char* buf_ptr = &buf[length];
+
+        // -- note:  we want the cursor to be placed at the beginning of the parameter list
+        int cursor_pos = length;
+
+        // -- fill in the parameters (starting with 1, as we don't include the return value)
+        for (int i = 1; i < assist_entry->mParameterCount; ++i)
+        {
+            if (i != 1)
+                sprintf_s(buf_ptr, length_remaining, ", %s", TinScript::GetRegisteredTypeName(assist_entry->mType[i]));
+            else
+                strcpy_s(buf_ptr, length_remaining, TinScript::GetRegisteredTypeName(assist_entry->mType[i]));
+
+            // -- update the buf pointer,and the length remaining
+            length = strlen(buf_ptr);
+            length_remaining -= length;
+            buf_ptr += strlen(buf_ptr);
+        }
+
+        // -- complete the command
+        strcpy_s(buf_ptr, length_remaining, ");");
+
+        // -- sedn the command
+        CConsoleWindow::GetInstance()->GetInput()->SetText(buf, cursor_pos);
+        CConsoleWindow::GetInstance()->GetInput()->setFocus();
+    }
 }
 
 // ====================================================================================================================
@@ -607,14 +691,29 @@ CFunctionListEntry::CFunctionListEntry(TinScript::CDebuggerFunctionAssistEntry* 
     : QTreeWidgetItem(_owner)
     , mFunctionAssistEntry(_entry)
 {
-    // -- set the namespace
-    if (_entry->mNamespaceHash != 0)
-        setText(0, TinScript::UnHash(_entry->mNamespaceHash));
-    else
-        setText(0, "");
+    if (_entry->mIsObjectEntry)
+    {
+        const char* object_identifier =
+            CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->GetObjectIdentifier(_entry->mObjectID);
+        setText(0, object_identifier);
 
-    // -- set the function name
-    setText(1, _entry->mFunctionName);
+        // -- set the function name
+        char sort_buf[TinScript::kMaxNameLength];
+        sort_buf[0] = ' ';
+        TinScript::SafeStrcpy(&sort_buf[1], _entry->mFunctionName, TinScript::kMaxNameLength - 1);
+        setText(1, sort_buf);
+    }
+    else
+    {
+        // -- set the namespace
+        if (_entry->mNamespaceHash != 0)
+            setText(0, TinScript::UnHash(_entry->mNamespaceHash));
+        else
+            setText(0, "");
+
+        // -- set the function name
+        setText(1, _entry->mFunctionName);
+    }
 
     // -- all new entries begin hidden
     setHidden(true);
@@ -661,19 +760,21 @@ CFunctionAssistList::~CFunctionAssistList()
 // ====================================================================================================================
 // FindEntry():  Returns true if the given function is currently visible in the list
 // ====================================================================================================================
-CFunctionListEntry* CFunctionAssistList::FindEntry(uint32 function_hash)
+CFunctionListEntry* CFunctionAssistList::FindEntry(TinScript::CDebuggerFunctionAssistEntry* assist_entry)
 {
+    
     for (int i = 0; i < mFunctionList.size(); ++i)
     {
         CFunctionListEntry* entry = mFunctionList[i];
-        if (entry->mFunctionAssistEntry->mFunctionHash == function_hash)
-        {
+        if (assist_entry->mIsObjectEntry && entry->mFunctionAssistEntry->mObjectID == assist_entry->mObjectID)
             return (entry);
-        }
+        else if (!assist_entry->mIsObjectEntry &&
+                 entry->mFunctionAssistEntry->mFunctionHash == assist_entry->mFunctionHash)
+            return (entry);
     }
 
     // -- not found
-    return (false);
+    return (NULL);
 }
 
 // ====================================================================================================================
@@ -686,7 +787,7 @@ void CFunctionAssistList::DisplayEntry(TinScript::CDebuggerFunctionAssistEntry* 
         return;
 
     // -- find the entry (or create it, if needed)
-    CFunctionListEntry* entry = FindEntry(assist_entry->mFunctionHash);
+    CFunctionListEntry* entry = FindEntry(assist_entry);
     if (!entry)
     {
         entry = new CFunctionListEntry(assist_entry, this);
@@ -701,14 +802,16 @@ void CFunctionAssistList::DisplayEntry(TinScript::CDebuggerFunctionAssistEntry* 
 // ====================================================================================================================
 // FilterEntry():  Ensure the given function is hidden.
 // ====================================================================================================================
-void CFunctionAssistList::FilterEntry(uint32 function_hash)
+void CFunctionAssistList::FilterEntry(TinScript::CDebuggerFunctionAssistEntry* assist_entry)
 {
+    // -- sanity check
+    if (!assist_entry)
+        return;
+
     // -- find the entry - set it hidden if it exists
-    CFunctionListEntry* entry = FindEntry(function_hash);
+    CFunctionListEntry* entry = FindEntry(assist_entry);
     if (entry)
-    {
         entry->setHidden(true);
-    }
 }
 
 // ====================================================================================================================
@@ -727,13 +830,13 @@ void CFunctionAssistList::Clear()
 void CFunctionAssistList::OnClicked(QTreeWidgetItem* item)
 {
     CFunctionListEntry* entry = static_cast<CFunctionListEntry*>(item);
-    mOwner->NotifyFunctionClicked(entry->mFunctionAssistEntry->mFunctionHash);
+    mOwner->NotifyFunctionClicked(entry->mFunctionAssistEntry);
 }
 
 void CFunctionAssistList::OnDoubleClicked(QTreeWidgetItem* item)
 {
     CFunctionListEntry* entry = static_cast<CFunctionListEntry*>(item);
-    mOwner->NotifyFunctionDoubleClicked(entry->mFunctionAssistEntry->mFunctionHash);
+    mOwner->NotifyFunctionDoubleClicked(entry->mFunctionAssistEntry);
 }
 
 // == class CFunctionParameterEntry ========================================================================================
@@ -806,7 +909,7 @@ void CFunctionParameterList::Populate(TinScript::CDebuggerFunctionAssistEntry* a
     Clear();
     if (!assist_entry)
         return;
-    
+
     for (int i = 0; i < assist_entry->mParameterCount; ++i)
     {
         TinScript::eVarType var_type = assist_entry->mType[i];
