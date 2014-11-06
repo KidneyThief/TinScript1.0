@@ -18,9 +18,98 @@
 #endif
 
 QT_BEGIN_MOC_NAMESPACE
+struct qt_meta_stringdata_CommandHistoryList_t {
+    QByteArrayData data[4];
+    char stringdata[54];
+};
+#define QT_MOC_LITERAL(idx, ofs, len) \
+    Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
+    offsetof(qt_meta_stringdata_CommandHistoryList_t, stringdata) + ofs \
+        - idx * sizeof(QByteArrayData) \
+    )
+static const qt_meta_stringdata_CommandHistoryList_t qt_meta_stringdata_CommandHistoryList = {
+    {
+QT_MOC_LITERAL(0, 0, 18),
+QT_MOC_LITERAL(1, 19, 15),
+QT_MOC_LITERAL(2, 35, 0),
+QT_MOC_LITERAL(3, 36, 16)
+    },
+    "CommandHistoryList\0OnDoubleClicked\0\0"
+    "QListWidgetItem*\0"
+};
+#undef QT_MOC_LITERAL
+
+static const uint qt_meta_data_CommandHistoryList[] = {
+
+ // content:
+       7,       // revision
+       0,       // classname
+       0,    0, // classinfo
+       1,   14, // methods
+       0,    0, // properties
+       0,    0, // enums/sets
+       0,    0, // constructors
+       0,       // flags
+       0,       // signalCount
+
+ // slots: name, argc, parameters, tag, flags
+       1,    1,   19,    2, 0x0a,
+
+ // slots: parameters
+    QMetaType::Void, 0x80000000 | 3,    2,
+
+       0        // eod
+};
+
+void CommandHistoryList::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
+{
+    if (_c == QMetaObject::InvokeMetaMethod) {
+        CommandHistoryList *_t = static_cast<CommandHistoryList *>(_o);
+        switch (_id) {
+        case 0: _t->OnDoubleClicked((*reinterpret_cast< QListWidgetItem*(*)>(_a[1]))); break;
+        default: ;
+        }
+    }
+}
+
+const QMetaObject CommandHistoryList::staticMetaObject = {
+    { &QListWidget::staticMetaObject, qt_meta_stringdata_CommandHistoryList.data,
+      qt_meta_data_CommandHistoryList,  qt_static_metacall, 0, 0}
+};
+
+
+const QMetaObject *CommandHistoryList::metaObject() const
+{
+    return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;
+}
+
+void *CommandHistoryList::qt_metacast(const char *_clname)
+{
+    if (!_clname) return 0;
+    if (!strcmp(_clname, qt_meta_stringdata_CommandHistoryList.stringdata))
+        return static_cast<void*>(const_cast< CommandHistoryList*>(this));
+    return QListWidget::qt_metacast(_clname);
+}
+
+int CommandHistoryList::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
+{
+    _id = QListWidget::qt_metacall(_c, _id, _a);
+    if (_id < 0)
+        return _id;
+    if (_c == QMetaObject::InvokeMetaMethod) {
+        if (_id < 1)
+            qt_static_metacall(this, _c, _id, _a);
+        _id -= 1;
+    } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
+        if (_id < 1)
+            *reinterpret_cast<int*>(_a[0]) = -1;
+        _id -= 1;
+    }
+    return _id;
+}
 struct qt_meta_stringdata_MainWindow_t {
-    QByteArrayData data[28];
-    char stringdata[443];
+    QByteArrayData data[29];
+    char stringdata[462];
 };
 #define QT_MOC_LITERAL(idx, ofs, len) \
     Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
@@ -56,7 +145,8 @@ QT_MOC_LITERAL(23, 361, 21),
 QT_MOC_LITERAL(24, 383, 12),
 QT_MOC_LITERAL(25, 396, 10),
 QT_MOC_LITERAL(26, 407, 15),
-QT_MOC_LITERAL(27, 423, 18)
+QT_MOC_LITERAL(27, 423, 18),
+QT_MOC_LITERAL(28, 442, 18)
     },
     "MainWindow\0menuSaveLayout\0\0menuLoadLayout\0"
     "autoSaveLayout\0autoLoadLayout\0"
@@ -70,7 +160,7 @@ QT_MOC_LITERAL(27, 423, 18)
     "menuCreateObjectInspector\0"
     "menuRefreshObjectBrowser\0menuSetBreakCondition\0"
     "menuGoToLine\0menuSearch\0menuSearchAgain\0"
-    "menuFunctionAssist\0"
+    "menuFunctionAssist\0menuCommandHistory\0"
 };
 #undef QT_MOC_LITERAL
 
@@ -80,7 +170,7 @@ static const uint qt_meta_data_MainWindow[] = {
        7,       // revision
        0,       // classname
        0,    0, // classinfo
-      24,   14, // methods
+      25,   14, // methods
        0,    0, // properties
        0,    0, // enums/sets
        0,    0, // constructors
@@ -88,30 +178,31 @@ static const uint qt_meta_data_MainWindow[] = {
        0,       // signalCount
 
  // slots: name, argc, parameters, tag, flags
-       1,    0,  134,    2, 0x0a,
-       3,    0,  135,    2, 0x0a,
-       4,    0,  136,    2, 0x0a,
-       5,    0,  137,    2, 0x0a,
-       6,    0,  138,    2, 0x0a,
-       7,    1,  139,    2, 0x0a,
-       9,    0,  142,    2, 0x0a,
-      10,    0,  143,    2, 0x0a,
-      11,    0,  144,    2, 0x0a,
-      12,    0,  145,    2, 0x0a,
-      13,    0,  146,    2, 0x0a,
-      14,    0,  147,    2, 0x0a,
-      15,    0,  148,    2, 0x0a,
-      16,    1,  149,    2, 0x0a,
-      18,    0,  152,    2, 0x0a,
-      19,    0,  153,    2, 0x0a,
-      20,    0,  154,    2, 0x0a,
-      21,    0,  155,    2, 0x0a,
-      22,    0,  156,    2, 0x0a,
-      23,    0,  157,    2, 0x0a,
-      24,    0,  158,    2, 0x0a,
-      25,    0,  159,    2, 0x0a,
-      26,    0,  160,    2, 0x0a,
-      27,    0,  161,    2, 0x0a,
+       1,    0,  139,    2, 0x0a,
+       3,    0,  140,    2, 0x0a,
+       4,    0,  141,    2, 0x0a,
+       5,    0,  142,    2, 0x0a,
+       6,    0,  143,    2, 0x0a,
+       7,    1,  144,    2, 0x0a,
+       9,    0,  147,    2, 0x0a,
+      10,    0,  148,    2, 0x0a,
+      11,    0,  149,    2, 0x0a,
+      12,    0,  150,    2, 0x0a,
+      13,    0,  151,    2, 0x0a,
+      14,    0,  152,    2, 0x0a,
+      15,    0,  153,    2, 0x0a,
+      16,    1,  154,    2, 0x0a,
+      18,    0,  157,    2, 0x0a,
+      19,    0,  158,    2, 0x0a,
+      20,    0,  159,    2, 0x0a,
+      21,    0,  160,    2, 0x0a,
+      22,    0,  161,    2, 0x0a,
+      23,    0,  162,    2, 0x0a,
+      24,    0,  163,    2, 0x0a,
+      25,    0,  164,    2, 0x0a,
+      26,    0,  165,    2, 0x0a,
+      27,    0,  166,    2, 0x0a,
+      28,    0,  167,    2, 0x0a,
 
  // slots: parameters
     QMetaType::Void,
@@ -128,6 +219,7 @@ static const uint qt_meta_data_MainWindow[] = {
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void, 0x80000000 | 17,    2,
+    QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
@@ -171,6 +263,7 @@ void MainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         case 21: _t->menuSearch(); break;
         case 22: _t->menuSearchAgain(); break;
         case 23: _t->menuFunctionAssist(); break;
+        case 24: _t->menuCommandHistory(); break;
         default: ;
         }
     }
@@ -201,13 +294,13 @@ int MainWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 24)
+        if (_id < 25)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 24;
+        _id -= 25;
     } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 24)
+        if (_id < 25)
             *reinterpret_cast<int*>(_a[0]) = -1;
-        _id -= 24;
+        _id -= 25;
     }
     return _id;
 }

@@ -23,6 +23,8 @@
 // TinObjectGroup.cpp
 // ====================================================================================================================
 
+#include "stdafx.h"
+
 // -- includes
 #include "assert.h"
 
@@ -207,18 +209,73 @@ bool8 CObjectSet::Contains(uint32 objectid)
 }
 
 // ====================================================================================================================
+// IsInHierarchy():  returns true, if the given object is within the hierarchy.
+// ====================================================================================================================
+bool8 CObjectSet::IsInHierarchy(uint32 objectid)
+{
+    // -- if the given objectid is ourself, it's "in the hierarchy"
+    uint32 self_id = GetScriptContext()->FindObjectByAddress(this)->GetID();
+    if (self_id == objectid)
+    {
+        return (true);
+    }
+
+    // -- if the object is a direct child, it's in the hierarchy
+    if (Contains(objectid))
+    {
+        return (true);
+    }
+
+    // -- loop through the child list - if any of them are sets, see if the object is contained within their hierarchy
+    CObjectEntry* child_oe = mObjectList->First();
+    while (child_oe)
+    {
+        static uint32 object_set_hash = Hash("CObjectSet");
+        if (child_oe->HasNamespace(object_set_hash))
+        {
+            CObjectSet* child_set = static_cast<CObjectSet*>(GetScriptContext()->FindObject(child_oe->GetID()));
+            if (child_set->IsInHierarchy(objectid))
+            {
+                return (true);
+            }
+        }
+
+        // -- next child
+        child_oe = mObjectList->Next();
+    }
+
+    // -- the object is not in the hierarchy
+    return (false);
+}
+
+// ====================================================================================================================
 // AddObject():  Add an object to this object set.
 // ====================================================================================================================
 void CObjectSet::AddObject(uint32 objectid)
 {
     // -- find the object entry
+    uint32 self_id = GetScriptContext()->FindObjectByAddress(this)->GetID();
     CObjectEntry* oe = GetScriptContext()->FindObjectEntry(objectid);
     if (!oe)
     {
         ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
                       "Error - [%d] CObjectSet::AddObject(): unable to find object %d\n",
-                      GetScriptContext()->FindObjectByAddress(this)->GetID(), objectid);
+                      self_id, objectid);
         return;
+    }
+
+    // -- ensure we don't create a circular ownership
+    static uint32 object_set_hash = Hash("CObjectSet");
+    if (oe->HasNamespace(object_set_hash))
+    {
+        CObjectSet* object_set = static_cast<CObjectSet*>(GetScriptContext()->FindObject(objectid));
+        if (object_set->IsInHierarchy(self_id))
+        {
+            ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
+                "Error - [%d] CObjectSet::AddObject() - circular reference: object %d is parent of set %d\n",
+                self_id, objectid, self_id);
+            return;
+        }
     }
 
     if (!mObjectList->FindItem(objectid))

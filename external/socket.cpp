@@ -19,6 +19,8 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------------------------
 
+#include "stdafx.h"
+
 // -- system includes
 // -- sockets are only implemented in WIN32
 #ifdef WIN32
@@ -369,7 +371,7 @@ DataQueue::DataQueue()
 // ====================================================================================================================
 // Enqueue():  Add data to the queue
 // ====================================================================================================================
-bool DataQueue::Enqueue(tDataPacket* packet)
+bool DataQueue::Enqueue(tDataPacket* packet, bool at_front)
 {
     // -- sanity check - validate the packet
     if (!packet || (packet->mHeader.mSize > 0 && !packet->mData))
@@ -386,7 +388,10 @@ bool DataQueue::Enqueue(tDataPacket* packet)
     }
 
     // -- add the packet to the queue
-    mQueue.push_back(packet);
+    if (at_front)
+        mQueue.insert(mQueue.begin(), packet);
+    else
+        mQueue.push_back(packet);
 
     // -- success
     return (true);
@@ -910,7 +915,14 @@ bool CSocket::ProcessRecvPackets()
         if (recvPacket->mHeader.mType == tPacketHeader::SCRIPT)
         {
             // -- execute whatever command we received
-            ScriptCommand((const char*)recvPacket->mData);
+            bool success = ScriptCommand((const char*)recvPacket->mData);
+
+            // -- if the thread buffer was full, re-enqueue, and try again later
+            if (!success)
+            {
+                mRecvQueue.Enqueue(recvPacket, true);
+                break;
+            }
         }
 
         // -- if the packet is raw data, send it through the registered callback
@@ -1082,11 +1094,11 @@ bool CSocket::Update()
 // ====================================================================================================================
 // ScriptCommand():  Create a text command, to be enqueued in the script context thread
 // ====================================================================================================================
-void CSocket::ScriptCommand(const char* fmt, ...)
+bool8 CSocket::ScriptCommand(const char* fmt, ...)
 {
     // -- sanity check
     if (!mScriptContext || !fmt || !fmt[0])
-        return;
+        return (true);
 
     // -- create the script command
     va_list args;
@@ -1096,7 +1108,7 @@ void CSocket::ScriptCommand(const char* fmt, ...)
     va_end(args);
 
     // -- add the command to the thread buffer
-    mScriptContext->AddThreadCommand(cmdBuf);
+    return (mScriptContext->AddThreadCommand(cmdBuf));
 }
 
 // ====================================================================================================================

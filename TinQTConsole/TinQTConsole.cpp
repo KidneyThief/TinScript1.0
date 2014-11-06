@@ -130,6 +130,8 @@ CConsoleWindow::CConsoleWindow()
     spacer_0a->setFixedWidth(8);
     mFileLineEdit = new QLineEdit();
     mFileLineEdit->setFixedWidth(200);
+    mButtonExec = new QPushButton();
+    mButtonExec->setText("Exec");
     QWidget* spacer_0 = new QWidget();
     spacer_0->setFixedWidth(16);
     mButtonRun = new QPushButton();
@@ -157,6 +159,7 @@ CConsoleWindow::CConsoleWindow()
     toolbar->addWidget(file_label);
     toolbar->addWidget(spacer_0a);
     toolbar->addWidget(mFileLineEdit);
+    toolbar->addWidget(mButtonExec);
     toolbar->addWidget(spacer_0);
     toolbar->addWidget(mButtonRun);
     toolbar->addWidget(mButtonStep);
@@ -229,6 +232,7 @@ CConsoleWindow::CConsoleWindow()
     QObject::connect(mFileLineEdit, SIGNAL(returnPressed()), mConsoleInput,
                                     SLOT(OnFileEditReturnPressed()));
 
+    QObject::connect(mButtonExec, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonExecPressed()));
     QObject::connect(mButtonRun, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonRunPressed()));
     QObject::connect(mButtonStep, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonStepPressed()));
     QObject::connect(mButtonStepIn, SIGNAL(clicked()), mConsoleInput, SLOT(OnButtonStepInPressed()));
@@ -265,6 +269,10 @@ CConsoleWindow::CConsoleWindow()
     // Shift + F11 - Step Out
     QShortcut* shortcut_StepOut = new QShortcut(QKeySequence("Shift+F11"), mButtonStepIn);
     QObject::connect(shortcut_StepOut, SIGNAL(activated()), mConsoleInput, SLOT(OnButtonStepOutPressed()));
+
+    // Ctrl + h - Command input history
+    QShortcut* shortcut_cmdHistory = new QShortcut(QKeySequence("Ctrl+H"), mMainWindow);
+    QObject::connect(shortcut_cmdHistory, SIGNAL(activated()), mMainWindow, SLOT(menuCommandHistory()));
 
     // Ctrl + w - Add variable watch
     QShortcut* shortcut_AddVar = new QShortcut(QKeySequence("Ctrl+W"), mMainWindow);
@@ -1141,6 +1149,33 @@ void CConsoleInput::SetText(const char* text, int cursor_pos)
     }
 }
 
+// ====================================================================================================================
+// GetHistory():  Returns the array of command input strings stored in the ConsoleInput history.
+// ====================================================================================================================
+void CConsoleInput::GetHistory(QStringList& history) const
+{
+    // -- ensure we actually have some history
+    if (mHistoryLastIndex < 0)
+        return;
+
+    // -- fill in the history string list
+    for (int i = mHistoryLastIndex; i >= 0; --i)
+    {
+        QString* new_history = new QString(mHistory[i].text);
+        history.push_back(*new_history);
+    }
+
+    // -- if the history buffer was full, we wrapped
+    if (mHistoryFull)
+    {
+        for (int i = kMaxHistory - 1; i > mHistoryLastIndex; --i)
+        {
+            //QString* new_history = new QString(mHistory[i].text);
+            history.push_back(QString(mHistory[i].text));
+        }
+    }
+}
+
 void CConsoleInput::OnButtonConnectPressed()
 {
     // -- if we're trying to connect...
@@ -1212,6 +1247,23 @@ void CConsoleInput::OnButtonStopPressed()
     if (!CConsoleWindow::GetInstance()->mBreakpointHit)
     {
         SocketManager::SendDebuggerBreak();
+    }
+}
+
+void CConsoleInput::OnButtonExecPressed()
+{
+    QLineEdit* fileedit = CConsoleWindow::GetInstance()->GetFileLineEdit();
+    QString filename_string = fileedit->text();
+
+    QByteArray filename_bytearray = filename_string.toUtf8();
+    const char* filename = filename_bytearray.data();
+
+    if (filename && filename[0])
+    {
+        char cmd_buf[TinScript::kMaxNameLength];
+        sprintf_s(cmd_buf, "Exec('%s');", filename);
+        ConsolePrint("%s%s\n", kConsoleSendPrefix, cmd_buf);
+        SocketManager::SendCommand(cmd_buf);
     }
 }
 

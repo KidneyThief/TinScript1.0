@@ -467,7 +467,7 @@ void CDebugFunctionAssistWin::NotifyFunctionDoubleClicked(TinScript::CDebuggerFu
     {
         // -- on double-click, set the filter to be the "<object_name>."
         char new_filter[TinScript::kMaxNameLength];
-        sprintf_s(new_filter, "%s.", list_entry->mFunctionName);
+        sprintf_s(new_filter, "%d.", list_entry->mObjectID);
         mFunctionInput->setText(new_filter);
         UpdateFilter(new_filter);
     }

@@ -46,6 +46,8 @@
 #include <QTextEdit>
 #include <QLineEdit>
 #include <QAction>
+#include <QListWidget>
+#include <QDialog>
 
 #include "TinScript.h"
 
@@ -94,6 +96,32 @@ class SafeLineEdit : public QLineEdit
         char mStringValue[TinScript::kMaxNameLength];
 };
 
+// ====================================================================================================================
+// class CommandHistoryDialog:  Creates a dialog box containing a listwidget of this history of input commands.
+// ====================================================================================================================
+class CommandHistoryDialog : public QDialog
+{
+    public:
+        CommandHistoryDialog(QWidget *parent = 0);
+};
+
+class CommandHistoryList : public QListWidget
+{
+    Q_OBJECT
+
+    public:
+        CommandHistoryList(CommandHistoryDialog* owner, QWidget* parent) : QListWidget(parent), mOwner(owner) { }
+
+    public slots:
+        void OnDoubleClicked(QListWidgetItem*);
+
+    public:
+        CommandHistoryDialog* mOwner;
+};
+
+// ====================================================================================================================
+// class MainWindow
+// ====================================================================================================================
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -147,6 +175,7 @@ public slots:
     void menuSearch();
     void menuSearchAgain();
     void menuFunctionAssist();
+    void menuCommandHistory();
 
 private:
     void readLayout(QFile& file);

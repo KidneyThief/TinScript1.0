@@ -34,6 +34,7 @@
 #include "qlistwidget.h"
 #include <QDockWidget>
 #include <QDialog>
+#include <QStringList>
 
 #include "socket.h"
 
@@ -129,6 +130,7 @@ class CConsoleWindow
 
         QHBoxLayout* mToolbarLayout;
         QLineEdit* mFileLineEdit;
+        QPushButton* mButtonExec;
         QPushButton* mButtonRun;
         QPushButton* mButtonStep;
         QPushButton* mButtonStepIn;
@@ -242,12 +244,16 @@ class CConsoleInput : public QLineEdit
 
         void SetText(const char* text, int cursor_pos);
 
+        typedef struct { char text[TinScript::kMaxTokenLength]; } tHistoryEntry;
+        void GetHistory(QStringList& history) const;
+
     public slots:
         void OnButtonConnectPressed();
         void OnConnectIPReturnPressed();
         void OnReturnPressed();
         void OnFileEditReturnPressed();
         void OnButtonStopPressed();
+        void OnButtonExecPressed();
         void OnButtonRunPressed();
         void OnButtonStepPressed();
         void OnButtonStepInPressed();
@@ -271,7 +277,6 @@ class CConsoleInput : public QLineEdit
         bool8 mHistoryFull;
         int32 mHistoryIndex;
         int32 mHistoryLastIndex;
-        typedef struct { char text[TinScript::kMaxTokenLength]; } tHistoryEntry;
         tHistoryEntry mHistory[kMaxHistory];
 };
 

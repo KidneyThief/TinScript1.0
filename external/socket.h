@@ -33,8 +33,8 @@
 #include <vector>
 
 // -- includes required by any system wanting access to TinScript
-#include "TinScript.h"
-#include "TinRegistration.h"
+#include "../source/TinScript.h"
+#include "../source/TinRegistration.h"
 
 // ====================================================================================================================
 // -- constants
@@ -186,7 +186,7 @@ class DataQueue
 {
     public:
         DataQueue();
-        bool Enqueue(tDataPacket* packet);
+        bool Enqueue(tDataPacket* packet, bool at_front = false);
         bool Dequeue(tDataPacket*& packet, bool peekOnly = false);
 
         // -- clear the entire queue
@@ -254,7 +254,7 @@ class CSocket
         bool Update();
 
         // -- Because sockets run in their own thread, they have to enqueue commands and statements through a mutex
-        void ScriptCommand(const char* fmt, ...);
+        bool ScriptCommand(const char* fmt, ...);
 
         // -- sets the "force break" bool in the script context
         void DebuggerBreak();

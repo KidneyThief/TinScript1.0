@@ -386,6 +386,56 @@ void MainWindow::menuAddVariableWatch()
                                                                           dialog.IsBreakOnWrite());
 }
 
+CommandHistoryDialog::CommandHistoryDialog(QWidget *parent)
+    : QDialog(parent)
+{
+
+	setWindowTitle("Command History");
+	setMinimumWidth(280);
+
+    QGridLayout *layout = new QGridLayout(this);
+
+    CommandHistoryList* command_list = new CommandHistoryList(this, parent);
+    layout->addWidget(command_list, 0, 0, 1, 1);
+
+    // -- retrieve the stringlist of commands (note, the strings are allocated)
+    QStringList history;
+    CConsoleWindow::GetInstance()->GetInput()->GetHistory(history);
+
+    // -- add them to the layout
+    int history_count = history.count();
+    for (int i = 0; i < history_count; ++i)
+    {
+        QListWidgetItem* command_entry = new QListWidgetItem();
+        command_entry->setText(history[i]);
+        command_list->addItem(command_entry);
+    }
+
+    // -- connect up the command list
+    QObject::connect(command_list, SIGNAL(itemDoubleClicked(QListWidgetItem*)), command_list,
+                     SLOT(OnDoubleClicked(QListWidgetItem*)));
+
+    QHBoxLayout *buttonLayout = new QHBoxLayout;
+    layout->addLayout(buttonLayout, 1, 0, 1, 1);
+    buttonLayout->addStretch();
+
+    QPushButton *cancelButton = new QPushButton(tr("Close"));
+    connect(cancelButton, SIGNAL(clicked()), this, SLOT(reject()));
+    buttonLayout->addWidget(cancelButton);
+
+    cancelButton->setDefault(true);
+}
+
+void CommandHistoryList::OnDoubleClicked(QListWidgetItem* item)
+{
+    QByteArray text_array = item->text().toUtf8();
+    const char* command = text_array.data();
+    CConsoleWindow::GetInstance()->GetInput()->SetText(command, -1);
+    CConsoleWindow::GetInstance()->GetInput()->setFocus();
+    mOwner->reject();
+}
+
+// ====================================================================================================================
 void MainWindow::menuCreateVariableWatch()
 {
     if (CConsoleWindow::GetInstance()->GetDebugWatchesWin()->hasFocus())
@@ -691,6 +741,9 @@ void MainWindow::setupMenuBar()
 
     debug_menu->addSeparator();
 
+    action = debug_menu->addAction(tr("Command History  [Ctrl + H]"));
+    connect(action, SIGNAL(triggered()), this, SLOT(menuCommandHistory()));
+
     action = debug_menu->addAction(tr("Add Watch  [Ctrl + W]"));
     connect(action, SIGNAL(triggered()), this, SLOT(menuAddVariableWatch()));
 
@@ -976,6 +1029,20 @@ void MainWindow::menuFunctionAssist()
 {
     CConsoleInput* console_input = CConsoleWindow::GetInstance()->GetInput();
     console_input->OnFunctionAssistPressed();
+}
+
+// ====================================================================================================================
+// menuCommandHistory():  Create a dialog, displaying the history of all input commands
+// ====================================================================================================================
+void MainWindow::menuCommandHistory()
+{
+    CommandHistoryDialog dialog(this);
+
+    // -- while the dialog is active, we have a global pointer to access it
+    int ret = dialog.exec();
+
+    if (ret == QDialog::Rejected)
+        return;
 }
 
 // ====================================================================================================================

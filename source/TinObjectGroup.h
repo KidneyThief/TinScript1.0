@@ -72,6 +72,8 @@ class CObjectSet
 
         CScriptContext* GetScriptContext() { return (mContextOwner); }
 
+        bool8 IsInHierarchy(uint32 objectid);
+
         virtual bool8 Contains(uint32 objectid);
         virtual void AddObject(uint32 objectid);
         virtual void RemoveObject(uint32 objectid);

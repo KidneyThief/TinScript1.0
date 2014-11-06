@@ -328,7 +328,9 @@ void CDebugObjectBrowserWin::SetSelectedObject(uint32 object_id)
             entry = (*entry_list)[0];
 
         if (entry != NULL)
-            setCurrentItem(entry);
+        {
+            setCurrentItem(entry, QAbstractItemView::EnsureVisible);
+        }
     }
 }
 

@@ -1,17 +1,17 @@
 // ------------------------------------------------------------------------------------------------
 //  The MIT License
-//  
+//
 //  Copyright (c) 2013 Tim Andersen
-//  
+//
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
 //  and associated documentation files (the "Software"), to deal in the Software without
 //  restriction, including without limitation the rights to use, copy, modify, merge, publish,
 //  distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
 //  Software is furnished to do so, subject to the following conditions:
-//  
+//
 //  The above copyright notice and this permission notice shall be included in all copies or
 //  substantial portions of the Software.
-//  
+//
 //  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
 //  BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
 //  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
@@ -138,8 +138,8 @@ const int32 kFunctionCallStackSize = 2048;
 const int32 kExecStackSize = 4096;
 const int32 kExecFuncCallDepth = 2048;
 
-const int32 kStringTableSize = 32 * 1024;
-const int32 kStringTableDictionarySize = 199;
+const int32 kStringTableSize = 1024 * 1024;
+const int32 kStringTableDictionarySize = 577;
 
 const int32 kObjectTableSize = 10007;
 
@@ -148,7 +148,7 @@ const int32 kObjectGroupTableSize = 17;
 
 const int32 kMaxScratchBuffers = 32;
 
-const int32 kThreadExecBufferSize = 8 * 1024;
+const int32 kThreadExecBufferSize = 32 * 1024;
 
 // ====================================================================================================================
 // -- debugger constants
@@ -465,10 +465,10 @@ class CScriptContext
         static bool8 gDebugParseTree;
         static bool8 gDebugCodeBlock;
         static bool8 gDebugTrace;
-        
+
         // -- Thread commands are only supported in WIN32
         #ifdef WIN32
-            void AddThreadCommand(const char* command);
+            bool8 AddThreadCommand(const char* command);
             void ProcessThreadCommands();
         #endif // WIN32
 
@@ -495,7 +495,7 @@ class CScriptContext
         // -- global namespace for this context
         CNamespace* mGlobalNamespace;
 
-        // -- context stringtable 
+        // -- context stringtable
         CStringTable* mStringTable;
 
         // -- context codeblock list

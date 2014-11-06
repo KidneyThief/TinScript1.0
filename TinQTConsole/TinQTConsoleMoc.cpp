@@ -19,8 +19,8 @@
 
 QT_BEGIN_MOC_NAMESPACE
 struct qt_meta_stringdata_CConsoleInput_t {
-    QByteArrayData data[14];
-    char stringdata[272];
+    QByteArrayData data[15];
+    char stringdata[292];
 };
 #define QT_MOC_LITERAL(idx, ofs, len) \
     Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
@@ -36,21 +36,22 @@ QT_MOC_LITERAL(3, 38, 24),
 QT_MOC_LITERAL(4, 63, 15),
 QT_MOC_LITERAL(5, 79, 23),
 QT_MOC_LITERAL(6, 103, 19),
-QT_MOC_LITERAL(7, 123, 18),
-QT_MOC_LITERAL(8, 142, 19),
-QT_MOC_LITERAL(9, 162, 21),
-QT_MOC_LITERAL(10, 184, 22),
-QT_MOC_LITERAL(11, 207, 15),
-QT_MOC_LITERAL(12, 223, 23),
-QT_MOC_LITERAL(13, 247, 23)
+QT_MOC_LITERAL(7, 123, 19),
+QT_MOC_LITERAL(8, 143, 18),
+QT_MOC_LITERAL(9, 162, 19),
+QT_MOC_LITERAL(10, 182, 21),
+QT_MOC_LITERAL(11, 204, 22),
+QT_MOC_LITERAL(12, 227, 15),
+QT_MOC_LITERAL(13, 243, 23),
+QT_MOC_LITERAL(14, 267, 23)
     },
     "CConsoleInput\0OnButtonConnectPressed\0"
     "\0OnConnectIPReturnPressed\0OnReturnPressed\0"
     "OnFileEditReturnPressed\0OnButtonStopPressed\0"
-    "OnButtonRunPressed\0OnButtonStepPressed\0"
-    "OnButtonStepInPressed\0OnButtonStepOutPressed\0"
-    "OnFindEditFocus\0OnFindEditReturnPressed\0"
-    "OnFunctionAssistPressed\0"
+    "OnButtonExecPressed\0OnButtonRunPressed\0"
+    "OnButtonStepPressed\0OnButtonStepInPressed\0"
+    "OnButtonStepOutPressed\0OnFindEditFocus\0"
+    "OnFindEditReturnPressed\0OnFunctionAssistPressed\0"
 };
 #undef QT_MOC_LITERAL
 
@@ -60,7 +61,7 @@ static const uint qt_meta_data_CConsoleInput[] = {
        7,       // revision
        0,       // classname
        0,    0, // classinfo
-      12,   14, // methods
+      13,   14, // methods
        0,    0, // properties
        0,    0, // enums/sets
        0,    0, // constructors
@@ -68,20 +69,22 @@ static const uint qt_meta_data_CConsoleInput[] = {
        0,       // signalCount
 
  // slots: name, argc, parameters, tag, flags
-       1,    0,   74,    2, 0x0a,
-       3,    0,   75,    2, 0x0a,
-       4,    0,   76,    2, 0x0a,
-       5,    0,   77,    2, 0x0a,
-       6,    0,   78,    2, 0x0a,
-       7,    0,   79,    2, 0x0a,
-       8,    0,   80,    2, 0x0a,
-       9,    0,   81,    2, 0x0a,
-      10,    0,   82,    2, 0x0a,
-      11,    0,   83,    2, 0x0a,
-      12,    0,   84,    2, 0x0a,
-      13,    0,   85,    2, 0x0a,
+       1,    0,   79,    2, 0x0a,
+       3,    0,   80,    2, 0x0a,
+       4,    0,   81,    2, 0x0a,
+       5,    0,   82,    2, 0x0a,
+       6,    0,   83,    2, 0x0a,
+       7,    0,   84,    2, 0x0a,
+       8,    0,   85,    2, 0x0a,
+       9,    0,   86,    2, 0x0a,
+      10,    0,   87,    2, 0x0a,
+      11,    0,   88,    2, 0x0a,
+      12,    0,   89,    2, 0x0a,
+      13,    0,   90,    2, 0x0a,
+      14,    0,   91,    2, 0x0a,
 
  // slots: parameters
+    QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
@@ -108,13 +111,14 @@ void CConsoleInput::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _i
         case 2: _t->OnReturnPressed(); break;
         case 3: _t->OnFileEditReturnPressed(); break;
         case 4: _t->OnButtonStopPressed(); break;
-        case 5: _t->OnButtonRunPressed(); break;
-        case 6: _t->OnButtonStepPressed(); break;
-        case 7: _t->OnButtonStepInPressed(); break;
-        case 8: _t->OnButtonStepOutPressed(); break;
-        case 9: _t->OnFindEditFocus(); break;
-        case 10: _t->OnFindEditReturnPressed(); break;
-        case 11: _t->OnFunctionAssistPressed(); break;
+        case 5: _t->OnButtonExecPressed(); break;
+        case 6: _t->OnButtonRunPressed(); break;
+        case 7: _t->OnButtonStepPressed(); break;
+        case 8: _t->OnButtonStepInPressed(); break;
+        case 9: _t->OnButtonStepOutPressed(); break;
+        case 10: _t->OnFindEditFocus(); break;
+        case 11: _t->OnFindEditReturnPressed(); break;
+        case 12: _t->OnFunctionAssistPressed(); break;
         default: ;
         }
     }
@@ -146,13 +150,13 @@ int CConsoleInput::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 12)
+        if (_id < 13)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 12;
+        _id -= 13;
     } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 12)
+        if (_id < 13)
             *reinterpret_cast<int*>(_a[0]) = -1;
-        _id -= 12;
+        _id -= 13;
     }
     return _id;
 }

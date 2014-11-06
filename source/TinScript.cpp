@@ -2904,7 +2904,7 @@ void CScriptContext::DebuggerListObjects(uint32 parent_id, uint32 object_id)
         CObjectEntry* oe = GetObjectDictionary()->First();
         while (oe)
         {
-            // -- if we're listing all objects, then we only iterate through the 
+            // -- if we're listing all objects, then we only iterate through the
             if (oe->GetObjectGroup() == NULL)
             {
                 DebuggerListObjects(0, oe->GetID());
@@ -2987,13 +2987,14 @@ void CScriptContext::DebuggerListSchedules()
 // ====================================================================================================================
 // -- Thread commands are only supported in WIN32
 #ifdef WIN32
-void CScriptContext::AddThreadCommand(const char* command)
+bool8 CScriptContext::AddThreadCommand(const char* command)
 {
     // -- sanity check
     if (!command || !command[0])
-        return;
+        return (true);
 
     // -- we need to wrap access to the command buffer in a thread mutex, to prevent simultaneous access
+    bool8 success = true;
     mThreadLock.Lock();
 
     // -- ensure the thread buf pointer is initialized
@@ -3009,6 +3010,7 @@ void CScriptContext::AddThreadCommand(const char* command)
     if (lengthRemaining < cmdLength)
     {
         ScriptAssert_(this, 0, "<internal>", -1, "Error - AddThreadCommand():  buffer length exceeded.\n");
+        success = false;
     }
     else
     {
@@ -3018,6 +3020,8 @@ void CScriptContext::AddThreadCommand(const char* command)
 
     // -- unlock the thread
     mThreadLock.Unlock();
+
+    return (success);
 }
 
 // ====================================================================================================================
