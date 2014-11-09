@@ -12,15 +12,38 @@ void ThreadTestCount(int num) {
 // ====================================================================================================================
 // DefaultGame implementation
 // ====================================================================================================================
+LinkNamespaces("DefaultGame", "CScriptObject");
 void DefaultGame::OnCreate()
 {
-    int self.sched_update = schedule(self, 100, Hash("OnUpdate"));
+    // -- this schedule is repeated, so which will reschedule itself automatically
+    int self.sched_update = repeat(self, 1, hash("OnUpdate"));
+
+    // -- declare the member, but we'll hook up the actual group in the OnInit()
+    // -- this allows hooking up the member from a saved game (which also creates the group)
     object self.game_objects = create CObjectGroup("GameObjects");
-    int self.SimTime = GetSimTime();
+
+    // -- we track the sim time, so OnUpdate() can calculate the deltaTime
+    int self.SimTime;
+
+    // -- schedule the OnInit(), so it can happen after a saved game is restored
+    schedule(self, 1, hash("OnInit"));
+}
+
+void DefaultGame::OnInit()
+{
+    // -- hook up the game objects
+    // -- if we don't find one, create one
+    self.game_objects = FindObject("GameObjects");
+    if (!IsObject(self.game_objects))
+        self.game_objects = create CObjectGroup("GameObjects");
+        
+    // -- initialize the sim time
+    self.SimTime = GetSimTime();
 }
 
 void DefaultGame::OnDestroy()
 {
+    // -- destroy the group, regardless of who created it
     destroy self.game_objects;
 }
 
@@ -31,24 +54,20 @@ void DefaultGame::OnUpdate()
     float deltaTime = (curTime - self.SimTime);
     deltaTime /= 1000.0f;
     self.SimTime = curTime;
-    
+
     object cur_object = self.game_objects.First();
     while (IsObject(cur_object))
     {
         cur_object.OnUpdate(deltaTime);
         cur_object = self.game_objects.Next();
     }
-    
-    // -- continue the thread
-    self.sched_update = schedule(self, 1, Hash("OnUpdate"));
 }
 
-object gCurrentGame;
 void CreateGame()
 {
-    if (!IsObject(gCurrentGame))
+    if (FindObject("CurrentGame") == 0)
     {
-        gCurrentGame = create CScriptObject("DefaultGame");
+        create DefaultGame("CurrentGame");
     }
 }
 
@@ -56,12 +75,13 @@ void ResetGame()
 {
     // -- cancel all draw requests
     CancelDrawRequests(-1);
-    
-    if (IsObject(gCurrentGame))
+
+    object current_game = FindObject("CurrentGame");
+    if (IsObject(current_game))
     {
-        destroy gCurrentGame;
+        destroy current_game;
     }
-    
+
     //  -- always start Unpaused
     SimUnpause();
 }
@@ -69,9 +89,10 @@ void ResetGame()
 // -- wrapper to handle events
 void NotifyEvent(int keypress)
 {
-    if (IsObject(gCurrentGame))
+    object current_game = FindObject("CurrentGame");
+    if (IsObject(current_game))
     {
-        gCurrentGame.OnKeyPress(keypress);
+        current_game.OnKeyPress(keypress);
     }
 }
 
@@ -102,13 +123,15 @@ object CreateSceneObject(string name, vector3f position, float radius)
 {
     // -- create the asteroid
     object scene_object = create CScriptObject(name);
-        
+
     scene_object.position = position;
     if (scene_object.radius == 0.0f)
         scene_object.radius = radius;
-    
-    gCurrentGame.game_objects.AddObject(scene_object);
-    
+
+    object current_game = FindObject("CurrentGame");
+    if (IsObject(current_game))
+        current_game.game_objects.AddObject(scene_object);
+
     // -- return the object create
     return (scene_object);
 }

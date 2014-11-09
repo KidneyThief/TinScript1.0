@@ -735,7 +735,7 @@ class CCodeBlock
 		uint32* GetInstructionPtr() { return (mInstrBlock); }
 
 		const uint32 GetLineNumberCount() const { return (mLineNumberCount); }
-		const uint32* GetLineNumberPtr() const { return (mLineNumbers); }
+        void SetLineNumberCount(uint32 line_count) { mLineNumberCount = line_count; }
 		uint32* GetLineNumberPtr() { return (mLineNumbers); }
 
         uint32 CalcLineNumber(const uint32* instrptr, bool* isNewLine = NULL) const

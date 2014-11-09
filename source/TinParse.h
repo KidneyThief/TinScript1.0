@@ -250,7 +250,8 @@ CCodeBlock* ParseFile(CScriptContext* script_context, const char* filename);
 CCodeBlock* ParseText(CScriptContext* script_context, const char* filename, const char* filebuf);
 
 bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename);
-CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename);
+CCodeBlock* LoadBinary(CScriptContext* script_context, const char* filename, const char* binfilename, bool8 must_exist,
+                       bool8& old_version);
 
 bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);
 bool8 TryParseBreakContinue(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link);

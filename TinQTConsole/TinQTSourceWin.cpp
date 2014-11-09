@@ -155,7 +155,10 @@ bool CDebugSourceWin::OpenSourceFile(const char* filename, bool reload)
     const char* fileNamePtr = GetFileName(filename);
     uint32 filehash = TinScript::Hash(fileNamePtr);
     if (filehash == mCurrentCodeblockHash && !reload)
+    {
+        parentWidget()->raise();
         return (true);
+    }
 
     // -- create the full path
     char fullPath[kMaxArgLength];
@@ -223,6 +226,9 @@ bool CDebugSourceWin::OpenFullPathFile(const char* fullPath, bool reload)
 
     // -- notify the break points window, so we can transmit all breakpoints for this file
     CConsoleWindow::GetInstance()->GetDebugBreakpointsWin()->NotifySourceFile(filehash);
+
+    // -- ensure the source window is shown
+    parentWidget()->raise();
 
     // -- success
     return (true);

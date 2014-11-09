@@ -789,7 +789,7 @@ void BeginUnitTests(bool8 results_only = false, const char* specific_test = NULL
     results_only ? 0 : MTPrint("\n*** TinScript Unit Tests ***\n");
 
     results_only ? 0 : MTPrint("\nExecuting unittest.ts\n");
-	if (!script_context->ExecScript(kUnitTestScriptName))
+	if (!script_context->ExecScript(kUnitTestScriptName, true, false))
     {
 		MTPrint("Error - unable to parse file: %s\n", kUnitTestScriptName);
 		return;

@@ -136,7 +136,17 @@ bool8 ExecScript(const char* filename)
 {
     CScriptContext* script_context = GetContext();
     assert(script_context != NULL);
-    return (script_context->ExecScript(filename));
+    return (script_context->ExecScript(filename, true, true));
+}
+
+// ====================================================================================================================
+// IncludeScript():  Same as ExecScript(), the file must exist, but need not be executed twice.
+// ====================================================================================================================
+bool8 IncludeScript(const char* filename)
+{
+    CScriptContext* script_context = GetContext();
+    assert(script_context != NULL);
+    return (script_context->ExecScript(filename, true, false));
 }
 
 // ====================================================================================================================
@@ -151,6 +161,7 @@ void SetTimeScale(float time_scale)
 
 REGISTER_FUNCTION_P1(Compile, CompileScript, bool8, const char*);
 REGISTER_FUNCTION_P1(Exec, ExecScript, bool8, const char*);
+REGISTER_FUNCTION_P1(Include, IncludeScript, bool8, const char*);
 
 // ====================================================================================================================
 // NullAssertHandler():  Default assert handler called, if one isn't provided
@@ -758,10 +769,17 @@ bool8 GetLastWriteTime(const char* filename, FILETIME& writetime)
 
     // Retrieve the file times for the file.
     FILETIME ftCreate, ftAccess;
-    if (!GetFileTime(hFile, &ftCreate, &ftAccess, &writetime))
-        return false;
+    bool success = true;
+    if (hFile == INVALID_HANDLE_VALUE ||  !GetFileTime(hFile, &ftCreate, &ftAccess, &writetime))
+    {
+        success = false;
+    }
 
-    return true;
+    // -- close the file
+    if (hFile != INVALID_HANDLE_VALUE)
+        CloseHandle(hFile);
+
+    return (success);
 }
 
 // ====================================================================================================================
@@ -790,10 +808,6 @@ bool8 GetBinaryFileName(const char* filename, char* binfilename, int32 maxnamele
 // ====================================================================================================================
 bool8 NeedToCompile(const char* filename, const char* binfilename)
 {
-#if FORCE_COMPILE
-    return true;
-#else
-
     // -- get the filetime for the original script
     // -- if fail, then we have nothing to compile
     FILETIME scriptft;
@@ -810,8 +824,17 @@ bool8 NeedToCompile(const char* filename, const char* binfilename)
     if (CompareFileTime(&binft, &scriptft) < 0)
         return true;
     else
-        return false;
+    {
+
+    // -- if we don't need to compile, then if we're forcing compilation anyways,
+    // -- we only force it on files that aren't already loaded
+#if FORCE_COMPILE
+        uint32 filename_hash = Hash(filename, -1, false);
+        CCodeBlock* already_executed = GetContext()->GetCodeBlockList()->FindItem(filename_hash);
+        return (!already_executed);
 #endif
+        return false;
+    }
 }
 
 // ====================================================================================================================
@@ -852,14 +875,17 @@ CCodeBlock* CScriptContext::CompileScript(const char* filename)
 // ====================================================================================================================
 // ExecScript():  Execute a script, compiles if necessary.
 // ====================================================================================================================
-bool8 CScriptContext::ExecScript(const char* filename)
+bool8 CScriptContext::ExecScript(const char* filename, bool8 must_exist, bool8 re_exec)
 {
     char binfilename[kMaxNameLength];
     if (!GetBinaryFileName(filename, binfilename, kMaxNameLength))
     {
-        ScriptAssert_(this, 0, "<internal>", -1, "Error - invalid script filename: %s\n",
-                      filename ? filename : "");
-        ResetAssertStack();
+        if (must_exist)
+        {
+            ScriptAssert_(this, 0, "<internal>", -1, "Error - invalid script filename: %s\n",
+                          filename ? filename : "");
+            ResetAssertStack();
+        }
         return false;
     }
 
@@ -877,7 +903,26 @@ bool8 CScriptContext::ExecScript(const char* filename)
     }
     else
     {
-        codeblock = LoadBinary(this, binfilename);
+        // -- if we don't need to compile the script, and we don't need to execute it more than once,
+        // -- if we already have this codeblock loaded, we're done
+        if (!re_exec)
+        {
+            uint32 filename_hash = Hash(filename, -1, false);
+            CCodeBlock* already_executed = GetCodeBlockList()->FindItem(filename_hash);
+            if (already_executed)
+            {
+                return (true);
+            }
+        }
+
+        bool8 old_version = false;
+        codeblock = LoadBinary(this, filename, binfilename, must_exist, old_version);
+
+        // -- if we have an old version, recompile
+        if (!codeblock && old_version)
+        {
+            codeblock = CompileScript(filename);
+        }
     }
 
     // -- notify the debugger, if one is connected
@@ -890,7 +935,7 @@ bool8 CScriptContext::ExecScript(const char* filename)
     bool8 result = true;
     if (codeblock)
     {
-	    bool8 result = ExecuteCodeBlock(*codeblock);
+	    result = ExecuteCodeBlock(*codeblock);
         codeblock->SetFinishedParsing();
 
         if (!result)

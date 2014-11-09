@@ -1,17 +1,17 @@
 // ------------------------------------------------------------------------------------------------
 //  The MIT License
-//  
+//
 //  Copyright (c) 2013 Tim Andersen
-//  
+//
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
 //  and associated documentation files (the "Software"), to deal in the Software without
 //  restriction, including without limitation the rights to use, copy, modify, merge, publish,
 //  distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
 //  Software is furnished to do so, subject to the following conditions:
-//  
+//
 //  The above copyright notice and this permission notice shall be included in all copies or
 //  substantial portions of the Software.
-//  
+//
 //  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
 //  BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
 //  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
@@ -98,7 +98,7 @@ static const char* gAssOperatorString[] =
 };
 
 const char* GetAssOperatorString(eAssignOpType assop)
-{ 
+{
 	return gAssOperatorString[assop];
 }
 
@@ -129,7 +129,7 @@ static const char* gUnaryOperatorString[] =
 };
 
 const char* GetUnaryOperatorString(eUnaryOpType unaryop)
-{ 
+{
 	return gUnaryOperatorString[unaryop];
 }
 
@@ -634,7 +634,7 @@ const char* GetToken(const char*& inbuf, int32& length, eTokenType& type, const 
 }
 
 // ====================================================================================================================
-// ReadFileAllocBuf():  Opens a file, allocates a buffer and reads the contents, 
+// ReadFileAllocBuf():  Opens a file, allocates a buffer and reads the contents,
 // ====================================================================================================================
 const char* ReadFileAllocBuf(const char* filename)
 {
@@ -668,7 +668,6 @@ const char* ReadFileAllocBuf(const char* filename)
 
 	// -- allocate a buffer and read the file into it (will null terminate)
 	char* filebuf = (char*)TinAllocArray(ALLOC_FileBuf, char, filesize + 1);
-	fseek(filehandle, 0, SEEK_SET);
 	int32 bytesread = (int32)fread(filebuf, 1, filesize, filehandle);
 
     // $$$TZA for some reason, my text file is taking more space on disk than what is actually read...
@@ -790,7 +789,7 @@ void DestroyTree(CCompileTreeNode* root)
 // ====================================================================================================================
 // DumpVarTable():  Debug function to print all members (both dynamic and registered) belonging to a specific object.
 // ====================================================================================================================
-void DumpVarTable(CObjectEntry* oe) 
+void DumpVarTable(CObjectEntry* oe)
 {
 	// -- sanity check
 	if (!oe)
@@ -1172,7 +1171,7 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
             return (false);
         }
 
-        // -- if we've got a hashtable expression, the left child is the member, the right child is hash value 
+        // -- if we've got a hashtable expression, the left child is the member, the right child is hash value
         CCompileTreeNode* member_root = NULL;
         CCompileTreeNode** member_link = &member_root;
 
@@ -1244,7 +1243,7 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 		    // -- and allow the assignment to be ready as an assignment
 		    filebuf = nexttoken;
 	    }
-		
+
         // -- we're done
         return (true);
     }
@@ -2297,7 +2296,7 @@ bool8 TryParseForLoop(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNo
     {
 		ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                       filebuf.linenumber,
-                      "Error - unable to parse the conditional expression\n"); 
+                      "Error - unable to parse the conditional expression\n");
         --gWhileLoopDepth;
 		return (false);
 	}
@@ -2621,7 +2620,8 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
             CVariableEntry* paramexists = paramcount < cur_param_count
                                           ? exists->GetContext()->GetParameter(paramcount)
                                           : NULL;
-            if (!paramexists || paramexists->GetType() != paramtype || paramexists->IsArray() != param_is_array)
+            if (!paramexists || paramexists->GetType() != paramtype ||
+                (paramtype != TYPE_hashtable && paramexists->IsArray() != param_is_array))
             {
                 ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
                               filebuf.linenumber,
@@ -2705,7 +2705,7 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
                                            filebuf.linenumber, idtoken.tokenptr, idtoken.length,
                                            usenamespace ? nsnametoken.tokenptr : "",
                                            usenamespace ? nsnametoken.length : 0);
-    
+
     // -- read the function body
     int32 result = ParseStatementBlock(codeblock, funcdeclnode->leftchild, filebuf, true);
     if (!result)
@@ -2794,7 +2794,7 @@ bool8 TryParseFuncCall(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeN
                                            usenamespace ? nsnametoken.tokenptr : "",
                                            usenamespace ? nsnametoken.length : 0,
                                            ismethod);
-    
+
     // -- $$$TZA add default args
 
     // -- create a tree root to contain all the parameter assignments
@@ -3085,7 +3085,7 @@ bool8 TryParseHash(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*
         return (false);
 
     // -- we're committed to a hash expression
-    filebuf = peektoken; 
+    filebuf = peektoken;
 
     // -- the complete format is: hash("string")
     // -- read an open parenthesis
@@ -3391,7 +3391,7 @@ bool8 TryParseCreateObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileT
 }
 
 // ====================================================================================================================
-// TryParseDestroyObject():  Deleting an object has a well defined syntax.  
+// TryParseDestroyObject():  Deleting an object has a well defined syntax.
 // ====================================================================================================================
 bool8 TryParseDestroyObject(CCodeBlock* codeblock, tReadToken& filebuf, CCompileTreeNode*& link)
 {
@@ -3765,8 +3765,12 @@ bool8 SaveBinary(CCodeBlock* codeblock, const char* binfilename)
 // ====================================================================================================================
 // LoadBinary():  Load the compiled byte code for a given file.
 // ====================================================================================================================
-CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename)
+CCodeBlock* LoadBinary(CScriptContext* script_context, const char* filename, const char* binfilename, bool8 must_exist,
+                       bool8& old_version)
 {
+    // -- initialize the return value
+    old_version = false;
+
     // -- sanity check
     if (!binfilename)
         return (NULL);
@@ -3775,13 +3779,19 @@ CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename)
 	FILE* filehandle = NULL;
 	if (binfilename)
     {
-		 int32 result = fopen_s(&filehandle, binfilename, "rb");
-		 if (result != 0)
-         {
-             ScriptAssert_(script_context, 0, "<internal>", -1,
-                           "Error - failed to load file: %s\n", binfilename);
-			 return (NULL);
-         }
+        int32 result = fopen_s(&filehandle, binfilename, "rb");
+        if (result != 0)
+        {
+            if (must_exist)
+            {
+                ScriptAssert_(script_context, 0, "<internal>", -1, "Error - failed to load file: %s\n", binfilename);
+            }
+            else
+            {
+                TinPrint(script_context, "Unable to open file: %s\n", binfilename);
+            }
+            return (NULL);
+        }
 	}
 
 	if (!filehandle)
@@ -3799,6 +3809,14 @@ CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename)
         fclose(filehandle);
         ScriptAssert_(script_context, 0, "<internal>", -1,
                       "Error - unable to read file: %s\n", binfilename);
+        return (NULL);
+    }
+
+    // -- if the version is not current, close and recomile
+    if (version != kCompilerVersion)
+    {
+        fclose(filehandle);
+        old_version = true;
         return (NULL);
     }
 
@@ -3831,7 +3849,7 @@ CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename)
     }
 
     // -- create the codeblock
-    CCodeBlock* codeblock = TinAlloc(ALLOC_CodeBlock, CCodeBlock, script_context, binfilename);
+    CCodeBlock* codeblock = TinAlloc(ALLOC_CodeBlock, CCodeBlock, script_context, filename);
     codeblock->AllocateInstructionBlock(instrcount, linenumbercount);
 
     // -- read the file into the codeblock
@@ -3853,6 +3871,38 @@ CCodeBlock* LoadBinary(CScriptContext* script_context, const char* binfilename)
                       "Error - unable to read file: %s\n", binfilename);
         codeblock->SetFinishedParsing();
         return (NULL);
+    }
+
+    // -- read the debug symbols into the codeblock
+    // -- note:  the compile flag is only to prevent writing excess debug info
+    // -- if the debug line offsets are already in the binary, might as well read them
+    if (linenumbercount > 0)
+    {
+        uint32* readptr = codeblock->GetLineNumberPtr();
+        instrread = (int32)fread(readptr, sizeof(uint32), (int32)linenumbercount, filehandle);
+        if (ferror(filehandle))
+        {
+            fclose(filehandle);
+            ScriptAssert_(script_context, 0, "<internal>", -1,
+                          "Error - unable to read file: %s\n", binfilename);
+            codeblock->SetFinishedParsing();
+            return (NULL);
+        }
+
+        if (instrread != linenumbercount)
+        {
+	        fclose(filehandle);
+            ScriptAssert_(script_context, 0, "<internal>", -1,
+                          "Error - unable to read file: %s\n", binfilename);
+            codeblock->SetFinishedParsing();
+            return (NULL);
+        }
+
+        // -- make sure we also set the array count, after reading in the line number array
+        else
+        {
+            codeblock->SetLineNumberCount(linenumbercount);
+        }
     }
 
     // -- close the file
@@ -4016,7 +4066,7 @@ CVariableEntry* GetVariable(CScriptContext* script_context, tVarTable* globalVar
     // -- if we found an object, we need to find the member
     if (oe)
         ve = oe->GetVariableEntry(var_hash);
-    
+
     // -- else if were given a function, find the local variable
     else if (fe)
     {
@@ -4085,11 +4135,32 @@ CVariableEntry* GetVariable(CScriptContext* script_context, tVarTable* globalVar
 CFunctionEntry* FuncDeclaration(CScriptContext* script_context, uint32 namespacehash,
                                 const char* funcname, uint32 funchash, EFunctionType type)
 {
+    const char* ns_string = NULL;
     CNamespace* nsentry = script_context->FindNamespace(namespacehash);
     if (!nsentry)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1,
-                      "Error - unable to find Namespace: %s\n", UnHash(namespacehash));
+        // -- during a function declaration, if the namespace doesn't exist, it's probably
+        // -- because we're loading a compiled binary, where the namespace is usually created during parsing
+        ns_string = TinScript::GetContext()->GetStringTable()->FindString(namespacehash);
+        if (ns_string && ns_string[0])
+        {
+            nsentry = script_context->FindOrCreateNamespace(ns_string, true);
+        }
+    }
+
+    if (!nsentry)
+    {
+        if (!ns_string)
+        {
+            ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to find Namespace: %s\n"
+                          "This happens when the string table is deleted.\nRecompile or delete .tso files\n",
+                          UnHash(namespacehash));
+        }
+        else
+        {
+            ScriptAssert_(script_context, 0, "<internal>", -1,
+                          "Error - unable to find Namespace: %s\n", UnHash(namespacehash));
+        }
         return (NULL);
     }
 

@@ -119,7 +119,8 @@ void CDebugFunctionAssistWin::ClearSearch()
     for (int i = 0; i < key_list.size(); ++i)
     {
         TinScript::CDebuggerFunctionAssistEntry* entry = mFunctionEntryMap[key_list[i]];
-        delete entry;
+        if (entry)
+            delete entry;
     }
     mFunctionEntryMap.clear();
 
@@ -128,7 +129,8 @@ void CDebugFunctionAssistWin::ClearSearch()
     for (int i = 0; i < object_id_list.size(); ++i)
     {
         TinScript::CDebuggerFunctionAssistEntry* entry = mFunctionEntryMap[object_id_list[i]];
-        delete entry;
+        if (entry)
+            delete entry;
     }
     mObjectEntryMap.clear();
 }
@@ -384,13 +386,16 @@ void CDebugFunctionAssistWin::UpdateFilter(const char* filter)
         for (int i = 0; i < object_id_list.size(); ++i)
         {
             TinScript::CDebuggerFunctionAssistEntry* entry = mObjectEntryMap[object_id_list[i]];
-            if (FunctionContainsFilter(entry->mFunctionName))
+            if (entry)
             {
-                mFunctionList->DisplayEntry(entry);
-            }
-            else
-            {
-                mFunctionList->FilterEntry(entry);
+                if (FunctionContainsFilter(entry->mFunctionName))
+                {
+                    mFunctionList->DisplayEntry(entry);
+                }
+                else
+                {
+                    mFunctionList->FilterEntry(entry);
+                }
             }
         }
 
@@ -398,13 +403,16 @@ void CDebugFunctionAssistWin::UpdateFilter(const char* filter)
         for (int i = 0; i < key_list.size(); ++i)
         {
             TinScript::CDebuggerFunctionAssistEntry* entry = mFunctionEntryMap[key_list[i]];
-            if (FunctionContainsFilter(entry->mFunctionName))
+            if (entry)
             {
-                mFunctionList->DisplayEntry(entry);
-            }
-            else
-            {
-                mFunctionList->FilterEntry(entry);
+                if (FunctionContainsFilter(entry->mFunctionName))
+                {
+                    mFunctionList->DisplayEntry(entry);
+                }
+                else
+                {
+                    mFunctionList->FilterEntry(entry);
+                }
             }
         }
     }

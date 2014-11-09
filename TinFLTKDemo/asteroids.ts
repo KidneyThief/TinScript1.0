@@ -11,7 +11,7 @@ float gAsteroidSpeed = 52.0f;
 float gBulletSpeed = 150.0f;
 
 int gMaxBullets = 4;
-int gFireCDTime = 100;
+float gFireCDTime = 0.1f;
 
 // -- FLTK Colors -----------------------------------------------------------------------------------------------------
 int gFLTK_BLACK = 0;
@@ -27,19 +27,18 @@ int gFLTK_BROWN = 9;
 // ====================================================================================================================
 // Asteroid : SceneObject implementation
 // ====================================================================================================================
+LinkNamespaces("Asteroid", "SceneObject");
 void Asteroid::OnCreate()
 {
-    LinkNamespaces("Asteroid", "SceneObject");
     SceneObject::OnCreate();
     
     // -- asteroids have movement
     vector3f self.velocity = '0 0 0';
     
     // -- add ourself to the game's asteroid set
-    if (IsObject(gCurrentGame))
-    {
-        gCurrentGame.asteroid_set.AddObject(self);
-    }
+    object current_game = FindObject("CurrentGame");
+    if (IsObject(current_game))
+        current_game.asteroid_set.AddObject(self);
 }
 
 void Asteroid::OnUpdate(float deltaTime)
@@ -161,10 +160,9 @@ void UpdateScreenPosition(object obj, float deltaTime)
 // ====================================================================================================================
 // Ship implementation
 // ====================================================================================================================
-
+LinkNamespaces("Ship", "SceneObject");
 void Ship::OnCreate()
 {
-    LinkNamespaces("Ship", "SceneObject");
     SceneObject::OnCreate();
     
     // -- ships have velocity and rotation
@@ -182,13 +180,16 @@ void Ship::OnCreate()
     schedule(self, 2000, Hash("ResetInvulnerable"));
     
     // -- we can only fire so fast
-    int self.fire_cd_time = 0;
+    float self.fire_cd_time = 0.0f;
 }
 
 void Ship::OnUpdate(float deltaTime)
 {
     // -- update the screen position - applies the velocity, and wraps
     UpdateScreenPosition(self, deltaTime);
+    
+    // -- update the fire CD time
+    self.fire_cd_time -= deltaTime;
     
     // -- we look like a triangle
     float head_offset_x = self.radius * Cos(self.rotation);
@@ -243,12 +244,12 @@ void Ship::OnFire()
         return;
         
     // -- only 4x bullets at a time
-    if (gCurrentGame.bullet_set.Used() >= gMaxBullets)
+    object current_game = FindObject("CurrentGame");
+    if (current_game.bullet_set.Used() >= gMaxBullets)
         return;
     
     // -- only allow one bullet every X msec
-    int cur_time = GetSimTime();
-    if (cur_time < self.fire_cd_time)
+    if (self.fire_cd_time > 0.0f)
         return;
         
     // -- calculate our heading
@@ -263,7 +264,7 @@ void Ship::OnFire()
     SpawnBullet(head, heading);
     
     // -- start a cooldown
-    self.fire_cd_time = cur_time + gFireCDTime;
+    self.fire_cd_time = gFireCDTime;
 }
 
 void Ship::ResetShowHit()
@@ -319,17 +320,16 @@ object SpawnShip()
 // ====================================================================================================================
 // Bullet implementation
 // ====================================================================================================================
+LinkNamespaces("Bullet", "SceneObject");
 void Bullet::OnCreate()
 {
-    LinkNamespaces("Bullet", "SceneObject");
     SceneObject::OnCreate();
     
     // -- Bullets have velocity
     vector3f self.velocity = '0 0 0';
     
     // -- self terminating
-    int cur_time = GetSimTime();
-    int self.expireTime = cur_time + 2000;
+    float self.expireTime = 2.0f;
 }
 
 void Bullet::OnUpdate(float deltaTime)
@@ -342,8 +342,8 @@ void Bullet::OnUpdate(float deltaTime)
     DrawCircle(self, self.position, self.radius, gFLTK_RED);
     
     // -- see if it's time to expire
-    int cur_time = GetSimTime();
-    if (cur_time > self.expireTime)
+    self.expireTime -= deltaTime;
+    if (self.expireTime <= 0.0f)
         destroy self;
 }
 
@@ -355,18 +355,17 @@ object SpawnBullet(vector3f position, vector3f direction)
     ApplyImpulse(bullet, direction * gBulletSpeed);
     
     // -- add the bullet to the game's bullet set
-    if (IsObject(gCurrentGame))
-    {
-        gCurrentGame.bullet_set.AddObject(bullet);
-    }
+    object current_game = FindObject("CurrentGame");
+    if (IsObject(current_game))
+        current_game.bullet_set.AddObject(bullet);
 }
 
 // ====================================================================================================================
 // Asteroids Game implementation
 // ====================================================================================================================
+LinkNamespaces("AsteroidsGame", "DefaultGame");
 void AsteroidsGame::OnCreate()
 {
-    LinkNamespaces("AsteroidsGame", "DefaultGame");
     DefaultGame::OnCreate();
     
     // -- create a set for the bullets (set == non-ownership)
@@ -375,12 +374,34 @@ void AsteroidsGame::OnCreate()
     // -- create a set for the bullets (set == non-ownership)
     object self.bullet_set = create CObjectSet("BulletSet");
     
-    // -- cache the 'ship' object
-    object self.ship;
-    
+    // -- generic set, used for deleting bullets/asteroids/etc... things that have collided during OnUpdate
     object self.delete_set = create CObjectSet("DeleteSet");
     
+    // -- cache the 'ship' object
+    object self.ship;
 }
+
+// -- the schedule to call this happens in DefaultGame::OnInit()
+void AsteroidsGame::OnInit()
+{
+    DefaultGame::OnInit();
+    
+    self.asteroid_set = FindObject("AsteroidSet");
+    if (!IsObject(self.asteroid_set))
+        self.asteroid_set = create CObjectSet("AsteroidSet");
+        
+    self.bullet_set = FindObject("BulletSet");
+    if (!self.bullet_set)
+        self.bullet_set = create CObjectSet("BulletSet");
+        
+    self.delete_set = FindObject("DeleteSet");
+    if (!IsObject(self.delete_set))
+        self.delete_set = create CObjectSet("DeleteSet");
+        
+    // -- hook up the ship, however, this is only created from StartAsteroids(), not the OnCreate()
+    self.ship = FindObject("Ship");
+}
+
 void AsteroidsGame::OnUpdate()
 {
     // -- update all the scene objects
@@ -498,10 +519,10 @@ void AsteroidsGame::OnKeyPress(int keypress)
 void StartAsteroids()
 {
     ResetGame();
-    gCurrentGame = create CScriptObject("AsteroidsGame");
+    object current_game = create AsteroidsGame("CurrentGame");
     
     // -- spawn a ship
-    gCurrentGame.ship = SpawnShip();
+    current_game.ship = SpawnShip();
     
     // -- spawn, say, 8 asteroids
     schedule(0, 5000, Hash("SpawnAsteroids"));

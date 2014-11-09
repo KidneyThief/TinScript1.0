@@ -268,6 +268,16 @@ const char* ContextGetObjectNamespace(uint32 objectid)
 }
 
 // ====================================================================================================================
+// ContextSaveObjects():  Save the entire tree hierarchy for an object, to the given filename.
+// ====================================================================================================================
+void ContextSaveObjects(uint32 objectid, const char* filename)
+{
+    CScriptContext* script_context = TinScript::GetContext();
+    if (script_context)
+        script_context->SaveObjectTree(objectid, filename);
+}
+
+// ====================================================================================================================
 // ListSchedules():  Dump the pending scheduled requests for the current thread's CScriptContext.
 // ====================================================================================================================
 void ContextListSchedules()
@@ -310,6 +320,7 @@ REGISTER_FUNCTION_P2(LinkNamespaces, ContextLinkNamespaces, void, const char*, c
 REGISTER_FUNCTION_P1(ListVariables, ContextListVariables, void, uint32);
 REGISTER_FUNCTION_P1(ListFunctions, ContextListFunctions, void, uint32);
 REGISTER_FUNCTION_P1(GetObjectNamespace, ContextGetObjectNamespace, const char*, uint32);
+REGISTER_FUNCTION_P2(SaveObjects, ContextSaveObjects, void, uint32, const char*);
 
 REGISTER_FUNCTION_P0(ListSchedules, ContextListSchedules, void);
 REGISTER_FUNCTION_P1(ScheduleCancel, ContextScheduleCancel, void, int32);

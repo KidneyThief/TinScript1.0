@@ -36,11 +36,12 @@
 
 // --------------------------------------------------------------------------------------------------------------------
 // -- compile flags
+// -- note:  if you change these (like, modifying compile symbols), you may want to bump the kCompilerVersion
 #define DEBUG_CODEBLOCK 1
-#define FORCE_COMPILE 1
+#define FORCE_COMPILE 0
 #define CASE_SENSITIVE 1
 #define DEBUG_TRACE 1
-#define DEBUG_COMPILE_SYMBOLS 0
+#define DEBUG_COMPILE_SYMBOLS 1
 #define TIN_DEBUGGER 1
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -111,7 +112,7 @@
 // ====================================================================================================================
 // -- constants
 
-const int32 kCompilerVersion = 1;
+const int32 kCompilerVersion = 2;
 
 const int32 kMaxArgs = 256;
 const int32 kMaxArgLength = 256;
@@ -326,7 +327,7 @@ class CScriptContext
         void Update(uint32 curtime);
 
         CCodeBlock* CompileScript(const char* filename);
-        bool8 ExecScript(const char* filename);
+        bool8 ExecScript(const char* filename, bool8 must_exist, bool8 re_exec);
 
         CCodeBlock* CompileCommand(const char* statement);
         bool8 ExecCommand(const char* statement);
@@ -385,6 +386,21 @@ class CScriptContext
 
         void PrintObject(CObjectEntry* oe, int32 indent = 0);
         void ListObjects();
+
+        // -- writes out the entire object group hierarchy (or all objects)
+        const char* ExportFormattedValue(eVarType type, void* addr);
+        bool8 ExportObjectMember(CObjectEntry* oe, CVariableEntry* ve, FILE* filehandle);
+        bool8 ExportObjectVarTable(CObjectEntry* oe, tVarTable* var_table, FILE* filehandle);
+
+        bool8 ExportObjectCreate(CObjectEntry* oe, FILE* filehandle, char* indent_buf);
+        bool8 ExportObjectMembers(CObjectEntry* oe, FILE* filehandle);
+
+        bool8 ExportObjectTreeCreate(CObjectEntry* oe, FILE* filehandle, char* indent_buf);
+        bool8 ExportObjectTreeMembers(CObjectEntry* oe, FILE* filehandle);
+        bool8 ExportObjectTreeHierarchy(CObjectEntry* oe, FILE* filehandle, char* indent_buf);
+
+        bool8 SaveObjectTree(uint32 object_id, const char* savefilename);
+        bool8 FileWritef(FILE* filehandle, const char* fmt, ...);
 
         // -- convenience buffer
         char* GetScratchBuffer();
