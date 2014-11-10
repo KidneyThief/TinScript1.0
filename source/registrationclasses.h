@@ -2105,3 +2105,1239 @@ private:
     methodsignature funcptr;
 };
 
+
+// -------------------
+// Parameter count: 9
+// -------------------
+
+template<typename R, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9>
+class CRegFunctionP9 : public CRegFunctionBase {
+public:
+
+    typedef R (*funcsignature)(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9);
+
+    // -- CRegisterFunctionP9
+    CRegFunctionP9(const char* _funcname, funcsignature _funcptr) :
+                    CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegFunctionP9() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void*) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        Dispatch(ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9));
+    }
+
+    // -- dispatch method
+    R Dispatch(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9) {
+        R r = funcptr(p1, p2, p3, p4, p5, p6, p7, p8, p9);
+        assert(GetContext()->GetParameter(0));
+        CVariableEntry* returnval = GetContext()->GetParameter(0);
+        returnval->SetValueAddr(NULL, convert_to_void_ptr<R>::Convert(r));
+        return (r);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
+        globalfunctable->AddItem(*fe, hash);
+    }
+
+private:
+    funcsignature funcptr;
+};
+
+template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9>
+class CRegFunctionP9<void, T1, T2, T3, T4, T5, T6, T7, T8, T9> : public CRegFunctionBase {
+public:
+
+    typedef void (*funcsignature)(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9);
+
+    // -- CRegisterFunctionP9
+    CRegFunctionP9(const char* _funcname, funcsignature _funcptr) :
+                    CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegFunctionP9() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void*) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        Dispatch(ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9));
+    }
+
+    // -- dispatch method
+    void Dispatch(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9) {
+        funcptr(p1, p2, p3, p4, p5, p6, p7, p8, p9);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
+        globalfunctable->AddItem(*fe, hash);
+    }
+
+private:
+    funcsignature funcptr;
+};
+
+template<typename C, typename R, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9>
+class CRegMethodP9 : public CRegFunctionBase {
+public:
+
+    typedef R (*methodsignature)(C* c, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9);
+
+    // -- CRegisterMethodP9
+    CRegMethodP9(const char* _funcname, methodsignature _funcptr) :
+                  CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegMethodP9() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void* objaddr) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        Dispatch(objaddr,
+                 ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9));
+    }
+
+    // -- dispatch method
+    R Dispatch(void* objaddr, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9) {
+        C* objptr = (C*)objaddr;
+        R r = funcptr(objptr, p1, p2, p3, p4, p5, p6, p7, p8, p9);
+        assert(GetContext()->GetParameter(0));
+        CVariableEntry* returnval = GetContext()->GetParameter(0);
+        returnval->SetValueAddr(NULL, convert_to_void_ptr<R>::Convert(r));
+        return (r);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
+        methodtable->AddItem(*fe, hash);
+    }
+
+private:
+    methodsignature funcptr;
+};
+
+template<typename C, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9>
+class CRegMethodP9<C, void, T1, T2, T3, T4, T5, T6, T7, T8, T9> : public CRegFunctionBase {
+public:
+
+    typedef void (*methodsignature)(C* c, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9);
+
+    // -- CRegisterMethodP9
+    CRegMethodP9(const char* _funcname, methodsignature _funcptr) :
+                  CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegMethodP9() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void* objaddr) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        Dispatch(objaddr,
+                 ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9));
+    }
+
+    // -- dispatch method
+    void Dispatch(void* objaddr, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9) {
+        C* objptr = (C*)objaddr;
+        funcptr(objptr, p1, p2, p3, p4, p5, p6, p7, p8, p9);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
+        methodtable->AddItem(*fe, hash);
+    }
+
+private:
+    methodsignature funcptr;
+};
+
+
+// -------------------
+// Parameter count: 10
+// -------------------
+
+template<typename R, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10>
+class CRegFunctionP10 : public CRegFunctionBase {
+public:
+
+    typedef R (*funcsignature)(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10);
+
+    // -- CRegisterFunctionP10
+    CRegFunctionP10(const char* _funcname, funcsignature _funcptr) :
+                    CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegFunctionP10() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void*) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        CVariableEntry* ve10 = GetContext()->GetParameter(10);
+        Dispatch(ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9),
+                 ConvertVariableForDispatch<T10>(ve10));
+    }
+
+    // -- dispatch method
+    R Dispatch(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10) {
+        R r = funcptr(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10);
+        assert(GetContext()->GetParameter(0));
+        CVariableEntry* returnval = GetContext()->GetParameter(0);
+        returnval->SetValueAddr(NULL, convert_to_void_ptr<R>::Convert(r));
+        return (r);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+        GetContext()->AddParameter("_p10", Hash("_p10"), GetRegisteredType(GetTypeID<T10>()), 1, GetTypeID<T10>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
+        globalfunctable->AddItem(*fe, hash);
+    }
+
+private:
+    funcsignature funcptr;
+};
+
+template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10>
+class CRegFunctionP10<void, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> : public CRegFunctionBase {
+public:
+
+    typedef void (*funcsignature)(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10);
+
+    // -- CRegisterFunctionP10
+    CRegFunctionP10(const char* _funcname, funcsignature _funcptr) :
+                    CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegFunctionP10() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void*) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        CVariableEntry* ve10 = GetContext()->GetParameter(10);
+        Dispatch(ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9),
+                 ConvertVariableForDispatch<T10>(ve10));
+    }
+
+    // -- dispatch method
+    void Dispatch(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10) {
+        funcptr(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+        GetContext()->AddParameter("_p10", Hash("_p10"), GetRegisteredType(GetTypeID<T10>()), 1, GetTypeID<T10>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
+        globalfunctable->AddItem(*fe, hash);
+    }
+
+private:
+    funcsignature funcptr;
+};
+
+template<typename C, typename R, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10>
+class CRegMethodP10 : public CRegFunctionBase {
+public:
+
+    typedef R (*methodsignature)(C* c, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10);
+
+    // -- CRegisterMethodP10
+    CRegMethodP10(const char* _funcname, methodsignature _funcptr) :
+                  CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegMethodP10() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void* objaddr) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        CVariableEntry* ve10 = GetContext()->GetParameter(10);
+        Dispatch(objaddr,
+                 ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9),
+                 ConvertVariableForDispatch<T10>(ve10));
+    }
+
+    // -- dispatch method
+    R Dispatch(void* objaddr, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10) {
+        C* objptr = (C*)objaddr;
+        R r = funcptr(objptr, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10);
+        assert(GetContext()->GetParameter(0));
+        CVariableEntry* returnval = GetContext()->GetParameter(0);
+        returnval->SetValueAddr(NULL, convert_to_void_ptr<R>::Convert(r));
+        return (r);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+        GetContext()->AddParameter("_p10", Hash("_p10"), GetRegisteredType(GetTypeID<T10>()), 1, GetTypeID<T10>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
+        methodtable->AddItem(*fe, hash);
+    }
+
+private:
+    methodsignature funcptr;
+};
+
+template<typename C, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10>
+class CRegMethodP10<C, void, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> : public CRegFunctionBase {
+public:
+
+    typedef void (*methodsignature)(C* c, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10);
+
+    // -- CRegisterMethodP10
+    CRegMethodP10(const char* _funcname, methodsignature _funcptr) :
+                  CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegMethodP10() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void* objaddr) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        CVariableEntry* ve10 = GetContext()->GetParameter(10);
+        Dispatch(objaddr,
+                 ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9),
+                 ConvertVariableForDispatch<T10>(ve10));
+    }
+
+    // -- dispatch method
+    void Dispatch(void* objaddr, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10) {
+        C* objptr = (C*)objaddr;
+        funcptr(objptr, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+        GetContext()->AddParameter("_p10", Hash("_p10"), GetRegisteredType(GetTypeID<T10>()), 1, GetTypeID<T10>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
+        methodtable->AddItem(*fe, hash);
+    }
+
+private:
+    methodsignature funcptr;
+};
+
+
+// -------------------
+// Parameter count: 11
+// -------------------
+
+template<typename R, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11>
+class CRegFunctionP11 : public CRegFunctionBase {
+public:
+
+    typedef R (*funcsignature)(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11);
+
+    // -- CRegisterFunctionP11
+    CRegFunctionP11(const char* _funcname, funcsignature _funcptr) :
+                    CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegFunctionP11() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void*) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        CVariableEntry* ve10 = GetContext()->GetParameter(10);
+        CVariableEntry* ve11 = GetContext()->GetParameter(11);
+        Dispatch(ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9),
+                 ConvertVariableForDispatch<T10>(ve10),
+                 ConvertVariableForDispatch<T11>(ve11));
+    }
+
+    // -- dispatch method
+    R Dispatch(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11) {
+        R r = funcptr(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11);
+        assert(GetContext()->GetParameter(0));
+        CVariableEntry* returnval = GetContext()->GetParameter(0);
+        returnval->SetValueAddr(NULL, convert_to_void_ptr<R>::Convert(r));
+        return (r);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+        GetContext()->AddParameter("_p10", Hash("_p10"), GetRegisteredType(GetTypeID<T10>()), 1, GetTypeID<T10>());
+        GetContext()->AddParameter("_p11", Hash("_p11"), GetRegisteredType(GetTypeID<T11>()), 1, GetTypeID<T11>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
+        globalfunctable->AddItem(*fe, hash);
+    }
+
+private:
+    funcsignature funcptr;
+};
+
+template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11>
+class CRegFunctionP11<void, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> : public CRegFunctionBase {
+public:
+
+    typedef void (*funcsignature)(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11);
+
+    // -- CRegisterFunctionP11
+    CRegFunctionP11(const char* _funcname, funcsignature _funcptr) :
+                    CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegFunctionP11() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void*) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        CVariableEntry* ve10 = GetContext()->GetParameter(10);
+        CVariableEntry* ve11 = GetContext()->GetParameter(11);
+        Dispatch(ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9),
+                 ConvertVariableForDispatch<T10>(ve10),
+                 ConvertVariableForDispatch<T11>(ve11));
+    }
+
+    // -- dispatch method
+    void Dispatch(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11) {
+        funcptr(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+        GetContext()->AddParameter("_p10", Hash("_p10"), GetRegisteredType(GetTypeID<T10>()), 1, GetTypeID<T10>());
+        GetContext()->AddParameter("_p11", Hash("_p11"), GetRegisteredType(GetTypeID<T11>()), 1, GetTypeID<T11>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
+        globalfunctable->AddItem(*fe, hash);
+    }
+
+private:
+    funcsignature funcptr;
+};
+
+template<typename C, typename R, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11>
+class CRegMethodP11 : public CRegFunctionBase {
+public:
+
+    typedef R (*methodsignature)(C* c, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11);
+
+    // -- CRegisterMethodP11
+    CRegMethodP11(const char* _funcname, methodsignature _funcptr) :
+                  CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegMethodP11() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void* objaddr) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        CVariableEntry* ve10 = GetContext()->GetParameter(10);
+        CVariableEntry* ve11 = GetContext()->GetParameter(11);
+        Dispatch(objaddr,
+                 ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9),
+                 ConvertVariableForDispatch<T10>(ve10),
+                 ConvertVariableForDispatch<T11>(ve11));
+    }
+
+    // -- dispatch method
+    R Dispatch(void* objaddr, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11) {
+        C* objptr = (C*)objaddr;
+        R r = funcptr(objptr, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11);
+        assert(GetContext()->GetParameter(0));
+        CVariableEntry* returnval = GetContext()->GetParameter(0);
+        returnval->SetValueAddr(NULL, convert_to_void_ptr<R>::Convert(r));
+        return (r);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+        GetContext()->AddParameter("_p10", Hash("_p10"), GetRegisteredType(GetTypeID<T10>()), 1, GetTypeID<T10>());
+        GetContext()->AddParameter("_p11", Hash("_p11"), GetRegisteredType(GetTypeID<T11>()), 1, GetTypeID<T11>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
+        methodtable->AddItem(*fe, hash);
+    }
+
+private:
+    methodsignature funcptr;
+};
+
+template<typename C, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11>
+class CRegMethodP11<C, void, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> : public CRegFunctionBase {
+public:
+
+    typedef void (*methodsignature)(C* c, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11);
+
+    // -- CRegisterMethodP11
+    CRegMethodP11(const char* _funcname, methodsignature _funcptr) :
+                  CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegMethodP11() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void* objaddr) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        CVariableEntry* ve10 = GetContext()->GetParameter(10);
+        CVariableEntry* ve11 = GetContext()->GetParameter(11);
+        Dispatch(objaddr,
+                 ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9),
+                 ConvertVariableForDispatch<T10>(ve10),
+                 ConvertVariableForDispatch<T11>(ve11));
+    }
+
+    // -- dispatch method
+    void Dispatch(void* objaddr, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11) {
+        C* objptr = (C*)objaddr;
+        funcptr(objptr, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+        GetContext()->AddParameter("_p10", Hash("_p10"), GetRegisteredType(GetTypeID<T10>()), 1, GetTypeID<T10>());
+        GetContext()->AddParameter("_p11", Hash("_p11"), GetRegisteredType(GetTypeID<T11>()), 1, GetTypeID<T11>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
+        methodtable->AddItem(*fe, hash);
+    }
+
+private:
+    methodsignature funcptr;
+};
+
+
+// -------------------
+// Parameter count: 12
+// -------------------
+
+template<typename R, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11, typename T12>
+class CRegFunctionP12 : public CRegFunctionBase {
+public:
+
+    typedef R (*funcsignature)(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11, T12 p12);
+
+    // -- CRegisterFunctionP12
+    CRegFunctionP12(const char* _funcname, funcsignature _funcptr) :
+                    CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegFunctionP12() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void*) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        CVariableEntry* ve10 = GetContext()->GetParameter(10);
+        CVariableEntry* ve11 = GetContext()->GetParameter(11);
+        CVariableEntry* ve12 = GetContext()->GetParameter(12);
+        Dispatch(ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9),
+                 ConvertVariableForDispatch<T10>(ve10),
+                 ConvertVariableForDispatch<T11>(ve11),
+                 ConvertVariableForDispatch<T12>(ve12));
+    }
+
+    // -- dispatch method
+    R Dispatch(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11, T12 p12) {
+        R r = funcptr(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12);
+        assert(GetContext()->GetParameter(0));
+        CVariableEntry* returnval = GetContext()->GetParameter(0);
+        returnval->SetValueAddr(NULL, convert_to_void_ptr<R>::Convert(r));
+        return (r);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+        GetContext()->AddParameter("_p10", Hash("_p10"), GetRegisteredType(GetTypeID<T10>()), 1, GetTypeID<T10>());
+        GetContext()->AddParameter("_p11", Hash("_p11"), GetRegisteredType(GetTypeID<T11>()), 1, GetTypeID<T11>());
+        GetContext()->AddParameter("_p12", Hash("_p12"), GetRegisteredType(GetTypeID<T12>()), 1, GetTypeID<T12>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
+        globalfunctable->AddItem(*fe, hash);
+    }
+
+private:
+    funcsignature funcptr;
+};
+
+template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11, typename T12>
+class CRegFunctionP12<void, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> : public CRegFunctionBase {
+public:
+
+    typedef void (*funcsignature)(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11, T12 p12);
+
+    // -- CRegisterFunctionP12
+    CRegFunctionP12(const char* _funcname, funcsignature _funcptr) :
+                    CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegFunctionP12() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void*) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        CVariableEntry* ve10 = GetContext()->GetParameter(10);
+        CVariableEntry* ve11 = GetContext()->GetParameter(11);
+        CVariableEntry* ve12 = GetContext()->GetParameter(12);
+        Dispatch(ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9),
+                 ConvertVariableForDispatch<T10>(ve10),
+                 ConvertVariableForDispatch<T11>(ve11),
+                 ConvertVariableForDispatch<T12>(ve12));
+    }
+
+    // -- dispatch method
+    void Dispatch(T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11, T12 p12) {
+        funcptr(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        CFunctionEntry* fe = new CFunctionEntry(script_context, 0, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+        GetContext()->AddParameter("_p10", Hash("_p10"), GetRegisteredType(GetTypeID<T10>()), 1, GetTypeID<T10>());
+        GetContext()->AddParameter("_p11", Hash("_p11"), GetRegisteredType(GetTypeID<T11>()), 1, GetTypeID<T11>());
+        GetContext()->AddParameter("_p12", Hash("_p12"), GetRegisteredType(GetTypeID<T12>()), 1, GetTypeID<T12>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* globalfunctable = script_context->FindNamespace(0)->GetFuncTable();
+        globalfunctable->AddItem(*fe, hash);
+    }
+
+private:
+    funcsignature funcptr;
+};
+
+template<typename C, typename R, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11, typename T12>
+class CRegMethodP12 : public CRegFunctionBase {
+public:
+
+    typedef R (*methodsignature)(C* c, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11, T12 p12);
+
+    // -- CRegisterMethodP12
+    CRegMethodP12(const char* _funcname, methodsignature _funcptr) :
+                  CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegMethodP12() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void* objaddr) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        CVariableEntry* ve10 = GetContext()->GetParameter(10);
+        CVariableEntry* ve11 = GetContext()->GetParameter(11);
+        CVariableEntry* ve12 = GetContext()->GetParameter(12);
+        Dispatch(objaddr,
+                 ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9),
+                 ConvertVariableForDispatch<T10>(ve10),
+                 ConvertVariableForDispatch<T11>(ve11),
+                 ConvertVariableForDispatch<T12>(ve12));
+    }
+
+    // -- dispatch method
+    R Dispatch(void* objaddr, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11, T12 p12) {
+        C* objptr = (C*)objaddr;
+        R r = funcptr(objptr, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12);
+        assert(GetContext()->GetParameter(0));
+        CVariableEntry* returnval = GetContext()->GetParameter(0);
+        returnval->SetValueAddr(NULL, convert_to_void_ptr<R>::Convert(r));
+        return (r);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), GetRegisteredType(GetTypeID<R>()), 1, GetTypeID<R>());
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+        GetContext()->AddParameter("_p10", Hash("_p10"), GetRegisteredType(GetTypeID<T10>()), 1, GetTypeID<T10>());
+        GetContext()->AddParameter("_p11", Hash("_p11"), GetRegisteredType(GetTypeID<T11>()), 1, GetTypeID<T11>());
+        GetContext()->AddParameter("_p12", Hash("_p12"), GetRegisteredType(GetTypeID<T12>()), 1, GetTypeID<T12>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
+        methodtable->AddItem(*fe, hash);
+    }
+
+private:
+    methodsignature funcptr;
+};
+
+template<typename C, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11, typename T12>
+class CRegMethodP12<C, void, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> : public CRegFunctionBase {
+public:
+
+    typedef void (*methodsignature)(C* c, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11, T12 p12);
+
+    // -- CRegisterMethodP12
+    CRegMethodP12(const char* _funcname, methodsignature _funcptr) :
+                  CRegFunctionBase(_funcname) {
+        funcptr = _funcptr;
+    }
+
+    // -- destructor
+    virtual ~CRegMethodP12() {
+    }
+
+    // -- virtual DispatchFunction wrapper
+    virtual void DispatchFunction(void* objaddr) {
+        CVariableEntry* ve1 = GetContext()->GetParameter(1);
+        CVariableEntry* ve2 = GetContext()->GetParameter(2);
+        CVariableEntry* ve3 = GetContext()->GetParameter(3);
+        CVariableEntry* ve4 = GetContext()->GetParameter(4);
+        CVariableEntry* ve5 = GetContext()->GetParameter(5);
+        CVariableEntry* ve6 = GetContext()->GetParameter(6);
+        CVariableEntry* ve7 = GetContext()->GetParameter(7);
+        CVariableEntry* ve8 = GetContext()->GetParameter(8);
+        CVariableEntry* ve9 = GetContext()->GetParameter(9);
+        CVariableEntry* ve10 = GetContext()->GetParameter(10);
+        CVariableEntry* ve11 = GetContext()->GetParameter(11);
+        CVariableEntry* ve12 = GetContext()->GetParameter(12);
+        Dispatch(objaddr,
+                 ConvertVariableForDispatch<T1>(ve1),
+                 ConvertVariableForDispatch<T2>(ve2),
+                 ConvertVariableForDispatch<T3>(ve3),
+                 ConvertVariableForDispatch<T4>(ve4),
+                 ConvertVariableForDispatch<T5>(ve5),
+                 ConvertVariableForDispatch<T6>(ve6),
+                 ConvertVariableForDispatch<T7>(ve7),
+                 ConvertVariableForDispatch<T8>(ve8),
+                 ConvertVariableForDispatch<T9>(ve9),
+                 ConvertVariableForDispatch<T10>(ve10),
+                 ConvertVariableForDispatch<T11>(ve11),
+                 ConvertVariableForDispatch<T12>(ve12));
+    }
+
+    // -- dispatch method
+    void Dispatch(void* objaddr, T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8, T9 p9, T10 p10, T11 p11, T12 p12) {
+        C* objptr = (C*)objaddr;
+        funcptr(objptr, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12);
+    }
+
+    // -- registration method
+    virtual void Register(CScriptContext* script_context) {
+        uint32 classname_hash = Hash(C::GetClassName());
+        CFunctionEntry* fe = new CFunctionEntry(script_context, classname_hash, GetName(), Hash(GetName()), eFuncTypeGlobal, this);
+        SetScriptContext(script_context);
+        SetContext(fe->GetContext());
+        GetContext()->AddParameter("__return", Hash("__return"), TYPE_void, 1, 0);
+        GetContext()->AddParameter("_p1", Hash("_p1"), GetRegisteredType(GetTypeID<T1>()), 1, GetTypeID<T1>());
+        GetContext()->AddParameter("_p2", Hash("_p2"), GetRegisteredType(GetTypeID<T2>()), 1, GetTypeID<T2>());
+        GetContext()->AddParameter("_p3", Hash("_p3"), GetRegisteredType(GetTypeID<T3>()), 1, GetTypeID<T3>());
+        GetContext()->AddParameter("_p4", Hash("_p4"), GetRegisteredType(GetTypeID<T4>()), 1, GetTypeID<T4>());
+        GetContext()->AddParameter("_p5", Hash("_p5"), GetRegisteredType(GetTypeID<T5>()), 1, GetTypeID<T5>());
+        GetContext()->AddParameter("_p6", Hash("_p6"), GetRegisteredType(GetTypeID<T6>()), 1, GetTypeID<T6>());
+        GetContext()->AddParameter("_p7", Hash("_p7"), GetRegisteredType(GetTypeID<T7>()), 1, GetTypeID<T7>());
+        GetContext()->AddParameter("_p8", Hash("_p8"), GetRegisteredType(GetTypeID<T8>()), 1, GetTypeID<T8>());
+        GetContext()->AddParameter("_p9", Hash("_p9"), GetRegisteredType(GetTypeID<T9>()), 1, GetTypeID<T9>());
+        GetContext()->AddParameter("_p10", Hash("_p10"), GetRegisteredType(GetTypeID<T10>()), 1, GetTypeID<T10>());
+        GetContext()->AddParameter("_p11", Hash("_p11"), GetRegisteredType(GetTypeID<T11>()), 1, GetTypeID<T11>());
+        GetContext()->AddParameter("_p12", Hash("_p12"), GetRegisteredType(GetTypeID<T12>()), 1, GetTypeID<T12>());
+
+        uint32 hash = fe->GetHash();
+        tFuncTable* methodtable = script_context->FindNamespace(classname_hash)->GetFuncTable();
+        methodtable->AddItem(*fe, hash);
+    }
+
+private:
+    methodsignature funcptr;
+};
+

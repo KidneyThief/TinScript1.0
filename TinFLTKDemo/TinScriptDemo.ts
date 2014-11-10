@@ -12,8 +12,7 @@ void ThreadTestCount(int num) {
 // ====================================================================================================================
 // DefaultGame implementation
 // ====================================================================================================================
-LinkNamespaces("DefaultGame", "CScriptObject");
-void DefaultGame::OnCreate()
+void DefaultGame::OnCreate() : CScriptObject
 {
     // -- this schedule is repeated, so which will reschedule itself automatically
     int self.sched_update = repeat(self, 1, hash("OnUpdate"));
@@ -99,8 +98,7 @@ void NotifyEvent(int keypress)
 // ====================================================================================================================
 // SceneObject implementation
 // ====================================================================================================================
-LinkNamespaces("SceneObject", "CScriptObject");
-void SceneObject::OnCreate()
+void SceneObject::OnCreate() : CScriptObject
 {
     vector3f self.position;
     float self.radius;

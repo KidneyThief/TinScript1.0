@@ -27,11 +27,8 @@ int gFLTK_BROWN = 9;
 // ====================================================================================================================
 // Asteroid : SceneObject implementation
 // ====================================================================================================================
-LinkNamespaces("Asteroid", "SceneObject");
-void Asteroid::OnCreate()
+void Asteroid::OnCreate() : SceneObject
 {
-    SceneObject::OnCreate();
-    
     // -- asteroids have movement
     vector3f self.velocity = '0 0 0';
     
@@ -160,11 +157,8 @@ void UpdateScreenPosition(object obj, float deltaTime)
 // ====================================================================================================================
 // Ship implementation
 // ====================================================================================================================
-LinkNamespaces("Ship", "SceneObject");
-void Ship::OnCreate()
+void Ship::OnCreate() : SceneObject
 {
-    SceneObject::OnCreate();
-    
     // -- ships have velocity and rotation
     vector3f self.velocity = '0 0 0';
     float self.rotation = 270.0f;
@@ -320,11 +314,8 @@ object SpawnShip()
 // ====================================================================================================================
 // Bullet implementation
 // ====================================================================================================================
-LinkNamespaces("Bullet", "SceneObject");
-void Bullet::OnCreate()
+void Bullet::OnCreate() : SceneObject
 {
-    SceneObject::OnCreate();
-    
     // -- Bullets have velocity
     vector3f self.velocity = '0 0 0';
     
@@ -363,11 +354,8 @@ object SpawnBullet(vector3f position, vector3f direction)
 // ====================================================================================================================
 // Asteroids Game implementation
 // ====================================================================================================================
-LinkNamespaces("AsteroidsGame", "DefaultGame");
-void AsteroidsGame::OnCreate()
+void AsteroidsGame::OnCreate() : DefaultGame
 {
-    DefaultGame::OnCreate();
-    
     // -- create a set for the bullets (set == non-ownership)
     object self.asteroid_set = create CObjectSet("AsteroidSet");
     
@@ -476,9 +464,6 @@ void AsteroidsGame::OnUpdate()
 
 void AsteroidsGame::OnDestroy()
 {
-    // -- call the default
-    DefaultGame::OnDestroy();
-    
     // -- clean up the extra sets
     destroy self.asteroid_set;
     destroy self.bullet_set;

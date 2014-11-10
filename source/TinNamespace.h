@@ -131,6 +131,7 @@ class CObjectEntry
 
         CVariableEntry* GetVariableEntry(uint32 varhash);
         CFunctionEntry* GetFunctionEntry(uint32 nshash, uint32 funchash);
+        void CallFunctionHierarchy(uint32 function_hash, bool8 ascending);
         CNamespace* HasNamespace(uint32 nshash);
 
         bool8 AddDynamicVariable(uint32 varhash, eVarType vartype, int32 array_size = 1);

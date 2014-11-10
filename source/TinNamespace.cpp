@@ -35,6 +35,8 @@
 #include "TinStringTable.h"
 #include "TinRegistration.h"
 
+#include "registrationexecs.h"
+
 // == namespace TinScript =============================================================================================
 
 namespace TinScript
@@ -102,13 +104,74 @@ CFunctionEntry* CObjectEntry::GetFunctionEntry(uint32 nshash, uint32 funchash)
 {
     CFunctionEntry* fe = NULL;
     CNamespace* objns = GetNamespace();
-    while (!fe && objns) {
+    while (!fe && objns)
+    {
         if (nshash == 0 || objns->GetHash() == nshash)
             fe = objns->GetFuncTable()->FindItem(funchash);
         objns = objns->GetNext();
     }
 
     return fe;
+}
+
+// ====================================================================================================================
+// CallHierarchicalFunction():  Execute the given method for the entire derived hierarchy of the given object.
+// ====================================================================================================================
+void CObjectEntry::CallFunctionHierarchy(uint32 function_hash, bool8 ascending)
+{
+    // -- if the call is ascending, we have to create the namespace stack, so we can drill down
+    // -- and call from parent to child
+    if (ascending)
+    {
+        int32 depth = 0;
+        CNamespace* namespace_stack[256];
+        CNamespace *obj_ns = GetNamespace();
+        while (obj_ns)
+        {
+            namespace_stack[depth++] = obj_ns;
+            obj_ns = obj_ns->GetNext();
+        }
+
+        // -- now that we have the stack, work backwards and execute the function (if it exists) at each level
+        while (depth > 0)
+        {
+            CNamespace *obj_ns = namespace_stack[--depth];
+            CFunctionEntry* fe = obj_ns->GetFuncTable()->FindItem(function_hash);
+            if (fe)
+            {
+                int32 dummy = 0;
+                if (!ObjExecNSMethod(GetID(), dummy, obj_ns->GetHash(), function_hash))
+                {
+                    ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
+                                  "Error - [%d] Object method %s::%s() failed: %s, type: %s\n",
+                                  GetID(), UnHash(obj_ns->GetHash()), UnHash(function_hash));
+                }
+            }
+        }
+    }
+
+    // -- not asending - simply call through the hierarchy directly
+    else
+    {
+        CNamespace *obj_ns = GetNamespace();
+        while (obj_ns)
+        {
+            CFunctionEntry* fe = obj_ns->GetFuncTable()->FindItem(function_hash);
+            if (fe)
+            {
+                int32 dummy = 0;
+                if (!ObjExecNSMethod(GetID(), dummy, obj_ns->GetHash(), function_hash))
+                {
+                    ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
+                                    "Error - [%d] Object method %s::%s() failed: %s, type: %s\n",
+                                    GetID(), UnHash(obj_ns->GetHash()), UnHash(function_hash));
+                }
+            }
+
+            // -- next namespace
+            obj_ns = obj_ns->GetNext();
+        }
+    }
 }
 
 // ====================================================================================================================
@@ -220,26 +283,26 @@ CNamespace* CScriptContext::FindNamespace(uint32 nshash)
 // ====================================================================================================================
 // LinkNamespaces():  Link a child namespace to a parent, creating a hierarchy.
 // ====================================================================================================================
-void CScriptContext::LinkNamespaces(const char* childnsname, const char* parentnsname)
+bool8 CScriptContext::LinkNamespaces(const char* childnsname, const char* parentnsname)
 {
     // sanity check
     if (!childnsname || !childnsname[0] || !parentnsname || !parentnsname[0])
-        return;
+        return (false);
 
     // -- ensure the child exists and the parent exists
     TinScript::CNamespace* childns = FindOrCreateNamespace(childnsname, true);
     TinScript::CNamespace* parentns = FindOrCreateNamespace(parentnsname, true);
-    LinkNamespaces(childns, parentns);
+    return (LinkNamespaces(childns, parentns));
 }
 
 // ====================================================================================================================
 // LinkNamespaces():  Link a child namespace to a parent, creating a hierarchy.
 // ====================================================================================================================
-void CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns)
+bool8 CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns)
 {
     // -- sanity check
     if (!childns || !parentns || parentns == childns)
-        return;
+        return (false);
 
     if (childns->GetNext() == NULL)
     {
@@ -252,14 +315,14 @@ void CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns)
                 ScriptAssert_(this, 0, "<internal>", -1,
                              "Error - attempting to link namespace %s to %s, which is already its child\n",
                              UnHash(childns->GetHash()), UnHash(parentns->GetHash()));
-                return;
+                return (false);
             }
             tempns = tempns->GetNext();
         }
 
         // -- nothing found in the hierarchy - go ahead and link
         childns->SetNext(parentns);
-        return;
+        return (true);
     }
 
     // -- child is already linked - see if the new parent is already in the hierarchy
@@ -269,7 +332,7 @@ void CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns)
         while (tempns)
         {
             if (tempns == parentns)
-                return;
+                return (true);
             else
                 tempns = tempns->GetNext();
         }
@@ -293,7 +356,7 @@ void CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns)
         if (found)
         {
             childns->SetNext(parentns);
-            return;
+            return (true);
         }
 
         // -- not found in the hierarchy - we can insert the new parent into the hierarchy
@@ -323,7 +386,7 @@ void CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns)
                 if (!found_registered_class)
                 {
                     tempns->SetNext(parentns);
-                    return;
+                    return (true);
                 }
             }
 
@@ -334,7 +397,7 @@ void CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns)
                 parentns->SetNext(childns->GetNext());
                 childns->SetNext(parentns);
             }
-            return;
+            return (true);
         }
     }
 
@@ -343,6 +406,9 @@ void CScriptContext::LinkNamespaces(CNamespace* childns, CNamespace* parentns)
                   "Error - attempting to link namespace %s to %s, already linked to %s\n",
                   UnHash(childns->GetHash()), UnHash(parentns->GetHash()),
                   UnHash(childns->GetNext()->GetHash()));
+
+    // -- failed
+    return (false);
 }
 
 // ====================================================================================================================
@@ -455,14 +521,10 @@ uint32 CScriptContext::CreateObject(uint32 classhash, uint32 objnamehash)
         // -- notify the debugger of the new object (before we call OnCreate(), as that may add the object to a set)
         DebuggerNotifyCreateObject(newobjectentry);
 
-        // -- see if the "OnCreate" has been defined - it's not required to
-        CFunctionEntry* createfunc = newobjectentry->GetFunctionEntry(0, Hash("OnCreate"));
-        if (createfunc)
-        {
-            // -- call the script "OnCreate" for the object
-            int32 dummy = 0;
-            ObjExecF(objectid, dummy, "OnCreate();");
-        }
+        // -- "OnCreate" is the equivalent of a constructor - we want to call every OnCreate
+        // -- from the bottom of the hierarchy to the highest derivation for which it is defined
+        // -- NOTE:  it is not required to be defined for any level
+        newobjectentry->CallFunctionHierarchy(Hash("OnCreate"), true);
 
         return (objectid);
     }
@@ -523,15 +585,10 @@ uint32 CScriptContext::RegisterObject(void* objaddr, const char* classname, cons
     // -- notify the debugger of the new object (before we call OnCreate(), as that may add the object to a set)
     DebuggerNotifyCreateObject(newobjectentry);
 
-    // -- see if the "OnCreate" has been defined - it's not required to
-    CFunctionEntry* createfunc = newobjectentry->GetFunctionEntry(0, Hash("OnCreate"));
-    if (createfunc) {
-        // -- call the script "OnCreate" for the object
-        if (HasMethod(objectid, "OnCreate")) {
-            int32 dummy = 0;
-            ObjExecF(objectid, dummy, "OnCreate();");
-        }
-    }
+    // -- "OnCreate" is the equivalent of a constructor - we want to call every OnCreate
+    // -- from the bottom of the hierarchy to the highest derivation for which it is defined
+    // -- NOTE:  it is not required to be defined for any level
+    newobjectentry->CallFunctionHierarchy(Hash("OnCreate"), true);
 
     return objectid;
 }
@@ -597,13 +654,10 @@ void CScriptContext::DestroyObject(uint32 objectid)
         return;
     }
 
-    // -- see if the "OnDestroy" has been defined - it's not required to
-    CFunctionEntry* destroyfunc = oe->GetFunctionEntry(0, Hash("OnDestroy"));
-    if (destroyfunc)
-    {
-        int32 dummy = 0;
-        ObjExecF(objectid, dummy, "OnDestroy();");
-    }
+    // -- "OnDestroy" is the equivalent of a destructor - we want to call every OnDestroy
+    // -- from the top of the hierarchy through to the root base implementation
+    // -- NOTE:  it is not required to be defined for any level
+    oe->CallFunctionHierarchy(Hash("OnDestroy"), false);
 
     // -- get the address of the object
     void* objaddr = oe->GetAddr();

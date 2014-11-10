@@ -552,7 +552,7 @@ bool8 ExecuteCodeBlock(CCodeBlock& codeblock)
 // ====================================================================================================================
 // ExecuteScheduledFunction():  Execute a scheduled function.
 // ====================================================================================================================
-bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, uint32 funchash,
+bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, uint32 ns_hash, uint32 funchash,
                                CFunctionContext* parameters)
 {
     // -- sanity check
@@ -578,7 +578,7 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
         }
 
         // -- get the namespace, then the function
-        fe = oe->GetFunctionEntry(0, funchash);
+        fe = oe->GetFunctionEntry(ns_hash, funchash);
     }
     else
     {

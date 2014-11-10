@@ -1221,7 +1221,7 @@ int32 CParenOpenNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 counton
 // ====================================================================================================================
 CFuncDeclNode::CFuncDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int32 _linenumber,
                              const char* _funcname, int32 _length, const char* _funcns,
-                             int32 _funcnslength)
+                             int32 _funcnslength, uint32 derived_ns)
     : CCompileTreeNode(_codeblock, _link, eFuncDecl, _linenumber)
 {
     SafeStrcpy(funcname, _funcname, _length + 1);
@@ -1230,6 +1230,7 @@ CFuncDeclNode::CFuncDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, i
     int32 stacktopdummy = 0;
     CObjectEntry* dummy = NULL;
     functionentry = codeblock->smFuncDefinitionStack->GetTop(dummy, stacktopdummy);
+    mDerivedNamespace = derived_ns;
 }
 
 // ====================================================================================================================
@@ -1282,6 +1283,9 @@ int32 CFuncDeclNode::Eval(uint32*& instrptr, eVarType pushresult, bool8 countonl
 
     // -- push the function namespace hash
     size += PushInstruction(countonly, instrptr, funcnshash, DBG_hash);
+
+    // -- after we declare the function namespace, specify the derived namespace (only ever valid for OnCreate())
+    size += PushInstruction(countonly, instrptr, mDerivedNamespace, DBG_hash); 
 
     // -- push the function offset placeholder
 	uint32* funcoffset = instrptr;

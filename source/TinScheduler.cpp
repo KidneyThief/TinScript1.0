@@ -91,7 +91,7 @@ void CScheduler::Update(uint32 curtime)
         // -- dispatch the command - see if it's a direct function call, or a command buf
         if (curcommand->mFuncHash != 0)
         {
-            ExecuteScheduledFunction(GetScriptContext(), curcommand->mObjectID, curcommand->mFuncHash,
+            ExecuteScheduledFunction(GetScriptContext(), curcommand->mObjectID, 0, curcommand->mFuncHash,
                                      curcommand->mFuncContext);
         }
         else

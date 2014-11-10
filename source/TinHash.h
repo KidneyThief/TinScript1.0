@@ -204,7 +204,7 @@ class CHashTable
             if (prev_hte)
                 prev_hte->index_next = bump_hte->index_next;
             else
-                index_table[bump_index] = bump_hte->index_next;
+                index_table[bump_index % size] = bump_hte->index_next;
 
             // -- increment the index and add it to the previous index bucket
             ++bump_hte->index;
@@ -214,8 +214,8 @@ class CHashTable
 
         // -- now add ourself into the index table
         hte->index = _index;
-        hte->index_next = index_table[_index];
-        index_table[_index] = hte;
+        hte->index_next = index_table[_index % size];
+        index_table[_index % size] = hte;
 
         // -- finally, increment the used count
         ++used;
@@ -284,7 +284,7 @@ class CHashTable
         if (prev_hte)
             prev_hte->index_next = hte->index_next;
         else
-            index_table[cur_entry->index] = hte->index_next;
+            index_table[cur_entry->index % size] = hte->index_next;
 
         // -- update all entries after cur_entry, by decrimenting and updating the index table
         for (int _index = cur_entry->index + 1; _index < used; ++_index)
@@ -297,7 +297,7 @@ class CHashTable
             if (prev_hte)
                 prev_hte->index_next = hte->index_next;
             else
-                index_table[_index] = hte->index_next;
+                index_table[_index % size] = hte->index_next;
 
             // -- decriment the index add it to the previous index bucket
             --hte->index;

@@ -37,12 +37,15 @@
 // --------------------------------------------------------------------------------------------------------------------
 // -- compile flags
 // -- note:  if you change these (like, modifying compile symbols), you may want to bump the kCompilerVersion
+// -- If any operation changes it's instruction format, bump the compiler version
 #define DEBUG_CODEBLOCK 1
 #define FORCE_COMPILE 0
 #define CASE_SENSITIVE 1
 #define DEBUG_TRACE 1
 #define DEBUG_COMPILE_SYMBOLS 1
 #define TIN_DEBUGGER 1
+
+const int32 kCompilerVersion = 3;
 
 // --------------------------------------------------------------------------------------------------------------------
 // -- only case_sensitive has been extensively tested, however theoretically TinScript should function as a
@@ -111,9 +114,6 @@
 
 // ====================================================================================================================
 // -- constants
-
-const int32 kCompilerVersion = 2;
-
 const int32 kMaxArgs = 256;
 const int32 kMaxArgLength = 256;
 
@@ -360,8 +360,8 @@ class CScriptContext
 
         CNamespace* FindOrCreateNamespace(const char* _nsname, bool create);
         CNamespace* FindNamespace(uint32 nshash);
-        void LinkNamespaces(const char* parentnsname, const char* childnsname);
-        void LinkNamespaces(CNamespace* parentns, CNamespace* childns);
+        bool8 LinkNamespaces(const char* parentnsname, const char* childnsname);
+        bool8 LinkNamespaces(CNamespace* parentns, CNamespace* childns);
 
         uint32 GetNextObjectID();
         uint32 CreateObject(uint32 classhash, uint32 objnamehash);

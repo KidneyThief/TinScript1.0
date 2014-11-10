@@ -643,7 +643,7 @@ def GenerateExecs(maxparamcount, outputfilename):
         outputfile.write("    if (!script_context->GetGlobalNamespace() || !func_name || !func_name[0])\n");
         outputfile.write("        return false;\n\n");
 
-        call_string = "    return (ExecFunctionImpl<R>(return_value, 0, Hash(func_name)"
+        call_string = "    return (ExecFunctionImpl<R>(return_value, 0, 0, Hash(func_name)"
         i = 1;
         while (i <= paramcount):
             call_string = call_string + ", p%d" % i;
@@ -672,7 +672,7 @@ def GenerateExecs(maxparamcount, outputfilename):
         outputfile.write("    CScriptContext* script_context = GetContext();\n");
         outputfile.write("    if (!script_context->GetGlobalNamespace())\n");
         outputfile.write("        return false;\n\n");
-        call_string = "    return (ExecFunctionImpl<R>(return_value, 0, func_hash"
+        call_string = "    return (ExecFunctionImpl<R>(return_value, 0, 0, func_hash"
         i = 1;
         while (i <= paramcount):
             call_string = call_string + ", p%d" % i;
@@ -707,7 +707,7 @@ def GenerateExecs(maxparamcount, outputfilename):
         outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\\n", kPointerToUInt32(obj_addr));\n');
         outputfile.write("        return false;\n");
         outputfile.write("    }\n\n");
-        call_string = "    return (ExecFunctionImpl<R>(return_value, object_id, Hash(method_name)"
+        call_string = "    return (ExecFunctionImpl<R>(return_value, object_id, 0, Hash(method_name)"
         i = 1;
         while (i <= paramcount):
             call_string = call_string + ", p%d" % i;
@@ -742,7 +742,33 @@ def GenerateExecs(maxparamcount, outputfilename):
         outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object not registered: 0x%x\\n", kPointerToUInt32(obj_addr));\n');
         outputfile.write("        return false;\n");
         outputfile.write("    }\n\n");
-        call_string = "    return (ExecFunctionImpl<R>(return_value, object_id, method_hash"
+        call_string = "    return (ExecFunctionImpl<R>(return_value, object_id, 0, method_hash"
+        i = 1;
+        while (i <= paramcount):
+            call_string = call_string + ", p%d" % i;
+            i = i + 1;
+        call_string = call_string + "));\n";
+        outputfile.write(call_string);
+        outputfile.write("}\n\n");
+
+        # -- object method wrapper, given the object address, the specific namespace hash, and the method hash
+        template_string = "template<typename R";
+        i = 1;
+        while (i <= paramcount):
+            template_string = template_string + ", typename T%d" % i;
+            i = i + 1;
+        template_string = template_string + ">\n";
+        outputfile.write(template_string);
+
+        function_string = "inline bool8 ObjExecNSMethod(uint32 object_id, R& return_value, uint32 ns_hash, uint32 method_hash"
+        i = 1;
+        while (i <= paramcount):
+            function_string = function_string + ", T%d p%d" % (i, i);
+            i = i + 1;
+        function_string = function_string + ")\n";
+        outputfile.write(function_string);
+        outputfile.write("{\n");
+        call_string = "    return (ExecFunctionImpl<R>(return_value, object_id, ns_hash, method_hash"
         i = 1;
         while (i <= paramcount):
             call_string = call_string + ", p%d" % i;
@@ -771,7 +797,7 @@ def GenerateExecs(maxparamcount, outputfilename):
         outputfile.write("    CScriptContext* script_context = GetContext();\n");
         outputfile.write("    if (!script_context->GetGlobalNamespace() || !method_name || !method_name[0])\n");
         outputfile.write("        return false;\n\n");
-        call_string = "    return (ExecFunctionImpl<R>(return_value, object_id, Hash(method_name)"
+        call_string = "    return (ExecFunctionImpl<R>(return_value, object_id, 0, Hash(method_name)"
         i = 1;
         while (i <= paramcount):
             call_string = call_string + ", p%d" % i;
@@ -789,7 +815,7 @@ def GenerateExecs(maxparamcount, outputfilename):
         template_string = template_string + ">\n";
         outputfile.write(template_string);
 
-        function_string = "inline bool8 ExecFunctionImpl(R& return_value, uint32 object_id, uint32 func_hash"
+        function_string = "inline bool8 ExecFunctionImpl(R& return_value, uint32 object_id, uint32 ns_hash, uint32 func_hash"
         i = 1;
         while (i <= paramcount):
             function_string = function_string + ", T%d p%d" % (i, i);
@@ -802,19 +828,20 @@ def GenerateExecs(maxparamcount, outputfilename):
         outputfile.write("    if (!script_context->GetGlobalNamespace())\n");
         outputfile.write("        return false;\n\n");
 
-        outputfile.write("    CFunctionEntry* fe = script_context->GetGlobalNamespace()->GetFuncTable()->FindItem(func_hash);\n");
-        outputfile.write("    CVariableEntry* return_ve = fe ? fe->GetContext()->GetParameter(0) : NULL;\n");
-        outputfile.write("    if (!fe || !return_ve)\n");
-        outputfile.write("    {\n");
-        outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - function %s() not found\\n", UnHash(func_hash));\n');
-        outputfile.write("        return false;\n");
-        outputfile.write("    }\n\n");
-
         outputfile.write("    // -- get the object, if one was required\n");
         outputfile.write("    CObjectEntry* oe = object_id > 0 ? script_context->FindObjectEntry(object_id) : NULL;\n");
         outputfile.write("    if (!oe && object_id > 0)\n");
         outputfile.write("    {\n");
         outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - object %d not found\\n", object_id);\n');
+        outputfile.write("        return false;\n");
+        outputfile.write("    }\n\n");
+
+        outputfile.write("    CFunctionEntry* fe = oe ? oe->GetFunctionEntry(ns_hash, func_hash)\n");
+        outputfile.write("                            : script_context->GetGlobalNamespace()->GetFuncTable()->FindItem(func_hash);\n");
+        outputfile.write("    CVariableEntry* return_ve = fe ? fe->GetContext()->GetParameter(0) : NULL;\n");
+        outputfile.write("    if (!fe || !return_ve)\n");
+        outputfile.write("    {\n");
+        outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - function %s() not found\\n", UnHash(func_hash));\n');
         outputfile.write("        return false;\n");
         outputfile.write("    }\n\n");
 
@@ -851,7 +878,7 @@ def GenerateExecs(maxparamcount, outputfilename):
             i = i + 1;
 
         outputfile.write("    // -- execute the function\n");
-        outputfile.write("    if (!ExecuteScheduledFunction(GetContext(), object_id, func_hash, fe->GetContext()))\n");
+        outputfile.write("    if (!ExecuteScheduledFunction(GetContext(), object_id, ns_hash, func_hash, fe->GetContext()))\n");
         outputfile.write("    {\n");
         outputfile.write('        ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to exec function %s()\\n", UnHash(func_hash));\n');
         outputfile.write("        return false;\n");

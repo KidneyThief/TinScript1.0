@@ -397,7 +397,7 @@ class CFunctionCallStack
 };
 
 bool8 ExecuteCodeBlock(CCodeBlock& codeblock);
-bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, uint32 funchash,
+bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, uint32 ns_hash, uint32 funchash,
                                CFunctionContext* parameters);
 bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& execstack,
                             CFunctionCallStack& funccallstack, bool copy_stack_parameters);

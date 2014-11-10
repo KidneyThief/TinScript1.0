@@ -1228,7 +1228,8 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 		    filebuf = finaltoken;
 	    }
 
-	    // -- else if the next token is an operator, we're going to
+	    // -- else if the next token is an operator, we're going to parse starting
+        // -- back at the "next token", so after the var declaration, we'll find an assignment statement
 	    else if (finaltoken.type == TOKEN_ASSOP)
         {
             // -- no support for auto-initializing arrays
@@ -1243,6 +1244,13 @@ bool8 TryParseVarDeclaration(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
 		    // -- and allow the assignment to be ready as an assignment
 		    filebuf = nexttoken;
 	    }
+
+        // -- a variable declaration can only end in one of two ways - a semi colon, completing the statement
+        // -- or an assignment, to initialize the var decl
+        else
+        {
+            return (false);
+        }
 
         // -- we're done
         return (true);
@@ -2675,6 +2683,46 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
         return (false);
     }
 
+    // -- see if this is an OnCreate() function, and if we're "deriving" the namespace
+    // -- syntax is:  void ChildNamespace::OnCreate() : Parentnamespace { ... }
+    uint32 derived_hash = 0;
+    static uint32 oncreate_hash = Hash("OnCreate");
+    if (funchash == oncreate_hash)
+    {
+        // -- as a "constructor", we want to enforce no parameters, and potentially specifying a derivation
+        if (paramcount != 1)
+        {
+            ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                          filebuf.linenumber, "Error - OnCreate() methods are constructors\nNot eligible for parameters.\n");
+            return (false);
+        }
+
+        // -- see if we're specifying a derivation
+        if (peektoken.type == TOKEN_COLON)
+        {
+            // -- we need a derivation identifier
+            tReadToken parenttoken(peektoken);
+            if (!GetToken(parenttoken) || parenttoken.type != TOKEN_IDENTIFIER)
+            {
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber, "Error - OnCreate():  expecting derived namespace identifier.\n");
+                return (false);
+            }
+
+            // -- set the derived namespace, which will become part of the function declaration node
+            derived_hash = Hash(parenttoken.tokenptr, parenttoken.length);
+
+            // -- committed
+            peektoken = parenttoken;
+            if (!GetToken(peektoken))
+            {
+                ScriptAssert_(codeblock->GetScriptContext(), 0, codeblock->GetFileName(),
+                              filebuf.linenumber, "Error - OnCreate() declaration:  expecting '{' or ';'.\n");
+                return (false);
+            }
+        }
+    }
+
     if (peektoken.type == TOKEN_SEMICOLON)
     {
         // -- just a declaration
@@ -2704,7 +2752,7 @@ bool8 TryParseFuncDefinition(CCodeBlock* codeblock, tReadToken& filebuf, CCompil
     CFuncDeclNode* funcdeclnode = TinAlloc(ALLOC_TreeNode, CFuncDeclNode, codeblock, link,
                                            filebuf.linenumber, idtoken.tokenptr, idtoken.length,
                                            usenamespace ? nsnametoken.tokenptr : "",
-                                           usenamespace ? nsnametoken.length : 0);
+                                           usenamespace ? nsnametoken.length : 0, derived_hash);
 
     // -- read the function body
     int32 result = ParseStatementBlock(codeblock, funcdeclnode->leftchild, filebuf, true);

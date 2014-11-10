@@ -1675,7 +1675,7 @@ bool8 CScriptContext::InitWatchExpression(CDebuggerWatchExpression& debugger_wat
     // -- add a funcdecl node, and set its left child to be the statement block
     // -- for fun, use the watch_id as the line number - to find it while debugging
     CFuncDeclNode* funcdeclnode = TinAlloc(ALLOC_TreeNode, CFuncDeclNode, codeblock, root->next,
-                                           watch_id, watch_name, strlen(watch_name), "", 0);
+                                           watch_id, watch_name, strlen(watch_name), "", 0, 0);
 
     // -- the body of our watch function, is to simply return the given expression
     // -- parsing and returning the expression will also identify the type for us
@@ -1879,7 +1879,7 @@ bool8 CScriptContext::EvaluateWatchExpression(const char* expression, bool8 cond
 
         // -- add a funcdecl node, and set its left child to be the statement block
     CFuncDeclNode* funcdeclnode = TinAlloc(ALLOC_TreeNode, CFuncDeclNode, codeblock, root->next,
-                                           -1, temp_func_name, strlen(temp_func_name), "", 0);
+                                           -1, temp_func_name, strlen(temp_func_name), "", 0 , 0);
 
     // -- if this is a conditional, then we want to see if the value of it is true/false
     char expr_result[kMaxTokenLength];

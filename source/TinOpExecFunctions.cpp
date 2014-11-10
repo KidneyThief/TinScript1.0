@@ -1812,6 +1812,7 @@ bool8 OpExecFuncDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
 {
     uint32 funchash = *instrptr++;
     uint32 namespacehash = *instrptr++;
+    uint32 parent_ns_hash = *instrptr++;
     uint32 funcoffset = *instrptr++;
     CFunctionEntry* fe = FuncDeclaration(cb->GetScriptContext(), namespacehash, UnHash(funchash),
                                          funchash, eFuncTypeScript);
@@ -1820,6 +1821,20 @@ bool8 OpExecFuncDecl(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
         ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
                       "Error - failed to declare function - hash: 0x%08x\n", funchash);
         return false;
+    }
+
+    // -- if we have a parent namespace, now is the time to link namespaces
+    if (parent_ns_hash != 0)
+    {
+        // -- see if we can link the namespaces
+        CNamespace* function_ns = cb->GetScriptContext()->FindNamespace(namespacehash);
+        CNamespace* parent_ns = cb->GetScriptContext()->FindNamespace(parent_ns_hash);
+        if (!cb->GetScriptContext()->LinkNamespaces(function_ns, parent_ns))
+        {
+            ScriptAssert_(cb->GetScriptContext(), 0, cb->GetFileName(), cb->CalcLineNumber(instrptr),
+                          "Error - Derivation %s : %s failed.\n", UnHash(namespacehash), UnHash(parent_ns_hash));
+            return (false);
+        }
     }
 
     // -- this being a script function, set the offset, and add this function
@@ -2556,7 +2571,7 @@ bool8 OpExecScheduleEnd(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CEx
     CScheduler::CCommand* curcommand = cb->GetScriptContext()->GetScheduler()->mCurrentSchedule;
     if (curcommand->mImmediateExec)
     {
-        ExecuteScheduledFunction(cb->GetScriptContext(), curcommand->mObjectID, curcommand->mFuncHash,
+        ExecuteScheduledFunction(cb->GetScriptContext(), curcommand->mObjectID, 0, curcommand->mFuncHash,
                                  curcommand->mFuncContext);
 
         // -- see if we have a return result

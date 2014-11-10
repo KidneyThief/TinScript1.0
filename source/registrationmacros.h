@@ -113,3 +113,43 @@
         return obj->methodname(t1, t2, t3, t4, t5, t6, t7, t8);    \
     }    \
     static TinScript::CRegMethodP8<classname, R, T1, T2, T3, T4, T5, T6, T7, T8> _reg_##classname##methodname(#scriptname, classname##methodname);
+
+// -- Parameter count: 9
+#define REGISTER_FUNCTION_P9(scriptname, funcname, R, T1, T2, T3, T4, T5, T6, T7, T8, T9) \
+    static TinScript::CRegFunctionP9<R, T1, T2, T3, T4, T5, T6, T7, T8, T9> _reg_##scriptname(#scriptname, funcname);
+
+#define REGISTER_METHOD_P9(classname, scriptname, methodname, R, T1, T2, T3, T4, T5, T6, T7, T8, T9)    \
+    static R classname##methodname(classname* obj, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6, T7 t7, T8 t8, T9 t9) {    \
+        return obj->methodname(t1, t2, t3, t4, t5, t6, t7, t8, t9);    \
+    }    \
+    static TinScript::CRegMethodP9<classname, R, T1, T2, T3, T4, T5, T6, T7, T8, T9> _reg_##classname##methodname(#scriptname, classname##methodname);
+
+// -- Parameter count: 10
+#define REGISTER_FUNCTION_P10(scriptname, funcname, R, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10) \
+    static TinScript::CRegFunctionP10<R, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> _reg_##scriptname(#scriptname, funcname);
+
+#define REGISTER_METHOD_P10(classname, scriptname, methodname, R, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)    \
+    static R classname##methodname(classname* obj, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6, T7 t7, T8 t8, T9 t9, T10 t10) {    \
+        return obj->methodname(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10);    \
+    }    \
+    static TinScript::CRegMethodP10<classname, R, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> _reg_##classname##methodname(#scriptname, classname##methodname);
+
+// -- Parameter count: 11
+#define REGISTER_FUNCTION_P11(scriptname, funcname, R, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11) \
+    static TinScript::CRegFunctionP11<R, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> _reg_##scriptname(#scriptname, funcname);
+
+#define REGISTER_METHOD_P11(classname, scriptname, methodname, R, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)    \
+    static R classname##methodname(classname* obj, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6, T7 t7, T8 t8, T9 t9, T10 t10, T11 t11) {    \
+        return obj->methodname(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11);    \
+    }    \
+    static TinScript::CRegMethodP11<classname, R, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> _reg_##classname##methodname(#scriptname, classname##methodname);
+
+// -- Parameter count: 12
+#define REGISTER_FUNCTION_P12(scriptname, funcname, R, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12) \
+    static TinScript::CRegFunctionP12<R, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> _reg_##scriptname(#scriptname, funcname);
+
+#define REGISTER_METHOD_P12(classname, scriptname, methodname, R, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)    \
+    static R classname##methodname(classname* obj, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6, T7 t7, T8 t8, T9 t9, T10 t10, T11 t11, T12 t12) {    \
+        return obj->methodname(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12);    \
+    }    \
+    static TinScript::CRegMethodP12<classname, R, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> _reg_##classname##methodname(#scriptname, classname##methodname);

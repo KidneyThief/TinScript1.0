@@ -239,13 +239,8 @@ void UnitTest_CreateTestNSObject()
 }
 
 // -- creating an object from code, registering it, and linking it to the TestNSObject namespace
-void TestCodeNSObject::OnCreate()
+void TestCodeNSObject::OnCreate() : TestNSObject
 {
-    // -- add this namespace to the parent hierarchy
-    LinkNamespaces("TestCodeNSObject", "TestNSObject");
-    
-    // -- call the parent OnCreate() in a "constructor"-like fashion
-    TestNSObject::OnCreate();
 }
 
 // -- now create a namespaced method to be executed from code

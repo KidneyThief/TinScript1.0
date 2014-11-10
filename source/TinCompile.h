@@ -443,8 +443,8 @@ class CParenOpenNode : public CCompileTreeNode
 class CFuncDeclNode : public CCompileTreeNode
 {
 	public:
-		CFuncDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int _linenumber,
-                      const char* _funcname, int _length, const char* _funcns, int _funcnslength);
+		CFuncDeclNode(CCodeBlock* _codeblock, CCompileTreeNode*& _link, int _linenumber, const char* _funcname,
+                      int _length, const char* _funcns, int _funcnslength, uint32 derived_ns);
 
 		virtual int Eval(uint32*& instrptr, eVarType pushresult, bool countonly) const;
 		virtual void Dump(char*& output, int& length)const;
@@ -454,6 +454,7 @@ class CFuncDeclNode : public CCompileTreeNode
         char funcname[kMaxNameLength];
         char funcnamespace[kMaxNameLength];
         CFunctionEntry* functionentry;
+        uint32 mDerivedNamespace;
 };
 
 // ====================================================================================================================
