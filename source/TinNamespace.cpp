@@ -624,7 +624,7 @@ void CScriptContext::DestroyObject(uint32 objectid)
     // -- remove the object from the dictionary, and delete the entry
     GetObjectDictionary()->RemoveItem(objectid);
     GetAddressDictionary()->RemoveItem(kPointerToUInt32(objaddr));
-    GetNameDictionary()->RemoveItem(oe->GetNameHash());
+    GetNameDictionary()->RemoveItem(oe, oe->GetNameHash());
 
     // -- delete the object entry *after* the object
     TinFree(oe);

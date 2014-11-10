@@ -76,6 +76,7 @@ class CObjectSet
 
         virtual bool8 Contains(uint32 objectid);
         virtual void AddObject(uint32 objectid);
+        virtual void InsertObject(uint32 objectid, int32 index);
         virtual void RemoveObject(uint32 objectid);
         virtual void ListObjects(int32 indent = 0);
         virtual void RemoveAll();

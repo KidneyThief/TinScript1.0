@@ -295,6 +295,52 @@ void CObjectSet::AddObject(uint32 objectid)
 }
 
 // ====================================================================================================================
+// InsertObject():  Add an object to this object set.
+// ====================================================================================================================
+void CObjectSet::InsertObject(uint32 objectid, int32 index)
+{
+    // -- find the object entry
+    uint32 self_id = GetScriptContext()->FindObjectByAddress(this)->GetID();
+    CObjectEntry* oe = GetScriptContext()->FindObjectEntry(objectid);
+    if (!oe)
+    {
+        ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
+                      "Error - [%d] CObjectSet::InsertObject(): unable to find object %d\n",
+                      self_id, objectid);
+        return;
+    }
+
+    // -- ensure we don't create a circular ownership
+    static uint32 object_set_hash = Hash("CObjectSet");
+    if (oe->HasNamespace(object_set_hash))
+    {
+        CObjectSet* object_set = static_cast<CObjectSet*>(GetScriptContext()->FindObject(objectid));
+        if (object_set->IsInHierarchy(self_id))
+        {
+            ScriptAssert_(GetScriptContext(), 0, "<internal>", -1,
+                "Error - [%d] CObjectSet::InsertObject() - circular reference: object %d is parent of set %d\n",
+                self_id, objectid, self_id);
+            return;
+        }
+    }
+
+    if (!mObjectList->FindItem(objectid))
+    {
+        mObjectList->InsertItem(*oe, objectid, index);
+        
+        // -- notify the master membership list that an object has been added to a group
+        GetScriptContext()->GetMasterMembershipList()->AddMembership(oe, this);
+
+        // -- automatically call "OnAdd" for the group
+        if (GetScriptContext()->HasMethod(this, "OnAdd"))
+        {
+            int32 dummy = 0;
+            ObjExecF(this, dummy, "OnAdd(%d);", objectid);
+        }
+    }
+}
+
+// ====================================================================================================================
 // RemoveObject():  Remove an object from this object set.
 // ====================================================================================================================
 void CObjectSet::RemoveObject(uint32 objectid)
@@ -403,11 +449,7 @@ uint32 CObjectSet::GetObjectByIndex(int32 index)
     if (index < 0 || index >= Used())
         return 0;
 
-    // $$$TZA Really crappy implementation - need to convert to CTable<>?
-    CObjectEntry* oe = mObjectList->First();
-    while (--index >= 0)
-        oe = mObjectList->Next();
-
+    CObjectEntry* oe = mObjectList->FindItemByIndex(index);
     return (oe->GetID());
 }
 
@@ -494,6 +536,7 @@ IMPLEMENT_SCRIPT_CLASS_END()
 
 REGISTER_METHOD_P1(CObjectSet, Contains, Contains, bool8, uint32);
 REGISTER_METHOD_P1(CObjectSet, AddObject, AddObject, void, uint32);
+REGISTER_METHOD_P2(CObjectSet, InsertObject, InsertObject, void, uint32, int32);
 REGISTER_METHOD_P1(CObjectSet, RemoveObject, RemoveObject, void, uint32);
 REGISTER_METHOD_P1(CObjectSet, ListObjects, ListObjects, void, int32);
 REGISTER_METHOD_P0(CObjectSet, RemoveAll, RemoveAll, void);

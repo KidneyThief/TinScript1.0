@@ -69,6 +69,9 @@ class CHashTable
 				nextbucket = NULL;
                 next = NULL;
                 prev = NULL;
+
+                index = -1;
+                index_next = NULL;
 			}
 
 			T* item;
@@ -76,6 +79,9 @@ class CHashTable
 			CHashTableEntry* nextbucket;
 			CHashTableEntry* next;
 			CHashTableEntry* prev;
+
+            int32 index;
+			CHashTableEntry* index_next;
 	    };
 
 	// -- constructor / destructor
@@ -83,8 +89,12 @@ class CHashTable
     {
 		size = _size;
 		table = new CHashTableEntry*[size];
+		index_table = new CHashTableEntry*[size];
 		for (int32 i = 0; i < size; ++i)
+        {
 			table[i] = NULL;
+			index_table[i] = NULL;
+        }
 
 		bucketiter = NULL;
         iter = NULL;
@@ -107,6 +117,7 @@ class CHashTable
 			}
 		}
         delete table;
+        delete index_table;
 	}
 
 	void AddItem(T& _item, uint32 _hash)
@@ -125,14 +136,89 @@ class CHashTable
         hte->prev = tail;
         if (!head)
         {
+            // -- add to the index table
+            hte->index = 0;
+            index_table[0] = hte;
+
             head = hte;
             tail = hte;
         }
         else
         {
+            // -- add to the index table (note:  used has already been incremented)
+            hte->index = used - 1;
+            hte->index_next = index_table[hte->index % size];
+            index_table[hte->index % size] = hte;
+
             tail->next = hte;
             tail = hte;
         }
+	}
+
+	void InsertItem(T& _item, uint32 _hash, int32 _index)
+	{
+        // -- if the index is anywhere past the end, simply add
+        if (_index >= used)
+        {
+            AddItem(_item, _hash);
+            return;
+        }
+
+        // -- ensure the index is valid
+        if (_index < 0)
+            _index = 0;
+
+        // -- create the entry, add it to the table as per the hash, and clear the iterators
+		CHashTableEntry* hte = new CHashTableEntry(_item, _hash);
+		int32 bucket = _hash % size;
+		hte->nextbucket = table[bucket];
+		table[bucket] = hte;
+		bucketiter = NULL;
+        iter = NULL;
+        iter_was_removed = false;
+
+        // -- we need to insert it into the double-linked list before the entry currently at the given index
+        CHashTableEntry* prev_hte = NULL;
+        CHashTableEntry* cur_entry = FindRawEntryByIndex(_index, prev_hte);
+        assert(cur_entry);
+
+        // -- insert before
+        hte->prev = cur_entry->prev;
+        cur_entry->prev = hte;
+        hte->next = cur_entry;
+        if (hte->prev)
+            hte->prev->next = hte;
+        else
+            head = hte;
+
+        // -- insert it into the index table - note, we need to bump up the indices of all entries after this
+        // -- also note used has not yet been incremented
+        // -- update all entries after cur_entry, by decrimenting and updating the index table
+        for (int32 bump_index = used - 1; bump_index >= _index; --bump_index)
+        {
+            CHashTableEntry* prev_hte = NULL;
+            CHashTableEntry* bump_hte = FindRawEntryByIndex(bump_index, prev_hte);
+
+            // -- remove the hte from the linked list in the index_table bucket
+            assert(bump_hte != 0);
+            if (prev_hte)
+                prev_hte->index_next = bump_hte->index_next;
+            else
+                index_table[bump_index] = bump_hte->index_next;
+
+            // -- increment the index and add it to the previous index bucket
+            ++bump_hte->index;
+            bump_hte->index_next = index_table[bump_hte->index % size];
+            index_table[bump_hte->index % size] = bump_hte;
+        }
+
+        // -- now add ourself into the index table
+        hte->index = _index;
+        hte->index_next = index_table[_index];
+        index_table[_index] = hte;
+
+        // -- finally, increment the used count
+        ++used;
 	}
 
 	T* FindItem(uint32 _hash) const
@@ -150,6 +236,75 @@ class CHashTable
 		// -- not found
 		return (NULL);
 	}
+
+    T* FindItemByIndex(int32 _index) const
+    {
+        if (_index < 0 || _index >= used)
+            return (NULL);
+
+        CHashTableEntry* hte = index_table[_index % size];
+        while (hte && hte->index != _index)
+            hte = hte->index_next;
+
+        return (hte ? hte->item : NULL);
+    }
+
+    void RemoveItemByIndex(int32 _index)
+    {
+        CHashTableEntry* hte = FindRawEntryByIndex(_index);
+        if (hte)
+        {
+            RemoveItem(hte->item, hte->hash);
+        }
+    }
+
+    CHashTableEntry* FindRawEntryByIndex(int32 _index, CHashTableEntry*& prev_entry) const
+    {
+        prev_entry = NULL;
+        if (_index < 0 || _index >= used)
+            return (NULL);
+
+        CHashTableEntry* hte = index_table[_index % size];
+        while (hte && hte->index != _index)
+        {
+            prev_entry = hte;
+            hte = hte->index_next;
+        }
+
+        return (hte);
+    }
+
+    void RemoveRawEntryFromIndexTable(CHashTableEntry* cur_entry)
+    {
+        // -- remove the current entry from the index table (first)
+        CHashTableEntry* prev_hte = NULL;
+        CHashTableEntry* hte = FindRawEntryByIndex(cur_entry->index, prev_hte);
+
+        assert(hte == cur_entry);
+        if (prev_hte)
+            prev_hte->index_next = hte->index_next;
+        else
+            index_table[cur_entry->index] = hte->index_next;
+
+        // -- update all entries after cur_entry, by decrimenting and updating the index table
+        for (int _index = cur_entry->index + 1; _index < used; ++_index)
+        {
+            CHashTableEntry* prev_hte = NULL;
+            CHashTableEntry* hte = FindRawEntryByIndex(_index, prev_hte);
+
+            // -- remove the hte from the linked list in the index_table bucket
+            assert(hte != 0);
+            if (prev_hte)
+                prev_hte->index_next = hte->index_next;
+            else
+                index_table[_index] = hte->index_next;
+
+            // -- decriment the index add it to the previous index bucket
+            --hte->index;
+            hte->index_next = index_table[hte->index % size];
+            index_table[hte->index % size] = hte;
+        }
+    }
 
 	void RemoveItem(uint32 _hash)
     {
@@ -187,6 +342,10 @@ class CHashTable
                 if (curentry == tail)
                     tail = curentry->prev;
 
+                // -- remove the entry from the index table
+                RemoveRawEntryFromIndexTable(curentry);
+
+                // -- delete the entry, and decriment the count
 				delete curentry;
                 --used;
 				return;
@@ -237,6 +396,9 @@ class CHashTable
                     head = curentry->next;
                 if (curentry == tail)
                     tail = curentry->prev;
+
+                // -- remove the entry from the index table
+                RemoveRawEntryFromIndexTable(curentry);
 
 				delete curentry;
                 --used;
@@ -399,7 +561,7 @@ class CHashTable
 			while (entry != NULL)
             {
 				int32 hash = entry->hash;
-				RemoveItem(hash);
+				RemoveItem(entry->item, hash);
 				entry = FindRawEntryByBucket(i);
 			}
 		}
@@ -421,7 +583,7 @@ class CHashTable
 		    T* object = FindItemByBucket(i);
 		    while(object != NULL)
             {
-                RemoveItem(entry->hash);
+                RemoveItem(entry->item, entry->hash);
                 delete object;
 			    entry = FindRawEntryByBucket(i);
 		        object = FindItemByBucket(i);
@@ -432,6 +594,7 @@ class CHashTable
 
 	private:
 		CHashTableEntry** table;
+		CHashTableEntry** index_table;
 		mutable CHashTableEntry* bucketiter;
 		int32 size;
         int32 used;
