@@ -116,6 +116,7 @@ class CObjectEntry
         uint32 GetID() const { return mObjectID; }
         const char* GetName() const { return UnHash(mNameHash); }
         uint32 GetNameHash() const { return mNameHash; }
+        uint32 GetGroupID() const;
 
         void SetDestroyed() { mIsDestroyed = true; }
         bool8 IsDestroyed() const { return (mIsDestroyed); }

@@ -42,16 +42,16 @@ class CConsoleWindow;
 class CBrowserEntry : public QTreeWidgetItem
 {
     public:
-        CBrowserEntry(uint32 parent_id, uint32 object_id, const char* object_name, const char* derivation);
+        CBrowserEntry(uint32 parent_id, uint32 object_id, bool8 owned, const char* object_name,
+                      const char* derivation);
         virtual ~CBrowserEntry();
 
         uint32 mObjectID;
         uint32 mParentID;
+        bool8 mOwned;
         char mName[TinScript::kMaxNameLength];
         char mFormattedName[TinScript::kMaxNameLength];
         char mDerivation[TinScript::kMaxNameLength];
-
-        bool mExpanded;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -67,7 +67,9 @@ class CDebugObjectBrowserWin : public QTreeWidget
 
         void NotifyCreateObject(uint32 object_id, const char* object_name, const char* derivation);
         void NotifyDestroyObject(uint32 object_id);
-        void NotifySetAddObject(uint32 set_id, uint32 object_id);
+
+        void RecursiveSetAddObject(CBrowserEntry* parent_entry, uint32 child_id, bool8 owned);
+        void NotifySetAddObject(uint32 set_id, uint32 object_id, bool8 owned);
         void NotifySetRemoveObject(uint32 set_id, uint32 object_id);
         void RemoveAll();
 

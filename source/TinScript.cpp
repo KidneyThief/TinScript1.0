@@ -600,66 +600,63 @@ void SaveStringTable(const char* filename)
 		return;
     }
 
-    for (int32 i = 0; i < string_table->Size(); ++i)
+    uint32 ste_hash = 0;
+	CStringTable::tStringEntry* ste = string_table->First(&ste_hash);
+	while (ste)
     {
-	    CHashTable<CStringTable::tStringEntry>::CHashTableEntry* ste = string_table->FindRawEntryByBucket(i);
-	    while (ste)
+        // -- only write out ref-counted strings (the remaining haven't been cleaned up)
+        if (ste->mRefCount <= 0)
         {
-            // -- only write out ref-counted strings (the remaining haven't been cleaned up)
-            if (ste->item->mRefCount <= 0)
-            {
-                // -- next entry
-       	        ste = string_table->GetNextRawEntryInBucket(i);
-                continue;
-            }
-
-            uint32 stringhash = ste->hash;
-            const char* string = ste->item->mString;
-            int32 length = (int32)strlen(string);
-            char tempbuf[kMaxTokenLength];
-
-            // -- write the hash
-            sprintf_s(tempbuf, kMaxTokenLength, "0x%08x: ", stringhash);
-            int32 count = (int32)fwrite(tempbuf, sizeof(char), 12, filehandle);
-            if (count != 12)
-            {
-                fclose(filehandle);
-                ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
-                return;
-            }
-
-            // -- write the string length
-            sprintf_s(tempbuf, kMaxTokenLength, "%04d: ", length);
-            count = (int32)fwrite(tempbuf, sizeof(char), 6, filehandle);
-            if (count != 6)
-            {
-                fclose(filehandle);
-                ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
-                return;
-            }
-
-            // -- write the string
-            count = (int32)fwrite(string, sizeof(char), length, filehandle);
-            if (count != length)
-            {
-                fclose(filehandle);
-                ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
-                return;
-            }
-
-            // -- write the eol
-            count = (int32)fwrite("\r\n", sizeof(char), 2, filehandle);
-            if (count != 2)
-            {
-                fclose(filehandle);
-                ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
-                return;
-            }
-
             // -- next entry
-       	    ste = string_table->GetNextRawEntryInBucket(i);
-	    }
-    }
+       	    ste = string_table->Next(&ste_hash);
+            continue;
+        }
+
+        const char* string = ste->mString;
+        int32 length = (int32)strlen(string);
+        char tempbuf[kMaxTokenLength];
+
+        // -- write the hash
+        sprintf_s(tempbuf, kMaxTokenLength, "0x%08x: ", ste_hash);
+        int32 count = (int32)fwrite(tempbuf, sizeof(char), 12, filehandle);
+        if (count != 12)
+        {
+            fclose(filehandle);
+            ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
+            return;
+        }
+
+        // -- write the string length
+        sprintf_s(tempbuf, kMaxTokenLength, "%04d: ", length);
+        count = (int32)fwrite(tempbuf, sizeof(char), 6, filehandle);
+        if (count != 6)
+        {
+            fclose(filehandle);
+            ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
+            return;
+        }
+
+        // -- write the string
+        count = (int32)fwrite(string, sizeof(char), length, filehandle);
+        if (count != length)
+        {
+            fclose(filehandle);
+            ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
+            return;
+        }
+
+        // -- write the eol
+        count = (int32)fwrite("\r\n", sizeof(char), 2, filehandle);
+        if (count != 2)
+        {
+            fclose(filehandle);
+            ScriptAssert_(script_context, 0, "<internal>", -1, "Error - unable to write file %s\n", filename);
+            return;
+        }
+
+        // -- next entry
+       	ste = string_table->Next(&ste_hash);
+	}
 
     // -- close the file before we leave
 	fclose(filehandle);
@@ -2908,7 +2905,7 @@ void CScriptContext::DebuggerNotifyDestroyObject(uint32 object_id)
 // ====================================================================================================================
 // DebuggerNotifySetAddObject():  Send notification to the debugger of an object's new membership.
 // ====================================================================================================================
-void CScriptContext::DebuggerNotifySetAddObject(uint32 parent_id, uint32 object_id)
+void CScriptContext::DebuggerNotifySetAddObject(uint32 parent_id, uint32 object_id, bool8 owned)
 {
     // -- sanity check
     int32 debugger_session = 0;
@@ -2916,7 +2913,8 @@ void CScriptContext::DebuggerNotifySetAddObject(uint32 parent_id, uint32 object_
         return;
 
     // -- send the entry
-    SocketManager::SendCommandf("DebuggerNotifySetAddObject(%d, %d);", parent_id, object_id);
+    SocketManager::SendCommandf("DebuggerNotifySetAddObject(%d, %d, %s);", parent_id, object_id,
+                                owned ? "true" : "false");
 }
 
 // ====================================================================================================================
@@ -2972,7 +2970,7 @@ void CScriptContext::DebuggerListObjects(uint32 parent_id, uint32 object_id)
             // -- if we have a parent_id, then notify the debugger of the membership
             if (parent_id != 0)
             {
-                DebuggerNotifySetAddObject(parent_id, oe->GetID());
+                DebuggerNotifySetAddObject(parent_id, oe->GetID(), oe->GetGroupID() == parent_id);
             }
 
             // -- if the object is an object set, recursively send its children
@@ -3054,7 +3052,8 @@ bool8 CScriptContext::AddThreadCommand(const char* command)
     uint32 lengthRemaining = kThreadExecBufferSize - ((uint32)mThreadBufPtr - (uint32)mThreadExecBuffer);
     if (lengthRemaining < cmdLength)
     {
-        ScriptAssert_(this, 0, "<internal>", -1, "Error - AddThreadCommand():  buffer length exceeded.\n");
+        // -- no need to assert - the socket will re-enqueue the command after the buffer has been processed
+        //ScriptAssert_(this, 0, "<internal>", -1, "Error - AddThreadCommand():  buffer length exceeded.\n");
         success = false;
     }
     else

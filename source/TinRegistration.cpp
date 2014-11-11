@@ -545,18 +545,7 @@ CFunctionContext::CFunctionContext(CScriptContext* script_context)
 CFunctionContext::~CFunctionContext()
 {
     // -- delete all the variable entries
-    int32 tablesize = localvartable->Size();
-	for (int32 i = 0; i < tablesize; ++i)
-    {
-		CVariableEntry* ve = localvartable->FindItemByBucket(i);
-		while (ve)
-        {
-			uint32 hash = ve->GetHash();
-			localvartable->RemoveItem(hash);
-			TinFree(ve);
-			ve = localvartable->FindItemByBucket(i);
-		}
-	}
+    localvartable->DestroyAll();
 
     // -- delete the actual table
     TinFree(localvartable);

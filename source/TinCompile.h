@@ -741,6 +741,10 @@ class CCodeBlock
 
         uint32 CalcLineNumber(const uint32* instrptr, bool* isNewLine = NULL) const
         {
+
+#if !TIN_DEBUGGER
+    return (0);
+#endif
             // -- initialize the result
             if (isNewLine)
                 *isNewLine = false;
@@ -842,21 +846,15 @@ class CCodeBlock
 
         static void DestroyUnusedCodeBlocks(CHashTable<CCodeBlock>* code_block_list)
         {
-            for (int32 i = 0; i < code_block_list->Size(); ++i)
+            CCodeBlock* codeblock = code_block_list->First();
+            while (codeblock)
             {
-                CCodeBlock* codeblock = code_block_list->FindItemByBucket(i);
-                while(codeblock)
+                if (!codeblock->IsInUse())
                 {
-                    CCodeBlock* nextcodeblock = code_block_list->GetNextItemInBucket(i);
-                    if (!codeblock->IsInUse())
-                    {
-                        code_block_list->RemoveItem(codeblock, codeblock->mFileNameHash);
-                        TinFree(codeblock);
-                        codeblock = code_block_list->FindItemByBucket(i);
-                    }
-                    else
-                        codeblock = nextcodeblock;
+                    code_block_list->RemoveItem(codeblock, codeblock->mFileNameHash);
+                    TinFree(codeblock);
                 }
+                codeblock = code_block_list->Next();
             }
         }
 

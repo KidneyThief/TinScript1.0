@@ -1,17 +1,17 @@
 // ------------------------------------------------------------------------------------------------
 //  The MIT License
-//  
+//
 //  Copyright (c) 2013 Tim Andersen
-//  
+//
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
 //  and associated documentation files (the "Software"), to deal in the Software without
 //  restriction, including without limitation the rights to use, copy, modify, merge, publish,
 //  distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
 //  Software is furnished to do so, subject to the following conditions:
-//  
+//
 //  The above copyright notice and this permission notice shall be included in all copies or
 //  substantial portions of the Software.
-//  
+//
 //  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
 //  BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
 //  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
@@ -74,8 +74,6 @@ void CMasterMembershipList::AddMembership(CObjectEntry* oe, CObjectSet* group)
     uint32 group_id = GetScriptContext()->FindIDByAddress(group);
     uint32 object_id = oe->GetID();
 
-    // $$$TZA ensure we don't add an object to a group that is in its hierarchy of children
-
     // -- get the member list for the specific object, and add this group to it
     tMembershipList* member_list = mMasterMembershipList->FindItem(object_id);
     if (!member_list)
@@ -89,7 +87,7 @@ void CMasterMembershipList::AddMembership(CObjectEntry* oe, CObjectSet* group)
         member_list->AddItem(*group, group_id);
 
     // -- notify the debugger of the discontinued membership
-    GetScriptContext()->DebuggerNotifySetAddObject(group_id, object_id);
+    GetScriptContext()->DebuggerNotifySetAddObject(group_id, object_id, (oe->GetGroupID() == group_id));
 }
 
 // ====================================================================================================================
@@ -184,19 +182,9 @@ CObjectSet::CObjectSet()
 // ====================================================================================================================
 CObjectSet::~CObjectSet()
 {
-    // -- go through the object list, and remove membership of all objects
-    CMasterMembershipList* membership_list = GetScriptContext()->GetMasterMembershipList();
-    if (mObjectList)
-    {
-        CObjectEntry* oe = mObjectList->First();
-        while (oe)
-        {
-            membership_list->RemoveMembership(oe, this);
-            mObjectList->RemoveItem(oe->GetID());
-            oe = mObjectList->First();
-        }
-        TinFree(mObjectList);
-    }
+    // -- use RemoveAll(), as it will call OnRemove cleanly
+    RemoveAll();
+    TinFree(mObjectList);
 }
 
 // ====================================================================================================================
@@ -281,7 +269,7 @@ void CObjectSet::AddObject(uint32 objectid)
     if (!mObjectList->FindItem(objectid))
     {
         mObjectList->AddItem(*oe, objectid);
-        
+
         // -- notify the master membership list that an object has been added to a group
         GetScriptContext()->GetMasterMembershipList()->AddMembership(oe, this);
 
@@ -327,7 +315,7 @@ void CObjectSet::InsertObject(uint32 objectid, int32 index)
     if (!mObjectList->FindItem(objectid))
     {
         mObjectList->InsertItem(*oe, objectid, index);
-        
+
         // -- notify the master membership list that an object has been added to a group
         GetScriptContext()->GetMasterMembershipList()->AddMembership(oe, this);
 
@@ -401,10 +389,12 @@ void CObjectSet::ListObjects(int32 indent)
 // ====================================================================================================================
 void CObjectSet::RemoveAll()
 {
-    while (mObjectList->Used() > 0)
+    int32 count = mObjectList->Used();
+    while (count > 0)
     {
-        CObjectEntry* oe = mObjectList->First();
+        CObjectEntry* oe = mObjectList->FindItemByIndex(count - 1);
         RemoveObject(oe->GetID());
+        count = mObjectList->Used();
     }
 }
 
@@ -470,11 +460,12 @@ CObjectGroup::~CObjectGroup()
     // -- object groups actually delete their children
     if (mObjectList)
     {
-        CObjectEntry* oe = mObjectList->First();
-        while (oe)
+        int32 count = mObjectList->Used();
+        while (count > 0)
         {
+            CObjectEntry* oe = mObjectList->FindItemByIndex(count - 1);
             GetScriptContext()->DestroyObject(oe->GetID());
-            oe = mObjectList->First();
+            count = mObjectList->Used();
         }
     }
 }
@@ -503,8 +494,8 @@ void CObjectGroup::AddObject(uint32 objectid)
         current_owner->RemoveObject(objectid);
 
     // -- add the object to this group
-    CObjectSet::AddObject(objectid);
     oe->SetObjectGroup(this);
+    CObjectSet::AddObject(objectid);
 }
 
 // ====================================================================================================================

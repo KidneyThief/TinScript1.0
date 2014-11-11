@@ -1,17 +1,17 @@
 // ------------------------------------------------------------------------------------------------
 //  The MIT License
-//  
+//
 //  Copyright (c) 2013 Tim Andersen
-//  
+//
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
 //  and associated documentation files (the "Software"), to deal in the Software without
 //  restriction, including without limitation the rights to use, copy, modify, merge, publish,
 //  distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
 //  Software is furnished to do so, subject to the following conditions:
-//  
+//
 //  The above copyright notice and this permission notice shall be included in all copies or
 //  substantial portions of the Software.
-//  
+//
 //  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
 //  BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
 //  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
@@ -67,8 +67,6 @@ class CHashTable
 				item = &_item;
 				hash = _hash;
 				nextbucket = NULL;
-                next = NULL;
-                prev = NULL;
 
                 index = -1;
                 index_next = NULL;
@@ -77,8 +75,6 @@ class CHashTable
 			T* item;
 			uint32 hash;
 			CHashTableEntry* nextbucket;
-			CHashTableEntry* next;
-			CHashTableEntry* prev;
 
             int32 index;
 			CHashTableEntry* index_next;
@@ -88,19 +84,16 @@ class CHashTable
 	CHashTable(int32 _size = 0)
     {
 		size = _size;
-		table = new CHashTableEntry*[size];
-		index_table = new CHashTableEntry*[size];
+		table = TinAllocArray(ALLOC_HashTable, CHashTableEntry*, size);
+		index_table = TinAllocArray(ALLOC_HashTable, CHashTableEntry*, size);
 		for (int32 i = 0; i < size; ++i)
         {
 			table[i] = NULL;
 			index_table[i] = NULL;
         }
 
-		bucketiter = NULL;
         iter = NULL;
         used = 0;
-        head = NULL;
-        tail = NULL;
         iter_was_removed = false;
 	}
 
@@ -112,36 +105,30 @@ class CHashTable
 			while (entry)
             {
 				CHashTableEntry* nextentry = entry->nextbucket;
-				delete entry;
+				TinFree(entry);
 				entry = nextentry;
 			}
 		}
-        delete table;
-        delete index_table;
+        TinFreeArray(table);
+        TinFreeArray(index_table);
 	}
 
 	void AddItem(T& _item, uint32 _hash)
 	{
-		CHashTableEntry* hte = new CHashTableEntry(_item, _hash);
+		CHashTableEntry* hte = TinAlloc(ALLOC_HashTable, CHashTableEntry, _item, _hash);
 		int32 bucket = _hash % size;
 		hte->nextbucket = table[bucket];
 		table[bucket] = hte;
-		bucketiter = NULL;
         iter = NULL;
         iter_was_removed = false;
         ++used;
 
-        // -- add to the double-linked list
-        hte->next = NULL;
-        hte->prev = tail;
-        if (!head)
+        // -- add to the index table
+        if (used == 1)
         {
             // -- add to the index table
             hte->index = 0;
             index_table[0] = hte;
-
-            head = hte;
-            tail = hte;
         }
         else
         {
@@ -149,9 +136,6 @@ class CHashTable
             hte->index = used - 1;
             hte->index_next = index_table[hte->index % size];
             index_table[hte->index % size] = hte;
-
-            tail->next = hte;
-            tail = hte;
         }
 	}
 
@@ -169,11 +153,10 @@ class CHashTable
             _index = 0;
 
         // -- create the entry, add it to the table as per the hash, and clear the iterators
-		CHashTableEntry* hte = new CHashTableEntry(_item, _hash);
+		CHashTableEntry* hte = TinAlloc(ALLOC_HashTable, CHashTableEntry, _item, _hash);
 		int32 bucket = _hash % size;
 		hte->nextbucket = table[bucket];
 		table[bucket] = hte;
-		bucketiter = NULL;
         iter = NULL;
         iter_was_removed = false;
 
@@ -181,15 +164,6 @@ class CHashTable
         CHashTableEntry* prev_hte = NULL;
         CHashTableEntry* cur_entry = FindRawEntryByIndex(_index, prev_hte);
         assert(cur_entry);
-
-        // -- insert before
-        hte->prev = cur_entry->prev;
-        cur_entry->prev = hte;
-        hte->next = cur_entry;
-        if (hte->prev)
-            hte->prev->next = hte;
-        else
-            head = hte;
 
         // -- insert it into the index table - note, we need to bump up the indices of all entries after this
         // -- also note used has not yet been incremented
@@ -320,33 +294,19 @@ class CHashTable
                 // -- update the iterators
                 // $$$TZA This is reliable if'f the table is being iterated by a single
                 // -- loop - not attempting to share iterators.
-                if (curentry == bucketiter)
-                {
-                    bucketiter = curentry->next;
-                    iter_was_removed = true;
-                }
-
                 if (curentry == iter)
                 {
-                    iter = curentry->next;
+                    CHashTableEntry* prev_hte = NULL;
+                    iter = FindRawEntryByIndex(curentry->index + 1, prev_hte);
+
                     iter_was_removed = true;
                 }
-
-                // -- remove from the double-linked list
-                if (curentry->prev)
-                    curentry->prev->next = curentry->next;
-                if (curentry->next)
-                    curentry->next->prev = curentry->prev;
-                if (curentry == head)
-                    head = curentry->next;
-                if (curentry == tail)
-                    tail = curentry->prev;
 
                 // -- remove the entry from the index table
                 RemoveRawEntryFromIndexTable(curentry);
 
                 // -- delete the entry, and decriment the count
-				delete curentry;
+				TinFree(curentry);
                 --used;
 				return;
 			}
@@ -375,32 +335,17 @@ class CHashTable
                 // -- update the iterators
                 // $$$TZA This is reliable if'f the table is being iterated by a single
                 // -- loop - not attempting to share iterators.  Should convert to CTable<>
-                if (curentry == bucketiter)
-                {
-                    bucketiter = curentry->next;
-                    iter_was_removed = true;
-                }
-
                 if (curentry == iter)
                 {
-                    iter = curentry->next;
+                    CHashTableEntry* prev_hte = NULL;
+                    iter = FindRawEntryByIndex(curentry->index + 1, prev_hte);
                     iter_was_removed = true;
                 }
-
-                // -- remove from the double-linked list
-                if (curentry->prev)
-                    curentry->prev->next = curentry->next;
-                if (curentry->next)
-                    curentry->next->prev = curentry->prev;
-                if (curentry == head)
-                    head = curentry->next;
-                if (curentry == tail)
-                    tail = curentry->prev;
 
                 // -- remove the entry from the index table
                 RemoveRawEntryFromIndexTable(curentry);
 
-				delete curentry;
+				TinFree(curentry);
                 --used;
 				return;
 			}
@@ -414,14 +359,15 @@ class CHashTable
 
     T* First(uint32* out_hash = NULL) const
     {
-        iter = head;
+        CHashTableEntry* prev_hte = NULL;
+        iter = FindRawEntryByIndex(0, prev_hte);
         iter_was_removed = false;
-        if (head)
+        if (iter)
         {
             // -- return the hash value, if requested
             if (out_hash)
-                *out_hash = head->hash;
-            return (head->item);
+                *out_hash = iter->hash;
+            return (iter->item);
         }
         else
         {
@@ -434,7 +380,10 @@ class CHashTable
     T* Next(uint32* out_hash = NULL) const
     {
         if (iter && !iter_was_removed)
-            iter = iter->next;
+        {
+            CHashTableEntry* prev_hte = NULL;
+            iter = FindRawEntryByIndex(iter->index + 1, prev_hte);
+        }
 
         iter_was_removed = false;
         if (iter)
@@ -454,14 +403,21 @@ class CHashTable
 
     T* Last(uint32* out_hash = NULL) const
     {
-        iter = tail;
+        if (used > 0)
+        {
+            CHashTableEntry* prev_hte = NULL;
+            iter = FindRawEntryByIndex(used - 1, prev_hte);
+        }
+        else
+            iter = NULL;
+
         iter_was_removed = false;
-        if (tail)
+        if (iter)
         {
             // -- return the hash value, if requested
             if (out_hash)
-                *out_hash = tail->hash;
-            return (tail->item);
+                *out_hash = iter->hash;
+            return (iter->item);
         }
         else
         {
@@ -470,67 +426,6 @@ class CHashTable
             return (NULL);
         }
     }
-
-	T* FindItemByBucket(int32 bucket) const
-    {
-		if (bucket >= size)
-			return (NULL);
-		bucketiter = table[bucket];
-        iter_was_removed = false;
-		if (table[bucket])
-			return table[bucket]->item;
-		else
-			return (NULL);
-	}
-
-	T* GetNextItemInBucket(int32 bucket) const
-    {
-		// -- ensure it's the same bucket
-		if (bucket >= size || !table[bucket])
-        {
-			bucketiter = NULL;
-            iter_was_removed = false;
-			return (NULL);
-		}
-		if (!bucketiter)
-			bucketiter = table[bucket];
-		else if (!iter_was_removed)
-			bucketiter = bucketiter->nextbucket;
-        iter_was_removed = false;
-
-		return (bucketiter ? bucketiter->item : NULL);
-	}
-
-	CHashTableEntry* FindRawEntryByBucket(int32 bucket) const
-    {
-		if (bucket >= size)
-			return (NULL);
-
-		bucketiter = table[bucket];
-        iter_was_removed = false;
-		if (table[bucket])
-			return table[bucket];
-		else
-			return (NULL);
-	}
-
-	CHashTableEntry* GetNextRawEntryInBucket(int32 bucket) const
-    {
-		// -- ensure it's the same bucket
-		if (bucket >= size || !table[bucket])
-        {
-			bucketiter = NULL;
-			return (NULL);
-		}
-
-		if (!bucketiter)
-			bucketiter = table[bucket];
-		else if (!iter_was_removed)
-			bucketiter = bucketiter->nextbucket;
-
-        iter_was_removed = false;
-		return bucketiter;
-	}
 
 	int32 Size() const
     {
@@ -551,21 +446,15 @@ class CHashTable
     {
         // -- reset any iterators
         iter = NULL;
-        bucketiter = NULL;
         iter_was_removed = false;
 
-		// -- delete all the entries
-		for (int32 i = 0; i < Size(); ++i)
+		// -- delete all the entries, but do not delete the actual items
+        while (used > 0)
         {
-			CHashTableEntry* entry = FindRawEntryByBucket(i);
-			while (entry != NULL)
-            {
-				int32 hash = entry->hash;
-				RemoveItem(entry->item, hash);
-				entry = FindRawEntryByBucket(i);
-			}
-		}
-        used = 0;
+            CHashTableEntry* prev_entry = NULL;
+            CHashTableEntry* entry = FindRawEntryByIndex(used - 1, prev_entry);
+            RemoveItem(entry->item, entry->hash);
+        }
     }
 
     // -- This method doesn't just remove all entries from the
@@ -574,35 +463,25 @@ class CHashTable
     {
         // -- reset any iterators
         iter = NULL;
-        bucketiter = NULL;
         iter_was_removed = false;
 
-        for (int32 i = 0; i < Size(); ++i)
+        while (used > 0)
         {
-			CHashTableEntry* entry = FindRawEntryByBucket(i);
-		    T* object = FindItemByBucket(i);
-		    while(object != NULL)
-            {
-                RemoveItem(entry->item, entry->hash);
-                delete object;
-			    entry = FindRawEntryByBucket(i);
-		        object = FindItemByBucket(i);
-		    }
+            CHashTableEntry* prev_entry = NULL;
+            CHashTableEntry* entry = FindRawEntryByIndex(used - 1, prev_entry);
+            T* object = entry->item;
+            RemoveItem(object, entry->hash);
+            TinFree(object);
         }
-        used = 0;
     }
 
 	private:
 		CHashTableEntry** table;
 		CHashTableEntry** index_table;
-		mutable CHashTableEntry* bucketiter;
 		int32 size;
         int32 used;
 
 		mutable CHashTableEntry* iter;
-        CHashTableEntry* head;
-        CHashTableEntry* tail;
-
         mutable bool8 iter_was_removed;
  };
 

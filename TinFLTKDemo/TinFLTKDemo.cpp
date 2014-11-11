@@ -109,7 +109,7 @@ public:
         box(FL_FLAT_BOX);
         color(255);
 
-        // -- this starts the thread to 
+        // -- this starts the thread to
         Fl::add_idle(Update_CB, (void*)this);
 
         // -- set the current font
@@ -307,8 +307,21 @@ public:
         }
     }
 
-    void MainUpdateLoop()
+    void MainUpdateLoop(void *userdata)
     {
+        // -- use the system GetTickCount to attempt some accuracy in the current time
+        DWORD current_tick = GetTickCount();
+        if (gSystemTickCount == 0)
+        {
+            gSystemTickCount = current_tick;
+        }
+        int delta_ms = current_tick - gSystemTickCount;
+
+        // -- limit the update frequency
+        const int frame_time_ms = 33;
+        if (delta_ms < frame_time_ms)
+            return;
+
         // -- update the command shell, execute any command statement returned
         if (gCmdShell)
         {
@@ -322,39 +335,27 @@ public:
             }
         }
 
-        // -- use the system GetTickCount to attempt some accuracy in the current time
-        DWORD current_tick = GetTickCount();
-        if (gSystemTickCount == 0)
-        {
-            gSystemTickCount = current_tick;
-        }
-        int delta_ms = current_tick - gSystemTickCount;
+        gSystemTickCount = current_tick;
 
         // -- scale the elapsed time
-        delta_ms = int(gTimeScale * float(delta_ms));
-
-        // -- limit the sim update frequency
-        if (delta_ms >= 33)
+        int scaled_delta_ms = int(gTimeScale * float(frame_time_ms));
+        if (!gPaused)
         {
-            gSystemTickCount = current_tick;
-
-            if (!gPaused)
-            {
-                gCurrentTimeMS += delta_ms;
-            }
-
-            // -- limit the updates
-            TinScript::UpdateContext(gCurrentTimeMS);
+            gCurrentTimeMS += scaled_delta_ms;
         }
+
+        // -- limit the updates
+        TinScript::UpdateContext(gCurrentTimeMS);
+
+        // -- redraw the canvas
+        Canvas *o = (Canvas*)userdata;
+        o->redraw();
     }
 
     static void Update_CB(void *userdata)
     {
         if (gCanvas)
-            gCanvas->MainUpdateLoop();
-
-        Canvas *o = (Canvas*)userdata;
-        o->redraw();
+            gCanvas->MainUpdateLoop(userdata);
     }
 
     static int gCurrentTimeMS;

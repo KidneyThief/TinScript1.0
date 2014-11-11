@@ -41,19 +41,18 @@
 // ====================================================================================================================
 // Constructor
 // ====================================================================================================================
-CBrowserEntry::CBrowserEntry(uint32 parent_id, uint32 object_id, const char* object_name, const char* derivation)
+CBrowserEntry::CBrowserEntry(uint32 parent_id, uint32 object_id, bool8 owned, const char* object_name,
+                             const char* derivation)
     : QTreeWidgetItem()
 {
     mObjectID = object_id;
     mParentID = parent_id;
+    mOwned = owned;
     TinScript::SafeStrcpy(mName, object_name, TinScript::kMaxNameLength);
     TinScript::SafeStrcpy(mDerivation, derivation, TinScript::kMaxNameLength);
 
     // -- create and store the formatted name string
     sprintf_s(mFormattedName, TinScript::kMaxNameLength, "[%d] %s", object_id, mName);
-
-    // -- set the expanded flag
-    mExpanded = false;
 
     // -- set the QT elements
     setText(0, mFormattedName);
@@ -116,7 +115,7 @@ void CDebugObjectBrowserWin::NotifyCreateObject(uint32 object_id, const char* ob
     mObjectDictionary.insert(object_id, entry_list);
 
     // -- now create the actual entry, and add it to the list
-    CBrowserEntry* new_entry = new CBrowserEntry(0, object_id, object_name, derivation);
+    CBrowserEntry* new_entry = new CBrowserEntry(0, object_id, false, object_name, derivation);
     entry_list->append(new_entry);
 
     // -- until we're parented, we want to display the entry
@@ -145,9 +144,40 @@ void CDebugObjectBrowserWin::NotifyDestroyObject(uint32 object_id)
 }
 
 // ====================================================================================================================
+// RecursiveSetAddObject(): Add the entire hierarchy of an object to a new parent entry.
+// ====================================================================================================================
+void CDebugObjectBrowserWin::RecursiveSetAddObject(CBrowserEntry* parent_entry, uint32 child_id, bool8 owned)
+{
+    // -- get the list of entries refering to this object, and the first entry
+    QList<CBrowserEntry*>* object_entry_list = mObjectDictionary[child_id];
+    CBrowserEntry* object_entry = (*object_entry_list)[0];
+
+    // -- we need to duplicate the object entry, add add it as a child to the new parent entry
+    CBrowserEntry* new_entry = new CBrowserEntry(parent_entry->mObjectID, child_id, owned, object_entry->mName,
+                                                 object_entry->mDerivation);
+    // -- add the new entry as a child
+    parent_entry->addChild(new_entry);
+
+    // -- add the new entry to our entry list
+    object_entry_list->append(new_entry);
+
+    // -- now duplicate each child owned by the object_entry in the new branch
+    int child_count = object_entry->childCount();
+    for (int i = 0; i < child_count; ++i)
+    {
+        CBrowserEntry* child_entry = static_cast<CBrowserEntry*>(object_entry->child(i));
+        if (child_entry)
+        {
+            // -- add this child's hierarchy to the new parent's hierarchy
+            RecursiveSetAddObject(new_entry, child_entry->mObjectID, child_entry->mOwned);
+        }
+    }
+}
+
+// ====================================================================================================================
 // NotifySetAddObject():  Notify an object has been destroyed.
 // ====================================================================================================================
-void CDebugObjectBrowserWin::NotifySetAddObject(uint32 set_id, uint32 object_id)
+void CDebugObjectBrowserWin::NotifySetAddObject(uint32 set_id, uint32 object_id, bool8 owned)
 {
     // -- ensure both objects exist
     if (!mObjectDictionary.contains(set_id) || !mObjectDictionary.contains(object_id))
@@ -157,23 +187,27 @@ void CDebugObjectBrowserWin::NotifySetAddObject(uint32 set_id, uint32 object_id)
     QList<CBrowserEntry*>* object_entry_list = mObjectDictionary[object_id];
     QList<CBrowserEntry*>* set_entry_list = mObjectDictionary[set_id];
     CBrowserEntry* object_entry = (*object_entry_list)[0];
+    CBrowserEntry* set_entry = (*set_entry_list)[0];
+
+    // -- if we've already received notification that object_id is a child of set_id, we're done
+    int child_count = set_entry->childCount();
+    for (int i = 0; i < child_count; ++i)
+    {
+        CBrowserEntry* child_entry = static_cast<CBrowserEntry*>(set_entry->child(i));
+        if (child_entry && child_entry->mObjectID == object_id)
+            return;
+    }
 
     // -- for each entry in the set_entry_list, add a new object_entry
     for (int i = 0; i < set_entry_list->size(); ++i)
     {
         CBrowserEntry* set_entry = (*set_entry_list)[i];
-        CBrowserEntry* new_entry = new CBrowserEntry(set_id, object_id, object_entry->mName,
-                                                     object_entry->mDerivation);
-
-        // -- add the new entry as a child
-        set_entry->addChild(new_entry);
-
-        // -- add the new entry to our entry list
-        object_entry_list->append(new_entry);
+        RecursiveSetAddObject(set_entry, object_id, owned);
     }
 
-    // -- and of course, the original object entry (at the root level) is now hidden
-    object_entry->setHidden(true);
+    // -- if we've found an owner for the object, the original "root level" entry is now hidden
+    if (owned)
+        object_entry->setHidden(true);
 }
 
 // ====================================================================================================================
@@ -189,6 +223,7 @@ void CDebugObjectBrowserWin::NotifySetRemoveObject(uint32 set_id, uint32 object_
     QList<CBrowserEntry*>* object_entry_list = mObjectDictionary[object_id];
 
     // -- find the instance belonging to the set
+    bool remove_owned = false;
     for (int i = 1; i < object_entry_list->size(); ++i)
     {
         // -- get the entry, see if it's the one matching the set
@@ -196,6 +231,7 @@ void CDebugObjectBrowserWin::NotifySetRemoveObject(uint32 set_id, uint32 object_
         if (object_entry->mParentID == set_id)
         {
             // -- remove, delete and break
+            remove_owned = object_entry->mOwned;
             object_entry_list->removeAt(i);
             delete object_entry;
             break;
@@ -203,7 +239,7 @@ void CDebugObjectBrowserWin::NotifySetRemoveObject(uint32 set_id, uint32 object_
     }
 
     // -- if the size of the object_entry_list is now just the original, ensure it is no longer hidden
-    if (object_entry_list->size() == 1)
+    if (remove_owned)
     {
         CBrowserEntry* object_entry = (*object_entry_list)[0];
         object_entry->setHidden(false);
@@ -322,14 +358,59 @@ void CDebugObjectBrowserWin::SetSelectedObject(uint32 object_id)
         // -- dereference to get the List, and then again to get the first item in the list
         CBrowserEntry* entry = NULL;
         QList<CBrowserEntry*>* entry_list = mObjectDictionary[object_id];
-        if (entry_list->size() > 1)
-            entry = (*entry_list)[1];
-        else
+        for (int i = 1; i < entry_list->size(); ++i)
+        {
+            CBrowserEntry* child_entry = (*entry_list)[i];
+            if (child_entry && child_entry->mOwned)
+            {
+                // -- see if this is the hierarchy that leads to a root group object
+                bool is_ownership_tree = true;
+                CBrowserEntry* parent = static_cast<CBrowserEntry*>(child_entry->parent());
+                while (parent)
+                {
+                    if (!parent->mOwned)
+                    {
+                        // -- if we reached parent node, that is not an owned child, and either
+                        // -- the do have a designated parent ID, or the parent is hidden, then
+                        // -- this is not a root group entry.
+                        if (parent->mParentID != 0 || parent->isHidden())
+                        {
+                            is_ownership_tree = false;
+                        }
+
+                        // -- at this point, we're either reached the root group entry, or a non-ownership parent
+                        break;
+                    }
+
+                    // -- get the next parent
+                    parent = static_cast<CBrowserEntry*>(parent->parent());
+                }
+
+                // -- if we verified this child entry as being part of the ownership hierarchy, we're done
+                if (is_ownership_tree)
+                {
+                    entry = child_entry;
+                    break;
+                }
+            }
+        }
+
+        // -- if we didn't find an "owned" child entry, presumably the item is unowned, select the first entry
+        if (!entry)
             entry = (*entry_list)[0];
 
         if (entry != NULL)
         {
+            // -- ensure the hierarchy is expanded
+            QTreeWidgetItem* parent = entry->parent();
+            while (parent)
+            {
+                parent->setExpanded(true);
+                parent = parent->parent();
+            }
+
             setCurrentItem(entry, QAbstractItemView::EnsureVisible);
+            scrollToItem(entry, QAbstractItemView::PositionAtCenter);
         }
     }
 }

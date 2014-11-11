@@ -44,9 +44,10 @@ namespace TinScript
 // ====================================================================================================================
 // DebugTrace():  Prints a text version of the operations being executed by the virtual machine.
 // ====================================================================================================================
+#if DEBUG_TRACE
+
 void DebugTrace(eOpCode opcode, const char* fmt, ...)
 {
-#if DEBUG_TRACE
     if (!CScriptContext::gDebugTrace)
         return;
     // -- expand the formated buffer
@@ -57,8 +58,14 @@ void DebugTrace(eOpCode opcode, const char* fmt, ...)
     va_end(args);
 
     printf("OP [%s]: %s\n", GetOperationString(opcode), tracebuf);
-#endif
 }
+
+#else
+
+void VoidFunction() {}
+#define DebugTrace(...) VoidFunction()
+
+#endif
 
 // ====================================================================================================================
 // GetStackVarAddr():  Get the address of a stack veriable, given the actual variable entry

@@ -38,12 +38,20 @@
 // -- compile flags
 // -- note:  if you change these (like, modifying compile symbols), you may want to bump the kCompilerVersion
 // -- If any operation changes it's instruction format, bump the compiler version
+
+// -- the following three have no side effects, but slow down execution
 #define DEBUG_CODEBLOCK 1
-#define FORCE_COMPILE 0
-#define CASE_SENSITIVE 1
 #define DEBUG_TRACE 1
-#define DEBUG_COMPILE_SYMBOLS 1
 #define TIN_DEBUGGER 1
+
+// -- these two affect the compiled versions, whether they're to be used, and whether they contain line number offsets
+#define FORCE_COMPILE 0
+#define DEBUG_COMPILE_SYMBOLS 1
+
+// -- mostly untested - affects the Hash function, and which version of Strncmp_ to use...
+// -- theoretically the all tokens/identifiers (e.g. namespaces, function names, ...) are
+// -- executed through their hash values...
+#define CASE_SENSITIVE 1
 
 const int32 kCompilerVersion = 3;
 
@@ -465,7 +473,7 @@ class CScriptContext
         // -- methods to send object status updates to the debugger
         void DebuggerNotifyCreateObject(CObjectEntry* oe);
         void DebuggerNotifyDestroyObject(uint32 object_id);
-        void DebuggerNotifySetAddObject(uint32 parent_id, uint32 object_id);
+        void DebuggerNotifySetAddObject(uint32 parent_id, uint32 object_id, bool8 owned);
         void DebuggerNotifySetRemoveObject(uint32 parent_id, uint32 object_id);
         void DebuggerListObjects(uint32 parent_id, uint32 object_id);
         void DebuggerInspectObject(uint32 object_id);

@@ -2056,9 +2056,9 @@ void DebuggerNotifyDestroyObject(int32 object_id)
 // ====================================================================================================================
 // DebuggerSetAddObject():  Add the object to a set, mirrored in the ObjectBrowser's tree view.
 // ====================================================================================================================
-void DebuggerNotifySetAddObject(int32 set_id, int32 object_id)
+void DebuggerNotifySetAddObject(int32 set_id, int32 object_id, bool8 owned)
 {
-    CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->NotifySetAddObject(set_id, object_id);
+    CConsoleWindow::GetInstance()->GetDebugObjectBrowserWin()->NotifySetAddObject(set_id, object_id, owned);
 }
 
 // ====================================================================================================================
@@ -2100,7 +2100,7 @@ void DebuggerRemoveSchedule(int32 schedule_id)
 REGISTER_FUNCTION_P0(DebuggerClearObjectBrowser, DebuggerClearObjectBrowser, void);
 REGISTER_FUNCTION_P3(DebuggerNotifyCreateObject, DebuggerNotifyCreateObject, void, int32, const char*, const char*);
 REGISTER_FUNCTION_P1(DebuggerNotifyDestroyObject, DebuggerNotifyDestroyObject, void, int32);
-REGISTER_FUNCTION_P2(DebuggerNotifySetAddObject, DebuggerNotifySetAddObject, void, int32, int32);
+REGISTER_FUNCTION_P3(DebuggerNotifySetAddObject, DebuggerNotifySetAddObject, void, int32, int32, bool8);
 REGISTER_FUNCTION_P2(DebuggerNotifySetRemoveObject, DebuggerNotifySetRemoveObject, void, int32, int32);
 
 REGISTER_FUNCTION_P1(DebuggerNotifyTimeScale, DebuggerNotifyTimeScale, void, float);

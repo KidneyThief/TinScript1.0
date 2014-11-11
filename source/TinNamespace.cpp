@@ -78,6 +78,15 @@ CObjectEntry::~CObjectEntry()
 }
 
 // ====================================================================================================================
+// GetGroupID():  Returns the ID of the group owning this object
+// ====================================================================================================================
+uint32 CObjectEntry::GetGroupID() const
+{
+    CObjectEntry* group_oe = mContextOwner->FindObjectByAddress((void*)mGroupOwner);
+    return (group_oe ? group_oe->GetID() : 0);
+}
+
+// ====================================================================================================================
 // GetVariableEntry():  Search the linked list of namespaces, and the dynamically added list for a registered variable.
 // ====================================================================================================================
 CVariableEntry* CObjectEntry::GetVariableEntry(uint32 varhash)
@@ -629,9 +638,6 @@ void CScriptContext::DestroyObject(uint32 objectid)
         return;
     oe->SetDestroyed();
 
-    // -- notify the debugger of the new object (before we call OnCreate(), as that may add the object to a set)
-    DebuggerNotifyDestroyObject(objectid);
-
     // -- notify the master membership list to remove it from all groups
     GetMasterMembershipList()->OnDelete(oe);
 
@@ -674,6 +680,9 @@ void CScriptContext::DestroyObject(uint32 objectid)
     // -- if the object was not registered externally, delete the actual object
     if (!oe->IsManuallyRegistered())
         (*destroyptr)(objaddr);
+
+    // -- notify the debugger, after the destructor has had a chance to send "RemoveFromSet" notifications
+    DebuggerNotifyDestroyObject(objectid);
 
     // -- remove the object from the dictionary, and delete the entry
     GetObjectDictionary()->RemoveItem(objectid);
