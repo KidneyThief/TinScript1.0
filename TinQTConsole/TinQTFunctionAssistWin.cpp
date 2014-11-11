@@ -106,6 +106,18 @@ CDebugFunctionAssistWin::~CDebugFunctionAssistWin()
 }
 
 // ====================================================================================================================
+// NotifyCodeblockLoaded():  When a codeblock has been loaded, we should re-query, in case of new function definitions. 
+// ====================================================================================================================
+void CDebugFunctionAssistWin::NotifyCodeblockLoaded(uint32 codeblock_hash)
+{
+    // -- only request from the target for a valid ID
+    if (mSearchObjectID >= 0 && SocketManager::IsConnected())
+    {
+        SocketManager::SendCommandf("DebuggerRequestFunctionAssist(%d);", mSearchObjectID);
+    }
+}
+
+// ====================================================================================================================
 // ClearSearch():  Cleans up all data associated with a search.
 // ====================================================================================================================
 void CDebugFunctionAssistWin::ClearSearch()

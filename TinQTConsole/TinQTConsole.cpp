@@ -612,7 +612,7 @@ void CConsoleWindow::HandleBreakpointHit(const char* breakpoint_msg)
         GetDebugBreakpointsWin()->SetCurrentVarWatch(mBreakpointWatchRequestID);
 
     while (SocketManager::IsConnected() && !mBreakpointRun &&
-           !mBreakpointStep && !mBreakpointStepIn && !mBreakpointStepOut)
+           !mBreakpointStep && !mBreakpointStepIn && !mBreakpointStepOut && !mAssertTriggered)
     {
         QCoreApplication::processEvents();
 
@@ -1042,6 +1042,7 @@ void NotifyCodeblockLoaded(const char* filename)
     // -- breakpoints are keyed from hash values
     uint32 codeblock_hash = TinScript::Hash(filename);
     CConsoleWindow::GetInstance()->GetDebugBreakpointsWin()->NotifyCodeblockLoaded(codeblock_hash);
+    CConsoleWindow::GetInstance()->GetDebugFunctionAssistWin()->NotifyCodeblockLoaded(codeblock_hash);
 }
 
 // ====================================================================================================================
@@ -1495,11 +1496,23 @@ void CConsoleOutput::ProcessDataPackets()
     // -- this is only to be called during the main thread
     mThreadLock.Lock();
 
+    // -- copy the received packets, so we can unlock the thread
+    // -- which allows responses to send to the socket without it already being locked
+    std::vector<SocketManager::tDataPacket*> process_packets;
     while (mReceivedPackets.size() > 0)
     {
-        // -- dequeue the packet
-        SocketManager::tDataPacket* packet = mReceivedPackets[0];
+        process_packets.push_back(mReceivedPackets[0]);
         mReceivedPackets.erase(mReceivedPackets.begin());
+    }
+
+    // -- unlock the thread
+    mThreadLock.Unlock();
+
+    while (process_packets.size() > 0)
+    {
+        // -- dequeue the packet
+        SocketManager::tDataPacket* packet = process_packets[0];
+        process_packets.erase(process_packets.begin());
 
         // -- see what type of data packet we received
         int32* dataPtr = (int32*)packet->mData;
@@ -1557,9 +1570,6 @@ void CConsoleOutput::ProcessDataPackets()
         // -- the callback is required to manage the packet memory itself
         delete packet;
     }
-
-    // -- unlock the thread
-    mThreadLock.Unlock();
 }
 // ====================================================================================================================
 // HandlePacketCurrentWorkingDir():  A callback handler for a packet of type "current working directory"

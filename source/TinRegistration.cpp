@@ -827,7 +827,14 @@ CFunctionEntry::~CFunctionEntry()
 {
     // -- notify the codeblock that this entry no longer exists
     if (mCodeblock)
+    {
+#if TIN_DEBUGGER
+        // -- if we're currently broken in the debugger, on this function, we need to exit the VM cleanly
+        if (GetScriptContext()->mDebuggerBreakFuncCallStack)
+            GetScriptContext()->mDebuggerBreakFuncCallStack->DebuggerNotifyFunctionDeleted(0, this);
+#endif
         mCodeblock->RemoveFunction(this);
+    }
 }
 
 // ====================================================================================================================

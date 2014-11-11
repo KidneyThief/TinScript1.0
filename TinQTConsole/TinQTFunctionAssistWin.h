@@ -69,6 +69,8 @@ class CDebugFunctionAssistWin : public QWidget
             updateGeometry();
         }
 
+        void NotifyCodeblockLoaded(uint32 codeblock_hash);
+
         void ClearSearch();
         void NotifyFunctionAssistEntry(const TinScript::CDebuggerFunctionAssistEntry& assist_entry);
 

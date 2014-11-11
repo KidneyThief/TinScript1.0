@@ -437,6 +437,27 @@ bool CFunctionCallStack::DebuggerFindStackTopVar(CScriptContext* script_context,
 }
 
 // ====================================================================================================================
+// DebuggerNotifyFunctionDeleted():  Called from the CFunctionEntry deconstructor, ensuring we abort the VM if needed.
+// ====================================================================================================================
+void CFunctionCallStack::DebuggerNotifyFunctionDeleted(CObjectEntry* oe, CFunctionEntry* fe)
+{
+    // -- if this function is anywhere on the current execution stack, we need to abort the debugger break loop
+    int32 stack_index = stacktop - 1;
+    while (stack_index >= 0)
+    {
+        if ((oe && funcentrystack[stack_index].objentry == oe) || funcentrystack[stack_index].funcentry == fe)
+        {
+            mDebuggerObjectDeleted = oe ? oe->GetID() : 0;
+            mDebuggerFunctionReload = fe->GetHash();
+            break;
+        }
+
+        // -- next
+        --stack_index;
+    }
+}
+
+// ====================================================================================================================
 // BeginExecution():  Begin execution of the function we've prepared to call (assigned args, etc...)
 // ====================================================================================================================
 void CFunctionCallStack::BeginExecution(const uint32* instrptr)
@@ -496,9 +517,12 @@ bool8 CodeBlockCallFunction(CFunctionEntry* fe, CObjectEntry* oe, CExecStack& ex
 
         if (!success)
         {
-            ScriptAssert_(fe->GetScriptContext(), 0, "<internal>", -1,
-                          "Error - error executing function: %s()\n",
-                          UnHash(fe->GetHash()));
+            if (funccallstack.mDebuggerObjectDeleted == 0 && funccallstack.mDebuggerFunctionReload == 0)
+            {
+                ScriptAssert_(fe->GetScriptContext(), 0, "<internal>", -1,
+                              "Error - error executing function: %s()\n",
+                              UnHash(fe->GetHash()));
+            }
             return false;
         }
     }
@@ -652,9 +676,12 @@ bool8 ExecuteScheduledFunction(CScriptContext* script_context, uint32 objectid, 
     bool8 result = CodeBlockCallFunction(fe, oe, execstack, funccallstack, true);
     if (!result)
     {
-        ScriptAssert_(script_context, 0, "<internal>", -1,
-                      "Error - Unable to call function: %s()\n",
-                      UnHash(fe->GetHash()));
+        if (funccallstack.mDebuggerObjectDeleted == 0 && funccallstack.mDebuggerFunctionReload == 0)
+        {
+            ScriptAssert_(script_context, 0, "<internal>", -1,
+                          "Error - Unable to call function: %s()\n",
+                          UnHash(fe->GetHash()));
+        }
         return false;
     }
 
@@ -858,6 +885,12 @@ bool8 DebuggerBreakLoop(CCodeBlock* cb, const uint32* instrptr, CExecStack& exec
             break;
         }
 
+        // -- if the function call stack is no longer valid because a function was reloaded, break
+        if (funccallstack.mDebuggerObjectDeleted != 0 || funccallstack.mDebuggerFunctionReload != 0)
+        {
+            break;
+        }
+
         // -- otherwise, sleep
         Sleep(1);
     }
@@ -1003,6 +1036,21 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack, CFunctionCallSta
             }
         }
 
+        // -- if at any point during execution, we deleted a currently executing object, or reloaded a function
+        // -- we need to break from this VM so we don't dereference an IP that no longer exists.
+        if (funccallstack.mDebuggerObjectDeleted != 0 || funccallstack.mDebuggerFunctionReload != 0)
+        {
+            char msg_buf[kMaxTokenLength];
+            if (funccallstack.mDebuggerFunctionReload != 0)
+                sprintf_s(msg_buf, "Break suspended - function %s() has been redefined.\n",
+                          UnHash(funccallstack.mDebuggerFunctionReload));
+            else
+                sprintf_s(msg_buf, "Break suspended - Object [%d] no longer exists.\n",
+                          funccallstack.mDebuggerObjectDeleted);
+            script_context->DebuggerSendAssert(msg_buf, 0, 0);
+            return (false);
+        }
+
 #endif // TIN_DEBUGGER
 #endif // WIN32
 
@@ -1011,15 +1059,20 @@ bool8 CCodeBlock::Execute(uint32 offset, CExecStack& execstack, CFunctionCallSta
 
         // -- execute the op - check the return value to ensure all operations are successful
         bool8 success = GetOpExecFunction(curoperation)(this, curoperation, instrptr, execstack, funccallstack);
-        if (! success) {
-            ScriptAssert_(GetScriptContext(), false, GetFileName(), CalcLineNumber(instrptr - 1),
-                          "Error - Unable to execute OP:  %s\n", GetOperationString(curoperation));
+        if (! success)
+        {
+            if (funccallstack.mDebuggerObjectDeleted == 0 && funccallstack.mDebuggerFunctionReload == 0)
+            {
+                ScriptAssert_(GetScriptContext(), false, GetFileName(), CalcLineNumber(instrptr - 1),
+                              "Error - Unable to execute OP:  %s\n", GetOperationString(curoperation));
+            }
             return (false);
         }
 
         // -- two notable exceptions - if the curoperation was either OP_FuncReturn or OP_EOF,
         // -- we're finished executing this codeblock
-        if (curoperation == OP_FuncReturn || curoperation == OP_EOF) {
+        if (curoperation == OP_FuncReturn || curoperation == OP_EOF)
+        {
             return (true);
         }
 	}

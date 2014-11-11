@@ -2051,10 +2051,14 @@ bool8 OpExecFuncCall(CCodeBlock* cb, eOpCode op, const uint32*& instrptr, CExecS
     DebugTrace(op, "func: %s", UnHash(fe->GetHash()));
 
     bool8 result = CodeBlockCallFunction(fe, oe, execstack, funccallstack, false);
-    if (!result) {
-        DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
-                        "Error - Unable to call function: %s()\n",
-                        UnHash(fe->GetHash()));
+    if (!result)
+    {
+        if (funccallstack.mDebuggerObjectDeleted == 0 && funccallstack.mDebuggerFunctionReload == 0)
+        {
+            DebuggerAssert_(false, cb, instrptr, execstack, funccallstack,
+                            "Error - Unable to call function: %s()\n",
+                            UnHash(fe->GetHash()));
+        }
         return false;
     }
 

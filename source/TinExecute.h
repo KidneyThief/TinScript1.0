@@ -270,6 +270,8 @@ class CFunctionCallStack
             // -- debugger members
             mDebuggerBreakStep = false;
             mDebuggerLastBreak = -1;
+            mDebuggerObjectDeleted = 0;
+            mDebuggerFunctionReload = 0;
             mDebuggerBreakOnStackDepth = -1;
 		}
 
@@ -327,6 +329,8 @@ class CFunctionCallStack
 
 		bool DebuggerFindStackTopVar(CScriptContext* script_context, CExecStack& execstack, uint32 var_hash,
 								     CDebuggerWatchVarEntry& watch_entry, CVariableEntry*& ve);
+
+        void DebuggerNotifyFunctionDeleted(CObjectEntry* oe, CFunctionEntry* fe);
 
         void BeginExecution(const uint32* instrptr);
         void BeginExecution();
@@ -386,6 +390,8 @@ class CFunctionCallStack
         // -- the debugger (break, line) members must be stored per execution stack
         bool8 mDebuggerBreakStep;
         int32 mDebuggerLastBreak;
+        uint32 mDebuggerObjectDeleted;
+        uint32 mDebuggerFunctionReload;
 
         // -- to manage stepping over/out, we might need to track which stack depth is appropriate to break on
         int32 mDebuggerBreakOnStackDepth;
