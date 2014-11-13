@@ -14,15 +14,14 @@ int gMaxBullets = 4;
 float gFireCDTime = 0.1f;
 
 // -- FLTK Colors -----------------------------------------------------------------------------------------------------
-int gFLTK_BLACK = 0;
-int gFLTK_RED = 1;
-int gFLTK_GREEN = 2;
-int gFLTK_YELLOW = 3;
-int gFLTK_BLUE = 4;
-int gFLTK_PURPLE = 5;
-int gFLTK_CYAN = 6;
-int gFLTK_BROWN = 9;
-
+int gCOLOR_BLACK = 0xff000000;
+int gCOLOR_RED = 0xffff0000;
+int gCOLOR_GREEN = 0xff00ff00;
+int gCOLOR_YELLOW = 0xffff8f00;
+int gCOLOR_BLUE = 0xff0000ff;
+int gCOLOR_PURPLE = 0xffff00ff;
+int gCOLOR_CYAN = 0xff00ffff;
+int gCOLOR_BROWN = 0xff8fff00;
 
 // ====================================================================================================================
 // Asteroid : SceneObject implementation
@@ -45,7 +44,7 @@ void Asteroid::OnUpdate(float deltaTime)
         
     // -- draw the asteroid
     CancelDrawRequests(self);
-    DrawCircle(self, self.position, self.radius, 0);
+    DrawCircle(self, self.position, self.radius, gCOLOR_BLACK);
 }
 
 void Asteroid::OnCollision()
@@ -208,15 +207,15 @@ void Ship::OnUpdate(float deltaTime)
     CancelDrawRequests(self);
     
     // -- draw the 4 lines creating the "triangle-ish" ship
-    DrawLine(self, head, tail0, gFLTK_BLUE);
-    DrawLine(self, head, tail1, gFLTK_BLUE);
-    DrawLine(self, tail0, self.position, gFLTK_BLUE);
-    DrawLine(self, tail1, self.position, gFLTK_BLUE);
+    DrawLine(self, head, tail0, gCOLOR_BLUE);
+    DrawLine(self, head, tail1, gCOLOR_BLUE);
+    DrawLine(self, tail0, self.position, gCOLOR_BLUE);
+    DrawLine(self, tail1, self.position, gCOLOR_BLUE);
     
     // -- draw if we're hit
     if (self.show_hit)
     {
-        DrawText(self, self.show_hit_position, "OUCH!", gFLTK_RED);
+        DrawText(self, self.show_hit_position, "OUCH!", gCOLOR_RED);
     }
 }
 
@@ -285,7 +284,7 @@ void Ship::OnCollision()
     if (self.lives <= 0)
     {
         // -- game over, at the center of the screen
-        DrawText(self, '280 230 0', "G A M E   O V E R", gFLTK_RED);
+        DrawText(self, '320 240 0', "G A M E   O V E R", gCOLOR_RED);
         
         SimPause();
         Print("Type StartAsteroids(); to continue...");
@@ -330,7 +329,7 @@ void Bullet::OnUpdate(float deltaTime)
     
     // -- we're using our object ID also as a draw request ID
     CancelDrawRequests(self);
-    DrawCircle(self, self.position, self.radius, gFLTK_RED);
+    DrawCircle(self, self.position, self.radius, gCOLOR_RED);
     
     // -- see if it's time to expire
     self.expireTime -= deltaTime;
@@ -510,7 +509,7 @@ void StartAsteroids()
     current_game.ship = SpawnShip();
     
     // -- spawn, say, 8 asteroids
-    schedule(0, 5000, Hash("SpawnAsteroids"));
+    schedule(0, 5000, hash("SpawnAsteroids"));
 }
 
 void SpawnAsteroids()

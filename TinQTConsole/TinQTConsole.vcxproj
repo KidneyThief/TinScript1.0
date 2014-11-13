@@ -49,7 +49,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\external;..\source;..\..\Qt\5.0.1\msvc2010\include\QtWidgets;..\..\Qt\5.0.1\msvc2010\include\QtGui;..\..\Qt\5.0.1\msvc2010\include\QtCore;..\..\Qt\5.0.1\msvc2010\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\external;..\source;$(QT_ROOT)\include;$(QT_ROOT)\include\QtGui;$(QT_ROOT)\include\QtCore;$(QT_ROOT)\include\QtWidgets;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -59,6 +59,9 @@
     <PreBuildEvent>
       <Command>TinQTMoc.bat</Command>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>copy $(OutDir)$(TargetName)$(TargetExt) ..\bin</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -68,7 +71,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\external;$(QT_ROOT)\include;$(QT_ROOT)\include\QtGui;$(QT_ROOT)\include\QtCore;$(QT_ROOT)\include\QtWidgets;..\source;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\external;..\source;$(QT_ROOT)\include;$(QT_ROOT)\include\QtGui;$(QT_ROOT)\include\QtCore;$(QT_ROOT)\include\QtWidgets;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -84,6 +87,9 @@
       <Command>
       </Command>
     </CustomBuildStep>
+    <PostBuildEvent>
+      <Command>copy $(OutDir)$(TargetName)$(TargetExt) ..\bin</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="ReadMe.txt" />
